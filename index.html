@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>J.A.R.V.I.S. 智能管理系统 - 云端同步版</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Supabase JavaScript SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- 引入配置文件 -->
+    <script src="supabase-config.js"></script>
+    
+    <style>
+        /* 保持原有样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial Rounded MT Bold', 'Microsoft YaHei UI', '黑体', sans-serif;
+        }
+        
+        body {
+            background-color: #f9f7f5;
+            color: #333;
+            min-height: 100vh;
+            overflow-x: hidden;
+            padding: 20px;
+            background-image: radial-gradient(#F6CFD0 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        
+        /* 页面标题区域 */
+        .header-area {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #E2D9BC;
+            border-radius: 20px;
+            box-shadow: 0 8px 20px rgba(114, 87, 68, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .header-title {
+            display: flex;
+            align-items: center;
+        }
+        
+        .header-title h1 {
+            font-size: 2.5rem;
+            color: #5E1451;
+            margin-left: 15px;
+            text-shadow: 3px 3px 0 #F6CFD0;
+        }
+        
+        .jarvis-logo {
+            width: 60px;
+            height: 60px;
+            background-color: #5E1451;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.5rem;
+            box-shadow: 0 5px 15px rgba(94, 20, 81, 0.3);
+        }
+        
+        .status-indicators {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        
+        .status-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #F6CFD0;
+            padding: 10px 15px;
+            border-radius: 15px;
+            min-width: 100px;
+        }
+        
+        .status-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #5A2B12;
+        }
+        
+        .status-label {
+            font-size: 0.9rem;
+            color: #725744;
+        }
+        
+        /* 同步状态指示器 */
+        .sync-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+        }
+        
+        .sync-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #4CAF50;
+            animation: pulse 2s infinite;
+        }
+        
+        .sync-indicator.offline {
+            background-color: #f44336;
+            animation: none;
+        }
+        
+        .sync-indicator.syncing {
+            background-color: #FF9800;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* 用户信息显示 */
+        .user-info-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 8px 15px;
+            border-radius: 20px;
+        }
+        
+        .user-avatar-small {
+            width: 35px;
+            height: 35px;
+            background-color: #5E1451;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1rem;
+        }
+        
+        .user-name-small {
+            font-weight: bold;
+            color: #5A2B12;
+            font-size: 0.9rem;
+        }
+        
+        .logout-btn {
+            background: none;
+            border: none;
+            color: #725744;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 50%;
+            transition: all 0.3s;
+        }
+        
+        .logout-btn:hover {
+            background-color: rgba(175, 30, 23, 0.1);
+            color: #AF1E17;
+        }
+        
+        /* 通知样式 */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+            z-index: 10001;
+            animation: slideInRight 0.3s;
+            max-width: 300px;
+        }
+        
+        .notification.success {
+            background-color: #4CAF50;
+        }
+        
+        .notification.error {
+            background-color: #f44336;
+        }
+        
+        .notification.info {
+            background-color: #2196F3;
+        }
+        
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 登录/注册模态框 -->
+    <div id="authModal" class="auth-modal" style="display: none;">
+        <!-- 这里将插入auth-component.html的内容 -->
+    </div>
+
+    <!-- 页面标题区域 -->
+    <div class="header-area">
+        <div class="header-title">
+            <div class="jarvis-logo">J</div>
+            <h1>J.A.R.V.I.S. 智能管理系统</h1>
+        </div>
+        
+        <div class="status-indicators">
+            <!-- 同步状态 -->
+            <div class="sync-status">
+                <div class="sync-indicator" id="syncIndicator"></div>
+                <span id="syncStatus">已连接</span>
+            </div>
+            
+            <!-- 用户信息区域 -->
+            <div id="userInfoArea" style="display: none;">
+                <!-- 用户信息将在登录后显示 -->
+            </div>
+            
+            <!-- 登录按钮 -->
+            <button id="loginBtn" class="coin-shop-btn">
+                <i class="fas fa-sign-in-alt"></i>
+                登录
+            </button>
+            
+            <div class="status-item">
+                <div class="status-value" id="coinCount">0</div>
+                <div class="status-label">金币余额</div>
+            </div>
+            
+            <div class="status-item">
+                <div class="status-value" id="taskCount">0</div>
+                <div class="status-label">待办事项</div>
+            </div>
+            
+            <div class="status-item">
+                <div class="status-value" id="efficiencyRate">0%</div>
+                <div class="status-label">今日效率</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 主工作区容器 -->
+    <div class="dashboard-container" id="dashboard">
+        <!-- 这里将包含所有的功能区块 -->
+        <div id="loadingMessage" style="text-align: center; padding: 50px; font-size: 1.2rem; color: #725744;">
+            <i class="fas fa-spinner fa-spin"></i>
+            正在加载系统...
+        </div>
+    </div>
+
+    <!-- 引入交互库 -->
+    <script src="https://cdn.jsdelivr.net/npm/interactjs@1.10.11/dist/interact.min.js"></script>
+    
+    <script>
+        // 全局变量
+        let currentUser = null;
+        let isOnline = navigator.onLine;
+        let supabase = null;
+        
+        // 初始化应用
+        async function initApp() {
+            try {
+                // 初始化Supabase
+                const supabaseInitialized = await window.SupabaseManager.init();
+                
+                if (supabaseInitialized) {
+                    updateSyncStatus('connected');
+                    
+                    // 检查用户登录状态
+                    currentUser = window.SupabaseManager.getCurrentUser();
+                    
+                    if (currentUser) {
+                        showUserInterface();
+                        await loadUserData();
+                    } else {
+                        showLoginInterface();
+                    }
+                } else {
+                    updateSyncStatus('offline');
+                    showOfflineInterface();
+                }
+                
+                // 监听网络状态变化
+                window.addEventListener('online', handleOnline);
+                window.addEventListener('offline', handleOffline);
+                
+                // 隐藏加载消息
+                document.getElementById('loadingMessage').style.display = 'none';
+                
+            } catch (error) {
+                console.error('应用初始化失败:', error);
+                updateSyncStatus('offline');
+                showOfflineInterface();
+            }
+        }
+        
+        // 更新同步状态
+        function updateSyncStatus(status) {
+            const indicator = document.getElementById('syncIndicator');
+            const statusText = document.getElementById('syncStatus');
+            
+            indicator.className = 'sync-indicator';
+            
+            switch (status) {
+                case 'connected':
+                    indicator.classList.add('online');
+                    statusText.textContent = '已连接';
+                    break;
+                case 'syncing':
+                    indicator.classList.add('syncing');
+                    statusText.textContent = '同步中';
+                    break;
+                case 'offline':
+                    indicator.classList.add('offline');
+                    statusText.textContent = '离线模式';
+                    break;
+            }
+        }
+        
+        // 显示用户界面
+        function showUserInterface() {
+            document.getElementById('loginBtn').style.display = 'none';
+            
+            // 显示用户信息
+            const userInfoArea = document.getElementById('userInfoArea');
+            userInfoArea.style.display = 'flex';
+            userInfoArea.innerHTML = `
+                <div class="user-info-header">
+                    <div class="user-avatar-small">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="user-name-small">${currentUser.user_metadata?.full_name || '用户'}</div>
+                    <button class="logout-btn" onclick="logout()">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
+            `;
+            
+            // 加载主要功能区块
+            loadMainInterface();
+        }
+        
+        // 显示登录界面
+        function showLoginInterface() {
+            document.getElementById('loginBtn').style.display = 'flex';
+            document.getElementById('userInfoArea').style.display = 'none';
+            
+            // 显示登录按钮事件
+            document.getElementById('loginBtn').onclick = () => {
+                loadAuthComponent();
+            };
+        }
+        
+        // 显示离线界面
+        function showOfflineInterface() {
+            document.getElementById('loginBtn').innerHTML = '<i class="fas fa-wifi-slash"></i> 离线模式';
+            document.getElementById('loginBtn').onclick = () => {
+                showNotification('当前处于离线模式，部分功能受限', 'info');
+            };
+            
+            // 加载基础功能
+            loadMainInterface();
+        }
+        
+        // 加载认证组件
+        async function loadAuthComponent() {
+            try {
+                const response = await fetch('auth-component.html');
+                const authHTML = await response.text();
+                
+                // 插入认证组件HTML
+                document.getElementById('authModal').innerHTML = authHTML;
+                document.getElementById('authModal').style.display = 'flex';
+                
+                // 初始化认证管理器
+                if (window.AuthManager) {
+                    window.authManager = new window.AuthManager();
+                }
+            } catch (error) {
+                console.error('加载认证组件失败:', error);
+                showNotification('加载登录界面失败', 'error');
+            }
+        }
+        
+        // 加载主界面
+        function loadMainInterface() {
+            // 这里加载主要的功能区块
+            const dashboard = document.getElementById('dashboard');
+            dashboard.innerHTML = `
+                <!-- 智能对话区块 -->
+                <div class="block" id="chat-block" style="width: 400px; height: 500px; top: 50px; left: 50px; background-color: #F6CFD0; color: #5A2B12; border-radius: 20px; padding: 20px;">
+                    <div class="block-header">
+                        <div class="block-title">
+                            <i class="fas fa-comment-dots"></i>
+                            与贾维斯对话
+                        </div>
+                    </div>
+                    <div class="block-content">
+                        <div class="chat-messages" id="chatMessages" style="height: 350px; overflow-y: auto; margin-bottom: 15px;">
+                            <div class="message" style="padding: 10px; margin-bottom: 10px; background-color: rgba(255,255,255,0.8); border-radius: 10px;">
+                                欢迎使用J.A.R.V.I.S.智能管理系统！我是你的AI助手。
+                            </div>
+                        </div>
+                        <div class="chat-input-area" style="display: flex; gap: 10px;">
+                            <input type="text" id="chatInput" placeholder="输入消息..." style="flex: 1; padding: 10px; border: none; border-radius: 15px; background-color: rgba(255,255,255,0.9);">
+                            <button id="sendBtn" style="background-color: #5E1451; color: white; border: none; width: 50px; border-radius: 50%; cursor: pointer;">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 任务管理区块 -->
+                <div class="block" id="task-block" style="width: 450px; height: 550px; top: 50px; left: 500px; background-color: #B6D4E9; color: #5A2B12; border-radius: 20px; padding: 20px;">
+                    <div class="block-header">
+                        <div class="block-title">
+                            <i class="fas fa-tasks"></i>
+                            任务管理
+                        </div>
+                    </div>
+                    <div class="block-content">
+                        <div class="task-input" style="margin-bottom: 20px;">
+                            <input type="text" id="taskInput" placeholder="添加新任务..." style="width: 100%; padding: 12px; border: none; border-radius: 15px; background-color: rgba(255,255,255,0.9);">
+                            <button id="addTaskBtn" style="width: 100%; margin-top: 10px; padding: 10px; background-color: #5E1451; color: white; border: none; border-radius: 10px; cursor: pointer;">
+                                添加任务
+                            </button>
+                        </div>
+                        <div class="task-list" id="taskList" style="height: 400px; overflow-y: auto;">
+                            <!-- 任务列表将在这里显示 -->
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // 初始化功能
+            initChat();
+            initTaskManager();
+        }
+        
+        // 初始化聊天功能
+        function initChat() {
+            const chatInput = document.getElementById('chatInput');
+            const sendBtn = document.getElementById('sendBtn');
+            const chatMessages = document.getElementById('chatMessages');
+            
+            function sendMessage() {
+                const message = chatInput.value.trim();
+                if (!message) return;
+                
+                // 添加用户消息
+                addMessage(message, 'user');
+                chatInput.value = '';
+                
+                // 模拟AI回复
+                setTimeout(() => {
+                    const responses = [
+                        '我明白了，让我来帮助你处理这个问题。',
+                        '好的，我已经记录下来了。',
+                        '这是一个很好的想法！',
+                        '我会为你安排相关的任务。'
+                    ];
+                    const response = responses[Math.floor(Math.random() * responses.length)];
+                    addMessage(response, 'ai');
+                }, 1000);
+            }
+            
+            function addMessage(text, sender) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message';
+                messageDiv.style.cssText = `
+                    padding: 10px;
+                    margin-bottom: 10px;
+                    border-radius: 10px;
+                    ${sender === 'user' ? 
+                        'background-color: #DD617C; color: white; margin-left: auto; max-width: 80%;' : 
+                        'background-color: rgba(255,255,255,0.8); color: #5A2B12; max-width: 80%;'
+                    }
+                `;
+                messageDiv.textContent = text;
+                chatMessages.appendChild(messageDiv);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+            
+            sendBtn.addEventListener('click', sendMessage);
+            chatInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') sendMessage();
+            });
+        }
+        
+        // 初始化任务管理
+        function initTaskManager() {
+            const taskInput = document.getElementById('taskInput');
+            const addTaskBtn = document.getElementById('addTaskBtn');
+            const taskList = document.getElementById('taskList');
+            
+            function addTask() {
+                const taskText = taskInput.value.trim();
+                if (!taskText) return;
+                
+                const taskId = Date.now().toString();
+                const taskElement = document.createElement('div');
+                taskElement.style.cssText = `
+                    background-color: rgba(255,255,255,0.8);
+                    padding: 15px;
+                    margin-bottom: 10px;
+                    border-radius: 10px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                `;
+                
+                taskElement.innerHTML = `
+                    <span>${taskText}</span>
+                    <div>
+                        <button onclick="completeTask('${taskId}')" style="background-color: #4CAF50; color: white; border: none; padding: 5px 10px; border-radius: 5px; margin-right: 5px; cursor: pointer;">
+                            <i class="fas fa-check"></i>
+                        </button>
+                        <button onclick="deleteTask('${taskId}')" style="background-color: #f44336; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                `;
+                
+                taskElement.id = taskId;
+                taskList.appendChild(taskElement);
+                taskInput.value = '';
+                
+                // 更新任务计数
+                updateTaskCount();
+                
+                // 如果用户已登录，保存到数据库
+                if (currentUser) {
+                    saveTaskToDatabase({
+                        id: taskId,
+                        title: taskText,
+                        status: 'pending',
+                        created_at: new Date().toISOString()
+                    });
+                }
+            }
+            
+            addTaskBtn.addEventListener('click', addTask);
+            taskInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') addTask();
+            });
+        }
+        
+        // 完成任务
+        window.completeTask = function(taskId) {
+            const taskElement = document.getElementById(taskId);
+            if (taskElement) {
+                taskElement.style.opacity = '0.6';
+                taskElement.style.textDecoration = 'line-through';
+                
+                // 更新数据库
+                if (currentUser) {
+                    updateTaskInDatabase(taskId, { status: 'completed' });
+                }
+                
+                showNotification('任务已完成！', 'success');
+                updateTaskCount();
+            }
+        };
+        
+        // 删除任务
+        window.deleteTask = function(taskId) {
+            const taskElement = document.getElementById(taskId);
+            if (taskElement && confirm('确定要删除这个任务吗？')) {
+                taskElement.remove();
+                
+                // 从数据库删除
+                if (currentUser) {
+                    deleteTaskFromDatabase(taskId);
+                }
+                
+                showNotification('任务已删除', 'info');
+                updateTaskCount();
+            }
+        };
+        
+        // 更新任务计数
+        function updateTaskCount() {
+            const tasks = document.querySelectorAll('#taskList > div');
+            const completedTasks = document.querySelectorAll('#taskList > div[style*="line-through"]');
+            const pendingTasks = tasks.length - completedTasks.length;
+            
+            document.getElementById('taskCount').textContent = pendingTasks;
+        }
+        
+        // 数据库操作函数
+        async function saveTaskToDatabase(task) {
+            if (!window.SupabaseManager) return;
+            
+            try {
+                updateSyncStatus('syncing');
+                const result = await window.SupabaseManager.saveTask(task);
+                
+                if (result.success) {
+                    updateSyncStatus('connected');
+                } else if (result.offline) {
+                    updateSyncStatus('offline');
+                    showNotification('任务已保存到本地，将在联网后同步', 'info');
+                }
+            } catch (error) {
+                console.error('保存任务失败:', error);
+                updateSyncStatus('offline');
+            }
+        }
+        
+        async function updateTaskInDatabase(taskId, updates) {
+            if (!window.SupabaseManager) return;
+            
+            try {
+                updateSyncStatus('syncing');
+                const result = await window.SupabaseManager.updateTask(taskId, updates);
+                updateSyncStatus('connected');
+            } catch (error) {
+                console.error('更新任务失败:', error);
+                updateSyncStatus('offline');
+            }
+        }
+        
+        async function deleteTaskFromDatabase(taskId) {
+            if (!window.SupabaseManager) return;
+            
+            try {
+                updateSyncStatus('syncing');
+                const result = await window.SupabaseManager.deleteTask(taskId);
+                updateSyncStatus('connected');
+            } catch (error) {
+                console.error('删除任务失败:', error);
+                updateSyncStatus('offline');
+            }
+        }
+        
+        // 加载用户数据
+        async function loadUserData() {
+            if (!currentUser || !window.SupabaseManager) return;
+            
+            try {
+                updateSyncStatus('syncing');
+                
+                // 加载任务
+                const tasksResult = await window.SupabaseManager.loadTasks();
+                if (tasksResult.success) {
+                    displayTasks(tasksResult.data);
+                }
+                
+                updateSyncStatus('connected');
+            } catch (error) {
+                console.error('加载用户数据失败:', error);
+                updateSyncStatus('offline');
+            }
+        }
+        
+        // 显示任务
+        function displayTasks(tasks) {
+            const taskList = document.getElementById('taskList');
+            if (!taskList) return;
+            
+            taskList.innerHTML = '';
+            
+            tasks.forEach(task => {
+                const taskElement = document.createElement('div');
+                taskElement.style.cssText = `
+                    background-color: rgba(255,255,255,0.8);
+                    padding: 15px;
+                    margin-bottom: 10px;
+                    border-radius: 10px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    ${task.status === 'completed' ? 'opacity: 0.6; text-decoration: line-through;' : ''}
+                `;
+                
+                taskElement.innerHTML = `
+                    <span>${task.title}</span>
+                    <div>
+                        ${task.status !== 'completed' ? `
+                            <button onclick="completeTask('${task.id}')" style="background-color: #4CAF50; color: white; border: none; padding: 5px 10px; border-radius: 5px; margin-right: 5px; cursor: pointer;">
+                                <i class="fas fa-check"></i>
+                            </button>
+                        ` : ''}
+                        <button onclick="deleteTask('${task.id}')" style="background-color: #f44336; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                `;
+                
+                taskElement.id = task.id;
+                taskList.appendChild(taskElement);
+            });
+            
+            updateTaskCount();
+        }
+        
+        // 网络状态处理
+        function handleOnline() {
+            isOnline = true;
+            updateSyncStatus('connected');
+            showNotification('网络已连接，正在同步数据...', 'info');
+            
+            // 重新初始化Supabase连接
+            if (window.SupabaseManager) {
+                window.SupabaseManager.init();
+            }
+        }
+        
+        function handleOffline() {
+            isOnline = false;
+            updateSyncStatus('offline');
+            showNotification('网络已断开，切换到离线模式', 'info');
+        }
+        
+        // 退出登录
+        window.logout = async function() {
+            if (confirm('确定要退出登录吗？')) {
+                if (window.SupabaseManager) {
+                    await window.SupabaseManager.signOut();
+                }
+                
+                currentUser = null;
+                showLoginInterface();
+                
+                // 清空界面数据
+                document.getElementById('taskList').innerHTML = '';
+                document.getElementById('chatMessages').innerHTML = `
+                    <div class="message" style="padding: 10px; margin-bottom: 10px; background-color: rgba(255,255,255,0.8); border-radius: 10px;">
+                        欢迎使用J.A.R.V.I.S.智能管理系统！请登录以同步您的数据。
+                    </div>
+                `;
+                
+                updateTaskCount();
+                showNotification('已退出登录', 'info');
+            }
+        };
+        
+        // 显示通知
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                notification.style.transition = 'opacity 0.5s';
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 500);
+            }, 3000);
+        }
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+{
+  "version": 2,
+  "name": "jarvis-smart-system",
+  "builds": [
+    {
+      "src": "index-supabase.html",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/",
+      "dest": "/index-supabase.html"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
+    }
+  ],
+  "functions": {
+    "index-supabase.html": {
+      "includeFiles": "**"
+    }
+  }
+}
