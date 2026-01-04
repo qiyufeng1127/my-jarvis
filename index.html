@@ -1327,8 +1327,10 @@
                     <div class="api-desc">请输入您的DeepSeek API Key以启用智能功能</div>
                     <div class="api-input-group">
                         <label for="apiKeyInput">API Key:</label>
-                        <input type="password" id="apiKeyInput" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" class="api-input">
-                        <button type="button" id="toggleApiKey" class="toggle-btn"><i class="fas fa-eye"></i></button>
+                        <div style="position: relative;">
+                            <input type="password" id="apiKeyInput" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" class="api-input">
+                            <button type="button" id="toggleApiKeyVisibility" class="toggle-btn"><i class="fas fa-eye"></i></button>
+                        </div>
                     </div>
                     <div class="api-actions">
                         <button id="saveApiKey" class="api-btn primary">保存并启动</button>
@@ -2730,11 +2732,132 @@
         // 全局变量
         let deepSeekApiKey = localStorage.getItem('deepseek_api_key') || '';
         
+        // 检查并确保所有必要元素都存在
+        function ensureApiModalElements() {
+            const requiredElements = [
+                { id: 'apiModal', description: 'API设置弹窗' },
+                { id: 'apiKeyInput', description: 'API输入框' },
+                { id: 'toggleApiKeyVisibility', description: '眼睛图标按钮' },
+                { id: 'saveApiKey', description: '保存按钮' },
+                { id: 'skipApiSetup', description: '跳过按钮' }
+            ];
+            
+            console.log('检查API设置元素是否存在:');
+            requiredElements.forEach(item => {
+                const element = document.getElementById(item.id);
+                console.log(`${element ? '✅' : '❌'} ${item.description}: ${item.id}`, element ? '存在' : '不存在');
+                
+                // 如果元素不存在，尝试创建
+                if (!element) {
+                    console.log(`尝试创建元素: ${item.id}`);
+                    createMissingElement(item.id);
+                }
+            });
+        }
+
+        // 创建缺失的元素
+        function createMissingElement(elementId) {
+            if (elementId === 'toggleApiKeyVisibility') {
+                // 创建眼睛图标按钮
+                const inputContainer = document.querySelector('#apiKeyInput').parentElement;
+                if (inputContainer && !document.getElementById('toggleApiKeyVisibility')) {
+                    const eyeButton = document.createElement('button');
+                    eyeButton.id = 'toggleApiKeyVisibility';
+                    eyeButton.type = 'button';
+                    eyeButton.innerHTML = '<i class="fas fa-eye"></i>';
+                    eyeButton.style.cssText = `
+                        position: absolute;
+                        right: 10px;
+                        top: 50%;
+                        transform: translateY(-50%);
+                        background: none;
+                        border: none;
+                        color: #E2D9BC;
+                        cursor: pointer;
+                        font-size: 16px;
+                        padding: 5px;
+                    `;
+                    
+                    inputContainer.appendChild(eyeButton);
+                    console.log('✅ 已创建眼睛图标按钮');
+                }
+            }
+        }
+
+        // 修复的事件绑定函数
+        function fixApiModalEventListeners() {
+            console.log('开始修复事件监听器...');
+            
+            // 1. 修复眼睛图标按钮事件
+            const eyeButton = document.getElementById('toggleApiKeyVisibility');
+            if (eyeButton) {
+                // 移除旧的事件监听器
+                eyeButton.replaceWith(eyeButton.cloneNode(true));
+                const newEyeButton = document.getElementById('toggleApiKeyVisibility');
+                
+                // 绑定新的事件
+                newEyeButton.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    console.log('眼睛按钮被点击');
+                    
+                    const apiKeyInput = document.getElementById('apiKeyInput');
+                    if (apiKeyInput) {
+                        if (apiKeyInput.type === 'password') {
+                            apiKeyInput.type = 'text';
+                            this.innerHTML = '<i class="fas fa-eye-slash"></i>';
+                        } else {
+                            apiKeyInput.type = 'password';
+                            this.innerHTML = '<i class="fas fa-eye"></i>';
+                        }
+                    }
+                });
+                console.log('✅ 眼睛图标按钮事件已绑定');
+            } else {
+                console.error('❌ 眼睛图标按钮不存在，无法绑定事件');
+            }
+            
+            // 2. 修复保存按钮事件
+            const saveButton = document.getElementById('saveApiKey');
+            if (saveButton) {
+                saveButton.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    console.log('保存按钮被点击');
+                    saveApiKey();
+                });
+                console.log('✅ 保存按钮事件已绑定');
+            }
+            
+            // 3. 修复跳过按钮事件
+            const skipButton = document.getElementById('skipApiSetup');
+            if (skipButton) {
+                skipButton.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    console.log('跳过按钮被点击');
+                    skipApiSetup();
+                });
+                console.log('✅ 跳过按钮事件已绑定');
+            }
+            
+            // 4. 修复关闭按钮事件
+            const closeButtons = document.querySelectorAll('.close');
+            closeButtons.forEach(btn => {
+                btn.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    console.log('关闭按钮被点击');
+                    closeApiModal();
+                });
+            });
+            console.log('✅ 关闭按钮事件已绑定');
+        }
+
         // API设置功能
         function initApiSettings() {
             const apiModal = document.getElementById('apiModal');
             const apiKeyInput = document.getElementById('apiKeyInput');
-            const toggleApiKey = document.getElementById('toggleApiKey');
             const saveApiKey = document.getElementById('saveApiKey');
             const skipApiSetup = document.getElementById('skipApiSetup');
             
@@ -2743,19 +2866,8 @@
                 apiModal.style.display = 'none';
             }
             
-            // 切换密码显示
-            toggleApiKey.addEventListener('click', function() {
-                if (apiKeyInput.type === 'password') {
-                    apiKeyInput.type = 'text';
-                    this.innerHTML = '<i class="fas fa-eye-slash"></i>';
-                } else {
-                    apiKeyInput.type = 'password';
-                    this.innerHTML = '<i class="fas fa-eye"></i>';
-                }
-            });
-            
             // 保存API key
-            saveApiKey.addEventListener('click', function() {
+            function saveApiKey() {
                 const apiKey = apiKeyInput.value.trim();
                 if (!apiKey) {
                     showNotification('请输入API Key', 'error');
@@ -2771,13 +2883,36 @@
                 localStorage.setItem('deepseek_api_key', apiKey);
                 apiModal.style.display = 'none';
                 showNotification('API Key已保存，智能功能已启用！', 'success');
-            });
+            }
             
             // 跳过设置
-            skipApiSetup.addEventListener('click', function() {
+            function skipApiSetup() {
                 apiModal.style.display = 'none';
                 showNotification('已跳过API设置，部分智能功能将不可用', 'info');
-            });
+            }
+            
+            // 关闭模态框
+            function closeApiModal() {
+                apiModal.style.display = 'none';
+            }
+            
+            // 将函数暴露到全局作用域
+            window.saveApiKey = saveApiKey;
+            window.skipApiSetup = skipApiSetup;
+            window.closeApiModal = closeApiModal;
+        }
+        
+        // 修改现有的openApiModal函数
+        function openApiModal() {
+            const modal = document.getElementById('apiModal');
+            if (modal) {
+                modal.style.display = 'block';
+                // 重新绑定事件以确保有效
+                setTimeout(() => {
+                    ensureApiModalElements();
+                    fixApiModalEventListeners();
+                }, 100);
+            }
         }
         
         // 打开API设置
@@ -2785,7 +2920,7 @@
             const apiModal = document.getElementById('apiModal');
             const apiKeyInput = document.getElementById('apiKeyInput');
             apiKeyInput.value = deepSeekApiKey;
-            apiModal.style.display = 'block';
+            openApiModal();
         }
         
         // DeepSeek API调用函数
@@ -3603,58 +3738,79 @@
 
         // 区块10: 页面初始化
         document.addEventListener('DOMContentLoaded', function() {
-            // 初始化API设置
-            initApiSettings();
+            console.log('DOM加载完成');
             
-            // 更新时间
-            updateTime();
-            setInterval(updateTime, 60000); // 每分钟更新一次
-            
-            // 从本地存储加载布局
-            loadLayout();
-            
-            // 初始化可拖动和调整大小的区块
-            initDraggableBlocks();
-            
-            // 初始化聊天功能
-            initChat();
-            
-            // 初始化行为矫正系统
-            initBehaviorSystem();
-            
-            // 初始化决策助手
-            initDecisionAssistant();
-            
-            // 初始化系统控制
-            initSystemControls();
-            
-            // 初始化控制面板
-            initControlPanel();
-            
-            // 初始化时间轴任务
-            initTimelineTasks();
-            
-            // 初始化时间间隔按钮
-            initTimelineGaps();
-            
-            // 初始化拖延记录和低效率记录功能
-            initProcrastinationSystem();
-            
-            // 新增：初始化Supabase
+            // 延迟执行以确保所有元素都加载完成
             setTimeout(() => {
-                initSupabase();
-            }, 1000);
-            
-            // 显示欢迎消息
-            setTimeout(() => {
-                if (deepSeekApiKey) {
-                    showNotification("J.A.R.V.I.S. 系统已就绪！AI功能已启用", "success");
-                } else {
-                    showNotification("J.A.R.V.I.S. 系统已就绪！请设置API Key启用AI功能", "info");
+                // 检查元素是否存在
+                ensureApiModalElements();
+                
+                // 修复事件监听器
+                fixApiModalEventListeners();
+                
+                // 如果有API设置按钮，绑定打开事件
+                const apiSettingsBtn = document.querySelector('.api-settings-btn');
+                if (apiSettingsBtn) {
+                    apiSettingsBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        openApiModal();
+                    });
                 }
+                
+                // 初始化API设置
+                initApiSettings();
+                
+                // 更新时间
+                updateTime();
+                setInterval(updateTime, 60000); // 每分钟更新一次
+                
+                // 从本地存储加载布局
+                loadLayout();
+                
+                // 初始化可拖动和调整大小的区块
+                initDraggableBlocks();
+                
+                // 初始化聊天功能
+                initChat();
+                
+                // 初始化行为矫正系统
+                initBehaviorSystem();
+                
+                // 初始化决策助手
+                initDecisionAssistant();
+                
+                // 初始化系统控制
+                initSystemControls();
+                
+                // 初始化控制面板
+                initControlPanel();
+                
+                // 初始化时间轴任务
+                initTimelineTasks();
+                
+                // 初始化时间间隔按钮
+                initTimelineGaps();
+                
+                // 初始化拖延记录和低效率记录功能
+                initProcrastinationSystem();
+                
+                // 新增：初始化Supabase
+                setTimeout(() => {
+                    initSupabase();
+                }, 1000);
+                
+                // 显示欢迎消息
+                setTimeout(() => {
+                    if (deepSeekApiKey) {
+                        showNotification("J.A.R.V.I.S. 系统已就绪！AI功能已启用", "success");
+                    } else {
+                        showNotification("J.A.R.V.I.S. 系统已就绪！请设置API Key启用AI功能", "info");
+                    }
+                }, 1000);
+                
+                console.log("J.A.R.V.I.S. 系统初始化完成");
             }, 1000);
-            
-            console.log("J.A.R.V.I.S. 系统初始化完成");
         });
         
         // 为区块控制按钮添加功能
