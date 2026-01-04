@@ -9,9 +9,6 @@
     <!-- Supabase JavaScript SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
-    <!-- 引入配置文件 -->
-    <script src="supabase-config.js"></script>
-    
     <style>
         /* 保持原有样式 */
         * {
@@ -279,6 +276,68 @@
     <script src="https://cdn.jsdelivr.net/npm/interactjs@1.10.11/dist/interact.min.js"></script>
     
     <script>
+        // Supabase配置
+        const SUPABASE_CONFIG = {
+            url: 'https://rkacmsgngdlolooodtjv.supabase.co',
+            anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJrYWNtc2duZ2Rsb2xvb29kdGp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzU3MzE2NzcsImV4cCI6MjA1MTMwNzY3N30.sb_publishable_7dgzskR8jA_lFEsTSsQIrw_uoND9GHO',
+            tables: {
+                users: 'users',
+                tasks: 'tasks', 
+                memories: 'memories',
+                coins: 'coin_transactions',
+                settings: 'user_settings'
+            }
+        };
+        
+        // 初始化Supabase
+        let supabase;
+        
+        // Supabase管理器
+        window.SupabaseManager = {
+            init: async function() {
+                try {
+                    supabase = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
+                    return true;
+                } catch (error) {
+                    console.error('Supabase初始化失败:', error);
+                    return false;
+                }
+            },
+            getCurrentUser: function() {
+                return currentUser;
+            },
+            signUp: async function(email, password) {
+                const { data, error } = await supabase.auth.signUp({ email, password });
+                return { success: !error, data, error };
+            },
+            signIn: async function(email, password) {
+                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+                return { success: !error, data, error };
+            },
+            signOut: async function() {
+                const { error } = await supabase.auth.signOut();
+                return { success: !error, error };
+            },
+            saveTask: async function(task) {
+                if (!currentUser) return { success: false, offline: true };
+                const { data, error } = await supabase.from('tasks').insert([{...task, user_id: currentUser.id}]);
+                return { success: !error, data, error };
+            },
+            loadTasks: async function() {
+                if (!currentUser) return { success: false };
+                const { data, error } = await supabase.from('tasks').select('*').eq('user_id', currentUser.id);
+                return { success: !error, data, error };
+            },
+            updateTask: async function(id, updates) {
+                const { data, error } = await supabase.from('tasks').update(updates).eq('id', id);
+                return { success: !error, data, error };
+            },
+            deleteTask: async function(id) {
+                const { error } = await supabase.from('tasks').delete().eq('id', id);
+                return { success: !error, error };
+            }
+        };
+        
         // 全局变量
         let currentUser = null;
         let isOnline = navigator.onLine;
