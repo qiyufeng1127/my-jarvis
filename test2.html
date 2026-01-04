@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>J.A.R.V.I.S. 测试版</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body style="font-family: Arial; padding: 20px; background: #f5f5f5;">
+    <h1>J.A.R.V.I.S. 智能管理系统</h1>
+    
+    <div id="loginArea">
+        <h3>用户登录</h3>
+        <input type="email" id="email" placeholder="邮箱" style="padding: 10px; margin: 5px;">
+        <input type="password" id="password" placeholder="密码" style="padding: 10px; margin: 5px;">
+        <button id="registerBtn" style="padding: 10px 20px; margin: 5px;">注册</button>
+        <button id="loginBtn" style="padding: 10px 20px; margin: 5px;">登录</button>
+        <button id="logoutBtn" style="padding: 10px 20px; margin: 5px;">退出</button>
+    </div>
+    
+    <div id="userInfo" style="margin: 20px 0; padding: 10px; background: #e0e0e0; display: none;">
+        <p>用户已登录: <span id="userEmail"></span></p>
+    </div>
+    
+    <div id="taskArea">
+        <h3>任务管理</h3>
+        <input type="text" id="taskInput" placeholder="输入任务..." style="padding: 10px; width: 300px;">
+        <button id="addTaskBtn" style="padding: 10px 20px;">添加任务</button>
+        <div id="taskList" style="margin-top: 20px;"></div>
+    </div>
+    
+    <div id="status" style="margin-top: 20px; padding: 10px; background: #d4edda; border-radius: 5px;"></div>
+
+    <script>
+        const supabaseUrl = 'https://rkacmsgngdlolooodtjv.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJrYWNtc2duZ2Rsb2xvb29kdGp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzU3MzE2NzcsImV4cCI6MjA1MTMwNzY3N30.sb_publishable_7dgzskR8jA_lFEsTSsQIrw_uoND9GHO';
+        
+        let client;
+        let currentUser = null;
+        let tasks = [];
+        
+        function showStatus(message) {
+            document.getElementById('status').textContent = new Date().toLocaleTimeString() + ': ' + message;
+        }
+        
+        async function init() {
+            try {
+                client = window.supabase.createClient(supabaseUrl, supabaseKey);
+                showStatus('Supabase已连接');
+                
+                const { data: { user } } = await client.auth.getUser();
+                if (user) {
+                    currentUser = user;
+                    showUserInfo();
+                    loadTasks();
+                }
+                
+                client.auth.onAuthStateChange((event, session) => {
+                    if (event === 'SIGNED_IN') {
+                        currentUser = session.user;
+                        showUserInfo();
+                        loadTasks();
+                        showStatus('登录成功');
+                    } else if (event === 'SIGNED_OUT') {
+                        currentUser = null;
+                        hideUserInfo();
+                        clearTasks();
+                        showStatus('已退出登录');
+                    }
+                });
+                
+            } catch (error) {
+                showStatus('初始化失败: ' + error.message);
+            }
+        }
+        
+        async function registerUser() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            if (!email || !password) {
+                showStatus('请输入邮箱和密码');
+                return;
+            }
+            
+            try {
+                const { data, error } = await client.auth.signUp({
+                    email: email,
+                    password: password
+                });
+                
+                if (error) throw error;
+                showStatus('注册成功！');
+            } catch (error) {
+                showStatus('注册失败: ' + error.message);
+            }
+        }
+        
+        async function loginUser() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            if (!email || !password) {
+                showStatus('请输入邮箱和密码');
+                return;
+            }
+            
+            try {
+                const { data, error } = await client.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                });
+                
+                if (error) throw error;
+            } catch (error) {
+                showStatus('登录失败: ' + error.message);
+            }
+        }
+        
+        async function logoutUser() {
+            try {
+                const { error } = await client.auth.signOut();
+                if (error) throw error;
+            } catch (error) {
+                showStatus('退出失败: ' + error.message);
+            }
+        }
+        
+        async function addTask() {
+            const taskText = document.getElementById('taskInput').value.trim();
+            if (!taskText) return;
+            
+            const task = {
+                title: taskText,
+                status: 'pending',
+                created_at: new Date().toISOString()
+            };
+            
+            if (currentUser) {
+                try {
+                    const { data, error } = await client
+                        .from('tasks')
+                        .insert([{ ...task, user_id: currentUser.id }])
+                        .select();
+                    
+                    if (error) throw error;
+                    
+                    tasks.push(data[0]);
+                    showStatus('任务已保存到云端');
+                } catch (error) {
+                    showStatus('保存失败: ' + error.message);
+                    task.id = Date.now();
+                    tasks.push(task);
+                }
+            } else {
+                task.id = Date.now();
+                tasks.push(task);
+                showStatus('任务已保存到本地（请登录以同步）');
+            }
+            
+            document.getElementById('taskInput').value = '';
+            displayTasks();
+        }
+        
+        async function loadTasks() {
+            if (!currentUser) return;
+            
+            try {
+                const { data, error } = await client
+                    .from('tasks')
+                    .select('*')
+                    .eq('user_id', currentUser.id)
+                    .order('created_at', { ascending: false });
+                
+                if (error) throw error;
+                
+                tasks = data || [];
+                displayTasks();
+                showStatus('任务已从云端加载');
+            } catch (error) {
+                showStatus('加载任务失败: ' + error.message);
+            }
+        }
+        
+        function displayTasks() {
+            const taskList = document.getElementById('taskList');
+            taskList.innerHTML = '';
+            
+            tasks.forEach(task => {
+                const taskDiv = document.createElement('div');
+                taskDiv.style.cssText = 'padding: 10px; margin: 5px 0; background: white; border-radius: 5px; display: flex; justify-content: space-between;';
+                taskDiv.innerHTML = `
+                    <span>${task.title}</span>
+                    <button onclick="deleteTask('${task.id}')" style="background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">删除</button>
+                `;
+                taskList.appendChild(taskDiv);
+            });
+        }
+        
+        async function deleteTask(taskId) {
+            if (currentUser) {
+                try {
+                    const { error } = await client
+                        .from('tasks')
+                        .delete()
+                        .eq('id', taskId)
+                        .eq('user_id', currentUser.id);
+                    
+                    if (error) throw error;
+                    showStatus('任务已从云端删除');
+                } catch (error) {
+                    showStatus('删除失败: ' + error.message);
+                }
+            }
+            
+            tasks = tasks.filter(task => task.id != taskId);
+            displayTasks();
+        }
+        
+        function showUserInfo() {
+            document.getElementById('userInfo').style.display = 'block';
+            document.getElementById('userEmail').textContent = currentUser.email;
+        }
+        
+        function hideUserInfo() {
+            document.getElementById('userInfo').style.display = 'none';
+        }
+        
+        function clearTasks() {
+            tasks = [];
+            displayTasks();
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            init();
+            
+            document.getElementById('registerBtn').addEventListener('click', registerUser);
+            document.getElementById('loginBtn').addEventListener('click', loginUser);
+            document.getElementById('logoutBtn').addEventListener('click', logoutUser);
+            document.getElementById('addTaskBtn').addEventListener('click', addTask);
+        });
+    </script>
+</body>
+</html>
