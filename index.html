@@ -783,6 +783,13 @@
         
         // 页面加载完成后初始化
         document.addEventListener('DOMContentLoaded', initApp);
+        
+        // 修复未定义的函数
+        window.initPetCompanion = function() {
+            console.log('宠物伴侣功能暂未实现');
+        };
+        
+        window.showNotification = showNotification;
     </script>
 </body>
 </html>
