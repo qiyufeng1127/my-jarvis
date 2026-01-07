@@ -2575,4 +2575,14 @@ function saveApiKey() {
 // 页面加载完成后初始化
 document.addEventListener("DOMContentLoaded", function() {
     App.init();
+    
+    // 初始化拖延面板
+    if (window.ProcrastinationPanel) {
+        ProcrastinationPanel.init();
+    }
+    
+    // 初始化低效率面板
+    if (window.InefficiencyPanel) {
+        InefficiencyPanel.init();
+    }
 });
