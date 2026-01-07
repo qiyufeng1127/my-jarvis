@@ -2,7 +2,6 @@
 const UIEnhancements = {
     init() {
         this.initCalendarToggle();
-        this.initSmartInputColors();
     },
     
     // 初始化日历展开/收缩功能
@@ -27,48 +26,6 @@ const UIEnhancements = {
                 }
             });
         }, 500);
-    },
-    
-    // 初始化智能对话颜色
-    initSmartInputColors() {
-        // 监听组件背景色变化
-        const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
-                    const comp = mutation.target;
-                    if (comp.id === 'smartInput' && comp.dataset.bgColor) {
-                        this.updateSmartInputColors(comp);
-                    }
-                }
-            });
-        });
-        
-        // 观察智能对话组件
-        setTimeout(() => {
-            const smartInput = document.getElementById('smartInput');
-            if (smartInput) {
-                observer.observe(smartInput, { attributes: true });
-                // 初始化时也更新一次
-                if (smartInput.dataset.bgColor) {
-                    this.updateSmartInputColors(smartInput);
-                }
-            }
-        }, 1000);
-    },
-    
-    // 更新智能对话颜色
-    updateSmartInputColors(comp) {
-        const bgColor = comp.dataset.bgColor;
-        if (!bgColor || !window.Canvas) return;
-        
-        const contrastColor = window.Canvas.getContrastColor(bgColor);
-        const complementColor = window.Canvas.getComplementaryColor(contrastColor);
-        const inputComplementColor = window.Canvas.getComplementaryColor(complementColor);
-        
-        // 设置CSS变量
-        comp.style.setProperty('--ai-bubble-color', contrastColor);
-        comp.style.setProperty('--user-bubble-color', complementColor);
-        comp.style.setProperty('--input-bg-color', inputComplementColor);
     }
 };
 
@@ -83,4 +40,3 @@ if (document.readyState === 'loading') {
 
 // 导出
 window.UIEnhancements = UIEnhancements;
-
