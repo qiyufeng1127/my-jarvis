@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>低效率面板组件</title>
+    <link rel="stylesheet" href="../styles/main.css">
+</head>
+<body>
+    <div class="inefficiency-container">
+        <!-- 当前监控区 -->
+        <div class="monitoring-section">
+            <h3 class="section-title">🎯 当前监控</h3>
+            
+            <!-- 卡顿任务卡片 -->
+            <div class="stuck-task-card" id="stuckTaskCard">
+                <div class="task-card-header">
+                    <h4 class="task-name">【撰写项目报告】</h4>
+                    <span class="status-badge status-focusing">🟡 专注中（还剩2分钟）</span>
+                </div>
+                
+                <div class="task-card-body">
+                    <div class="current-step">
+                        <span class="step-label">当前步骤：</span>
+                        <span class="step-content">【整理数据图表】</span>
+                    </div>
+                    
+                    <div class="duration-display">
+                        <span class="duration-icon">⏱️</span>
+                        <span class="duration-time" id="durationTime">00:58</span>
+                        <span class="duration-total">/ 01:00</span>
+                    </div>
+                    
+                    <div class="duration-progress">
+                        <div class="duration-progress-bar" style="width: 97%"></div>
+                    </div>
+                    
+                    <div class="efficiency-score">
+                        <span class="score-label">当前效率评分：</span>
+                        <span class="score-value">85</span>
+                        <span class="score-max">/100</span>
+                        <div class="score-bar">
+                            <div class="score-fill" style="width: 85%"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="task-card-actions">
+                    <button class="action-btn btn-complete">✅ 完成此步骤</button>
+                    <button class="action-btn btn-mark-stuck">⏸️ 标记卡顿</button>
+                    <button class="action-btn btn-next-step">🔄 切换到下一步</button>
+                </div>
+            </div>
+            
+            <!-- 警报激活状态 (默认隐藏) -->
+            <div class="alert-card alert-inefficiency" id="alertCard" style="display: none;">
+                <div class="alert-header">
+                    <span class="alert-level">🚨 警报级别：深度卡顿</span>
+                </div>
+                
+                <div class="alert-message">
+                    <span class="alert-icon">🔊</span>
+                    <p>"您在此步骤已停留1小时，可能陷入低效循环"</p>
+                </div>
+                
+                <div class="alert-cost">
+                    <span class="cost-label">支付金币重置：</span>
+                    <span class="cost-value">🪙 <strong>3</strong>金币</span>
+                </div>
+                
+                <div class="alert-actions">
+                    <button class="action-btn btn-pay-reset">🪙 支付3金币，重置1小时</button>
+                    <button class="action-btn btn-ai-adjust">🤖 AI微调下一步骤</button>
+                    <button class="action-btn btn-mindful">🧘 5分钟正念呼吸</button>
+                    <button class="action-btn btn-switch-task">🔄 切换到关联轻松任务</button>
+                    <button class="action-btn btn-analysis">📈 查看步骤分析报告</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 低效率历史区 -->
+        <div class="history-section">
+            <h3 class="section-title">📊 卡顿事件分析</h3>
+            
+            <div class="history-timeline" id="historyTimeline">
+                <!-- 历史事件1 -->
+                <div class="history-item">
+                    <div class="history-time">2024-05-20 15:30</div>
+                    <div class="history-content">
+                        <div class="history-task-name">【撰写项目报告】</div>
+                        <div class="history-step">卡顿步骤：【整理数据图表】</div>
+                        <div class="history-details">
+                            <span class="history-stat">总停留：3小时20分</span>
+                            <span class="history-stat">循环次数：4次</span>
+                            <span class="history-stat cost">总成本：45金币</span>
+                        </div>
+                        <div class="history-result">最终：AI辅助后完成</div>
+                        <button class="history-expand-btn">详情 ▼</button>
+                    </div>
+                </div>
+                
+                <!-- 历史事件2 -->
+                <div class="history-item">
+                    <div class="history-time">2024-05-20 11:45</div>
+                    <div class="history-content">
+                        <div class="history-task-name">【学习新框架】</div>
+                        <div class="history-step">卡顿步骤：【理解核心概念】</div>
+                        <div class="history-details">
+                            <span class="history-stat">总停留：2小时</span>
+                            <span class="history-stat">循环次数：2次</span>
+                            <span class="history-stat cost">总成本：9金币</span>
+                        </div>
+                        <div class="history-result">最终：支付金币后跳过</div>
+                        <button class="history-expand-btn">详情 ▼</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 设置与分析区 -->
+        <div class="settings-section collapsed">
+            <h3 class="section-title collapsible" id="settingsToggle">
+                ⚙️ 设置与分析
+                <span class="toggle-icon">▼</span>
+            </h3>
+            
+            <div class="settings-content" id="settingsContent">
+                <!-- 效率设置 -->
+                <div class="settings-group">
+                    <h4 class="group-title">效率设置</h4>
+                    <div class="setting-item">
+                        <label>判定时长：</label>
+                        <input type="range" min="30" max="120" value="60" class="setting-slider">
+                        <span class="setting-value">1小时</span>
+                    </div>
+                    <div class="setting-item">
+                        <label>半程提醒：</label>
+                        <input type="checkbox" checked class="setting-checkbox">
+                        <span>开启</span>
+                    </div>
+                    <div class="setting-item">
+                        <label>提醒语音：</label>
+                        <button class="setting-btn">🔊 可自定义</button>
+                    </div>
+                    <div class="setting-item">
+                        <label>专注音乐：</label>
+                        <button class="setting-btn">🎵 可自定义</button>
+                    </div>
+                </div>
+                
+                <!-- 金币规则 -->
+                <div class="settings-group">
+                    <h4 class="group-title">金币规则</h4>
+                    <div class="rule-item">
+                        <span>首次解除：</span>
+                        <strong>3金币</strong>
+                    </div>
+                    <div class="rule-item">
+                        <span>递增比率：</span>
+                        <strong>+100%/次</strong>
+                    </div>
+                    <div class="rule-item">
+                        <span>最高上限：</span>
+                        <strong>50金币</strong>
+                    </div>
+                </div>
+                
+                <!-- 效率分析 -->
+                <div class="settings-group">
+                    <h4 class="group-title">效率分析</h4>
+                    <div class="analysis-item">
+                        <span class="analysis-label">常见卡顿点：</span>
+                        <span class="analysis-value">数据整理、概念理解</span>
+                    </div>
+                    <div class="analysis-item">
+                        <span class="analysis-label">高效时间段：</span>
+                        <span class="analysis-value success">上午9-11点</span>
+                    </div>
+                    <div class="analysis-item">
+                        <span class="analysis-label">建议：</span>
+                        <span class="analysis-value">复杂任务安排在高效时段</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+

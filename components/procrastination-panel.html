@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>拖延面板组件</title>
+    <link rel="stylesheet" href="../styles/main.css">
+</head>
+<body>
+    <div class="procrastination-container">
+        <!-- 实时监控区 -->
+        <div class="monitoring-section">
+            <h3 class="section-title">📍 实时监控</h3>
+            
+            <!-- 当前监控任务卡片 -->
+            <div class="current-task-card" id="currentTaskCard">
+                <div class="task-card-header">
+                    <h4 class="task-name">【吃午饭】</h4>
+                    <span class="status-badge status-countdown">🟢 启动倒计时中</span>
+                </div>
+                
+                <div class="task-card-body">
+                    <div class="startup-step">
+                        <span class="step-label">启动步骤：</span>
+                        <span class="step-content">【站起来】</span>
+                    </div>
+                    
+                    <div class="countdown-display">
+                        <span class="countdown-icon">⏰</span>
+                        <span class="countdown-time" id="countdownTime">01:28</span>
+                        <span class="countdown-total">/ 02:00</span>
+                    </div>
+                    
+                    <div class="countdown-progress">
+                        <div class="countdown-progress-bar" style="width: 73%"></div>
+                    </div>
+                    
+                    <div class="cycle-info">
+                        <span>第<strong>1</strong>次循环</span>
+                        <span class="divider">|</span>
+                        <span>已支付：<strong class="coin-text">0</strong>金币</span>
+                    </div>
+                </div>
+                
+                <div class="task-card-actions">
+                    <button class="action-btn btn-complete">✅ 已完成步骤</button>
+                    <button class="action-btn btn-ai-help">🤖 AI拆分帮助</button>
+                </div>
+            </div>
+            
+            <!-- 警报激活状态 (默认隐藏) -->
+            <div class="alert-card" id="alertCard" style="display: none;">
+                <div class="alert-header">
+                    <span class="alert-level">🚨 警报级别：启动拖延</span>
+                </div>
+                
+                <div class="alert-message">
+                    <span class="alert-icon">🔊</span>
+                    <p>"已超时1分30秒！请立即完成【站起来】！"</p>
+                </div>
+                
+                <div class="alert-cost">
+                    <span class="cost-label">支付金币解除：</span>
+                    <span class="cost-value">🪙 <strong>5</strong>金币</span>
+                </div>
+                
+                <div class="alert-actions">
+                    <button class="action-btn btn-pay-reset">🪙 支付5金币重置计时</button>
+                    <button class="action-btn btn-ai-split">🤖 AI拆解第一步</button>
+                    <button class="action-btn btn-history">📊 查看历史成本</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 历史记录区 -->
+        <div class="history-section">
+            <h3 class="section-title">📜 历史记录</h3>
+            
+            <div class="history-timeline" id="historyTimeline">
+                <!-- 历史事件1 -->
+                <div class="history-item">
+                    <div class="history-time">2024-05-20 12:25</div>
+                    <div class="history-content">
+                        <div class="history-task-name">【吃午饭】</div>
+                        <div class="history-details">
+                            <span class="history-status status-paid">支付金币跳过(第3次循环)</span>
+                            <span class="history-stat">累计耗时：8分钟</span>
+                            <span class="history-stat cost">总成本：15金币</span>
+                        </div>
+                        <button class="history-expand-btn">详情 ▼</button>
+                    </div>
+                </div>
+                
+                <!-- 历史事件2 -->
+                <div class="history-item">
+                    <div class="history-time">2024-05-20 10:15</div>
+                    <div class="history-content">
+                        <div class="history-task-name">【写周报】</div>
+                        <div class="history-details">
+                            <span class="history-status status-success">成功启动</span>
+                            <span class="history-stat">耗时：1分30秒</span>
+                            <span class="history-stat reward">获得：3金币奖励</span>
+                        </div>
+                        <button class="history-expand-btn">详情 ▼</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 设置与统计区 -->
+        <div class="settings-section collapsed">
+            <h3 class="section-title collapsible" id="settingsToggle">
+                ⚙️ 设置与统计
+                <span class="toggle-icon">▼</span>
+            </h3>
+            
+            <div class="settings-content" id="settingsContent">
+                <!-- 启动设置 -->
+                <div class="settings-group">
+                    <h4 class="group-title">启动设置</h4>
+                    <div class="setting-item">
+                        <label>启动宽限期：</label>
+                        <input type="range" min="1" max="5" value="2" class="setting-slider">
+                        <span class="setting-value">2分钟</span>
+                    </div>
+                    <div class="setting-item">
+                        <label>语音播报：</label>
+                        <button class="setting-btn">🔊 可自定义</button>
+                    </div>
+                    <div class="setting-item">
+                        <label>启动提示音：</label>
+                        <button class="setting-btn">🎵 可自定义</button>
+                    </div>
+                </div>
+                
+                <!-- 金币规则 -->
+                <div class="settings-group">
+                    <h4 class="group-title">金币规则</h4>
+                    <div class="rule-item">
+                        <span>首次解除：</span>
+                        <strong>5金币</strong>
+                    </div>
+                    <div class="rule-item">
+                        <span>递增比率：</span>
+                        <strong>+50%/次</strong>
+                    </div>
+                    <div class="rule-item">
+                        <span>最高上限：</span>
+                        <strong>50金币</strong>
+                    </div>
+                </div>
+                
+                <!-- 统计数据 -->
+                <div class="settings-group">
+                    <h4 class="group-title">统计数据</h4>
+                    <div class="stat-item">
+                        <span>本周拖延次数：</span>
+                        <strong class="stat-value">3次</strong>
+                    </div>
+                    <div class="stat-item">
+                        <span>历史总花费：</span>
+                        <strong class="stat-value cost">42金币</strong>
+                    </div>
+                    <div class="stat-item">
+                        <span>节省时间：</span>
+                        <strong class="stat-value success">15分钟</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+

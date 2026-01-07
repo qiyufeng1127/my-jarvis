@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ADHD Focus - 智能任务管理</title>
     <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/panels.css">
 </head>
 <body>
     <!-- 游戏化状态栏 -->
@@ -155,6 +156,40 @@
                 </div>
             </div>
             <div class="component-body" id="warningPanelBody">
+                <!-- 组件内容由JS加载 -->
+            </div>
+            <div class="resize-handle"></div>
+        </div>
+
+        <!-- 拖延面板组件 -->
+        <div class="draggable-component" id="procrastinationPanel" data-component="procrastination-panel" style="left: 1700px; top: 50px; width: 420px; height: 650px;">
+            <div class="component-header">
+                <span class="component-title">⏰ 拖延监控</span>
+                <div class="component-controls">
+                    <button class="component-btn btn-minimize" title="最小化"></button>
+                    <button class="component-btn btn-maximize" title="最大化"></button>
+                    <button class="color-picker-btn" title="背景颜色">🎨</button>
+                    <input type="color" class="color-picker" value="#ffffff">
+                </div>
+            </div>
+            <div class="component-body" id="procrastinationPanelBody">
+                <!-- 组件内容由JS加载 -->
+            </div>
+            <div class="resize-handle"></div>
+        </div>
+
+        <!-- 低效率面板组件 -->
+        <div class="draggable-component" id="inefficiencyPanel" data-component="inefficiency-panel" style="left: 2140px; top: 50px; width: 420px; height: 650px;">
+            <div class="component-header">
+                <span class="component-title">📉 效率监控</span>
+                <div class="component-controls">
+                    <button class="component-btn btn-minimize" title="最小化"></button>
+                    <button class="component-btn btn-maximize" title="最大化"></button>
+                    <button class="color-picker-btn" title="背景颜色">🎨</button>
+                    <input type="color" class="color-picker" value="#ffffff">
+                </div>
+            </div>
+            <div class="component-body" id="inefficiencyPanelBody">
                 <!-- 组件内容由JS加载 -->
             </div>
             <div class="resize-handle"></div>
