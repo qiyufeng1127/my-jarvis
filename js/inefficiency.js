@@ -533,32 +533,99 @@ const InefficiencyPanel = {
 
     animateCoin(amount) {
         console.log(`💫 金币动画: ${amount > 0 ? '+' : ''}${amount}`);
+        
+        // 创建金币飞行动画
+        const panel = document.getElementById('inefficiencyPanel');
+        if (!panel) return;
+        
+        const rect = panel.getBoundingClientRect();
+        const coinDisplay = document.getElementById('coinAmount');
+        if (!coinDisplay) return;
+        
+        const targetRect = coinDisplay.getBoundingClientRect();
+        
+        // 创建多个金币
+        const coinCount = Math.min(Math.abs(amount), 5);
+        for (let i = 0; i < coinCount; i++) {
+            setTimeout(() => {
+                const coin = document.createElement('div');
+                coin.textContent = '🪙';
+                coin.style.cssText = `
+                    position: fixed;
+                    left: ${rect.left + rect.width / 2}px;
+                    top: ${rect.top + rect.height / 2}px;
+                    font-size: 24px;
+                    z-index: 10001;
+                    pointer-events: none;
+                    transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+                `;
+                document.body.appendChild(coin);
+                
+                setTimeout(() => {
+                    coin.style.left = targetRect.left + 'px';
+                    coin.style.top = targetRect.top + 'px';
+                    coin.style.opacity = '0';
+                    coin.style.transform = 'scale(0.5)';
+                }, 50);
+                
+                setTimeout(() => coin.remove(), 900);
+            }, i * 100);
+        }
+        
+        // 金币数字跳动
+        if (coinDisplay) {
+            coinDisplay.style.transform = 'scale(1.3)';
+            coinDisplay.style.color = amount > 0 ? '#27AE60' : '#E74C3C';
+            setTimeout(() => {
+                coinDisplay.style.transform = 'scale(1)';
+                coinDisplay.style.color = '';
+            }, 300);
+        }
     },
 
     showToast(message, type) {
         console.log(`[${type.toUpperCase()}] ${message}`);
         
         const toast = document.createElement('div');
+        toast.className = 'custom-toast toast-' + type;
         toast.style.cssText = `
             position: fixed;
-            top: 100px;
+            top: 80px;
             left: 50%;
-            transform: translateX(-50%);
-            background: ${type === 'success' ? '#27AE60' : type === 'error' ? '#E74C3C' : type === 'warning' ? '#F39C12' : '#4A90E2'};
+            transform: translateX(-50%) translateY(-20px);
+            background: ${type === 'success' ? 'linear-gradient(135deg, #27AE60, #2ECC71)' : 
+                         type === 'error' ? 'linear-gradient(135deg, #E74C3C, #EC7063)' : 
+                         type === 'warning' ? 'linear-gradient(135deg, #F39C12, #F1C40F)' : 
+                         'linear-gradient(135deg, #4A90E2, #5DADE2)'};
             color: white;
-            padding: 12px 24px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            padding: 14px 28px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.25);
             z-index: 10000;
-            white-space: pre-line;
+            font-size: 14px;
+            font-weight: 600;
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
             max-width: 400px;
-            animation: slideDown 0.3s ease;
+            text-align: center;
+            white-space: pre-line;
         `;
-        toast.textContent = message;
+        
+        // 添加图标
+        const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : type === 'warning' ? '⚠️' : 'ℹ️';
+        toast.innerHTML = `<span style="margin-right: 8px;">${icon}</span>${message}`;
+        
         document.body.appendChild(toast);
         
+        // 触发动画
         setTimeout(() => {
-            toast.style.animation = 'fadeOut 0.3s ease';
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateX(-50%) translateY(0)';
+        }, 10);
+        
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(-50%) translateY(-20px)';
             setTimeout(() => toast.remove(), 300);
         }, 3000);
     }
