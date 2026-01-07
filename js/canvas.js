@@ -359,16 +359,23 @@ const Canvas = {
                 el.style.setProperty('color', textColorMuted, 'important');
             }
             
-            // 消息气泡特殊处理 - 使用对比色和互补色
+            // 消息气泡特殊处理 - 使用强对比色
             if (classList.includes('message-bubble')) {
                 if (el.closest('.message.system')) {
-                    // AI气泡使用对比色
+                    // AI气泡使用强对比色
                     el.style.setProperty('background', contrastColor, 'important');
-                    el.style.setProperty('color', this.getColorBrightness(contrastColor) < 128 ? '#FFFFFF' : '#333333', 'important');
+                    // 根据气泡背景色决定文字颜色，确保高对比度
+                    const bubbleBrightness = this.getColorBrightness(contrastColor);
+                    const textColor = bubbleBrightness > 128 ? '#000000' : '#FFFFFF';
+                    el.style.setProperty('color', textColor, 'important');
+                    el.style.setProperty('font-weight', '500', 'important');
                 } else if (el.closest('.message.user')) {
                     // 用户气泡使用AI气泡的互补色
                     el.style.setProperty('background', complementColor, 'important');
-                    el.style.setProperty('color', this.getColorBrightness(complementColor) < 128 ? '#FFFFFF' : '#333333', 'important');
+                    const bubbleBrightness = this.getColorBrightness(complementColor);
+                    const textColor = bubbleBrightness > 128 ? '#000000' : '#FFFFFF';
+                    el.style.setProperty('color', textColor, 'important');
+                    el.style.setProperty('font-weight', '500', 'important');
                 }
             }
             
@@ -464,20 +471,30 @@ const Canvas = {
         return (r * 299 + g * 587 + b * 114) / 1000;
     },
     
-    // 获取对比色（与背景色形成对比）
+    // 获取对比色（与背景色形成强烈对比）
     getContrastColor(bgColor) {
         const brightness = this.getColorBrightness(bgColor);
         const rgb = this.hexToRgb(bgColor);
         
-        if (!rgb) return 'rgba(255,182,193,0.8)';
+        if (!rgb) return 'rgba(255, 255, 255, 0.95)';
         
-        // 如果背景是暗色，返回亮色；如果是亮色，返回暗色
+        // 使用更强的对比度算法
         if (brightness < 128) {
-            // 暗色背景，返回亮色对比
-            return `rgba(${Math.min(255, rgb.r + 100)}, ${Math.min(255, rgb.g + 100)}, ${Math.min(255, rgb.b + 100)}, 0.85)`;
+            // 暗色背景，返回明亮的白色或浅色
+            return 'rgba(255, 255, 255, 0.95)';
         } else {
-            // 亮色背景，返回暗色对比
-            return `rgba(${Math.max(0, rgb.r - 80)}, ${Math.max(0, rgb.g - 80)}, ${Math.max(0, rgb.b - 80)}, 0.85)`;
+            // 亮色背景，返回深色
+            // 计算反转色并加深
+            const invertR = 255 - rgb.r;
+            const invertG = 255 - rgb.g;
+            const invertB = 255 - rgb.b;
+            
+            // 确保足够深
+            const darkR = Math.min(invertR, 80);
+            const darkG = Math.min(invertG, 80);
+            const darkB = Math.min(invertB, 80);
+            
+            return `rgba(${darkR}, ${darkG}, ${darkB}, 0.95)`;
         }
     },
     
