@@ -1,0 +1,80 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>鏃堕棿杞寸粍浠?/title>
+    <link rel="stylesheet" href="../styles/main.css">
+    <style>
+        body { 
+            background: linear-gradient(135deg, #E8F4F8 0%, #F0E6F6 100%); 
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .component-preview {
+            width: 350px;
+            height: 600px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <div class="component-preview">
+        <div class="timeline-container">
+            <div class="timeline-header">
+                <button>鈼€</button>
+                <span class="timeline-date">1鏈?鏃?鍛ㄥ洓</span>
+                <button>鈻?/button>
+                <button>浠婂ぉ</button>
+            </div>
+            <div class="timeline-scroll">
+                <div class="timeline-track">
+                    <div class="time-slot" data-hour="14">
+                        <span class="time-label">14:00</span>
+                        <button class="gap-add-btn" style="opacity:1;">+</button>
+                    </div>
+                    <div class="time-slot" data-hour="15">
+                        <span class="time-label">15:00</span>
+                        <div class="task-block" style="top: 0px; height: 60px; background: linear-gradient(135deg, #FFE4E9 0%, #FFD4DC 100%);">
+                            <div class="task-title">娲楁尽</div>
+                            <div class="task-time">15:00 - 15:30</div>
+                            <div class="task-tags"><span class="task-tag">鏃ュ父</span></div>
+                        </div>
+                    </div>
+                    <div class="time-slot" data-hour="16">
+                        <span class="time-label">16:00</span>
+                        <div class="task-block" style="top: 0px; height: 45px; background: linear-gradient(135deg, #E4F0FF 0%, #D4E4FF 100%);">
+                            <div class="task-title">鎵撴壂鎴块棿</div>
+                            <div class="task-time">16:00 - 16:15</div>
+                            <div class="task-tags"><span class="task-tag">AI寤鸿</span></div>
+                        </div>
+                        <button class="gap-add-btn" style="opacity:1; top: 50px;">+</button>
+                    </div>
+                    <div class="time-slot" data-hour="17">
+                        <span class="time-label">17:00</span>
+                        <button class="gap-add-btn" style="opacity:1;">+</button>
+                    </div>
+                    <div class="time-slot" data-hour="18">
+                        <span class="time-label">18:00</span>
+                        <button class="gap-add-btn" style="opacity:1;">+</button>
+                    </div>
+                    <div class="time-slot" data-hour="19">
+                        <span class="time-label">19:00</span>
+                        <button class="gap-add-btn" style="opacity:1;">+</button>
+                    </div>
+                    <div class="time-slot" data-hour="20">
+                        <span class="time-label">20:00</span>
+                        <button class="gap-add-btn" style="opacity:1;">+</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,73 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>璁板繂搴撶粍浠?/title>
+    <link rel="stylesheet" href="../styles/main.css">
+    <style>
+        body { 
+            background: linear-gradient(135deg, #E8F4F8 0%, #F0E6F6 100%); 
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .component-preview {
+            width: 400px;
+            height: 450px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <div class="component-preview">
+        <div class="memory-container">
+            <div class="memory-header">
+                <div class="emotion-tags">
+                    <button class="emotion-tag active">鍏ㄩ儴</button>
+                    <button class="emotion-tag happy">馃槉 寮€蹇?/button>
+                    <button class="emotion-tag calm">馃槍 骞抽潤</button>
+                    <button class="emotion-tag anxious">馃槹 鐑﹁簛</button>
+                    <button class="emotion-tag sad">馃槩 闅捐繃</button>
+                </div>
+            </div>
+            <div class="memory-grid">
+                <div class="memory-card emotion" style="border-left-color: #FF6B8A;">
+                    <div class="memory-card-header">
+                        <span class="memory-type-icon">馃槹</span>
+                        <span class="memory-time">1/8 15:00</span>
+                    </div>
+                    <div class="memory-content">蹇冩儏鏈夌偣鐑﹁簛</div>
+                    <div class="memory-task-link">馃敆 鍏宠仈: 娲楁尽</div>
+                </div>
+                <div class="memory-card idea" style="border-left-color: #F1C40F;">
+                    <div class="memory-card-header">
+                        <span class="memory-type-icon">馃挕</span>
+                        <span class="memory-time">1/8 14:30</span>
+                    </div>
+                    <div class="memory-content">绐佺劧鎯冲埌鍙互鐢ㄧ暘鑼勫伐浣滄硶鏉ユ彁楂樻晥鐜?/div>
+                </div>
+                <div class="memory-card achievement" style="border-left-color: #27AE60;">
+                    <div class="memory-card-header">
+                        <span class="memory-type-icon">馃弳</span>
+                        <span class="memory-time">1/8 12:00</span>
+                    </div>
+                    <div class="memory-content">瀹屾垚浜嗕粖澶╃殑绗竴涓换鍔★紒</div>
+                </div>
+                <div class="memory-card reflection" style="border-left-color: #9B59B6;">
+                    <div class="memory-card-header">
+                        <span class="memory-type-icon">鉂?/span>
+                        <span class="memory-time">1/7 22:00</span>
+                    </div>
+                    <div class="memory-content">涓轰粈涔堟€绘槸鎷栧欢锛熼渶瑕佹壘鍒版牴鏈師鍥?/div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

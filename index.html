@@ -1,0 +1,197 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADHD Focus - 智能任务管理</title>
+    <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+    <!-- 游戏化状态栏 -->
+    <div class="game-status" id="gameStatus">
+        <div class="coin-display">
+            <span class="coin-icon">🪙</span>
+            <span class="coin-amount" id="coinAmount">0</span>
+        </div>
+        <div class="energy-display">
+            <span class="energy-icon">⚡</span>
+            <div class="energy-bar">
+                <div class="energy-fill" id="energyFill" style="width: 100%"></div>
+            </div>
+            <span class="energy-text" id="energyText">10/10</span>
+        </div>
+    </div>
+
+    <!-- 主画布 -->
+    <div id="canvas">
+        <!-- 智能输入框组件 -->
+        <div class="draggable-component" id="smartInput" data-component="smart-input" style="left: 50px; top: 50px; width: 420px; height: 550px;">
+            <div class="component-header">
+                <span class="component-title">💬 智能对话</span>
+                <div class="component-controls">
+                    <button class="component-btn btn-minimize" title="最小化"></button>
+                    <button class="component-btn btn-maximize" title="最大化"></button>
+                    <button class="color-picker-btn" title="背景颜色">🎨</button>
+                    <input type="color" class="color-picker" value="#ffffff">
+                </div>
+            </div>
+            <div class="component-body" id="smartInputBody">
+                <!-- 组件内容由JS加载 -->
+            </div>
+            <div class="resize-handle"></div>
+        </div>
+
+        <!-- 时间轴组件 -->
+        <div class="draggable-component" id="timeline" data-component="timeline" style="left: 500px; top: 50px; width: 350px; height: 600px;">
+            <div class="component-header">
+                <span class="component-title">📅 时间轴</span>
+                <div class="component-controls">
+                    <button class="component-btn btn-minimize" title="最小化"></button>
+                    <button class="component-btn btn-maximize" title="最大化"></button>
+                    <button class="color-picker-btn" title="背景颜色">🎨</button>
+                    <input type="color" class="color-picker" value="#ffffff">
+                </div>
+            </div>
+            <div class="component-body" id="timelineBody">
+                <!-- 组件内容由JS加载 -->
+            </div>
+            <div class="resize-handle"></div>
+        </div>
+
+        <!-- 记忆库组件 -->
+        <div class="draggable-component" id="memoryBank" data-component="memory-bank" style="left: 880px; top: 50px; width: 400px; height: 450px;">
+            <div class="component-header">
+                <span class="component-title">🧠 全景记忆库</span>
+                <div class="component-controls">
+                    <button class="component-btn btn-minimize" title="最小化"></button>
+                    <button class="component-btn btn-maximize" title="最大化"></button>
+                    <button class="color-picker-btn" title="背景颜色">🎨</button>
+                    <input type="color" class="color-picker" value="#ffffff">
+                </div>
+            </div>
+            <div class="component-body" id="memoryBankBody">
+                <!-- 组件内容由JS加载 -->
+            </div>
+            <div class="resize-handle"></div>
+        </div>
+
+        <!-- 提示词面板组件 -->
+        <div class="draggable-component" id="promptPanel" data-component="prompt-panel" style="left: 50px; top: 620px; width: 420px; height: 350px;">
+            <div class="component-header">
+                <span class="component-title">📝 AI提示词设置</span>
+                <div class="component-controls">
+                    <button class="component-btn btn-minimize" title="最小化"></button>
+                    <button class="component-btn btn-maximize" title="最大化"></button>
+                    <button class="color-picker-btn" title="背景颜色">🎨</button>
+                    <input type="color" class="color-picker" value="#ffffff">
+                </div>
+            </div>
+            <div class="component-body" id="promptPanelBody">
+                <!-- 组件内容由JS加载 -->
+            </div>
+            <div class="resize-handle"></div>
+        </div>
+
+        <!-- 游戏化系统组件 -->
+        <div class="draggable-component" id="gameSystem" data-component="game-system" style="left: 880px; top: 520px; width: 400px; height: 280px;">
+            <div class="component-header">
+                <span class="component-title">🎮 游戏化系统</span>
+                <div class="component-controls">
+                    <button class="component-btn btn-minimize" title="最小化"></button>
+                    <button class="component-btn btn-maximize" title="最大化"></button>
+                    <button class="color-picker-btn" title="背景颜色">🎨</button>
+                    <input type="color" class="color-picker" value="#ffffff">
+                </div>
+            </div>
+            <div class="component-body" id="gameSystemBody">
+                <!-- 组件内容由JS加载 -->
+            </div>
+            <div class="resize-handle"></div>
+        </div>
+
+        <!-- 复盘面板组件 -->
+        <div class="draggable-component" id="reviewPanel" data-component="review-panel" style="left: 500px; top: 670px; width: 350px; height: 300px;">
+            <div class="component-header">
+                <span class="component-title">📊 复盘面板</span>
+                <div class="component-controls">
+                    <button class="component-btn btn-minimize" title="最小化"></button>
+                    <button class="component-btn btn-maximize" title="最大化"></button>
+                    <button class="color-picker-btn" title="背景颜色">🎨</button>
+                    <input type="color" class="color-picker" value="#ffffff">
+                </div>
+            </div>
+            <div class="component-body" id="reviewPanelBody">
+                <!-- 组件内容由JS加载 -->
+            </div>
+            <div class="resize-handle"></div>
+        </div>
+
+        <!-- 验证历史组件 -->
+        <div class="draggable-component" id="verificationPanel" data-component="verification-panel" style="left: 1300px; top: 50px; width: 380px; height: 400px;">
+            <div class="component-header">
+                <span class="component-title">✅ 任务验证器</span>
+                <div class="component-controls">
+                    <button class="component-btn btn-minimize" title="最小化"></button>
+                    <button class="component-btn btn-maximize" title="最大化"></button>
+                    <button class="color-picker-btn" title="背景颜色">🎨</button>
+                    <input type="color" class="color-picker" value="#ffffff">
+                </div>
+            </div>
+            <div class="component-body" id="verificationPanelBody">
+                <!-- 组件内容由JS加载 -->
+            </div>
+            <div class="resize-handle"></div>
+        </div>
+
+        <!-- 警告系统组件 -->
+        <div class="draggable-component" id="warningPanel" data-component="warning-panel" style="left: 1300px; top: 470px; width: 380px; height: 350px;">
+            <div class="component-header">
+                <span class="component-title">🚨 行为矫正系统</span>
+                <div class="component-controls">
+                    <button class="component-btn btn-minimize" title="最小化"></button>
+                    <button class="component-btn btn-maximize" title="最大化"></button>
+                    <button class="color-picker-btn" title="背景颜色">🎨</button>
+                    <input type="color" class="color-picker" value="#ffffff">
+                </div>
+            </div>
+            <div class="component-body" id="warningPanelBody">
+                <!-- 组件内容由JS加载 -->
+            </div>
+            <div class="resize-handle"></div>
+        </div>
+    </div>
+
+    <!-- API Key 弹窗 -->
+    <div class="modal-overlay" id="apiKeyModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="modal-icon">🔑</span>
+                <h2>设置 DeepSeek API Key</h2>
+            </div>
+            <div class="modal-body">
+                <p class="modal-desc">请输入您的 DeepSeek API Key 以启用AI功能</p>
+                <input type="password" id="apiKeyInput" class="api-key-input" placeholder="sk-xxxxxxxxxxxxxxxx">
+                <div class="api-key-hint">
+                    <span>💡 获取API Key: </span>
+                    <a href="https://platform.deepseek.com/" target="_blank">platform.deepseek.com</a>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn btn-cancel" onclick="closeApiKeyModal()">稍后设置</button>
+                <button class="modal-btn btn-confirm" onclick="saveApiKey()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 金币动画容器 -->
+    <div id="coinAnimationContainer"></div>
+
+    <!-- 加载脚本 -->
+    <script src="js/storage.js"></script>
+    <script src="js/ai-service.js"></script>
+    <script src="js/canvas.js"></script>
+    <script src="js/verification.js"></script>
+    <script src="js/warning.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,66 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>鏅鸿兘杈撳叆妗嗙粍浠?/title>
+    <link rel="stylesheet" href="../styles/main.css">
+    <style>
+        body { 
+            background: linear-gradient(135deg, #E8F4F8 0%, #F0E6F6 100%); 
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .component-preview {
+            width: 420px;
+            height: 550px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <div class="component-preview">
+        <div class="smart-input-container">
+            <div class="chat-header">
+                <div class="avatar-container">
+                    <img src="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%23E8F4F8%22 width=%22100%22 height=%22100%22/><text x=%2250%22 y=%2260%22 font-size=%2240%22 text-anchor=%22middle%22>馃</text></svg>" class="user-avatar">
+                    <span class="online-status disconnected"></span>
+                </div>
+                <div class="user-info">
+                    <h3>kiikii</h3>
+                    <span>鏈繛鎺I</span>
+                </div>
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <div class="message system">
+                    <span class="message-emoji">馃憢</span>
+                    <div class="message-bubble">鍡紒鎴戞槸浣犵殑涓撳睘浠诲姟鍔╂墜~闅忎究鍛婅瘔鎴戜綘鎯冲仛浠€涔堬紝鎴戞潵甯綘瀹夋帓锛?/div>
+                </div>
+                <div class="message user">
+                    <span class="message-emoji">馃毧</span>
+                    <div class="message-bubble">鏄庡ぉ涓嬪崍3鐐规礂婢★紝蹇冩儏鏈夌偣鐑﹁簛</div>
+                </div>
+                <div class="message system">
+                    <span class="message-emoji">鉁?/span>
+                    <div class="message-bubble">濂界殑锛屾垜璁颁笅浜唦<br>馃搶 宸叉坊鍔犱换鍔? 娲楁尽 (15:00)<br>馃挱 宸茶褰曟儏缁? 鐑﹁簛</div>
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <div class="input-wrapper">
+                    <input type="text" class="chat-input" placeholder="闅忎究鍐欑偣鍟?..">
+                    <button class="input-btn" title="娣诲姞闄勪欢">鉃?/button>
+                    <button class="ai-parse-btn">AI鎷嗚В</button>
+                    <button class="input-btn" title="鍙戦€?>鉃★笍</button>
+                </div>
+            </div>
+            <button class="api-key-btn" title="璁剧疆API Key">馃攽</button>
+        </div>
+    </div>
+</body>
+</html>

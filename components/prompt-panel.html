@@ -1,0 +1,53 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>鎻愮ず璇嶉潰鏉跨粍浠?/title>
+    <link rel="stylesheet" href="../styles/main.css">
+    <style>
+        body { 
+            background: linear-gradient(135deg, #E8F4F8 0%, #F0E6F6 100%); 
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .component-preview {
+            width: 420px;
+            height: 400px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <div class="component-preview">
+        <div class="prompt-container">
+            <div class="prompt-section">
+                <div class="prompt-label">馃幆 浠诲姟瑙ｆ瀽鎻愮ず璇?/div>
+                <textarea class="prompt-textarea">璇峰垎鏋愮敤鎴疯緭鍏ワ紝鎻愬彇浠诲姟淇℃伅锛堟椂闂淬€佸唴瀹广€佹儏缁級銆傝繑鍥濲SON鏍煎紡锛歿task: {title, date, startTime, endTime, tags}, emotion: {type, content}}</textarea>
+                <div class="prompt-preset">
+                    <span class="preset-tag">榛樿</span>
+                    <span class="preset-tag">璇︾粏鐗?/span>
+                </div>
+            </div>
+            <div class="prompt-section">
+                <div class="prompt-label">馃敡 浠诲姟鎷嗚В鎻愮ず璇?/div>
+                <textarea class="prompt-textarea">璇峰皢杩欎釜浠诲姟鎷嗚В鎴愭洿灏忕殑鍙墽琛屾楠わ紝姣忎釜姝ラ涓嶈秴杩?5鍒嗛挓</textarea>
+            </div>
+            <div class="prompt-section">
+                <div class="prompt-label">馃挕 闂撮殭寤鸿鎻愮ず璇?/div>
+                <textarea class="prompt-textarea">鏍规嵁鍓嶅悗浠诲姟锛屾帹鑽愪竴涓€傚悎鍦ㄩ棿闅欐椂闂村仛鐨勮交鏉炬椿鍔?/textarea>
+            </div>
+            <div class="prompt-section">
+                <div class="prompt-label">馃挱 鎯呯华鍒嗘瀽鎻愮ず璇?/div>
+                <textarea class="prompt-textarea">鍒嗘瀽杩欐鏂囧瓧鐨勬儏缁€惧悜锛岃繑鍥烇細happy/calm/anxious/sad/angry</textarea>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
