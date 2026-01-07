@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>鏅鸿兘杈撳叆妗嗙粍浠?/title>
+    <title>智能输入框组件</title>
     <link rel="stylesheet" href="../styles/main.css">
     <style>
         body { 
@@ -29,37 +29,37 @@
         <div class="smart-input-container">
             <div class="chat-header">
                 <div class="avatar-container">
-                    <img src="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%23E8F4F8%22 width=%22100%22 height=%22100%22/><text x=%2250%22 y=%2260%22 font-size=%2240%22 text-anchor=%22middle%22>馃</text></svg>" class="user-avatar">
+                    <img src="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%23E8F4F8%22 width=%22100%22 height=%22100%22/><text x=%2250%22 y=%2260%22 font-size=%2240%22 text-anchor=%22middle%22>🤖</text></svg>" class="user-avatar">
                     <span class="online-status disconnected"></span>
                 </div>
                 <div class="user-info">
                     <h3>kiikii</h3>
-                    <span>鏈繛鎺I</span>
+                    <span>未连接AI</span>
                 </div>
+                <button class="api-key-btn" title="设置API Key">🔑</button>
             </div>
             <div class="chat-messages" id="chatMessages">
                 <div class="message system">
-                    <span class="message-emoji">馃憢</span>
-                    <div class="message-bubble">鍡紒鎴戞槸浣犵殑涓撳睘浠诲姟鍔╂墜~闅忎究鍛婅瘔鎴戜綘鎯冲仛浠€涔堬紝鎴戞潵甯綘瀹夋帓锛?/div>
+                    <span class="message-emoji">👋</span>
+                    <div class="message-bubble">嗨！我是你的专属任务助手~随便告诉我你想做什么，我来帮你安排！</div>
                 </div>
                 <div class="message user">
-                    <span class="message-emoji">馃毧</span>
-                    <div class="message-bubble">鏄庡ぉ涓嬪崍3鐐规礂婢★紝蹇冩儏鏈夌偣鐑﹁簛</div>
+                    <span class="message-emoji">🛁</span>
+                    <div class="message-bubble">明天下午3点洗澡，心情有点烦躁</div>
                 </div>
                 <div class="message system">
-                    <span class="message-emoji">鉁?/span>
-                    <div class="message-bubble">濂界殑锛屾垜璁颁笅浜唦<br>馃搶 宸叉坊鍔犱换鍔? 娲楁尽 (15:00)<br>馃挱 宸茶褰曟儏缁? 鐑﹁簛</div>
+                    <span class="message-emoji">✅</span>
+                    <div class="message-bubble">好的，我记下了~<br>📍 已添加任务：洗澡 (15:00)<br>💭 已记录情绪：烦躁</div>
                 </div>
             </div>
             <div class="chat-input-area">
                 <div class="input-wrapper">
-                    <input type="text" class="chat-input" placeholder="闅忎究鍐欑偣鍟?..">
-                    <button class="input-btn" title="娣诲姞闄勪欢">鉃?/button>
-                    <button class="ai-parse-btn">AI鎷嗚В</button>
-                    <button class="input-btn" title="鍙戦€?>鉃★笍</button>
+                    <input type="text" class="chat-input" placeholder="随便写点啥...">
+                    <button class="input-btn" title="添加附件">📎</button>
+                    <button class="ai-parse-btn">AI拆解</button>
+                    <button class="input-btn" title="发送">✈️</button>
                 </div>
             </div>
-            <button class="api-key-btn" title="璁剧疆API Key">馃攽</button>
         </div>
     </div>
 </body>

@@ -124,6 +124,11 @@ const Canvas = {
         const cardBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.8)';
         const buttonBg = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.05)';
         
+        // 计算智能对话气泡颜色
+        const contrastColor = this.getContrastColor(color);
+        const complementColor = this.getComplementaryColor(contrastColor);
+        const inputComplementColor = this.getComplementaryColor(complementColor);
+        
         // 设置整个组件的背景色（包括header）
         comp.style.setProperty('background', color, 'important');
         
@@ -354,14 +359,17 @@ const Canvas = {
                 el.style.setProperty('color', textColorMuted, 'important');
             }
             
-            // 消息气泡特殊处理
+            // 消息气泡特殊处理 - 使用对比色和互补色
             if (classList.includes('message-bubble')) {
                 if (el.closest('.message.system')) {
-                    el.style.setProperty('background', isDark ? 'rgba(255,182,193,0.3)' : 'rgba(255,182,193,0.3)', 'important');
+                    // AI气泡使用对比色
+                    el.style.setProperty('background', contrastColor, 'important');
+                    el.style.setProperty('color', this.getColorBrightness(contrastColor) < 128 ? '#FFFFFF' : '#333333', 'important');
                 } else if (el.closest('.message.user')) {
-                    el.style.setProperty('background', isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.06)', 'important');
+                    // 用户气泡使用AI气泡的互补色
+                    el.style.setProperty('background', complementColor, 'important');
+                    el.style.setProperty('color', this.getColorBrightness(complementColor) < 128 ? '#FFFFFF' : '#333333', 'important');
                 }
-                el.style.setProperty('color', textColor, 'important');
             }
             
             // 聊天输入区域
@@ -370,8 +378,9 @@ const Canvas = {
                 el.style.setProperty('border-color', borderColor, 'important');
             }
             
+            // 输入框使用用户气泡的互补色
             if (classList.includes('input-wrapper')) {
-                el.style.setProperty('background', buttonBg, 'important');
+                el.style.setProperty('background', inputComplementColor, 'important');
             }
             
             // 进度条容器
@@ -453,6 +462,85 @@ const Canvas = {
         
         // 使用感知亮度公式
         return (r * 299 + g * 587 + b * 114) / 1000;
+    },
+    
+    // 获取对比色（与背景色形成对比）
+    getContrastColor(bgColor) {
+        const brightness = this.getColorBrightness(bgColor);
+        const rgb = this.hexToRgb(bgColor);
+        
+        if (!rgb) return 'rgba(255,182,193,0.8)';
+        
+        // 如果背景是暗色，返回亮色；如果是亮色，返回暗色
+        if (brightness < 128) {
+            // 暗色背景，返回亮色对比
+            return `rgba(${Math.min(255, rgb.r + 100)}, ${Math.min(255, rgb.g + 100)}, ${Math.min(255, rgb.b + 100)}, 0.85)`;
+        } else {
+            // 亮色背景，返回暗色对比
+            return `rgba(${Math.max(0, rgb.r - 80)}, ${Math.max(0, rgb.g - 80)}, ${Math.max(0, rgb.b - 80)}, 0.85)`;
+        }
+    },
+    
+    // 获取互补色
+    getComplementaryColor(color) {
+        const rgb = this.hexToRgb(color);
+        if (!rgb) return 'rgba(200,200,200,0.8)';
+        
+        // 计算互补色（色相旋转180度）
+        const max = Math.max(rgb.r, rgb.g, rgb.b);
+        const min = Math.min(rgb.r, rgb.g, rgb.b);
+        const sum = max + min;
+        
+        return `rgba(${sum - rgb.r}, ${sum - rgb.g}, ${sum - rgb.b}, 0.8)`;
+    },
+    
+    // 将十六进制颜色转换为RGB
+    hexToRgb(color) {
+        if (!color) return null;
+        
+        // 处理rgba格式
+        if (color.startsWith('rgba')) {
+            const match = color.match(/\d+/g);
+            if (match && match.length >= 3) {
+                return {
+                    r: parseInt(match[0]),
+                    g: parseInt(match[1]),
+                    b: parseInt(match[2])
+                };
+            }
+        }
+        
+        // 处理rgb格式
+        if (color.startsWith('rgb')) {
+            const match = color.match(/\d+/g);
+            if (match && match.length >= 3) {
+                return {
+                    r: parseInt(match[0]),
+                    g: parseInt(match[1]),
+                    b: parseInt(match[2])
+                };
+            }
+        }
+        
+        // 处理十六进制格式
+        if (color.startsWith('#')) {
+            const hex = color.replace('#', '');
+            if (hex.length === 3) {
+                return {
+                    r: parseInt(hex[0] + hex[0], 16),
+                    g: parseInt(hex[1] + hex[1], 16),
+                    b: parseInt(hex[2] + hex[2], 16)
+                };
+            } else if (hex.length === 6) {
+                return {
+                    r: parseInt(hex.substr(0, 2), 16),
+                    g: parseInt(hex.substr(2, 2), 16),
+                    b: parseInt(hex.substr(4, 2), 16)
+                };
+            }
+        }
+        
+        return null;
     },
 
     startDrag(e, comp) {
