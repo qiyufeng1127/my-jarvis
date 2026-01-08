@@ -38,8 +38,7 @@ const STATIC_ASSETS = [
     './components/game-system.html',
     './components/review-panel.html',
     './manifest.json',
-    './icons/icon-192.svg',
-    './icons/icon-maskable.svg'
+    './icons/tomato.png'
 ];
 
 // 安装事件 - 缓存静态资源
@@ -216,8 +215,8 @@ self.addEventListener('push', event => {
     
     const options = {
         body: data.body,
-        icon: './icons/icon-192.svg',
-        badge: './icons/icon-192.svg',
+        icon: './icons/tomato.png',
+        badge: './icons/tomato.png',
         vibrate: [200, 100, 200],
         tag: data.tag || 'default',
         renotify: true,
@@ -276,8 +275,8 @@ function scheduleNotification(payload) {
     setTimeout(() => {
         self.registration.showNotification(title, {
             body,
-            icon: './icons/icon-192.svg',
-            badge: './icons/icon-192.svg',
+            icon: './icons/tomato.png',
+            badge: './icons/tomato.png',
             tag: tag || 'scheduled',
             vibrate: [200, 100, 200],
             requireInteraction: true
