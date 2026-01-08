@@ -1,0 +1,423 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADHD Focus - 智能任务管理</title>
+    <meta name="description" content="专为ADHD人群设计的智能任务管理系统，AI驱动的个性化效率助手">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="ADHD Focus">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/mobile.css">
+    <style>
+        /* 覆盖默认字体为更有特色的 Outfit */
+        body {
+            font-family: 'Outfit', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <!-- 游戏化状态栏 -->
+    <div class="game-status" id="gameStatus">
+        <div class="coin-display">
+            <span class="coin-icon">🪙</span>
+            <span class="coin-amount" id="coinAmount">0</span>
+        </div>
+        <div class="energy-display">
+            <span class="energy-icon">⚡</span>
+            <div class="energy-bar">
+                <div class="energy-fill" id="energyFill" style="width: 100%"></div>
+            </div>
+            <span class="energy-text" id="energyText">10/10</span>
+        </div>
+    </div>
+
+    <!-- 主画布 -->
+    <div id="canvas">
+        <!-- 智能输入框组件 -->
+        <div class="draggable-component" id="smartInput" data-component="smart-input" style="left: 20px; top: 70px; width: 400px; height: 520px;">
+            <div class="component-header">
+                <span class="component-title">💬 智能对话</span>
+                <div class="component-controls">
+                    <button class="component-btn btn-minimize" title="最小化"></button>
+                    <button class="component-btn btn-maximize" title="最大化"></button>
+                    <button class="color-picker-btn" title="背景颜色">🎨</button>
+                    <input type="color" class="color-picker" value="#ffffff">
+                </div>
+            </div>
+            <div class="component-body" id="smartInputBody">
+                <!-- 组件内容由JS加载 -->
+            </div>
+            <div class="resize-handle"></div>
+        </div>
+
+        <!-- 时间轴组件 -->
+        <div class="draggable-component" id="timeline" data-component="timeline" style="left: 440px; top: 70px; width: 340px; height: 580px;">
+            <div class="component-header">
+                <span class="component-title">📅 时间轴</span>
+                <div class="component-controls">
+                    <button class="component-btn btn-minimize" title="最小化"></button>
+                    <button class="component-btn btn-maximize" title="最大化"></button>
+                    <button class="color-picker-btn" title="背景颜色">🎨</button>
+                    <input type="color" class="color-picker" value="#ffffff">
+                </div>
+            </div>
+            <div class="component-body" id="timelineBody">
+                <!-- 组件内容由JS加载 -->
+            </div>
+            <div class="resize-handle"></div>
+        </div>
+
+        <!-- 记忆库组件 -->
+        <div class="draggable-component" id="memoryBank" data-component="memory-bank" style="left: 800px; top: 70px; width: 380px; height: 420px;">
+            <div class="component-header">
+                <span class="component-title">🧠 全景记忆库</span>
+                <div class="component-controls">
+                    <button class="component-btn btn-minimize" title="最小化"></button>
+                    <button class="component-btn btn-maximize" title="最大化"></button>
+                    <button class="color-picker-btn" title="背景颜色">🎨</button>
+                    <input type="color" class="color-picker" value="#ffffff">
+                </div>
+            </div>
+            <div class="component-body" id="memoryBankBody">
+                <!-- 组件内容由JS加载 -->
+            </div>
+            <div class="resize-handle"></div>
+        </div>
+
+        <!-- 提示词面板组件 -->
+        <div class="draggable-component" id="promptPanel" data-component="prompt-panel" style="left: 20px; top: 610px; width: 400px; height: 340px;">
+            <div class="component-header">
+                <span class="component-title">📝 AI提示词设置</span>
+                <div class="component-controls">
+                    <button class="component-btn btn-minimize" title="最小化"></button>
+                    <button class="component-btn btn-maximize" title="最大化"></button>
+                    <button class="color-picker-btn" title="背景颜色">🎨</button>
+                    <input type="color" class="color-picker" value="#ffffff">
+                </div>
+            </div>
+            <div class="component-body" id="promptPanelBody">
+                <!-- 组件内容由JS加载 -->
+            </div>
+            <div class="resize-handle"></div>
+        </div>
+
+        <!-- 游戏化系统组件 -->
+        <div class="draggable-component" id="gameSystem" data-component="game-system" style="left: 800px; top: 510px; width: 380px; height: 260px;">
+            <div class="component-header">
+                <span class="component-title">🎮 游戏化系统</span>
+                <div class="component-controls">
+                    <button class="component-btn btn-minimize" title="最小化"></button>
+                    <button class="component-btn btn-maximize" title="最大化"></button>
+                    <button class="color-picker-btn" title="背景颜色">🎨</button>
+                    <input type="color" class="color-picker" value="#ffffff">
+                </div>
+            </div>
+            <div class="component-body" id="gameSystemBody">
+                <!-- 组件内容由JS加载 -->
+            </div>
+            <div class="resize-handle"></div>
+        </div>
+
+        <!-- 复盘面板组件 -->
+        <div class="draggable-component" id="reviewPanel" data-component="review-panel" style="left: 440px; top: 670px; width: 340px; height: 280px;">
+            <div class="component-header">
+                <span class="component-title">📊 复盘面板</span>
+                <div class="component-controls">
+                    <button class="component-btn btn-minimize" title="最小化"></button>
+                    <button class="component-btn btn-maximize" title="最大化"></button>
+                    <button class="color-picker-btn" title="背景颜色">🎨</button>
+                    <input type="color" class="color-picker" value="#ffffff">
+                </div>
+            </div>
+            <div class="component-body" id="reviewPanelBody">
+                <!-- 组件内容由JS加载 -->
+            </div>
+            <div class="resize-handle"></div>
+        </div>
+
+        <!-- 拖延面板组件 -->
+        <div class="draggable-component" id="procrastinationPanel" data-component="procrastination-panel" style="left: 1200px; top: 70px; width: 360px; height: 620px;">
+            <div class="component-header">
+                <span class="component-title">⏰ 拖延监控</span>
+                <div class="component-controls">
+                    <button class="component-btn btn-minimize" title="最小化"></button>
+                    <button class="component-btn btn-maximize" title="最大化"></button>
+                    <button class="color-picker-btn" title="背景颜色">🎨</button>
+                    <input type="color" class="color-picker" value="#ffffff">
+                </div>
+            </div>
+            <div class="component-body" id="procrastinationBody">
+                <!-- 组件内容由JS加载 -->
+            </div>
+            <div class="resize-handle"></div>
+        </div>
+
+        <!-- 低效率面板组件 -->
+        <div class="draggable-component" id="inefficiencyPanel" data-component="inefficiency-panel" style="left: 1580px; top: 70px; width: 380px; height: 680px;">
+            <div class="component-header">
+                <span class="component-title">📉 低效率监控</span>
+                <div class="component-controls">
+                    <button class="component-btn btn-minimize" title="最小化"></button>
+                    <button class="component-btn btn-maximize" title="最大化"></button>
+                    <button class="color-picker-btn" title="背景颜色">🎨</button>
+                    <input type="color" class="color-picker" value="#ffffff">
+                </div>
+            </div>
+            <div class="component-body" id="inefficiencyBody">
+                <!-- 组件内容由JS加载 -->
+            </div>
+            <div class="resize-handle"></div>
+        </div>
+
+        <!-- 价值显化器组件 -->
+        <div class="draggable-component" id="valuePanel" data-component="value-panel" style="left: 1200px; top: 710px; width: 420px; height: 520px;">
+            <div class="component-header">
+                <span class="component-title">💰 价值显化器</span>
+                <div class="component-controls">
+                    <button class="component-btn btn-minimize" title="最小化"></button>
+                    <button class="component-btn btn-maximize" title="最大化"></button>
+                    <button class="color-picker-btn" title="背景颜色">🎨</button>
+                    <input type="color" class="color-picker" value="#ffffff">
+                </div>
+            </div>
+            <div class="component-body" id="valueBody">
+                <!-- 组件内容由JS加载 -->
+            </div>
+            <div class="resize-handle"></div>
+        </div>
+
+        <!-- AI洞察面板组件 -->
+        <div class="draggable-component" id="aiInsights" data-component="ai-insights" style="left: 1640px; top: 710px; width: 400px; height: 520px;">
+            <div class="component-header">
+                <span class="component-title">🧠 AI智能洞察</span>
+                <div class="component-controls">
+                    <button class="component-btn btn-minimize" title="最小化"></button>
+                    <button class="component-btn btn-maximize" title="最大化"></button>
+                    <button class="color-picker-btn" title="背景颜色">🎨</button>
+                    <input type="color" class="color-picker" value="#ffffff">
+                </div>
+            </div>
+            <div class="component-body" id="aiInsightsBody">
+                <!-- 组件内容由JS加载 -->
+            </div>
+            <div class="resize-handle"></div>
+        </div>
+
+        <!-- KiiKii了解的我组件 -->
+        <div class="draggable-component" id="aiMemory" data-component="ai-memory" style="left: 800px; top: 790px; width: 380px; height: 560px;">
+            <div class="component-header">
+                <span class="component-title">💖 KiiKii了解的我</span>
+                <div class="component-controls">
+                    <button class="component-btn btn-minimize" title="最小化"></button>
+                    <button class="component-btn btn-maximize" title="最大化"></button>
+                    <button class="color-picker-btn" title="背景颜色">🎨</button>
+                    <input type="color" class="color-picker" value="#ffffff">
+                </div>
+            </div>
+            <div class="component-body" id="aiMemoryBody">
+                <!-- 组件内容由JS加载 -->
+            </div>
+            <div class="resize-handle"></div>
+        </div>
+    </div>
+
+    <!-- API Key 弹窗 -->
+    <div class="modal-overlay" id="apiKeyModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="modal-icon">🔑</span>
+                <h2>设置 DeepSeek API Key</h2>
+            </div>
+            <div class="modal-body">
+                <p class="modal-desc">请输入您的 DeepSeek API Key 以启用AI功能</p>
+                <input type="password" id="apiKeyInput" class="api-key-input" placeholder="sk-xxxxxxxxxxxxxxxx">
+                <div class="api-key-hint">
+                    <span>💡 获取API Key: </span>
+                    <a href="https://platform.deepseek.com/" target="_blank">platform.deepseek.com</a>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn btn-cancel" onclick="closeApiKeyModal()">稍后设置</button>
+                <button class="modal-btn btn-confirm" onclick="saveApiKey()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 金币动画容器 -->
+    <div id="coinAnimationContainer"></div>
+
+    <!-- Toast通知容器 -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- 主题切换按钮 -->
+    <button class="theme-toggle" id="themeToggle" title="切换深色/浅色模式">🌙</button>
+
+    <!-- 设置面板 -->
+    <div class="settings-panel" id="settingsPanel">
+        <div class="settings-panel-header">
+            <span class="settings-panel-title">⚙️ 设置</span>
+            <button class="settings-panel-close" onclick="toggleSettingsPanel()">×</button>
+        </div>
+        <div class="settings-option">
+            <span class="settings-option-label">深色模式</span>
+            <div class="settings-option-action">
+                <div class="toggle-switch" id="darkModeToggle" onclick="toggleDarkMode()"></div>
+            </div>
+        </div>
+        <div class="settings-option">
+            <span class="settings-option-label">浏览器通知</span>
+            <div class="settings-option-action">
+                <div class="toggle-switch" id="notificationToggle" onclick="toggleNotifications()"></div>
+            </div>
+        </div>
+        <div class="settings-option">
+            <span class="settings-option-label">数据备份</span>
+            <div class="settings-option-action">
+                <button class="backup-btn" onclick="exportData()">📤 导出</button>
+            </div>
+        </div>
+        <div class="settings-option">
+            <span class="settings-option-label">数据恢复</span>
+            <div class="settings-option-action">
+                <button class="backup-btn restore" onclick="importData()">📥 导入</button>
+                <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="handleImportFile(event)">
+            </div>
+        </div>
+        <div class="settings-option">
+            <span class="settings-option-label">重置引导</span>
+            <div class="settings-option-action">
+                <button class="backup-btn" style="background: linear-gradient(135deg, #9B59B6, #8E44AD);" onclick="resetOnboarding()">🔄 重新引导</button>
+            </div>
+        </div>
+        <div class="settings-option">
+            <span class="settings-option-label">云同步</span>
+            <div class="settings-option-action">
+                <button class="backup-btn" style="background: linear-gradient(135deg, #3498DB, #2980B9);" onclick="CloudSync.showConfigModal()">☁️ 设置</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 键盘快捷键提示 -->
+    <div class="shortcuts-hint" id="shortcutsHint">
+        <h4>⌨️ 快捷键</h4>
+        <div class="shortcut-item">
+            <span>新建任务</span>
+            <span class="shortcut-key">Ctrl + N</span>
+        </div>
+        <div class="shortcut-item">
+            <span>切换主题</span>
+            <span class="shortcut-key">Ctrl + D</span>
+        </div>
+        <div class="shortcut-item">
+            <span>打开设置</span>
+            <span class="shortcut-key">Ctrl + ,</span>
+        </div>
+        <div class="shortcut-item">
+            <span>显示快捷键</span>
+            <span class="shortcut-key">Ctrl + /</span>
+        </div>
+    </div>
+
+    <!-- 首次引导教程 -->
+    <div class="onboarding-overlay" id="onboardingOverlay">
+        <div class="onboarding-card">
+            <div class="onboarding-icon" id="onboardingIcon">👋</div>
+            <h2 class="onboarding-title" id="onboardingTitle">欢迎使用 ADHD Focus!</h2>
+            <p class="onboarding-desc" id="onboardingDesc">
+                这是一个专为ADHD人群设计的智能任务管理系统，让我来带你快速了解~
+            </p>
+            <div class="onboarding-features" id="onboardingFeatures">
+                <div class="onboarding-feature">
+                    <span class="onboarding-feature-icon">💬</span>
+                    <span>用自然语言告诉 KiiKii 你想做什么</span>
+                </div>
+                <div class="onboarding-feature">
+                    <span class="onboarding-feature-icon">🎮</span>
+                    <span>完成任务获得金币，游戏化激励</span>
+                </div>
+                <div class="onboarding-feature">
+                    <span class="onboarding-feature-icon">🧠</span>
+                    <span>AI学习你的习惯，越用越懂你</span>
+                </div>
+            </div>
+            <div class="onboarding-progress">
+                <div class="onboarding-dot active" data-step="0"></div>
+                <div class="onboarding-dot" data-step="1"></div>
+                <div class="onboarding-dot" data-step="2"></div>
+            </div>
+            <div class="onboarding-actions">
+                <button class="onboarding-btn skip" onclick="skipOnboarding()">跳过</button>
+                <button class="onboarding-btn next" id="onboardingNextBtn" onclick="nextOnboardingStep()">开始体验 →</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加载脚本 -->
+    <script src="js/storage.js"></script>
+    <script src="js/settings.js"></script>
+    <script src="js/ai-service.js"></script>
+    <script src="js/canvas.js"></script>
+    <script src="js/procrastination.js"></script>
+    <script src="js/inefficiency.js"></script>
+    <script src="js/value-visualizer.js"></script>
+    <script src="js/ai-copilot.js"></script>
+    <script src="js/ai-learning.js"></script>
+    <script src="js/ai-finance.js"></script>
+    <script src="js/ai-prediction.js"></script>
+    <script src="js/ai-memory.js"></script>
+    <script src="js/ai-memory-panel.js"></script>
+    <script src="js/ai-insights-panel.js"></script>
+    <script src="js/reward-system.js"></script>
+    <script src="js/ai-report.js"></script>
+    <script src="js/guidance-system.js"></script>
+    <script src="js/task-enhance.js"></script>
+    <script src="js/chart-system.js"></script>
+    <script src="js/cloud-sync.js"></script>
+    <script src="js/mobile-app.js"></script>
+    <script src="js/app.js"></script>
+    
+    <!-- 移动端底部导航 -->
+    <nav class="mobile-nav" id="mobileNav">
+        <button class="mobile-nav-item active" data-view="smartInput" onclick="MobileApp.switchView('smartInput')">
+            <span class="mobile-nav-icon">💬</span>
+            <span class="mobile-nav-label">对话</span>
+        </button>
+        <button class="mobile-nav-item" data-view="timeline" onclick="MobileApp.switchView('timeline')">
+            <span class="mobile-nav-icon">📅</span>
+            <span class="mobile-nav-label">任务</span>
+        </button>
+        <button class="mobile-nav-item" data-view="procrastinationPanel" onclick="MobileApp.switchView('procrastinationPanel')">
+            <span class="mobile-nav-icon">⏰</span>
+            <span class="mobile-nav-label">监控</span>
+        </button>
+        <button class="mobile-nav-item" data-view="gameSystem" onclick="MobileApp.switchView('gameSystem')">
+            <span class="mobile-nav-icon">🎮</span>
+            <span class="mobile-nav-label">游戏</span>
+        </button>
+        <button class="mobile-nav-item" data-view="more" onclick="MobileApp.showMoreMenu()">
+            <span class="mobile-nav-icon">⋯</span>
+            <span class="mobile-nav-label">更多</span>
+        </button>
+    </nav>
+    
+    <!-- 移动端快速添加按钮 -->
+    <button class="mobile-fab" id="mobileFab" onclick="MobileApp.quickAddTask()">+</button>
+    
+    <!-- 注册Service Worker -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('SW registered:', reg.scope))
+                    .catch(err => console.log('SW registration failed:', err));
+            });
+        }
+    </script>
+</body>
+</html>

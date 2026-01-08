@@ -1,0 +1,1100 @@
+/* ==================== 移动端响应式布局 ==================== */
+
+/* 移动端基础样式 */
+@media screen and (max-width: 768px) {
+    body {
+        overflow: auto;
+    }
+    
+    #canvas {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        padding: 70px 12px 100px 12px;
+        height: auto;
+        min-height: 100vh;
+        overflow: visible;
+    }
+    
+    /* 移动端组件重置为流式布局 */
+    .draggable-component {
+        position: relative !important;
+        left: auto !important;
+        top: auto !important;
+        width: 100% !important;
+        height: auto !important;
+        min-height: 200px;
+        max-height: none;
+    }
+    
+    .draggable-component .component-body {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    
+    /* 隐藏拖拽和调整大小功能 */
+    .draggable-component .resize-handle {
+        display: none !important;
+    }
+    
+    .draggable-component .component-header {
+        cursor: default;
+    }
+    
+    /* 游戏状态栏移动端适配 */
+    .game-status {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        padding: 8px 12px;
+        gap: 12px;
+        justify-content: center;
+    }
+    
+    .coin-icon {
+        font-size: 20px;
+    }
+    
+    .coin-amount {
+        font-size: 16px;
+    }
+    
+    .energy-bar {
+        width: 60px;
+    }
+    
+    /* 主题切换按钮 */
+    .theme-toggle {
+        bottom: 80px;
+        left: 12px;
+        width: 44px;
+        height: 44px;
+        font-size: 20px;
+    }
+    
+    /* 专注模式按钮 */
+    .focus-mode-btn {
+        bottom: 80px;
+        left: 66px;
+        width: 44px;
+        height: 44px;
+        font-size: 20px;
+    }
+    
+    /* 设置面板 */
+    .settings-panel {
+        left: 12px;
+        right: 12px;
+        bottom: 130px;
+        min-width: auto;
+    }
+    
+    /* 布局选择器 */
+    .layout-selector {
+        left: 12px;
+        right: 12px;
+        bottom: 130px;
+        width: auto;
+    }
+    
+    /* 智能对话组件 */
+    #smartInput .component-body {
+        max-height: 350px;
+    }
+    
+    .chat-messages {
+        max-height: 200px;
+    }
+    
+    .chat-input-area {
+        padding: 10px;
+    }
+    
+    .chat-input {
+        font-size: 16px; /* 防止iOS缩放 */
+    }
+    
+    .quick-replies {
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    
+    .quick-reply-btn {
+        font-size: 12px;
+        padding: 6px 10px;
+    }
+    
+    /* 时间轴组件 */
+    .calendar-section {
+        padding: 10px;
+    }
+    
+    .calendar-grid {
+        gap: 4px;
+    }
+    
+    .calendar-day {
+        width: 32px;
+        height: 32px;
+        font-size: 12px;
+    }
+    
+    .timeline-section {
+        padding: 10px;
+    }
+    
+    .event-card {
+        padding: 10px;
+    }
+    
+    .event-title {
+        font-size: 14px;
+    }
+    
+    /* 监控面板 */
+    .monitor-card {
+        padding: 12px;
+    }
+    
+    .monitor-countdown {
+        font-size: 36px;
+    }
+    
+    /* 价值显化器 */
+    .finance-dashboard {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+    
+    .finance-card {
+        padding: 10px;
+    }
+    
+    .finance-value {
+        font-size: 18px;
+    }
+    
+    /* 游戏化系统 */
+    .game-stats {
+        flex-wrap: wrap;
+    }
+    
+    .stat-card {
+        flex: 1 1 45%;
+        min-width: 100px;
+    }
+    
+    /* 复盘面板 */
+    .review-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    /* 记忆库 */
+    .memory-categories {
+        flex-wrap: wrap;
+    }
+    
+    .memory-category-btn {
+        font-size: 12px;
+        padding: 6px 10px;
+    }
+    
+    /* 弹窗适配 */
+    .modal-content {
+        width: 95%;
+        max-width: none;
+        margin: 20px;
+        max-height: 85vh;
+        overflow-y: auto;
+    }
+    
+    /* Toast通知 */
+    .toast-container {
+        left: 12px;
+        right: 12px;
+        bottom: 90px;
+    }
+    
+    .toast {
+        width: 100%;
+    }
+    
+    /* 引导系统 */
+    .guide-tooltip {
+        width: calc(100vw - 40px);
+        max-width: 300px;
+    }
+    
+    .onboarding-card {
+        width: 95%;
+        padding: 24px;
+    }
+    
+    /* 奖励面板 */
+    .reward-panel {
+        width: 95%;
+        max-width: none;
+        left: 2.5%;
+        right: 2.5%;
+    }
+    
+    .reward-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    /* 报告面板 */
+    .report-modal .modal-content {
+        width: 95%;
+    }
+    
+    /* 隐藏非核心组件（移动端默认专注模式） */
+    .mobile-hidden {
+        display: none !important;
+    }
+}
+
+/* 小屏手机适配 */
+@media screen and (max-width: 375px) {
+    #canvas {
+        padding: 65px 8px 90px 8px;
+    }
+    
+    .game-status {
+        padding: 6px 10px;
+        gap: 8px;
+    }
+    
+    .coin-amount {
+        font-size: 14px;
+    }
+    
+    .energy-bar {
+        width: 50px;
+    }
+    
+    .draggable-component .component-body {
+        max-height: 300px;
+    }
+    
+    .finance-dashboard {
+        grid-template-columns: 1fr;
+    }
+    
+    .reward-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* 平板适配 */
+@media screen and (min-width: 769px) and (max-width: 1024px) {
+    #canvas {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+        padding: 80px 16px 20px 16px;
+        height: auto;
+        min-height: 100vh;
+    }
+    
+    .draggable-component {
+        position: relative !important;
+        left: auto !important;
+        top: auto !important;
+        width: 100% !important;
+        height: auto !important;
+        min-height: 300px;
+    }
+    
+    /* 让某些组件占满两列 */
+    #timeline {
+        grid-column: span 2;
+    }
+    
+    .draggable-component .resize-handle {
+        display: none !important;
+    }
+}
+
+/* ==================== 移动端底部导航栏 ==================== */
+
+.mobile-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.98);
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    padding: 8px 0;
+    padding-bottom: env(safe-area-inset-bottom, 8px);
+    z-index: 1001;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="dark"] .mobile-nav {
+    background: rgba(30, 30, 50, 0.98);
+    border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+@media screen and (max-width: 768px) {
+    .mobile-nav {
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+    }
+}
+
+.mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 16px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #666;
+    transition: all 0.2s;
+    border-radius: 12px;
+}
+
+[data-theme="dark"] .mobile-nav-item {
+    color: #A0A0A0;
+}
+
+.mobile-nav-item.active {
+    color: #667eea;
+    background: rgba(102, 126, 234, 0.1);
+}
+
+.mobile-nav-item:active {
+    transform: scale(0.95);
+}
+
+.mobile-nav-icon {
+    font-size: 24px;
+}
+
+.mobile-nav-label {
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* ==================== 移动端组件切换视图 ==================== */
+
+@media screen and (max-width: 768px) {
+    /* 默认隐藏所有组件 */
+    .draggable-component {
+        display: none;
+    }
+    
+    /* 显示当前激活的组件 */
+    .draggable-component.mobile-active {
+        display: flex !important;
+    }
+    
+    /* 移动端始终显示的组件（专注模式核心） */
+    .mobile-always-show {
+        display: flex !important;
+    }
+}
+
+/* ==================== 移动端快速添加按钮 ==================== */
+
+.mobile-fab {
+    display: none;
+    position: fixed;
+    bottom: 80px;
+    right: 16px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+    z-index: 1000;
+    font-size: 28px;
+    color: white;
+    transition: all 0.3s;
+}
+
+@media screen and (max-width: 768px) {
+    .mobile-fab {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+}
+
+.mobile-fab:active {
+    transform: scale(0.95);
+}
+
+.mobile-fab.expanded {
+    border-radius: 28px;
+    width: auto;
+    padding: 0 20px;
+}
+
+/* ==================== 移动端下拉刷新 ==================== */
+
+.pull-to-refresh {
+    display: none;
+    position: fixed;
+    top: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    padding: 10px 20px;
+    border-radius: 20px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    z-index: 1002;
+    font-size: 14px;
+    color: #666;
+}
+
+.pull-to-refresh.visible {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pull-to-refresh .spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #E0E0E0;
+    border-top-color: #667eea;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ==================== 触摸优化 ==================== */
+
+@media (hover: none) and (pointer: coarse) {
+    /* 增大触摸目标 */
+    button, .clickable {
+        min-height: 44px;
+        min-width: 44px;
+    }
+    
+    /* 禁用hover效果 */
+    .draggable-component:hover {
+        box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+    }
+    
+    /* 添加触摸反馈 */
+    .touch-feedback:active {
+        opacity: 0.7;
+        transform: scale(0.98);
+    }
+}
+
+/* ==================== iOS安全区域适配 ==================== */
+
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+    .mobile-nav {
+        padding-bottom: calc(8px + env(safe-area-inset-bottom));
+    }
+    
+    @media screen and (max-width: 768px) {
+        #canvas {
+            padding-bottom: calc(100px + env(safe-area-inset-bottom));
+        }
+    }
+}
+
+/* ==================== 横屏模式 ==================== */
+
+@media screen and (max-width: 768px) and (orientation: landscape) {
+    #canvas {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        padding: 60px 12px 80px 12px;
+    }
+    
+    .draggable-component.mobile-active {
+        min-height: 200px;
+    }
+    
+    .mobile-nav {
+        flex-direction: column;
+        width: 60px;
+        height: 100%;
+        top: 0;
+        left: auto;
+        right: 0;
+        bottom: 0;
+        border-top: none;
+        border-left: 1px solid rgba(0, 0, 0, 0.08);
+        padding: 60px 0 20px 0;
+    }
+    
+    .mobile-nav-item {
+        padding: 12px 8px;
+    }
+    
+    .mobile-nav-label {
+        display: none;
+    }
+    
+    .mobile-fab {
+        right: 76px;
+        bottom: 16px;
+    }
+    
+    .game-status {
+        left: 10px;
+        right: 70px;
+    }
+}
+
+/* ==================== 打印样式 ==================== */
+
+/* ==================== 更多菜单 ==================== */
+
+.more-menu {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2000;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s;
+}
+
+.more-menu.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.more-menu-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.more-menu-content {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    border-radius: 20px 20px 0 0;
+    padding: 20px;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    transform: translateY(100%);
+    transition: transform 0.3s ease;
+}
+
+.more-menu.show .more-menu-content {
+    transform: translateY(0);
+}
+
+[data-theme="dark"] .more-menu-content {
+    background: rgba(30, 30, 50, 0.98);
+}
+
+.more-menu-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    font-size: 16px;
+    font-weight: 700;
+    color: #2C3E50;
+}
+
+[data-theme="dark"] .more-menu-header {
+    color: #E8E8E8;
+}
+
+.more-menu-header button {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: #999;
+    cursor: pointer;
+}
+
+.more-menu-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+
+.more-menu-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 8px;
+    background: #F8F9FA;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+[data-theme="dark"] .more-menu-item {
+    background: rgba(60, 60, 100, 0.4);
+}
+
+.more-menu-item:active {
+    transform: scale(0.95);
+    background: #E8ECF0;
+}
+
+.more-menu-icon {
+    font-size: 28px;
+}
+
+.more-menu-item span:last-child {
+    font-size: 12px;
+    color: #666;
+    font-weight: 500;
+}
+
+[data-theme="dark"] .more-menu-item span:last-child {
+    color: #A0A0A0;
+}
+
+/* ==================== 安装横幅 ==================== */
+
+.install-banner {
+    position: fixed;
+    bottom: 70px;
+    left: 12px;
+    right: 12px;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    z-index: 1002;
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+[data-theme="dark"] .install-banner {
+    background: rgba(40, 40, 70, 0.98);
+}
+
+.install-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+}
+
+.install-banner-icon {
+    font-size: 32px;
+}
+
+.install-banner-text {
+    flex: 1;
+}
+
+.install-banner-text strong {
+    display: block;
+    font-size: 14px;
+    color: #2C3E50;
+    margin-bottom: 2px;
+}
+
+[data-theme="dark"] .install-banner-text strong {
+    color: #E8E8E8;
+}
+
+.install-banner-text span {
+    font-size: 12px;
+    color: #888;
+}
+
+.install-banner-btn {
+    padding: 10px 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.install-banner-close {
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: #999;
+    cursor: pointer;
+    padding: 4px;
+}
+
+/* ==================== 标签系统样式 ==================== */
+
+.tag-selector {
+    padding: 12px;
+}
+
+.tag-selector-title {
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 10px;
+}
+
+.tag-selector-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.tag-selector-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: #F0F0F0;
+    border: 2px solid transparent;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 13px;
+}
+
+[data-theme="dark"] .tag-selector-item {
+    background: rgba(60, 60, 100, 0.4);
+}
+
+.tag-selector-item:hover {
+    background: #E8E8E8;
+}
+
+.tag-selector-item.selected {
+    border-color: var(--tag-color, #667eea);
+    background: rgba(102, 126, 234, 0.1);
+}
+
+.tag-selector-add {
+    padding: 6px 12px;
+    background: none;
+    border: 2px dashed #CCC;
+    border-radius: 20px;
+    color: #888;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.tag-selector-add:hover {
+    border-color: #667eea;
+    color: #667eea;
+}
+
+.tag-icon {
+    font-size: 14px;
+}
+
+.tag-name {
+    color: #333;
+}
+
+[data-theme="dark"] .tag-name {
+    color: #E8E8E8;
+}
+
+/* 任务卡片上的标签 */
+.task-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.task-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 8px;
+    background: rgba(102, 126, 234, 0.1);
+    border-radius: 10px;
+    font-size: 11px;
+    color: #667eea;
+}
+
+.task-tag-icon {
+    font-size: 10px;
+}
+
+/* ==================== 模板样式 ==================== */
+
+.template-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.template-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+    background: #F8F9FA;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+[data-theme="dark"] .template-item {
+    background: rgba(60, 60, 100, 0.4);
+}
+
+.template-item:hover {
+    background: #E8ECF0;
+    transform: translateX(4px);
+}
+
+.template-icon {
+    font-size: 28px;
+}
+
+.template-info {
+    flex: 1;
+}
+
+.template-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #2C3E50;
+    margin-bottom: 2px;
+}
+
+[data-theme="dark"] .template-name {
+    color: #E8E8E8;
+}
+
+.template-tasks {
+    font-size: 12px;
+    color: #888;
+}
+
+.add-template-btn {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    background: none;
+    border: 2px dashed #CCC;
+    border-radius: 12px;
+    color: #888;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.add-template-btn:hover {
+    border-color: #667eea;
+    color: #667eea;
+}
+
+/* ==================== 重复任务样式 ==================== */
+
+.recurring-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.recurring-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    background: #F8F9FA;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+[data-theme="dark"] .recurring-option {
+    background: rgba(60, 60, 100, 0.4);
+}
+
+.recurring-option:hover {
+    background: #E8ECF0;
+}
+
+.recurring-option input[type="radio"] {
+    accent-color: #667eea;
+}
+
+.recurring-days {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px;
+    background: #F0F0F0;
+    border-radius: 10px;
+}
+
+[data-theme="dark"] .recurring-days {
+    background: rgba(60, 60, 100, 0.3);
+}
+
+.recurring-days label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: white;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+[data-theme="dark"] .recurring-days label {
+    background: rgba(80, 80, 120, 0.5);
+}
+
+/* ==================== 撤销Toast样式 ==================== */
+
+.toast-undo {
+    background: #333 !important;
+}
+
+.toast-undo .toast-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.toast-undo-btn {
+    padding: 6px 14px;
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    border-radius: 6px;
+    color: white;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.toast-undo-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* ==================== 表单样式 ==================== */
+
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 6px;
+}
+
+[data-theme="dark"] .form-group label {
+    color: #A0A0A0;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #E0E0E0;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+[data-theme="dark"] .form-group input,
+[data-theme="dark"] .form-group select,
+[data-theme="dark"] .form-group textarea {
+    background: rgba(60, 60, 100, 0.4);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #E8E8E8;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.emoji-picker-mini {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.emoji-btn {
+    width: 36px;
+    height: 36px;
+    border: 1px solid #E0E0E0;
+    border-radius: 8px;
+    background: white;
+    font-size: 18px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+[data-theme="dark"] .emoji-btn {
+    background: rgba(60, 60, 100, 0.4);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.emoji-btn:hover {
+    border-color: #667eea;
+    transform: scale(1.1);
+}
+
+/* ==================== 打印样式 ==================== */
+
+@media print {
+    .game-status,
+    .theme-toggle,
+    .focus-mode-btn,
+    .settings-panel,
+    .mobile-nav,
+    .mobile-fab,
+    .toast-container,
+    .modal-overlay,
+    .guide-overlay {
+        display: none !important;
+    }
+    
+    #canvas {
+        display: block;
+        padding: 0;
+    }
+    
+    .draggable-component {
+        position: relative !important;
+        page-break-inside: avoid;
+        box-shadow: none;
+        border: 1px solid #DDD;
+        margin-bottom: 20px;
+    }
+}
+
