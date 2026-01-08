@@ -94,7 +94,7 @@ const AICopilot = {
                 '<div class="setup-questions">' +
                     '<div class="setup-question">' +
                         '<label>1️⃣ 这一周的主要工作是？</label>' +
-                        '<input type="text" id="setupWorkTypes" placeholder="如：拍照、画插画、写文案" value="' + (this.userProfile.workTypes.join('、') || '') + '">' +
+                        '<input type="text" id="setupWorkTypes" placeholder="如：拍照、画插画、写文案" value="' + (this.userProfile.workTypes.join('、') || '') + '" inputmode="text">' +
                     '</div>' +
                     '<div class="setup-question">' +
                         '<label>2️⃣ 习惯什么时候工作？</label>' +
@@ -106,28 +106,62 @@ const AICopilot = {
                     '</div>' +
                     '<div class="setup-question">' +
                         '<label>3️⃣ 主要收入来源有哪些？</label>' +
-                        '<input type="text" id="setupIncomeStreams" placeholder="如：摄影工作室、插画约稿、小红书" value="' + (this.userProfile.incomeStreams.join('、') || '') + '">' +
+                        '<input type="text" id="setupIncomeStreams" placeholder="如：摄影工作室、插画约稿、小红书" value="' + (this.userProfile.incomeStreams.join('、') || '') + '" inputmode="text">' +
                     '</div>' +
                     '<div class="setup-question">' +
                         '<label>4️⃣ 最大的效率挑战是什么？</label>' +
-                        '<input type="text" id="setupChallenges" placeholder="如：容易分心、难以开始、完美主义" value="' + (this.userProfile.challenges.join('、') || '') + '">' +
+                        '<input type="text" id="setupChallenges" placeholder="如：容易分心、难以开始、完美主义" value="' + (this.userProfile.challenges.join('、') || '') + '" inputmode="text">' +
                     '</div>' +
                     '<div class="setup-question">' +
                         '<label>5️⃣ 最近有什么新想法吗？</label>' +
-                        '<input type="text" id="setupIdeas" placeholder="如：想学新技能、想开拓新业务">' +
+                        '<input type="text" id="setupIdeas" placeholder="如：想学新技能、想开拓新业务" inputmode="text">' +
                     '</div>' +
                     '<div class="setup-question">' +
                         '<label>6️⃣ 这一周的家务有哪些？</label>' +
-                        '<input type="text" id="setupHousework" placeholder="如：打扫卫生、洗衣服、买菜">' +
+                        '<input type="text" id="setupHousework" placeholder="如：打扫卫生、洗衣服、买菜" inputmode="text">' +
                     '</div>' +
                 '</div>' +
                 '<div class="setup-footer">' +
-                    '<button class="setup-btn skip" onclick="AICopilot.skipWeeklySetup()">稍后再说</button>' +
-                    '<button class="setup-btn confirm" onclick="AICopilot.saveWeeklySetup()">开始这一周！🚀</button>' +
+                    '<button class="setup-btn skip" type="button" id="weeklySetupSkipBtn">稍后再说</button>' +
+                    '<button class="setup-btn confirm" type="button" id="weeklySetupConfirmBtn">开始这一周！🚀</button>' +
                 '</div>' +
             '</div>';
         
         document.body.appendChild(modal);
+        
+        // 使用事件监听器替代onclick，确保移动端可点击
+        const self = this;
+        
+        document.getElementById('weeklySetupSkipBtn').addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            self.skipWeeklySetup();
+        });
+        
+        document.getElementById('weeklySetupSkipBtn').addEventListener('touchend', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            self.skipWeeklySetup();
+        });
+        
+        document.getElementById('weeklySetupConfirmBtn').addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            self.saveWeeklySetup();
+        });
+        
+        document.getElementById('weeklySetupConfirmBtn').addEventListener('touchend', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            self.saveWeeklySetup();
+        });
+        
+        // 阻止弹窗内容区域的触摸事件冒泡影响滚动
+        const content = modal.querySelector('.copilot-modal-content');
+        content.addEventListener('touchmove', function(e) {
+            e.stopPropagation();
+        }, { passive: true });
+        
         setTimeout(() => modal.classList.add('show'), 10);
     },
     

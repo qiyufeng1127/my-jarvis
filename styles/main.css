@@ -4984,8 +4984,18 @@ body {
     .value-setup-content,
     .memory-modal-content {
         width: 95%;
-        max-height: 90vh;
-        margin: 10px;
+        max-height: none;
+        margin: 20px auto;
+    }
+    
+    /* 移动端弹窗滚动修复 */
+    .ai-copilot-modal,
+    .modal-overlay,
+    .value-setup-modal {
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch;
+        align-items: flex-start !important;
+        padding: 20px 10px;
     }
 }
 

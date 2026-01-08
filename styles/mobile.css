@@ -250,22 +250,134 @@
     }
     
     /* 弹窗适配 */
-    .modal-overlay {
+    .modal-overlay,
+    .ai-copilot-modal {
         overflow-y: auto !important;
         -webkit-overflow-scrolling: touch;
         padding: 20px;
         align-items: flex-start !important;
         touch-action: auto !important;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
     }
     
-    .modal-content {
+    .modal-content,
+    .copilot-modal-content {
         width: 95%;
         max-width: none;
-        margin: auto;
+        margin: 20px auto;
         max-height: none !important;
         overflow-y: visible !important;
         touch-action: auto !important;
         position: relative;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    /* KiiKii六个问题弹窗特殊修复 */
+    .ai-copilot-modal {
+        z-index: 9999 !important;
+        background: rgba(0, 0, 0, 0.7) !important;
+    }
+    
+    .ai-copilot-modal .copilot-modal-content {
+        background: white;
+        border-radius: 20px;
+        padding: 24px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    
+    .ai-copilot-modal .setup-questions {
+        max-height: none !important;
+        overflow-y: visible !important;
+    }
+    
+    .ai-copilot-modal .setup-question {
+        margin-bottom: 16px;
+    }
+    
+    .ai-copilot-modal .setup-question input[type="text"] {
+        font-size: 16px !important;
+        padding: 14px 16px;
+        border: 2px solid #E0E0E0;
+        border-radius: 12px;
+        width: 100%;
+        box-sizing: border-box;
+        -webkit-appearance: none;
+        appearance: none;
+        touch-action: manipulation;
+        -webkit-user-select: text;
+        user-select: text;
+    }
+    
+    .ai-copilot-modal .setup-question input[type="text"]:focus {
+        outline: none;
+        border-color: #667eea;
+    }
+    
+    .ai-copilot-modal .setup-question label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: #333;
+    }
+    
+    .ai-copilot-modal .time-options {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    
+    .ai-copilot-modal .time-option {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 14px;
+        background: #F5F5F5;
+        border-radius: 10px;
+        font-size: 14px;
+        cursor: pointer;
+        touch-action: manipulation;
+    }
+    
+    .ai-copilot-modal .time-option input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+        accent-color: #667eea;
+    }
+    
+    .ai-copilot-modal .setup-footer {
+        display: flex;
+        gap: 12px;
+        margin-top: 24px;
+        padding-top: 16px;
+        border-top: 1px solid #EEE;
+    }
+    
+    .ai-copilot-modal .setup-btn {
+        flex: 1;
+        padding: 16px;
+        border: none;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        min-height: 54px;
+        touch-action: manipulation !important;
+        -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+        pointer-events: auto !important;
+    }
+    
+    .ai-copilot-modal .setup-btn.skip {
+        background: #F0F0F0;
+        color: #666;
+    }
+    
+    .ai-copilot-modal .setup-btn.confirm {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
     }
     
     .modal-footer {

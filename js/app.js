@@ -3,7 +3,7 @@ const App = {
     isConnected: false,
     currentDate: new Date(),
     chatMessages: [],
-    
+
     // 拖延监控相关
     procrastination: {
         monitorTimer: null,         // 任务监控定时器（每秒检查）
@@ -539,7 +539,7 @@ const App = {
                 '</div>' +
                 '<div class="chat-messages" id="chatMessages">' +
                     '<!-- 消息将动态添加 -->' +
-                '</div>' +
+                    '</div>' +
                 '<div class="quick-replies" id="quickReplies">' +
                     '<button class="quick-reply-btn" onclick="App.quickReply(\'今天做什么\')">📅 今天做什么</button>' +
                     '<button class="quick-reply-btn" onclick="App.quickReply(\'查看收入\')">💰 查看收入</button>' +
