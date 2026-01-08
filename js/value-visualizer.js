@@ -449,6 +449,9 @@ const ValueVisualizer = {
     
     // 显示设置弹窗
     showSetupModal() {
+        // 先加载已保存的数据
+        this.loadData();
+        
         const modal = document.createElement('div');
         modal.className = 'value-setup-modal';
         modal.id = 'valueSetupModal';
@@ -457,34 +460,34 @@ const ValueVisualizer = {
                 <div class="setup-header">
                     <span class="setup-icon">💰</span>
                     <h2>设置你的财务目标</h2>
-                    <p>只需设置一次，AI会每天帮你计算</p>
+                    <p>${this.settings.initialized ? '修改你的财务设置' : '只需设置一次，AI会每天帮你计算'}</p>
                 </div>
                 <div class="setup-body">
                     <div class="setup-group">
                         <label>💳 当前欠款（信用卡、花呗等）</label>
                         <div class="setup-input-row">
                             <span class="currency">¥</span>
-                            <input type="number" id="setupDebt" value="${this.finance.debt}" placeholder="0">
+                            <input type="number" id="setupDebt" value="${this.finance.debt || 0}" placeholder="0">
                         </div>
                     </div>
                     <div class="setup-group">
                         <label>🏠 每月固定支出（房租、生活费等）</label>
                         <div class="setup-input-row">
                             <span class="currency">¥</span>
-                            <input type="number" id="setupExpense" value="${this.finance.monthlyExpense}" placeholder="0">
+                            <input type="number" id="setupExpense" value="${this.finance.monthlyExpense || 0}" placeholder="0">
                         </div>
                     </div>
                     <div class="setup-group">
                         <label>🎯 每月收入目标（可选）</label>
                         <div class="setup-input-row">
                             <span class="currency">¥</span>
-                            <input type="number" id="setupTarget" value="${this.finance.monthlyTarget}" placeholder="0">
+                            <input type="number" id="setupTarget" value="${this.finance.monthlyTarget || 0}" placeholder="0">
                         </div>
                     </div>
                 </div>
                 <div class="setup-footer">
-                    <button class="setup-btn skip" onclick="ValueVisualizer.closeSetupModal()">稍后设置</button>
-                    <button class="setup-btn confirm" onclick="ValueVisualizer.saveSetup()">开始赚钱！</button>
+                    <button class="setup-btn skip" onclick="ValueVisualizer.closeSetupModal()">取消</button>
+                    <button class="setup-btn confirm" onclick="ValueVisualizer.saveSetup()">${this.settings.initialized ? '保存修改' : '开始赚钱！'}</button>
                 </div>
             </div>
         `;

@@ -29,7 +29,24 @@ const CloudSync = {
             this.initSupabase();
         }
         
+        // 更新云同步按钮状态
+        this.updateCloudButton();
+        
         console.log('云同步模块初始化完成');
+    },
+    
+    // 更新云同步按钮状态
+    updateCloudButton() {
+        const btn = document.getElementById('cloudToggle');
+        if (btn) {
+            if (this.state.userId) {
+                btn.classList.add('logged-in');
+                btn.title = '已登录云同步';
+            } else {
+                btn.classList.remove('logged-in');
+                btn.title = '点击登录云同步';
+            }
+        }
     },
     
     // 加载配置
@@ -244,6 +261,9 @@ const CloudSync = {
             document.getElementById('cloudLoginModal')?.remove();
             Settings.showToast('success', '登录成功', '数据将自动同步');
             
+            // 更新按钮状态
+            this.updateCloudButton();
+            
             this.startAutoSync();
             this.syncNow();
             
@@ -289,6 +309,9 @@ const CloudSync = {
         await this.supabase.auth.signOut();
         this.state.userId = null;
         Storage.remove('adhd_cloud_user_id');
+        
+        // 更新按钮状态
+        this.updateCloudButton();
         
         document.getElementById('cloudConfigModal')?.remove();
         Settings.showToast('info', '已退出登录', '');

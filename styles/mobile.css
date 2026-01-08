@@ -72,13 +72,31 @@
         font-size: 20px;
     }
     
+    /* 设置按钮 */
+    .settings-toggle {
+        bottom: 80px;
+        left: 66px;
+        width: 40px;
+        height: 40px;
+        font-size: 18px;
+    }
+    
+    /* 云同步按钮 */
+    .cloud-toggle {
+        bottom: 80px;
+        left: 116px;
+        width: 40px;
+        height: 40px;
+        font-size: 18px;
+    }
+    
     /* 专注模式按钮 */
     .focus-mode-btn {
         bottom: 80px;
-        left: 66px;
-        width: 44px;
-        height: 44px;
-        font-size: 20px;
+        left: 166px;
+        width: 40px;
+        height: 40px;
+        font-size: 18px;
     }
     
     /* 设置面板 */
