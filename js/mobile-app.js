@@ -81,6 +81,9 @@ const MobileApp = {
             return;
         }
         
+        // 获取云同步状态
+        const isLoggedIn = window.CloudSync && CloudSync.state.userId;
+        
         // 创建更多菜单
         const moreMenu = document.createElement('div');
         moreMenu.id = 'moreMenu';
@@ -121,7 +124,11 @@ const MobileApp = {
                         <span class="more-menu-icon">📝</span>
                         <span>提示词</span>
                     </button>
-                    <button class="more-menu-item" onclick="toggleSettingsPanel()">
+                    <button class="more-menu-item ${isLoggedIn ? 'logged-in' : ''}" onclick="MobileApp.hideMoreMenu(); CloudSync.showConfigModal();">
+                        <span class="more-menu-icon">${isLoggedIn ? '✅' : '☁️'}</span>
+                        <span>${isLoggedIn ? '已同步' : '云同步'}</span>
+                    </button>
+                    <button class="more-menu-item" onclick="toggleSettingsPanel(); MobileApp.hideMoreMenu();">
                         <span class="more-menu-icon">⚙️</span>
                         <span>设置</span>
                     </button>

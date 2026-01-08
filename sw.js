@@ -1,48 +1,62 @@
-// Service Worker - ADHD Focus PWA
-const CACHE_NAME = 'adhd-focus-v2.1';
-const STATIC_CACHE = 'adhd-focus-static-v2.1';
-const DYNAMIC_CACHE = 'adhd-focus-dynamic-v2.1';
+// Service Worker - ADHD Focus PWA v2.2
+const CACHE_NAME = 'adhd-focus-v2.2';
+const STATIC_CACHE = 'adhd-focus-static-v2.2';
+const DYNAMIC_CACHE = 'adhd-focus-dynamic-v2.2';
 
 // 需要缓存的静态资源
 const STATIC_ASSETS = [
-    '/',
-    '/index.html',
-    '/styles/main.css',
-    '/js/storage.js',
-    '/js/settings.js',
-    '/js/ai-service.js',
-    '/js/canvas.js',
-    '/js/procrastination.js',
-    '/js/inefficiency.js',
-    '/js/value-visualizer.js',
-    '/js/ai-copilot.js',
-    '/js/ai-learning.js',
-    '/js/ai-finance.js',
-    '/js/ai-prediction.js',
-    '/js/ai-memory.js',
-    '/js/ai-memory-panel.js',
-    '/js/ai-insights-panel.js',
-    '/js/reward-system.js',
-    '/js/ai-report.js',
-    '/js/guidance-system.js',
-    '/js/app.js',
-    '/components/smart-input.html',
-    '/components/timeline.html',
-    '/components/memory-bank.html',
-    '/components/prompt-panel.html',
-    '/components/game-system.html',
-    '/components/review-panel.html',
-    '/manifest.json'
+    './',
+    './index.html',
+    './styles/main.css',
+    './styles/mobile.css',
+    './js/storage.js',
+    './js/settings.js',
+    './js/ai-service.js',
+    './js/canvas.js',
+    './js/procrastination.js',
+    './js/inefficiency.js',
+    './js/value-visualizer.js',
+    './js/ai-copilot.js',
+    './js/ai-learning.js',
+    './js/ai-finance.js',
+    './js/ai-prediction.js',
+    './js/ai-memory.js',
+    './js/ai-memory-panel.js',
+    './js/ai-insights-panel.js',
+    './js/reward-system.js',
+    './js/ai-report.js',
+    './js/guidance-system.js',
+    './js/task-enhance.js',
+    './js/chart-system.js',
+    './js/cloud-sync.js',
+    './js/mobile-app.js',
+    './js/app.js',
+    './components/smart-input.html',
+    './components/timeline.html',
+    './components/memory-bank.html',
+    './components/prompt-panel.html',
+    './components/game-system.html',
+    './components/review-panel.html',
+    './manifest.json',
+    './icons/icon-192.svg',
+    './icons/icon-maskable.svg'
 ];
 
 // 安装事件 - 缓存静态资源
 self.addEventListener('install', event => {
-    console.log('[SW] Installing Service Worker...');
+    console.log('[SW] Installing Service Worker v2.2...');
     event.waitUntil(
         caches.open(STATIC_CACHE)
             .then(cache => {
                 console.log('[SW] Caching static assets...');
-                return cache.addAll(STATIC_ASSETS);
+                // 逐个添加，避免单个失败导致全部失败
+                return Promise.allSettled(
+                    STATIC_ASSETS.map(url => 
+                        cache.add(url).catch(err => {
+                            console.warn('[SW] Failed to cache:', url, err);
+                        })
+                    )
+                );
             })
             .then(() => {
                 console.log('[SW] Static assets cached');
@@ -56,7 +70,7 @@ self.addEventListener('install', event => {
 
 // 激活事件 - 清理旧缓存
 self.addEventListener('activate', event => {
-    console.log('[SW] Activating Service Worker...');
+    console.log('[SW] Activating Service Worker v2.2...');
     event.waitUntil(
         caches.keys()
             .then(keys => {
@@ -75,35 +89,35 @@ self.addEventListener('activate', event => {
     );
 });
 
-// 请求拦截 - 缓存优先策略
+// 请求拦截 - 网络优先，缓存备用
 self.addEventListener('fetch', event => {
     const { request } = event;
     const url = new URL(request.url);
     
-    // 跳过非同源请求和API请求
-    if (url.origin !== location.origin) {
-        // 对于外部资源（如字体），使用网络优先
-        if (url.hostname.includes('fonts.googleapis.com') || 
-            url.hostname.includes('fonts.gstatic.com')) {
-            event.respondWith(
-                caches.match(request)
-                    .then(cached => {
-                        if (cached) return cached;
-                        return fetch(request)
-                            .then(response => {
-                                const clone = response.clone();
-                                caches.open(DYNAMIC_CACHE)
-                                    .then(cache => cache.put(request, clone));
-                                return response;
-                            });
-                    })
-            );
-        }
+    // 跳过非GET请求
+    if (request.method !== 'GET') return;
+    
+    // 跳过chrome-extension等特殊协议
+    if (!url.protocol.startsWith('http')) return;
+    
+    // Supabase API请求 - 网络优先
+    if (url.hostname.includes('supabase.co')) {
+        event.respondWith(
+            fetch(request)
+                .catch(() => {
+                    return new Response(JSON.stringify({
+                        error: '离线模式',
+                        message: '当前处于离线状态，无法连接云服务'
+                    }), {
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                })
+        );
         return;
     }
     
-    // API请求 - 网络优先
-    if (url.pathname.includes('/api/') || url.hostname.includes('api.deepseek.com')) {
+    // DeepSeek API请求 - 网络优先
+    if (url.hostname.includes('deepseek.com')) {
         event.respondWith(
             fetch(request)
                 .catch(() => {
@@ -118,38 +132,51 @@ self.addEventListener('fetch', event => {
         return;
     }
     
-    // 静态资源 - 缓存优先
-    event.respondWith(
-        caches.match(request)
-            .then(cached => {
-                if (cached) {
-                    // 后台更新缓存
-                    fetch(request)
-                        .then(response => {
-                            if (response.ok) {
-                                caches.open(STATIC_CACHE)
-                                    .then(cache => cache.put(request, response));
-                            }
-                        })
-                        .catch(() => {});
-                    return cached;
-                }
-                
-                // 没有缓存，从网络获取
-                return fetch(request)
-                    .then(response => {
-                        if (!response.ok) return response;
-                        
-                        const clone = response.clone();
-                        caches.open(DYNAMIC_CACHE)
-                            .then(cache => cache.put(request, clone));
-                        return response;
+    // 外部资源（字体等）- 缓存优先
+    if (url.origin !== location.origin) {
+        if (url.hostname.includes('fonts.googleapis.com') || 
+            url.hostname.includes('fonts.gstatic.com') ||
+            url.hostname.includes('cdn.jsdelivr.net')) {
+            event.respondWith(
+                caches.match(request)
+                    .then(cached => {
+                        if (cached) return cached;
+                        return fetch(request)
+                            .then(response => {
+                                if (response.ok) {
+                                    const clone = response.clone();
+                                    caches.open(DYNAMIC_CACHE)
+                                        .then(cache => cache.put(request, clone));
+                                }
+                                return response;
+                            })
+                            .catch(() => null);
                     })
-                    .catch(() => {
-                        // 离线且无缓存时返回离线页面
-                        if (request.headers.get('accept').includes('text/html')) {
-                            return caches.match('/index.html');
+            );
+        }
+        return;
+    }
+    
+    // 本地资源 - 网络优先，缓存备用
+    event.respondWith(
+        fetch(request)
+            .then(response => {
+                if (response.ok) {
+                    const clone = response.clone();
+                    caches.open(STATIC_CACHE)
+                        .then(cache => cache.put(request, clone));
+                }
+                return response;
+            })
+            .catch(() => {
+                return caches.match(request)
+                    .then(cached => {
+                        if (cached) return cached;
+                        // 如果是HTML请求，返回首页
+                        if (request.headers.get('accept')?.includes('text/html')) {
+                            return caches.match('./index.html');
                         }
+                        return null;
                     });
             })
     );
@@ -158,10 +185,20 @@ self.addEventListener('fetch', event => {
 // 后台同步
 self.addEventListener('sync', event => {
     console.log('[SW] Background sync:', event.tag);
-    if (event.tag === 'sync-tasks') {
-        event.waitUntil(syncTasks());
+    if (event.tag === 'sync-data') {
+        event.waitUntil(syncData());
     }
 });
+
+// 同步数据到云端
+async function syncData() {
+    console.log('[SW] Syncing data to cloud...');
+    // 通知主页面进行同步
+    const clients = await self.clients.matchAll();
+    clients.forEach(client => {
+        client.postMessage({ type: 'SYNC_NOW' });
+    });
+}
 
 // 推送通知
 self.addEventListener('push', event => {
@@ -179,8 +216,8 @@ self.addEventListener('push', event => {
     
     const options = {
         body: data.body,
-        icon: '/icons/icon-192.png',
-        badge: '/icons/icon-72.png',
+        icon: './icons/icon-192.svg',
+        badge: './icons/icon-192.svg',
         vibrate: [200, 100, 200],
         tag: data.tag || 'default',
         renotify: true,
@@ -207,25 +244,17 @@ self.addEventListener('notificationclick', event => {
     event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true })
             .then(clientList => {
-                // 如果已有窗口打开，聚焦它
                 for (const client of clientList) {
-                    if (client.url.includes('/index.html') && 'focus' in client) {
+                    if ('focus' in client) {
                         return client.focus();
                     }
                 }
-                // 否则打开新窗口
                 if (clients.openWindow) {
-                    return clients.openWindow('/index.html');
+                    return clients.openWindow('./index.html');
                 }
             })
     );
 });
-
-// 同步任务数据（预留给云同步）
-async function syncTasks() {
-    // 这里将来可以实现与Supabase的同步
-    console.log('[SW] Syncing tasks...');
-}
 
 // 消息处理
 self.addEventListener('message', event => {
@@ -247,12 +276,11 @@ function scheduleNotification(payload) {
     setTimeout(() => {
         self.registration.showNotification(title, {
             body,
-            icon: '/icons/icon-192.png',
-            badge: '/icons/icon-72.png',
+            icon: './icons/icon-192.svg',
+            badge: './icons/icon-192.svg',
             tag: tag || 'scheduled',
             vibrate: [200, 100, 200],
             requireInteraction: true
         });
     }, delay);
 }
-

@@ -13,24 +13,32 @@ const CloudSync = {
         lastSync: null,
         syncInProgress: false,
         pendingChanges: [],
-        userId: null
+        userId: null,
+        userEmail: null
     },
     
     // Supabase客户端
     supabase: null,
     
     // 初始化
-    init() {
+    async init() {
         this.loadConfig();
         this.setupOnlineListener();
         this.loadPendingChanges();
         
         if (this.config.configured) {
-            this.initSupabase();
+            await this.initSupabase();
         }
         
         // 更新云同步按钮状态
         this.updateCloudButton();
+        
+        // 监听页面可见性变化，恢复时同步
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && this.state.userId) {
+                this.syncNow();
+            }
+        });
         
         console.log('云同步模块初始化完成');
     },
@@ -41,11 +49,20 @@ const CloudSync = {
         if (btn) {
             if (this.state.userId) {
                 btn.classList.add('logged-in');
-                btn.title = '已登录云同步';
+                btn.title = `已登录: ${this.state.userEmail || '云同步'}`;
+                btn.innerHTML = '☁️';
             } else {
                 btn.classList.remove('logged-in');
                 btn.title = '点击登录云同步';
+                btn.innerHTML = '☁️';
             }
+        }
+        
+        // 更新移动端更多菜单中的云同步状态
+        const moreMenuCloud = document.querySelector('.more-menu-item[onclick*="CloudSync"]');
+        if (moreMenuCloud) {
+            moreMenuCloud.querySelector('span:last-child').textContent = 
+                this.state.userId ? '已同步' : '云同步';
         }
     },
     
@@ -57,6 +74,7 @@ const CloudSync = {
         }
         this.state.lastSync = Storage.load('adhd_last_sync', null);
         this.state.userId = Storage.load('adhd_cloud_user_id', null);
+        this.state.userEmail = Storage.load('adhd_cloud_user_email', null);
     },
     
     // 保存配置
@@ -83,15 +101,46 @@ const CloudSync = {
             
             this.supabase = window.supabase.createClient(
                 this.config.url,
-                this.config.anonKey
+                this.config.anonKey,
+                {
+                    auth: {
+                        persistSession: true,
+                        autoRefreshToken: true,
+                        detectSessionInUrl: true
+                    }
+                }
             );
+            
+            // 监听认证状态变化
+            this.supabase.auth.onAuthStateChange((event, session) => {
+                console.log('Auth state changed:', event);
+                if (event === 'SIGNED_IN' && session) {
+                    this.state.userId = session.user.id;
+                    this.state.userEmail = session.user.email;
+                    Storage.save('adhd_cloud_user_id', this.state.userId);
+                    Storage.save('adhd_cloud_user_email', this.state.userEmail);
+                    this.updateCloudButton();
+                    this.startAutoSync();
+                } else if (event === 'SIGNED_OUT') {
+                    this.state.userId = null;
+                    this.state.userEmail = null;
+                    Storage.remove('adhd_cloud_user_id');
+                    Storage.remove('adhd_cloud_user_email');
+                    this.updateCloudButton();
+                }
+            });
             
             // 检查认证状态
             const { data: { session } } = await this.supabase.auth.getSession();
             if (session) {
                 this.state.userId = session.user.id;
+                this.state.userEmail = session.user.email;
                 Storage.save('adhd_cloud_user_id', this.state.userId);
+                Storage.save('adhd_cloud_user_email', this.state.userEmail);
+                this.updateCloudButton();
                 this.startAutoSync();
+                // 登录后立即同步
+                setTimeout(() => this.syncNow(), 1000);
             }
             
             return true;
@@ -138,7 +187,10 @@ const CloudSync = {
                     ${this.state.userId ? `
                         <div class="cloud-user-info">
                             <span class="cloud-user-icon">👤</span>
-                            <span class="cloud-user-text">已登录</span>
+                            <div class="cloud-user-details">
+                                <span class="cloud-user-text">已登录</span>
+                                <span class="cloud-user-email">${this.state.userEmail || ''}</span>
+                            </div>
                         </div>
                         <div class="sync-status">
                             <span class="sync-status-icon">${this.state.isOnline ? '🟢' : '🔴'}</span>
@@ -146,6 +198,9 @@ const CloudSync = {
                                 ${this.state.isOnline ? '已连接' : '离线'}
                                 ${this.state.lastSync ? ` · 上次同步: ${this.formatTime(this.state.lastSync)}` : ''}
                             </span>
+                        </div>
+                        <div class="sync-info" style="margin-top: 12px; padding: 12px; background: rgba(102, 126, 234, 0.1); border-radius: 8px; font-size: 13px; color: #666;">
+                            <p style="margin: 0;">💡 数据会自动同步到云端，您可以在其他设备登录同一账号访问数据。</p>
                         </div>
                         <div class="cloud-actions" style="margin-top: 16px;">
                             <button class="cloud-action-btn" onclick="CloudSync.syncNow(); document.getElementById('cloudConfigModal').remove();">
@@ -247,6 +302,13 @@ const CloudSync = {
             return;
         }
         
+        // 显示加载状态
+        const loginBtn = document.querySelector('#cloudLoginModal .btn-confirm');
+        if (loginBtn) {
+            loginBtn.disabled = true;
+            loginBtn.textContent = '登录中...';
+        }
+        
         try {
             const { data, error } = await this.supabase.auth.signInWithPassword({
                 email,
@@ -256,19 +318,33 @@ const CloudSync = {
             if (error) throw error;
             
             this.state.userId = data.user.id;
+            this.state.userEmail = data.user.email;
             Storage.save('adhd_cloud_user_id', this.state.userId);
+            Storage.save('adhd_cloud_user_email', this.state.userEmail);
             
             document.getElementById('cloudLoginModal')?.remove();
-            Settings.showToast('success', '登录成功', '数据将自动同步');
+            Settings.showToast('success', '登录成功', '正在同步数据...');
             
             // 更新按钮状态
             this.updateCloudButton();
             
             this.startAutoSync();
-            this.syncNow();
+            
+            // 登录后立即从云端拉取数据
+            await this.syncNow();
+            
+            // 刷新界面
+            if (typeof App !== 'undefined') {
+                App.renderTimeline();
+                App.updateGameStatus();
+            }
             
         } catch (error) {
             Settings.showToast('error', '登录失败', error.message);
+            if (loginBtn) {
+                loginBtn.disabled = false;
+                loginBtn.textContent = '登录';
+            }
         }
     },
     
@@ -287,18 +363,50 @@ const CloudSync = {
             return;
         }
         
+        // 显示加载状态
+        const registerBtn = document.querySelector('#cloudLoginModal .btn-cancel');
+        if (registerBtn) {
+            registerBtn.disabled = true;
+            registerBtn.textContent = '注册中...';
+        }
+        
         try {
             const { data, error } = await this.supabase.auth.signUp({
                 email,
-                password
+                password,
+                options: {
+                    // 禁用邮箱验证，直接登录
+                    emailRedirectTo: window.location.origin
+                }
             });
             
             if (error) throw error;
             
-            Settings.showToast('success', '注册成功', '请查收验证邮件');
+            // 如果用户已确认（无需邮箱验证）
+            if (data.user && data.session) {
+                this.state.userId = data.user.id;
+                this.state.userEmail = data.user.email;
+                Storage.save('adhd_cloud_user_id', this.state.userId);
+                Storage.save('adhd_cloud_user_email', this.state.userEmail);
+                
+                document.getElementById('cloudLoginModal')?.remove();
+                Settings.showToast('success', '注册成功', '正在同步数据...');
+                
+                this.updateCloudButton();
+                this.startAutoSync();
+                
+                // 注册后上传本地数据到云端
+                await this.syncNow();
+            } else {
+                Settings.showToast('success', '注册成功', '请查收验证邮件后登录');
+            }
             
         } catch (error) {
             Settings.showToast('error', '注册失败', error.message);
+            if (registerBtn) {
+                registerBtn.disabled = false;
+                registerBtn.textContent = '注册新账号';
+            }
         }
     },
     
@@ -306,15 +414,22 @@ const CloudSync = {
     async logout() {
         if (!this.supabase) return;
         
-        await this.supabase.auth.signOut();
+        try {
+            await this.supabase.auth.signOut();
+        } catch (e) {
+            console.error('退出登录错误:', e);
+        }
+        
         this.state.userId = null;
+        this.state.userEmail = null;
         Storage.remove('adhd_cloud_user_id');
+        Storage.remove('adhd_cloud_user_email');
         
         // 更新按钮状态
         this.updateCloudButton();
         
         document.getElementById('cloudConfigModal')?.remove();
-        Settings.showToast('info', '已退出登录', '');
+        Settings.showToast('info', '已退出登录', '本地数据保留');
     },
     
     // ==================== 同步功能 ====================
