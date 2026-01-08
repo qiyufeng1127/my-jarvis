@@ -467,32 +467,51 @@ const ValueVisualizer = {
                         <label>💳 当前欠款（信用卡、花呗等）</label>
                         <div class="setup-input-row">
                             <span class="currency">¥</span>
-                            <input type="number" id="setupDebt" value="${this.finance.debt || 0}" placeholder="0">
+                            <input type="number" id="setupDebt" value="${this.finance.debt || 0}" placeholder="0" inputmode="decimal">
                         </div>
                     </div>
                     <div class="setup-group">
                         <label>🏠 每月固定支出（房租、生活费等）</label>
                         <div class="setup-input-row">
                             <span class="currency">¥</span>
-                            <input type="number" id="setupExpense" value="${this.finance.monthlyExpense || 0}" placeholder="0">
+                            <input type="number" id="setupExpense" value="${this.finance.monthlyExpense || 0}" placeholder="0" inputmode="decimal">
                         </div>
                     </div>
                     <div class="setup-group">
                         <label>🎯 每月收入目标（可选）</label>
                         <div class="setup-input-row">
                             <span class="currency">¥</span>
-                            <input type="number" id="setupTarget" value="${this.finance.monthlyTarget || 0}" placeholder="0">
+                            <input type="number" id="setupTarget" value="${this.finance.monthlyTarget || 0}" placeholder="0" inputmode="decimal">
                         </div>
                     </div>
                 </div>
                 <div class="setup-footer">
-                    <button class="setup-btn skip" onclick="ValueVisualizer.closeSetupModal()">取消</button>
-                    <button class="setup-btn confirm" onclick="ValueVisualizer.saveSetup()">${this.settings.initialized ? '保存修改' : '开始赚钱！'}</button>
+                    <button class="setup-btn skip" type="button" id="setupCancelBtn">取消</button>
+                    <button class="setup-btn confirm" type="button" id="setupConfirmBtn">${this.settings.initialized ? '保存修改' : '开始赚钱！'}</button>
                 </div>
             </div>
         `;
         
         document.body.appendChild(modal);
+        
+        // 使用事件监听器而不是onclick属性
+        document.getElementById('setupCancelBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.closeSetupModal();
+        });
+        
+        document.getElementById('setupConfirmBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.saveSetup();
+        });
+        
+        // 阻止弹窗内容区域的触摸事件冒泡到遮罩
+        modal.querySelector('.value-setup-content').addEventListener('touchmove', (e) => {
+            e.stopPropagation();
+        }, { passive: true });
+        
         setTimeout(() => modal.classList.add('show'), 10);
     },
     

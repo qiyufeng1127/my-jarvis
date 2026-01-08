@@ -298,7 +298,52 @@ const Settings = {
     showOnboarding() {
         this.currentOnboardingStep = 0;
         this.renderOnboardingStep();
-        document.getElementById('onboardingOverlay')?.classList.add('show');
+        const overlay = document.getElementById('onboardingOverlay');
+        if (overlay) {
+            overlay.classList.add('show');
+            
+            // 使用事件监听器替代onclick，确保移动端可点击
+            const skipBtn = document.getElementById('onboardingSkipBtn');
+            const nextBtn = document.getElementById('onboardingNextBtn');
+            
+            const self = this;
+            
+            if (skipBtn) {
+                // 移除旧的事件监听器
+                const newSkipBtn = skipBtn.cloneNode(true);
+                skipBtn.parentNode.replaceChild(newSkipBtn, skipBtn);
+                
+                newSkipBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    self.skipOnboarding();
+                }, { passive: false });
+                
+                newSkipBtn.addEventListener('touchend', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    self.skipOnboarding();
+                }, { passive: false });
+            }
+            
+            if (nextBtn) {
+                // 移除旧的事件监听器
+                const newNextBtn = nextBtn.cloneNode(true);
+                nextBtn.parentNode.replaceChild(newNextBtn, nextBtn);
+                
+                newNextBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    self.nextOnboardingStep();
+                }, { passive: false });
+                
+                newNextBtn.addEventListener('touchend', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    self.nextOnboardingStep();
+                }, { passive: false });
+            }
+        }
     },
 
     renderOnboardingStep() {
