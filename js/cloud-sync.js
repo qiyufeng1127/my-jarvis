@@ -102,6 +102,12 @@ const CloudSync = {
     
     // 显示配置弹窗
     showConfigModal() {
+        // 如果已配置但未登录，直接显示登录弹窗
+        if (this.config.configured && !this.state.userId) {
+            this.showLoginModal();
+            return;
+        }
+        
         const modal = document.createElement('div');
         modal.className = 'modal-overlay show';
         modal.id = 'cloudConfigModal';
@@ -112,24 +118,11 @@ const CloudSync = {
                     <h2>云同步设置</h2>
                 </div>
                 <div class="modal-body">
-                    <p style="color: #666; margin-bottom: 16px; font-size: 13px;">
-                        配置Supabase实现数据云端同步，多设备共享数据。
-                        <a href="https://supabase.com" target="_blank" style="color: #667eea;">获取免费账号</a>
-                    </p>
-                    
-                    <div class="form-group">
-                        <label>Supabase URL</label>
-                        <input type="text" id="supabaseUrl" placeholder="https://xxx.supabase.co" 
-                               value="${this.config.url}">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Anon Key (公开密钥)</label>
-                        <input type="password" id="supabaseKey" placeholder="eyJhbGciOiJIUzI1NiIs..."
-                               value="${this.config.anonKey}">
-                    </div>
-                    
-                    ${this.config.configured ? `
+                    ${this.state.userId ? `
+                        <div class="cloud-user-info">
+                            <span class="cloud-user-icon">👤</span>
+                            <span class="cloud-user-text">已登录</span>
+                        </div>
                         <div class="sync-status">
                             <span class="sync-status-icon">${this.state.isOnline ? '🟢' : '🔴'}</span>
                             <span class="sync-status-text">
@@ -137,24 +130,27 @@ const CloudSync = {
                                 ${this.state.lastSync ? ` · 上次同步: ${this.formatTime(this.state.lastSync)}` : ''}
                             </span>
                         </div>
-                    ` : ''}
-                    
-                    <div class="cloud-actions" style="margin-top: 16px;">
-                        ${this.config.configured ? `
-                            <button class="cloud-action-btn" onclick="CloudSync.syncNow()">
+                        <div class="cloud-actions" style="margin-top: 16px;">
+                            <button class="cloud-action-btn" onclick="CloudSync.syncNow(); document.getElementById('cloudConfigModal').remove();">
                                 🔄 立即同步
                             </button>
-                            <button class="cloud-action-btn danger" onclick="CloudSync.logout()">
+                            <button class="cloud-action-btn danger" onclick="CloudSync.logout(); document.getElementById('cloudConfigModal').remove();">
                                 🚪 退出登录
                             </button>
-                        ` : ''}
-                    </div>
+                        </div>
+                    ` : `
+                        <p style="color: #666; margin-bottom: 16px; font-size: 13px;">
+                            登录后可实现数据云端同步，多设备共享数据。
+                        </p>
+                        <div class="cloud-actions" style="flex-direction: column;">
+                            <button class="modal-btn btn-confirm" style="width: 100%; margin-bottom: 10px;" onclick="document.getElementById('cloudConfigModal').remove(); CloudSync.showLoginModal();">
+                                🔐 登录 / 注册
+                            </button>
+                        </div>
+                    `}
                 </div>
                 <div class="modal-footer">
-                    <button class="modal-btn btn-cancel" onclick="document.getElementById('cloudConfigModal').remove()">取消</button>
-                    <button class="modal-btn btn-confirm" onclick="CloudSync.saveConfigFromModal()">
-                        ${this.config.configured ? '更新配置' : '连接'}
-                    </button>
+                    <button class="modal-btn btn-cancel" onclick="document.getElementById('cloudConfigModal').remove()">关闭</button>
                 </div>
             </div>
         `;
@@ -615,6 +611,26 @@ syncStyles.textContent = `
     
     .cloud-action-btn.danger:hover {
         background: rgba(231, 76, 60, 0.2);
+    }
+    
+    .cloud-user-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 16px;
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+        border-radius: 12px;
+        margin-bottom: 12px;
+    }
+    
+    .cloud-user-icon {
+        font-size: 24px;
+    }
+    
+    .cloud-user-text {
+        font-size: 15px;
+        font-weight: 600;
+        color: #667eea;
     }
 `;
 document.head.appendChild(syncStyles);
