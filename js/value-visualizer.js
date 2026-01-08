@@ -452,6 +452,10 @@ const ValueVisualizer = {
         // 先加载已保存的数据
         this.loadData();
         
+        // 移除已存在的弹窗
+        const existingModal = document.getElementById('valueSetupModal');
+        if (existingModal) existingModal.remove();
+        
         const modal = document.createElement('div');
         modal.className = 'value-setup-modal';
         modal.id = 'valueSetupModal';
@@ -486,31 +490,57 @@ const ValueVisualizer = {
                     </div>
                 </div>
                 <div class="setup-footer">
-                    <button class="setup-btn skip" type="button" id="setupCancelBtn">取消</button>
-                    <button class="setup-btn confirm" type="button" id="setupConfirmBtn">${this.settings.initialized ? '保存修改' : '开始赚钱！'}</button>
+                    <button class="setup-btn skip" type="button" id="valueSetupCancelBtn">取消</button>
+                    <button class="setup-btn confirm" type="button" id="valueSetupConfirmBtn">${this.settings.initialized ? '保存修改' : '开始赚钱！'}</button>
                 </div>
             </div>
         `;
         
         document.body.appendChild(modal);
         
-        // 使用事件监听器而不是onclick属性
-        document.getElementById('setupCancelBtn').addEventListener('click', (e) => {
+        const self = this;
+        
+        // 取消按钮事件
+        const cancelBtn = document.getElementById('valueSetupCancelBtn');
+        cancelBtn.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
-            this.closeSetupModal();
+            self.closeSetupModal();
         });
-        
-        document.getElementById('setupConfirmBtn').addEventListener('click', (e) => {
+        cancelBtn.addEventListener('touchend', function(e) {
             e.preventDefault();
             e.stopPropagation();
-            this.saveSetup();
-        });
+            self.closeSetupModal();
+        }, { passive: false });
         
-        // 阻止弹窗内容区域的触摸事件冒泡到遮罩
-        modal.querySelector('.value-setup-content').addEventListener('touchmove', (e) => {
+        // 确认按钮事件
+        const confirmBtn = document.getElementById('valueSetupConfirmBtn');
+        confirmBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            self.saveSetup();
+        });
+        confirmBtn.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            self.saveSetup();
+        }, { passive: false });
+        
+        // 让弹窗内容可以滚动
+        const content = modal.querySelector('.value-setup-content');
+        content.addEventListener('touchstart', function(e) {
+            // 允许触摸
+        }, { passive: true });
+        content.addEventListener('touchmove', function(e) {
             e.stopPropagation();
         }, { passive: true });
+        
+        // 点击遮罩关闭
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                self.closeSetupModal();
+            }
+        });
         
         setTimeout(() => modal.classList.add('show'), 10);
     },
