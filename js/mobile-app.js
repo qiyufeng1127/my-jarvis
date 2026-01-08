@@ -170,16 +170,28 @@ const MobileApp = {
     
     // 绑定事件
     bindEvents() {
-        // 下拉刷新（简化版）
+        // 下拉刷新（简化版）- 只在特定条件下触发
         let startY = 0;
         let pulling = false;
         
         document.addEventListener('touchstart', (e) => {
-            if (window.scrollY === 0) {
+            // 只在页面顶部且不在输入框内时启用下拉刷新
+            const target = e.target;
+            const isInput = target.tagName === 'INPUT' || 
+                           target.tagName === 'TEXTAREA' || 
+                           target.tagName === 'SELECT' ||
+                           target.isContentEditable ||
+                           target.closest('.modal-overlay') ||
+                           target.closest('.onboarding-overlay') ||
+                           target.closest('.value-setup-overlay');
+            
+            if (window.scrollY === 0 && !isInput) {
                 startY = e.touches[0].pageY;
                 pulling = true;
+            } else {
+                pulling = false;
             }
-        });
+        }, { passive: true });
         
         document.addEventListener('touchmove', (e) => {
             if (!pulling) return;
@@ -189,14 +201,14 @@ const MobileApp = {
             if (diff > 80 && window.scrollY === 0) {
                 this.showPullRefresh();
             }
-        });
+        }, { passive: true });
         
         document.addEventListener('touchend', () => {
             if (pulling) {
                 this.hidePullRefresh();
                 pulling = false;
             }
-        });
+        }, { passive: true });
     },
     
     // 显示下拉刷新

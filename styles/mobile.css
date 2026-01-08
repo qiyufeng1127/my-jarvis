@@ -2,8 +2,16 @@
 
 /* 移动端基础样式 */
 @media screen and (max-width: 768px) {
+    html, body {
+        overflow: auto !important;
+        height: auto !important;
+        -webkit-overflow-scrolling: touch;
+        touch-action: manipulation;
+    }
+    
     body {
-        overflow: auto;
+        position: relative !important;
+        min-height: 100vh;
     }
     
     #canvas {
@@ -11,9 +19,10 @@
         flex-direction: column;
         gap: 16px;
         padding: 70px 12px 100px 12px;
-        height: auto;
+        height: auto !important;
         min-height: 100vh;
-        overflow: visible;
+        overflow: visible !important;
+        position: relative !important;
     }
     
     /* 移动端组件重置为流式布局 */
@@ -25,11 +34,13 @@
         height: auto !important;
         min-height: 200px;
         max-height: none;
+        touch-action: auto;
     }
     
     .draggable-component .component-body {
         max-height: 400px;
         overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
     }
     
     /* 隐藏拖拽和调整大小功能 */
@@ -516,7 +527,7 @@
 
 @media (hover: none) and (pointer: coarse) {
     /* 增大触摸目标 */
-    button, .clickable {
+    button, .clickable, .modal-btn, .onboarding-btn {
         min-height: 44px;
         min-width: 44px;
     }
@@ -530,6 +541,105 @@
     .touch-feedback:active {
         opacity: 0.7;
         transform: scale(0.98);
+    }
+}
+
+/* 移动端输入框修复 */
+@media screen and (max-width: 768px) {
+    /* 确保输入框可以点击和输入 */
+    input, textarea, select, button {
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+    }
+    
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="number"],
+    textarea {
+        font-size: 16px !important; /* 防止iOS自动缩放 */
+        touch-action: manipulation;
+        -webkit-user-select: text;
+        user-select: text;
+    }
+    
+    .chat-input {
+        font-size: 16px !important;
+        -webkit-user-select: text;
+        user-select: text;
+        touch-action: manipulation;
+    }
+    
+    /* 确保按钮可点击 */
+    button, .modal-btn, .onboarding-btn {
+        cursor: pointer;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+    }
+    
+    /* 弹窗层级和交互修复 */
+    .modal-overlay {
+        touch-action: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .modal-content {
+        touch-action: auto;
+        -webkit-overflow-scrolling: touch;
+        max-height: 85vh;
+        overflow-y: auto;
+    }
+    
+    /* 引导弹窗修复 */
+    .onboarding-overlay {
+        touch-action: auto;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .onboarding-card {
+        touch-action: auto;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+    
+    .onboarding-btn {
+        padding: 14px 24px;
+        min-height: 48px;
+        touch-action: manipulation;
+        pointer-events: auto !important;
+        position: relative;
+        z-index: 10001;
+    }
+    
+    /* 价值显化器设置弹窗修复 */
+    .value-setup-content {
+        touch-action: auto;
+        -webkit-overflow-scrolling: touch;
+        max-height: 85vh;
+        overflow-y: auto;
+    }
+    
+    .value-setup-content input {
+        font-size: 16px !important;
+        touch-action: manipulation;
+        -webkit-user-select: text;
+        user-select: text;
+    }
+    
+    .value-setup-content button {
+        min-height: 48px;
+        touch-action: manipulation;
+    }
+    
+    /* 确保所有可滚动区域正常工作 */
+    .scrollable, [class*="scroll"], .component-body {
+        -webkit-overflow-scrolling: touch;
+        overflow-y: auto;
+        touch-action: pan-y;
     }
 }
 
