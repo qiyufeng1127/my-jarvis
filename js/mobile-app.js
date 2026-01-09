@@ -89,52 +89,101 @@ const MobileApp = {
         moreMenu.id = 'moreMenu';
         moreMenu.className = 'more-menu show';
         moreMenu.innerHTML = `
-            <div class="more-menu-overlay" onclick="MobileApp.hideMoreMenu()"></div>
+            <div class="more-menu-overlay"></div>
             <div class="more-menu-content">
                 <div class="more-menu-header">
                     <span>更多功能</span>
-                    <button onclick="MobileApp.hideMoreMenu()">×</button>
+                    <button class="more-menu-close-btn">×</button>
                 </div>
                 <div class="more-menu-grid">
-                    <button class="more-menu-item" onclick="MobileApp.switchViewAndClose('memoryBank')">
+                    <button class="more-menu-item" data-view="memoryBank">
                         <span class="more-menu-icon">🧠</span>
                         <span>记忆库</span>
                     </button>
-                    <button class="more-menu-item" onclick="MobileApp.switchViewAndClose('valuePanel')">
+                    <button class="more-menu-item" data-view="valuePanel">
                         <span class="more-menu-icon">💰</span>
                         <span>价值显化</span>
                     </button>
-                    <button class="more-menu-item" onclick="MobileApp.switchViewAndClose('reviewPanel')">
+                    <button class="more-menu-item" data-view="reviewPanel">
                         <span class="more-menu-icon">📊</span>
                         <span>复盘</span>
                     </button>
-                    <button class="more-menu-item" onclick="MobileApp.switchViewAndClose('aiInsights')">
+                    <button class="more-menu-item" data-view="aiInsights">
                         <span class="more-menu-icon">🧠</span>
                         <span>AI洞察</span>
                     </button>
-                    <button class="more-menu-item" onclick="MobileApp.switchViewAndClose('aiMemory')">
+                    <button class="more-menu-item" data-view="aiMemory">
                         <span class="more-menu-icon">💖</span>
                         <span>KiiKii记忆</span>
                     </button>
-                    <button class="more-menu-item" onclick="MobileApp.switchViewAndClose('inefficiencyPanel')">
+                    <button class="more-menu-item" data-view="inefficiencyPanel">
                         <span class="more-menu-icon">📉</span>
                         <span>低效监控</span>
                     </button>
-                    <button class="more-menu-item" onclick="MobileApp.switchViewAndClose('promptPanel')">
+                    <button class="more-menu-item" data-view="promptPanel">
                         <span class="more-menu-icon">📝</span>
                         <span>提示词</span>
                     </button>
-                    <button class="more-menu-item ${isLoggedIn ? 'logged-in' : ''}" onclick="MobileApp.hideMoreMenu(); CloudSync.showConfigModal();">
+                    <button class="more-menu-item ${isLoggedIn ? 'logged-in' : ''}" data-action="cloudSync">
                         <span class="more-menu-icon">${isLoggedIn ? '✅' : '☁️'}</span>
                         <span>${isLoggedIn ? '已同步' : '云同步'}</span>
                     </button>
-                    <button class="more-menu-item" onclick="toggleSettingsPanel(); MobileApp.hideMoreMenu();">
+                    <button class="more-menu-item" data-action="settings">
                         <span class="more-menu-icon">⚙️</span>
                         <span>设置</span>
                     </button>
                 </div>
             </div>
         `;
+        
+        // 使用事件委托，确保移动端点击事件正常工作
+        moreMenu.addEventListener('click', (e) => {
+            const target = e.target.closest('.more-menu-item');
+            const closeBtn = e.target.closest('.more-menu-close-btn');
+            const overlay = e.target.closest('.more-menu-overlay');
+            
+            // 点击关闭按钮
+            if (closeBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.hideMoreMenu();
+                return;
+            }
+            
+            // 点击遮罩层（空白区域）
+            if (overlay) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.hideMoreMenu();
+                return;
+            }
+            
+            // 点击菜单项
+            if (target) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const viewId = target.dataset.view;
+                const action = target.dataset.action;
+                
+                if (viewId) {
+                    // 切换视图
+                    this.switchViewAndClose(viewId);
+                } else if (action === 'cloudSync') {
+                    // 云同步
+                    this.hideMoreMenu();
+                    if (window.CloudSync) {
+                        CloudSync.showConfigModal();
+                    }
+                } else if (action === 'settings') {
+                    // 设置
+                    this.hideMoreMenu();
+                    if (typeof toggleSettingsPanel === 'function') {
+                        toggleSettingsPanel();
+                    }
+                }
+            }
+        }, true); // 使用捕获阶段，确保事件能正确触发
         
         document.body.appendChild(moreMenu);
     },
