@@ -75,9 +75,14 @@ const MobileApp = {
     
     // 显示更多菜单
     showMoreMenu() {
-        const menu = document.getElementById('moreMenu');
-        if (menu) {
-            menu.classList.toggle('show');
+        const existingMenu = document.getElementById('moreMenu');
+        if (existingMenu) {
+            // 如果菜单已存在，切换显示状态
+            if (existingMenu.classList.contains('show')) {
+                this.hideMoreMenu();
+            } else {
+                existingMenu.classList.add('show');
+            }
             return;
         }
         
@@ -87,48 +92,48 @@ const MobileApp = {
         // 创建更多菜单
         const moreMenu = document.createElement('div');
         moreMenu.id = 'moreMenu';
-        moreMenu.className = 'more-menu show';
+        moreMenu.className = 'more-menu';
         moreMenu.innerHTML = `
-            <div class="more-menu-overlay"></div>
-            <div class="more-menu-content">
+            <div class="more-menu-overlay" id="moreMenuOverlay"></div>
+            <div class="more-menu-content" id="moreMenuContent">
                 <div class="more-menu-header">
                     <span>更多功能</span>
-                    <button class="more-menu-close-btn">×</button>
+                    <button class="more-menu-close-btn" id="moreMenuCloseBtn" type="button">×</button>
                 </div>
-                <div class="more-menu-grid">
-                    <button class="more-menu-item" data-view="memoryBank">
+                <div class="more-menu-grid" id="moreMenuGrid">
+                    <button class="more-menu-item" data-view="memoryBank" type="button">
                         <span class="more-menu-icon">🧠</span>
                         <span>记忆库</span>
                     </button>
-                    <button class="more-menu-item" data-view="valuePanel">
+                    <button class="more-menu-item" data-view="valuePanel" type="button">
                         <span class="more-menu-icon">💰</span>
                         <span>价值显化</span>
                     </button>
-                    <button class="more-menu-item" data-view="reviewPanel">
+                    <button class="more-menu-item" data-view="reviewPanel" type="button">
                         <span class="more-menu-icon">📊</span>
                         <span>复盘</span>
                     </button>
-                    <button class="more-menu-item" data-view="aiInsights">
+                    <button class="more-menu-item" data-view="aiInsights" type="button">
                         <span class="more-menu-icon">🧠</span>
                         <span>AI洞察</span>
                     </button>
-                    <button class="more-menu-item" data-view="aiMemory">
+                    <button class="more-menu-item" data-view="aiMemory" type="button">
                         <span class="more-menu-icon">💖</span>
                         <span>KiiKii记忆</span>
                     </button>
-                    <button class="more-menu-item" data-view="inefficiencyPanel">
+                    <button class="more-menu-item" data-view="inefficiencyPanel" type="button">
                         <span class="more-menu-icon">📉</span>
                         <span>低效监控</span>
                     </button>
-                    <button class="more-menu-item" data-view="promptPanel">
+                    <button class="more-menu-item" data-view="promptPanel" type="button">
                         <span class="more-menu-icon">📝</span>
                         <span>提示词</span>
                     </button>
-                    <button class="more-menu-item ${isLoggedIn ? 'logged-in' : ''}" data-action="cloudSync">
+                    <button class="more-menu-item ${isLoggedIn ? 'logged-in' : ''}" data-action="cloudSync" type="button">
                         <span class="more-menu-icon">${isLoggedIn ? '✅' : '☁️'}</span>
                         <span>${isLoggedIn ? '已同步' : '云同步'}</span>
                     </button>
-                    <button class="more-menu-item" data-action="settings">
+                    <button class="more-menu-item" data-action="settings" type="button">
                         <span class="more-menu-icon">⚙️</span>
                         <span>设置</span>
                     </button>
@@ -136,56 +141,82 @@ const MobileApp = {
             </div>
         `;
         
-        // 使用事件委托，确保移动端点击事件正常工作
-        moreMenu.addEventListener('click', (e) => {
-            const target = e.target.closest('.more-menu-item');
-            const closeBtn = e.target.closest('.more-menu-close-btn');
-            const overlay = e.target.closest('.more-menu-overlay');
-            
-            // 点击关闭按钮
-            if (closeBtn) {
-                e.preventDefault();
-                e.stopPropagation();
-                this.hideMoreMenu();
-                return;
-            }
-            
-            // 点击遮罩层（空白区域）
-            if (overlay) {
-                e.preventDefault();
-                e.stopPropagation();
-                this.hideMoreMenu();
-                return;
-            }
-            
-            // 点击菜单项
-            if (target) {
-                e.preventDefault();
-                e.stopPropagation();
-                
-                const viewId = target.dataset.view;
-                const action = target.dataset.action;
-                
-                if (viewId) {
-                    // 切换视图
-                    this.switchViewAndClose(viewId);
-                } else if (action === 'cloudSync') {
-                    // 云同步
-                    this.hideMoreMenu();
-                    if (window.CloudSync) {
-                        CloudSync.showConfigModal();
-                    }
-                } else if (action === 'settings') {
-                    // 设置
-                    this.hideMoreMenu();
-                    if (typeof toggleSettingsPanel === 'function') {
-                        toggleSettingsPanel();
-                    }
-                }
-            }
-        }, true); // 使用捕获阶段，确保事件能正确触发
-        
         document.body.appendChild(moreMenu);
+        
+        // 强制重绘后再添加show类，确保动画生效
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                moreMenu.classList.add('show');
+            });
+        });
+        
+        // 为关闭按钮单独绑定事件（使用touchend和click双重绑定）
+        const closeBtn = document.getElementById('moreMenuCloseBtn');
+        if (closeBtn) {
+            const handleClose = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.hideMoreMenu();
+            };
+            closeBtn.addEventListener('touchend', handleClose, { passive: false });
+            closeBtn.addEventListener('click', handleClose);
+        }
+        
+        // 为遮罩层绑定关闭事件
+        const overlay = document.getElementById('moreMenuOverlay');
+        if (overlay) {
+            const handleOverlayClose = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.hideMoreMenu();
+            };
+            overlay.addEventListener('touchend', handleOverlayClose, { passive: false });
+            overlay.addEventListener('click', handleOverlayClose);
+        }
+        
+        // 为每个菜单项单独绑定事件
+        const menuItems = moreMenu.querySelectorAll('.more-menu-item');
+        menuItems.forEach(item => {
+            const handleItemClick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const viewId = item.dataset.view;
+                const action = item.dataset.action;
+                
+                // 添加点击反馈
+                item.style.transform = 'scale(0.95)';
+                item.style.opacity = '0.7';
+                
+                setTimeout(() => {
+                    if (viewId) {
+                        // 切换视图
+                        this.switchViewAndClose(viewId);
+                    } else if (action === 'cloudSync') {
+                        // 云同步
+                        this.hideMoreMenu();
+                        setTimeout(() => {
+                            if (window.CloudSync) {
+                                CloudSync.showConfigModal();
+                            }
+                        }, 100);
+                    } else if (action === 'settings') {
+                        // 设置
+                        this.hideMoreMenu();
+                        setTimeout(() => {
+                            if (typeof toggleSettingsPanel === 'function') {
+                                toggleSettingsPanel();
+                            }
+                        }, 100);
+                    }
+                }, 50);
+            };
+            
+            // 移动端优先使用touchend事件
+            item.addEventListener('touchend', handleItemClick, { passive: false });
+            // 同时保留click事件作为后备
+            item.addEventListener('click', handleItemClick);
+        });
     },
     
     // 隐藏更多菜单
