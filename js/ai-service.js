@@ -145,6 +145,16 @@ const AIService = {
                         task.tags = task.tags || [task.type || '任务'];
                         // 确保有价值估算
                         task.value = task.value || AIService.estimateTaskValue(task);
+                        
+                        // 智能推荐步数验证
+                        if (!task.verificationType) {
+                            const stepInfo = AIService.suggestStepVerification(task);
+                            if (stepInfo.suitable) {
+                                task.verificationType = 'steps';
+                                task.targetSteps = stepInfo.steps;
+                                task.verificationReason = stepInfo.reason;
+                            }
+                        }
                     });
                 }
                 
@@ -165,6 +175,72 @@ const AIService = {
             console.error('Parse input error:', e);
             return { reply: '抱歉，我暂时无法理解，请稍后再试~', error: true };
         }
+    },
+    
+    // 智能推荐步数验证
+    suggestStepVerification(task) {
+        const title = (task.title || '').toLowerCase();
+        
+        // 步数验证关键词和对应步数
+        const stepKeywords = {
+            // 家务类
+            '打扫': { steps: 1000, reason: '打扫需要来回走动' },
+            '清洁': { steps: 800, reason: '清洁工作需要活动' },
+            '整理': { steps: 500, reason: '整理物品需要走动' },
+            '收拾': { steps: 500, reason: '收拾房间需要活动' },
+            '拖地': { steps: 800, reason: '拖地需要来回走动' },
+            '扫地': { steps: 600, reason: '扫地需要走动' },
+            '吸尘': { steps: 600, reason: '吸尘需要走动' },
+            '擦': { steps: 400, reason: '擦拭需要活动' },
+            '洗碗': { steps: 300, reason: '洗碗需要站立活动' },
+            '洗衣': { steps: 400, reason: '洗衣需要来回走动' },
+            '做饭': { steps: 600, reason: '做饭需要在厨房活动' },
+            '做菜': { steps: 500, reason: '做菜需要活动' },
+            '厨房': { steps: 800, reason: '厨房工作需要走动' },
+            
+            // 运动类
+            '运动': { steps: 2000, reason: '运动任务' },
+            '散步': { steps: 3000, reason: '散步任务' },
+            '跑步': { steps: 5000, reason: '跑步任务' },
+            '健身': { steps: 1500, reason: '健身需要活动' },
+            '锻炼': { steps: 1500, reason: '锻炼需要活动' },
+            '走': { steps: 2000, reason: '步行任务' },
+            '跑': { steps: 3000, reason: '跑步任务' },
+            '遛狗': { steps: 2500, reason: '遛狗需要走动' },
+            
+            // 外出类
+            '购物': { steps: 2000, reason: '购物需要走动' },
+            '逛': { steps: 2000, reason: '逛街需要走动' },
+            '买': { steps: 1000, reason: '外出购买需要走动' },
+            '取': { steps: 500, reason: '取东西需要走动' },
+            '寄': { steps: 500, reason: '寄东西需要外出' },
+        };
+        
+        // 检查是否匹配关键词
+        for (const [keyword, info] of Object.entries(stepKeywords)) {
+            if (title.includes(keyword)) {
+                return {
+                    suitable: true,
+                    steps: info.steps,
+                    reason: info.reason
+                };
+            }
+        }
+        
+        // 检查任务类型标签
+        const tags = task.tags || [];
+        const activityTags = ['运动', '健身', '家务', '清洁', '外出'];
+        for (const tag of tags) {
+            if (activityTags.some(t => tag.includes(t))) {
+                return {
+                    suitable: true,
+                    steps: 500,
+                    reason: '活动类任务'
+                };
+            }
+        }
+        
+        return { suitable: false };
     },
     
     // 估算任务价值

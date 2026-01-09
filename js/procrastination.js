@@ -333,7 +333,16 @@ const ProcrastinationMonitor = {
         savedTriggered[today] = this.triggeredTasks;
         Storage.save('adhd_triggered_tasks', savedTriggered);
         
-        // 设置当前任务
+        // 检查是否是步数验证任务
+        if (task.verificationType === 'steps' && task.targetSteps) {
+            // 使用步数验证模块
+            if (typeof StepVerification !== 'undefined') {
+                StepVerification.startVerification(task);
+                return; // 步数验证模块会处理后续流程
+            }
+        }
+        
+        // 设置当前任务（非步数验证任务走原有流程）
         this.currentTask = task;
         this.currentCycle = 1;
         this.totalPaidCoins = 0;

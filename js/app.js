@@ -101,6 +101,11 @@ const App = {
             GuidanceSystem.init();
         }
         
+        // 初始化步数验证模块
+        if (typeof StepVerification !== 'undefined') {
+            StepVerification.init();
+        }
+        
         // 加载AI洞察面板
         this.loadAIInsightsPanel();
         
@@ -1267,6 +1272,15 @@ const App = {
             tagsHtml += '</div>';
         }
         
+        // 步数验证标识
+        var stepBadgeHtml = '';
+        if (task.verificationType === 'steps' && task.targetSteps) {
+            stepBadgeHtml = '<span class="event-step-badge" style="color:' + cardText + '; background:rgba(' + (cardText === '#FFFFFF' ? '76,175,80' : '76,175,80') + ',0.3);">' +
+                '<span class="step-icon">🚶</span>' +
+                '<span class="step-value">' + task.targetSteps + '步</span>' +
+            '</span>';
+        }
+        
         // 大金币图标显示（使用$符号代替emoji，避免乱码）
         var coinBadgeHtml = '';
         if (task.coins) {
@@ -1307,7 +1321,7 @@ const App = {
         return '<div class="event-card' + completedClass + '" data-task-id="' + task.id + '" style="' + cardStyle + '" onclick="App.toggleEventDetails(event, \'' + task.id + '\')">' +
                    '<div class="event-icon">' + icon + '</div>' +
                    '<div class="event-content">' +
-                       '<div class="event-title" style="color:' + cardText + ';">' + task.title + coinBadgeHtml + '</div>' +
+                       '<div class="event-title" style="color:' + cardText + ';">' + task.title + coinBadgeHtml + stepBadgeHtml + '</div>' +
                        '<div class="event-time" style="color:' + cardText + ';">' + task.startTime + ' - ' + endTime + ' (' + duration + ' min)</div>' +
                        locationHtml +
                        tagsHtml +
@@ -1321,10 +1335,12 @@ const App = {
                                '<span class="event-detail-label">精力消耗</span>' +
                                '<span class="event-detail-value">⚡ ' + (task.energyCost || 2) + '</span>' +
                            '</div>' +
+                           (task.verificationType === 'steps' ? '<div class="event-detail-row"><span class="event-detail-label">验证方式</span><span class="event-detail-value">🚶 步数验证 (' + task.targetSteps + '步)</span></div>' : '') +
                            (task.notes ? '<div class="event-detail-row"><span class="event-detail-label">备注</span><span class="event-detail-value">' + task.notes + '</span></div>' : '') +
                            '<div class="event-actions">' +
                                '<button class="event-action-btn edit" style="' + btnStyle + '" onclick="App.editTask(event, \'' + task.id + '\')">✏ 编辑</button>' +
                                '<button class="event-action-btn" style="' + btnStyle + '" onclick="App.showCardColorPicker(event, \'' + task.id + '\')">🎨 换色</button>' +
+                               (task.verificationType === 'steps' ? '<button class="event-action-btn step-verify" style="' + btnStyle + '" onclick="App.startStepVerification(\'' + task.id + '\')">🚶 开始验证</button>' : '') +
                                '<button class="event-action-btn complete" onclick="App.completeTask(\'' + task.id + '\')">✓ 完成</button>' +
                                '<button class="event-action-btn delete" onclick="App.deleteTask(\'' + task.id + '\')">✕ 删除</button>' +
                            '</div>' +
@@ -1601,6 +1617,19 @@ const App = {
         task.tags = task.tags || [];
         if (task.type && task.tags.indexOf(task.type) === -1) {
             task.tags.push(task.type);
+        }
+        
+        // 如果是步数验证任务，显示提示
+        if (task.verificationType === 'steps' && task.targetSteps) {
+            setTimeout(() => {
+                this.addChatMessage('system', 
+                    `🚶 任务【${task.title}】已设置步数验证\n` +
+                    `目标步数：${task.targetSteps} 步\n` +
+                    `原因：${task.verificationReason || '活动类任务'}\n` +
+                    `💡 任务开始时将自动启动步数监控`,
+                    '🚶'
+                );
+            }, 500);
         }
         
         const savedTask = Storage.addTask(task);
@@ -2008,6 +2037,24 @@ const App = {
         this.closeAllMenus();
         
         this.addChatMessage("system", "太棒了！「" + task.title + "」完成！获得 " + coinsEarned + " 金币 🎉\n精力 -" + energyCost, "🏆");
+    },
+
+    // 开始步数验证
+    startStepVerification(taskId) {
+        event && event.stopPropagation();
+        
+        const tasks = Storage.getTasks();
+        const task = tasks.find(function(t) { return t.id === taskId; });
+        if (!task) return;
+        
+        if (typeof StepVerification === 'undefined') {
+            this.addChatMessage('system', '步数验证模块未加载', '❌');
+            return;
+        }
+        
+        // 开始步数验证
+        StepVerification.startVerification(task);
+        this.closeAllMenus();
     },
 
     // 记忆库
