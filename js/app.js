@@ -1092,16 +1092,13 @@ const App = {
             }
         }
         
-        // 计算当前时间指示器位置（修正计算公式）
+        // 当前时间（初始位置会在 updateTimeIndicator 中精确计算）
         const now = new Date();
         const currentHour = now.getHours();
         const currentMinute = now.getMinutes();
-        // 每个时间槽高度为42px，每30分钟一个槽
-        // 位置 = 总分钟数 / 30 * 42
-        const slotHeight = 42;
-        const totalMinutes = currentHour * 60 + currentMinute;
-        const indicatorTop = (totalMinutes / 30) * slotHeight;
         const currentTimeStr = currentHour.toString().padStart(2, "0") + ":" + currentMinute.toString().padStart(2, "0");
+        // 初始位置设为0，稍后通过 updateTimeIndicator 精确定位
+        const indicatorTop = 0;
         
         // 获取保存的日历高度
         const savedCalendarHeight = isCalendarCollapsed ? '100' : (localStorage.getItem('calendarHeight') || '120');
@@ -1689,28 +1686,7 @@ const App = {
         this.addChatMessage("system", "已添加事件「" + title + "」到 " + startTime, "📅");
     },
 
-    // 更新当前时间指示器
-    startTimeIndicatorUpdate() {
-        const self = this;
-        // 每分钟更新一次
-        if (this.timeIndicatorInterval) {
-            clearInterval(this.timeIndicatorInterval);
-        }
-        this.timeIndicatorInterval = setInterval(function() {
-            const indicator = document.getElementById("currentTimeIndicator");
-            const label = indicator ? indicator.querySelector(".current-time-label") : null;
-            if (indicator && label) {
-                const now = new Date();
-                const currentHour = now.getHours();
-                const currentMinute = now.getMinutes();
-                const indicatorTop = (currentHour * 2 + Math.floor(currentMinute / 30)) * 50 + (currentMinute % 30) * (50/30);
-                const currentTimeStr = currentHour.toString().padStart(2, "0") + ":" + currentMinute.toString().padStart(2, "0");
-                
-                indicator.style.top = indicatorTop + "px";
-                label.textContent = "Now " + currentTimeStr;
-            }
-        }, 60000);
-    },
+    // 旧的时间指示器更新函数已移除，使用文件末尾的新版本
 
     addTaskToTimeline(task) {
         if (!task.date) {
@@ -3751,8 +3727,11 @@ const App = {
         
         const self = this;
         
-        // 立即更新一次
-        this.updateTimeIndicator();
+        // 延迟执行，确保 DOM 已渲染完成
+        setTimeout(function() {
+            // 立即更新一次
+            self.updateTimeIndicator();
+        }, 100);
         
         // 每分钟更新一次
         this._timeIndicatorTimer = setInterval(function() {
@@ -3779,18 +3758,68 @@ const App = {
     updateTimeIndicator() {
         const indicator = document.getElementById('currentTimeIndicator');
         const timeLabel = indicator ? indicator.querySelector('.current-time-label') : null;
-        if (!indicator) return;
+        const timelineTrack = document.getElementById('timelineTrack');
+        if (!indicator || !timelineTrack) return;
         
         const now = new Date();
         const currentHour = now.getHours();
         const currentMinute = now.getMinutes();
+        const currentTotalMinutes = currentHour * 60 + currentMinute;
         
-        // 计算正确的位置
-        // 每个时间槽高度为42px，每小时有2个槽（0分和30分）
-        // 位置 = (小时 * 2 + 分钟/30的整数部分) * 42 + (分钟%30) * (42/30)
-        const slotHeight = 42;
-        const totalMinutes = currentHour * 60 + currentMinute;
-        const indicatorTop = (totalMinutes / 30) * slotHeight;
+        // 获取所有时间槽
+        const slots = timelineTrack.querySelectorAll('.time-slot');
+        if (slots.length === 0) return;
+        
+        // 找到当前时间应该在的位置
+        let indicatorTop = 0;
+        let foundPosition = false;
+        
+        for (let i = 0; i < slots.length; i++) {
+            const slot = slots[i];
+            const slotHour = parseInt(slot.dataset.hour) || 0;
+            const slotMinutes = parseInt(slot.dataset.minutes) || 0;
+            const slotTotalMinutes = slotHour * 60 + slotMinutes;
+            
+            // 获取下一个槽的时间
+            let nextSlotTotalMinutes = 24 * 60; // 默认到24:00
+            if (i + 1 < slots.length) {
+                const nextSlot = slots[i + 1];
+                const nextHour = parseInt(nextSlot.dataset.hour) || 0;
+                const nextMin = parseInt(nextSlot.dataset.minutes) || 0;
+                nextSlotTotalMinutes = nextHour * 60 + nextMin;
+            }
+            
+            // 当前时间在这个槽的范围内
+            if (currentTotalMinutes >= slotTotalMinutes && currentTotalMinutes < nextSlotTotalMinutes) {
+                // 计算在这个槽内的相对位置
+                const slotTop = slot.offsetTop;
+                const slotHeight = slot.offsetHeight;
+                const slotDuration = nextSlotTotalMinutes - slotTotalMinutes;
+                const minutesIntoSlot = currentTotalMinutes - slotTotalMinutes;
+                
+                if (slotDuration > 0) {
+                    const ratio = minutesIntoSlot / slotDuration;
+                    indicatorTop = slotTop + (slotHeight * ratio);
+                } else {
+                    indicatorTop = slotTop;
+                }
+                foundPosition = true;
+                break;
+            }
+            
+            // 当前时间在这个槽之前（时间轴从较晚时间开始的情况）
+            if (currentTotalMinutes < slotTotalMinutes && i === 0) {
+                indicatorTop = 0;
+                foundPosition = true;
+                break;
+            }
+        }
+        
+        // 如果没找到位置（当前时间在最后一个槽之后）
+        if (!foundPosition && slots.length > 0) {
+            const lastSlot = slots[slots.length - 1];
+            indicatorTop = lastSlot.offsetTop + lastSlot.offsetHeight;
+        }
         
         // 更新位置（带平滑动画）
         indicator.style.transition = 'top 0.5s ease-out';

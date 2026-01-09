@@ -1,13 +1,14 @@
-// 价值显化器模块 - 将努力实时变成看得见的钱
+// 价值显化器模块 - 记录真实世界的收入（财务账本）
+// 注意：这里的"价值"是真实收入（人民币），与"金币"（虚拟激励货币）完全分开
 const ValueVisualizer = {
-    // 状态
-    todayEarned: 0,              // 今日已赚
-    totalEarned: 0,              // 总计已赚
+    // 状态 - 真实收入记录
+    todayEarned: 0,              // 今日真实收入
+    totalEarned: 0,              // 总计真实收入
     pendingTasks: [],            // 待完成任务（带价值）
-    completedToday: [],          // 今日已完成
-    incomeStreams: {},           // 收入流分类
+    completedToday: [],          // 今日已完成的收入记录
+    incomeStreams: {},           // 收入流分类（照相馆、插画等）
     
-    // 财务数据
+    // 财务数据 - 真实财务状况
     finance: {
         debt: 0,                 // 欠款
         monthlyExpense: 0,       // 月固定支出
@@ -206,105 +207,188 @@ const ValueVisualizer = {
         });
     },
     
-    // 完成步骤，获得收入
-    earnFromStep(task, stepIndex, stepValue) {
-        if (!stepValue || stepValue <= 0) return;
+    // 记录真实收入（价值）- 不涉及金币
+    recordIncome(task, stepIndex, incomeValue, description) {
+        if (!incomeValue || incomeValue <= 0) return;
         
-        // 更新今日收入
-        this.todayEarned += stepValue;
-        this.totalEarned += stepValue;
+        // 更新今日真实收入
+        this.todayEarned += incomeValue;
+        this.totalEarned += incomeValue;
         
-        // 记录完成
+        // 记录收入明细
         this.completedToday.push({
-            taskId: task.id,
-            taskTitle: task.title,
+            taskId: task ? task.id : null,
+            taskTitle: task ? task.title : description,
+            description: description || (task ? task.title : ''),
             stepIndex: stepIndex,
-            value: stepValue,
+            value: incomeValue,
             time: new Date().toISOString()
         });
         
-        // 更新收入流
-        const stream = this.detectIncomeStream(task.title);
+        // 更新收入流分类
+        const stream = task ? this.detectIncomeStream(task.title) : this.detectIncomeStream(description || '');
         if (!this.incomeStreams[stream]) {
             this.incomeStreams[stream] = { total: 0, count: 0 };
         }
-        this.incomeStreams[stream].total += stepValue;
+        this.incomeStreams[stream].total += incomeValue;
         this.incomeStreams[stream].count++;
         
         // 保存数据
         this.saveTodayData();
         Storage.save('adhd_value_total', this.totalEarned);
         Storage.save('adhd_value_streams', this.incomeStreams);
-        this.updateMonthEarned(stepValue);
+        this.updateMonthEarned(incomeValue);
         
         // 重新计算日目标
         this.calculateDailyTarget();
         
-        // 播放即时价值冲击动画（大金额时显示大动画）
-        if (stepValue >= 100 && typeof ValueImpact !== 'undefined') {
-            ValueImpact.showBigEarnAnimation(stepValue, task.title);
+        // 播放收入动画
+        if (incomeValue >= 100 && typeof ValueImpact !== 'undefined') {
+            ValueImpact.showBigEarnAnimation(incomeValue, description || (task ? task.title : ''));
         } else {
-            // 小金额显示普通动画
-            this.playEarnEffect(stepValue);
+            this.playEarnEffect(incomeValue);
         }
         
         // 更新界面
         if (typeof App !== 'undefined') {
             App.loadValuePanel();
             
-            // 计算对应金币
-            const earnedCoins = Math.round(stepValue / 10); // 10元=1金币
-            
             App.addChatMessage("system", 
-                "💰 叮咚！收入 +" + this.settings.currency + stepValue + "！\n" +
-                "🪙 获得 " + earnedCoins + " 金币\n" +
-                "今日已赚：" + this.settings.currency + this.todayEarned + "\n" +
+                "💵 收入记录！+" + this.settings.currency + incomeValue + "\n" +
+                "📝 来源：" + (description || (task ? task.title : '未知')) + "\n" +
+                "今日总收入：" + this.settings.currency + this.todayEarned + "\n" +
                 (this.todayEarned >= this.finance.dailyTarget ? 
-                    "🎉 今日目标已达成！" : 
+                    "🎉 今日收入目标已达成！" : 
                     "距今日目标还差：" + this.settings.currency + (this.finance.dailyTarget - this.todayEarned)),
-                "💰"
+                "💵"
             );
-            
-            // 同步增加游戏金币
-            const gameState = Storage.getGameState();
-            gameState.coins = (gameState.coins || 0) + earnedCoins;
-            Storage.saveGameState(gameState);
-            App.updateGameStatus();
         }
-        
-        // 检查是否可以兑换奖励
-        this.checkRewardAvailability();
     },
     
-    // 检查奖励可用性
-    checkRewardAvailability() {
-        if (typeof RewardSystem === 'undefined') return;
+    // 手动添加收入记录（用于记录客户付款等）
+    addManualIncome(amount, description, category) {
+        if (!amount || amount <= 0) return;
         
-        const upcoming = RewardSystem.getUpcomingRewards();
-        if (upcoming.length > 0) {
-            const nearest = upcoming[0];
-            if (nearest.progress >= 90) {
-                // 即将可以兑换，显示提示
-                if (typeof Settings !== 'undefined') {
-                    Settings.showToast('info', '🎁 即将解锁奖励', 
-                        `再赚 ${nearest.coinsNeeded} 金币就能兑换【${nearest.name}】啦！`);
+        this.recordIncome(null, 0, amount, description);
+        
+        // 如果指定了分类，更新收入流
+        if (category && category !== '其他') {
+            // 修正收入流分类
+            const autoStream = this.detectIncomeStream(description || '');
+            if (autoStream !== category) {
+                // 从自动分类中减去
+                if (this.incomeStreams[autoStream]) {
+                    this.incomeStreams[autoStream].total -= amount;
+                    this.incomeStreams[autoStream].count--;
                 }
+                // 添加到指定分类
+                if (!this.incomeStreams[category]) {
+                    this.incomeStreams[category] = { total: 0, count: 0 };
+                }
+                this.incomeStreams[category].total += amount;
+                this.incomeStreams[category].count++;
+                Storage.save('adhd_value_streams', this.incomeStreams);
             }
         }
     },
     
-    // 格式化双重价值（金币+人民币）
-    formatDualValue(moneyValue) {
-        const coins = Math.round(moneyValue / 10);
-        return {
-            money: moneyValue,
-            coins: coins,
-            html: `<div class="event-dual-value">
-                <span class="coins">🪙 ${coins}</span>
-                <span class="separator">≈</span>
-                <span class="money">¥${moneyValue}</span>
-            </div>`
-        };
+    // 完成步骤，获得收入（保留旧接口兼容性，但不再处理金币）
+    earnFromStep(task, stepIndex, stepValue) {
+        // 只记录真实收入，金币由 CoinSystem 单独处理
+        this.recordIncome(task, stepIndex, stepValue, task ? task.title : '');
+    },
+    
+    // 检查奖励可用性（保留但简化，奖励系统使用金币）
+    checkRewardAvailability() {
+        // 奖励系统现在由 CoinSystem 管理，这里不再处理
+    },
+    
+    // 显示手动记录收入的弹窗
+    showAddIncomeModal() {
+        const existingModal = document.getElementById('addIncomeModal');
+        if (existingModal) existingModal.remove();
+        
+        const modal = document.createElement('div');
+        modal.className = 'value-setup-modal';
+        modal.id = 'addIncomeModal';
+        modal.innerHTML = `
+            <div class="value-setup-content" style="max-width:360px;">
+                <div class="setup-header">
+                    <span class="setup-icon">💵</span>
+                    <h2>记录真实收入</h2>
+                    <p>记录客户付款、项目收入等</p>
+                </div>
+                <div class="setup-body">
+                    <div class="setup-group">
+                        <label>💰 收入金额</label>
+                        <div class="setup-input-row">
+                            <span class="currency">¥</span>
+                            <input type="number" id="incomeAmount" placeholder="500" inputmode="decimal">
+                        </div>
+                    </div>
+                    <div class="setup-group">
+                        <label>📝 收入来源/描述</label>
+                        <input type="text" id="incomeDescription" placeholder="例：插画项目尾款、照相馆客人" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;">
+                    </div>
+                    <div class="setup-group">
+                        <label>📂 收入分类</label>
+                        <select id="incomeCategory" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;">
+                            <option value="照相馆">📷 照相馆</option>
+                            <option value="插画">🎨 插画</option>
+                            <option value="设计">✏️ 设计</option>
+                            <option value="视频">🎬 视频</option>
+                            <option value="小红书">📱 小红书</option>
+                            <option value="写作">✍️ 写作</option>
+                            <option value="咨询">💬 咨询</option>
+                            <option value="其他">📦 其他</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="setup-footer">
+                    <button class="setup-btn skip" type="button" onclick="ValueVisualizer.closeAddIncomeModal()">取消</button>
+                    <button class="setup-btn confirm" type="button" onclick="ValueVisualizer.confirmAddIncome()">💵 记录收入</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        setTimeout(() => modal.classList.add('show'), 10);
+        
+        // 聚焦到金额输入框
+        setTimeout(() => {
+            const amountInput = document.getElementById('incomeAmount');
+            if (amountInput) amountInput.focus();
+        }, 300);
+    },
+    
+    // 关闭添加收入弹窗
+    closeAddIncomeModal() {
+        const modal = document.getElementById('addIncomeModal');
+        if (modal) {
+            modal.classList.remove('show');
+            setTimeout(() => modal.remove(), 300);
+        }
+    },
+    
+    // 确认添加收入
+    confirmAddIncome() {
+        const amount = parseFloat(document.getElementById('incomeAmount').value) || 0;
+        const description = document.getElementById('incomeDescription').value || '';
+        const category = document.getElementById('incomeCategory').value || '其他';
+        
+        if (amount <= 0) {
+            if (typeof Settings !== 'undefined') {
+                Settings.showToast('error', '请输入有效金额', '金额必须大于0');
+            }
+            return;
+        }
+        
+        this.addManualIncome(amount, description, category);
+        this.closeAddIncomeModal();
+        
+        if (typeof Settings !== 'undefined') {
+            Settings.showToast('success', '💵 收入已记录', `+¥${amount} ${description}`);
+        }
     },
     
     // 检测收入流类型
