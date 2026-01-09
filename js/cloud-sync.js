@@ -495,15 +495,66 @@ const CloudSync = {
     
     // 开始自动同步
     startAutoSync() {
-        // 每5分钟自动同步
-        setInterval(() => {
-            if (this.state.isOnline && this.state.userId) {
+        // 每2分钟自动同步（减少频率）
+        if (this._autoSyncInterval) {
+            clearInterval(this._autoSyncInterval);
+        }
+        this._autoSyncInterval = setInterval(() => {
+            if (this.state.isOnline && this.state.userId && !this.state.syncInProgress) {
                 this.syncNow();
             }
-        }, 5 * 60 * 1000);
+        }, 2 * 60 * 1000);
         
         // 监听数据变化
         this.watchLocalChanges();
+        
+        // 启动实时同步监听
+        this.startRealtimeSync();
+    },
+    
+    // 启动 Supabase Realtime 实时同步
+    startRealtimeSync() {
+        if (!this.supabase || !this.state.userId) return;
+        
+        // 取消之前的订阅
+        if (this._realtimeChannel) {
+            this.supabase.removeChannel(this._realtimeChannel);
+        }
+        
+        // 订阅用户数据变化
+        this._realtimeChannel = this.supabase
+            .channel('user_data_changes')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'user_data',
+                    filter: `user_id=eq.${this.state.userId}`
+                },
+                (payload) => {
+                    console.log('收到实时更新:', payload.eventType);
+                    // 收到远程更新，下载最新数据
+                    if (!this.state.syncInProgress && !this._merging) {
+                        this.downloadChanges().then(() => {
+                            console.log('实时同步完成');
+                        }).catch(err => {
+                            console.error('实时同步失败:', err);
+                        });
+                    }
+                }
+            )
+            .subscribe((status) => {
+                console.log('Realtime 订阅状态:', status);
+            });
+    },
+    
+    // 停止实时同步
+    stopRealtimeSync() {
+        if (this._realtimeChannel && this.supabase) {
+            this.supabase.removeChannel(this._realtimeChannel);
+            this._realtimeChannel = null;
+        }
     },
     
     // 监听本地数据变化
@@ -537,7 +588,8 @@ const CloudSync = {
             'adhd_ai_memory_data',
             'adhd_custom_tags',
             'adhd_task_templates',
-            'adhd_recurring_tasks'
+            'adhd_recurring_tasks',
+            'adhd_chat_messages'  // 添加聊天记录同步
         ];
         return syncKeys.includes(key);
     },
@@ -724,11 +776,12 @@ const CloudSync = {
             aiMemory: Storage.load('adhd_ai_memory_data', {}),
             customTags: Storage.load('adhd_custom_tags', []),
             templates: Storage.load('adhd_task_templates', []),
-            recurring: Storage.load('adhd_recurring_tasks', [])
+            recurring: Storage.load('adhd_recurring_tasks', []),
+            chatMessages: Storage.load('adhd_chat_messages', [])  // 添加聊天记录
         };
     },
     
-    // 合并远程数据
+    // 合并远程数据（智能合并策略）
     mergeRemoteData(remoteData) {
         // 暂时禁用同步监听，避免循环触发
         this._merging = true;
@@ -743,10 +796,37 @@ const CloudSync = {
                 }
             };
             
-            // 简单策略：远程数据覆盖本地
-            if (remoteData.tasks) saveDirectly('adhd_focus_tasks', remoteData.tasks);
-            if (remoteData.memories) saveDirectly('adhd_focus_memories', remoteData.memories);
-            if (remoteData.gameState) saveDirectly('adhd_focus_game_state', remoteData.gameState);
+            // 智能合并任务（按ID和时间戳合并）
+            if (remoteData.tasks) {
+                const localTasks = Storage.getTasks() || [];
+                const mergedTasks = this.mergeByIdAndTimestamp(localTasks, remoteData.tasks, 'id');
+                saveDirectly('adhd_focus_tasks', mergedTasks);
+            }
+            
+            // 智能合并记忆（按ID和时间戳合并）
+            if (remoteData.memories) {
+                const localMemories = Storage.getMemories() || [];
+                const mergedMemories = this.mergeByIdAndTimestamp(localMemories, remoteData.memories, 'id');
+                saveDirectly('adhd_focus_memories', mergedMemories);
+            }
+            
+            // 智能合并聊天记录（按ID和时间戳合并）
+            if (remoteData.chatMessages) {
+                const localMessages = Storage.load('adhd_chat_messages', []);
+                const mergedMessages = this.mergeByIdAndTimestamp(localMessages, remoteData.chatMessages, 'id');
+                // 只保留最近200条
+                const trimmedMessages = mergedMessages.slice(-200);
+                saveDirectly('adhd_chat_messages', trimmedMessages);
+            }
+            
+            // 游戏状态：取金币较多的版本（防止数据丢失）
+            if (remoteData.gameState) {
+                const localState = Storage.getGameState() || {};
+                const mergedState = this.mergeGameState(localState, remoteData.gameState);
+                saveDirectly('adhd_focus_game_state', mergedState);
+            }
+            
+            // 其他数据：远程覆盖本地（简单策略）
             if (remoteData.valueFinance) saveDirectly('adhd_value_finance', remoteData.valueFinance);
             if (remoteData.aiMemory) saveDirectly('adhd_ai_memory_data', remoteData.aiMemory);
             if (remoteData.customTags) saveDirectly('adhd_custom_tags', remoteData.customTags);
@@ -763,53 +843,97 @@ const CloudSync = {
                 if (typeof App.updateGameStatus === 'function') {
                     App.updateGameStatus();
                 }
+                // 刷新聊天记录显示
+                if (typeof App.loadChatMessages === 'function') {
+                    App.loadChatMessages();
+                }
             }
         } finally {
             this._merging = false;
         }
     },
     
+    // 按ID和时间戳智能合并数组
+    mergeByIdAndTimestamp(localArray, remoteArray, idField = 'id') {
+        const merged = new Map();
+        
+        // 先添加本地数据
+        (localArray || []).forEach(item => {
+            if (item && item[idField]) {
+                merged.set(item[idField], item);
+            }
+        });
+        
+        // 合并远程数据（按时间戳判断）
+        (remoteArray || []).forEach(item => {
+            if (!item || !item[idField]) return;
+            
+            const existing = merged.get(item[idField]);
+            if (!existing) {
+                // 本地没有，直接添加
+                merged.set(item[idField], item);
+            } else {
+                // 本地有，比较时间戳，取较新的
+                const localTime = new Date(existing.updatedAt || existing.createdAt || existing.timestamp || 0).getTime();
+                const remoteTime = new Date(item.updatedAt || item.createdAt || item.timestamp || 0).getTime();
+                
+                if (remoteTime > localTime) {
+                    merged.set(item[idField], item);
+                }
+            }
+        });
+        
+        // 转换回数组并按时间排序
+        return Array.from(merged.values()).sort((a, b) => {
+            const timeA = new Date(a.createdAt || a.timestamp || 0).getTime();
+            const timeB = new Date(b.createdAt || b.timestamp || 0).getTime();
+            return timeA - timeB;
+        });
+    },
+    
+    // 合并游戏状态（取较优值）
+    mergeGameState(localState, remoteState) {
+        return {
+            coins: Math.max(localState.coins || 0, remoteState.coins || 0),
+            energy: Math.max(localState.energy || 0, remoteState.energy || 0),
+            maxEnergy: Math.max(localState.maxEnergy || 10, remoteState.maxEnergy || 10),
+            level: Math.max(localState.level || 1, remoteState.level || 1),
+            exp: Math.max(localState.exp || 0, remoteState.exp || 0),
+            completedTasks: Math.max(localState.completedTasks || 0, remoteState.completedTasks || 0),
+            achievements: this.mergeArrayUnique(localState.achievements || [], remoteState.achievements || [])
+        };
+    },
+    
+    // 合并数组（去重）
+    mergeArrayUnique(arr1, arr2) {
+        const set = new Set([...(arr1 || []), ...(arr2 || [])]);
+        return Array.from(set);
+    },
+    
     // ==================== UI ====================
     
-    // 显示同步指示器
+    // 显示同步指示器（静默模式，不显示）
     showSyncIndicator() {
-        let indicator = document.getElementById('syncIndicator');
-        if (!indicator) {
-            indicator = document.createElement('div');
-            indicator.id = 'syncIndicator';
-            indicator.className = 'sync-indicator';
-            indicator.innerHTML = '<div class="sync-spinner"></div><span>同步中...</span>';
-            document.body.appendChild(indicator);
+        // 静默同步，不显示指示器
+        // 只在调试模式下显示
+        if (this._debugMode) {
+            let indicator = document.getElementById('syncIndicator');
+            if (!indicator) {
+                indicator = document.createElement('div');
+                indicator.id = 'syncIndicator';
+                indicator.className = 'sync-indicator';
+                indicator.innerHTML = '<div class="sync-spinner"></div><span>同步中...</span>';
+                document.body.appendChild(indicator);
+            }
+            indicator.classList.add('show');
         }
-        indicator.classList.add('show');
-        
-        // 设置超时自动隐藏（防止一直显示）
-        if (this._syncTimeout) {
-            clearTimeout(this._syncTimeout);
-        }
-        this._syncTimeout = setTimeout(() => {
-            this.hideSyncIndicator(true);
-        }, 30000); // 30秒超时
     },
     
     // 隐藏同步指示器
-    hideSyncIndicator(isTimeout = false) {
-        if (this._syncTimeout) {
-            clearTimeout(this._syncTimeout);
-            this._syncTimeout = null;
-        }
-        
+    hideSyncIndicator(isError = false) {
         const indicator = document.getElementById('syncIndicator');
         if (indicator) {
-            if (isTimeout) {
-                // 超时时显示失败状态
-                indicator.innerHTML = '<span style="color: #E74C3C;">⚠️</span><span>同步超时</span>';
-                setTimeout(() => {
-                    indicator.classList.remove('show');
-                }, 2000);
-            } else {
-                indicator.classList.remove('show');
-            }
+            indicator.classList.remove('show');
         }
     },
     

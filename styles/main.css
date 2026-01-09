@@ -7457,3 +7457,199 @@ body {
     color: #999;
 }
 
+/* ==================== 智能对话头部统计 ==================== */
+
+.header-stats {
+    display: flex;
+    gap: 12px;
+    margin-left: auto;
+    margin-right: 10px;
+}
+
+.header-stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.15), rgba(255, 215, 0, 0.05));
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid rgba(255, 215, 0, 0.2);
+}
+
+.header-stat.energy {
+    background: linear-gradient(135deg, rgba(52, 152, 219, 0.15), rgba(52, 152, 219, 0.05));
+    border-color: rgba(52, 152, 219, 0.2);
+}
+
+.header-stat:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.header-stat .stat-emoji {
+    font-size: 20px;
+}
+
+.header-stat .stat-value {
+    font-size: 16px;
+    font-weight: 700;
+    color: #D4A017;
+}
+
+.header-stat.energy .stat-value {
+    color: #3498DB;
+}
+
+[data-theme="dark"] .header-stat {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 215, 0, 0.1));
+    border-color: rgba(255, 215, 0, 0.3);
+}
+
+[data-theme="dark"] .header-stat.energy {
+    background: linear-gradient(135deg, rgba(52, 152, 219, 0.2), rgba(52, 152, 219, 0.1));
+    border-color: rgba(52, 152, 219, 0.3);
+}
+
+[data-theme="dark"] .header-stat .stat-value {
+    color: #FFD700;
+}
+
+[data-theme="dark"] .header-stat.energy .stat-value {
+    color: #5DADE2;
+}
+
+/* ==================== 精力恢复菜单 ==================== */
+
+.energy-menu {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    min-width: 240px;
+    z-index: 10000;
+    overflow: hidden;
+    animation: energyMenuIn 0.2s ease;
+}
+
+@keyframes energyMenuIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+[data-theme="dark"] .energy-menu {
+    background: rgba(40, 40, 70, 0.98);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.energy-menu-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, #3498DB 0%, #2980B9 100%);
+    color: white;
+}
+
+.energy-menu-title {
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.energy-menu-current {
+    font-size: 14px;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.2);
+    padding: 4px 10px;
+    border-radius: 10px;
+}
+
+.energy-menu-desc {
+    padding: 10px 16px;
+    font-size: 12px;
+    color: #888;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+[data-theme="dark"] .energy-menu-desc {
+    color: #A0A0A0;
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.energy-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-bottom: 1px solid #f5f5f5;
+}
+
+[data-theme="dark"] .energy-menu-item {
+    border-bottom-color: rgba(255, 255, 255, 0.05);
+}
+
+.energy-menu-item:hover {
+    background: rgba(52, 152, 219, 0.1);
+}
+
+.energy-menu-item:last-of-type {
+    border-bottom: none;
+}
+
+.energy-menu-item .menu-icon {
+    font-size: 22px;
+}
+
+.energy-menu-item .menu-text {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 500;
+    color: #2C3E50;
+}
+
+[data-theme="dark"] .energy-menu-item .menu-text {
+    color: #E8E8E8;
+}
+
+.energy-menu-item .menu-effect {
+    font-size: 13px;
+    font-weight: 700;
+    color: #27AE60;
+    background: rgba(39, 174, 96, 0.1);
+    padding: 4px 10px;
+    border-radius: 10px;
+}
+
+.energy-menu-footer {
+    padding: 12px 16px;
+    border-top: 1px solid #f0f0f0;
+}
+
+[data-theme="dark"] .energy-menu-footer {
+    border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+.energy-edit-btn {
+    width: 100%;
+    padding: 10px;
+    background: #F8F9FA;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #666;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+[data-theme="dark"] .energy-edit-btn {
+    background: rgba(60, 60, 100, 0.4);
+    color: #A0A0A0;
+}
+
+.energy-edit-btn:hover {
+    background: #E8ECF0;
+}
+

@@ -66,54 +66,124 @@ const ProcrastinationMonitor = {
             // 创建 AudioContext（需要用户交互后才能播放）
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
             
-            // 监听用户交互以解锁音频
+            // 监听多种用户交互以解锁音频
             const unlockAudio = () => {
                 if (this.audioContext && this.audioContext.state === 'suspended') {
-                    this.audioContext.resume();
+                    this.audioContext.resume().then(() => {
+                        console.log('音频上下文已解锁');
+                    });
                 }
-                document.removeEventListener('click', unlockAudio);
-                document.removeEventListener('touchstart', unlockAudio);
             };
-            document.addEventListener('click', unlockAudio);
-            document.addEventListener('touchstart', unlockAudio);
             
-            console.log('音频系统初始化完成');
+            // 添加多个事件监听器
+            ['click', 'touchstart', 'touchend', 'keydown'].forEach(event => {
+                document.addEventListener(event, unlockAudio, { once: false, passive: true });
+            });
+            
+            // 5秒后移除监听器（假设用户已交互）
+            setTimeout(() => {
+                ['click', 'touchstart', 'touchend', 'keydown'].forEach(event => {
+                    document.removeEventListener(event, unlockAudio);
+                });
+            }, 30000);
+            
+            console.log('音频系统初始化完成，状态:', this.audioContext.state);
         } catch (e) {
             console.error('音频系统初始化失败:', e);
+            // 降级方案：使用 HTML5 Audio
+            this.useHTML5Audio = true;
         }
     },
     
     // 播放提示音
     playSound(type) {
-        if (!this.settings.soundEnabled) return;
+        if (!this.settings.soundEnabled) {
+            console.log('声音提醒已禁用');
+            return;
+        }
+        
+        console.log('尝试播放声音:', type);
         
         // 确保音频上下文已创建
-        if (!this.audioContext) {
+        if (!this.audioContext && !this.useHTML5Audio) {
             this.initAudio();
         }
         
         // 如果音频上下文被暂停，尝试恢复
         if (this.audioContext && this.audioContext.state === 'suspended') {
-            this.audioContext.resume();
+            this.audioContext.resume().then(() => {
+                this._doPlaySound(type);
+            });
+            return;
         }
         
+        this._doPlaySound(type);
+    },
+    
+    // 实际播放声音
+    _doPlaySound(type) {
         const volume = this.settings.soundVolume;
         
-        switch (type) {
-            case 'chime':       // 任务开始 - 清脆的提示音
-                this.playChime(volume);
-                break;
-            case 'warning':     // 预警 - 警告音
-                this.playWarning(volume);
-                break;
-            case 'alarm':       // 超时警报 - 紧急警报音
-                this.playAlarm(volume);
-                break;
-            case 'success':     // 成功 - 欢快的成功音
-                this.playSuccess(volume);
-                break;
-            default:
-                this.playChime(volume);
+        // 如果 Web Audio API 不可用，使用降级方案
+        if (this.useHTML5Audio || !this.audioContext) {
+            this.playHTML5Sound(type, volume);
+            return;
+        }
+        
+        try {
+            switch (type) {
+                case 'chime':       // 任务开始 - 清脆的提示音
+                    this.playChime(volume);
+                    break;
+                case 'warning':     // 预警 - 警告音
+                    this.playWarning(volume);
+                    break;
+                case 'alarm':       // 超时警报 - 紧急警报音
+                    this.playAlarm(volume);
+                    break;
+                case 'success':     // 成功 - 欢快的成功音
+                    this.playSuccess(volume);
+                    break;
+                default:
+                    this.playChime(volume);
+            }
+            console.log('声音播放成功:', type);
+        } catch (e) {
+            console.error('声音播放失败:', e);
+            // 降级到 HTML5 Audio
+            this.playHTML5Sound(type, volume);
+        }
+    },
+    
+    // HTML5 Audio 降级方案（使用系统蜂鸣音）
+    playHTML5Sound(type, volume) {
+        try {
+            // 创建一个简单的蜂鸣音
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            // 根据类型设置不同的频率
+            const freqMap = {
+                'chime': 800,
+                'warning': 600,
+                'alarm': 400,
+                'success': 1000
+            };
+            
+            oscillator.frequency.value = freqMap[type] || 800;
+            oscillator.type = 'sine';
+            gainNode.gain.value = volume * 0.3;
+            
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.3);
+            
+            console.log('HTML5 Audio 播放成功');
+        } catch (e) {
+            console.error('HTML5 Audio 也失败了:', e);
         }
     },
     

@@ -40,7 +40,6 @@ const App = {
         this.loadMemoryBank();
         this.loadPromptPanel();
         this.loadGameSystem();
-        this.loadReviewPanel();
         this.loadProcrastinationPanel();
         this.loadInefficiencyPanel();
         this.loadValuePanel();
@@ -563,6 +562,7 @@ const App = {
     loadSmartInput() {
         const container = document.getElementById("smartInputBody");
         const profile = Storage.getUserProfile();
+        const state = Storage.getGameState();
         const defaultAvatar = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%23E8F4F8' width='100' height='100'/%3E%3Ctext x='50' y='65' font-size='50' text-anchor='middle'%3E🦊%3C/text%3E%3C/svg%3E";
         
         container.innerHTML = 
@@ -575,6 +575,16 @@ const App = {
                     '<div class="user-info">' +
                         '<h3>' + profile.name + '</h3>' +
                         '<span>' + (this.isConnected ? '🤖 KiiKii 在线' : '未连接AI') + '</span>' +
+                    '</div>' +
+                    '<div class="header-stats" id="headerStats">' +
+                        '<div class="header-stat coins" onclick="App.showRewardsPanel()" title="点击兑换奖励">' +
+                            '<span class="stat-emoji">🪙</span>' +
+                            '<span class="stat-value" id="headerCoins">' + state.coins + '</span>' +
+                        '</div>' +
+                        '<div class="header-stat energy" onclick="App.showEnergyMenu(event)" title="点击恢复精力">' +
+                            '<span class="stat-emoji">⚡</span>' +
+                            '<span class="stat-value" id="headerEnergy">' + state.energy + '/' + state.maxEnergy + '</span>' +
+                        '</div>' +
                     '</div>' +
                     '<button class="api-key-btn" onclick="App.showApiKeyModal()" title="设置API Key">🔑</button>' +
                 '</div>' +
@@ -596,10 +606,11 @@ const App = {
                 '</div>' +
             '</div>';
         
-        // 重新应用背景色并更新气泡颜色
+        // 重新应用背景色并更新气泡颜色，加载聊天记录
         setTimeout(function() { 
             Canvas.reapplyBackground('smartInput'); 
             App.updateChatBubbleColors();
+            App.loadChatMessages();
         }, 10);
     },
     
@@ -820,7 +831,7 @@ const App = {
         }
     },
 
-    addChatMessage(type, text, emoji) {
+    addChatMessage(type, text, emoji, skipSave = false) {
         const container = document.getElementById("chatMessages");
         const msgDiv = document.createElement("div");
         msgDiv.className = "message " + type;
@@ -830,6 +841,56 @@ const App = {
         
         // 更新气泡颜色
         this.updateChatBubbleColors();
+        
+        // 保存聊天记录到本地存储（用于云同步）
+        if (!skipSave) {
+            this.saveChatMessage(type, text, emoji);
+        }
+    },
+    
+    // 保存聊天记录
+    saveChatMessage(type, text, emoji) {
+        const messages = Storage.load('adhd_chat_messages', []);
+        const newMessage = {
+            id: Date.now().toString(),
+            type: type,
+            text: text,
+            emoji: emoji,
+            timestamp: new Date().toISOString()
+        };
+        messages.push(newMessage);
+        
+        // 只保留最近100条消息
+        if (messages.length > 100) {
+            messages.splice(0, messages.length - 100);
+        }
+        
+        Storage.save('adhd_chat_messages', messages);
+    },
+    
+    // 加载聊天记录
+    loadChatMessages() {
+        const container = document.getElementById("chatMessages");
+        if (!container) return;
+        
+        const messages = Storage.load('adhd_chat_messages', []);
+        
+        // 只显示今天的消息
+        const today = new Date().toISOString().split('T')[0];
+        const todayMessages = messages.filter(m => m.timestamp && m.timestamp.startsWith(today));
+        
+        // 清空现有消息
+        container.innerHTML = '';
+        
+        // 重新渲染消息
+        todayMessages.forEach(msg => {
+            this.addChatMessage(msg.type, msg.text, msg.emoji, true);
+        });
+        
+        // 如果没有消息，显示欢迎消息
+        if (todayMessages.length === 0) {
+            this.addChatMessage('system', '早上好！今天想做些什么呢？', '🌟', true);
+        }
     },
 
     getEmoji(text, type) {
@@ -2009,9 +2070,13 @@ const App = {
         const task = tasks.find(function(t) { return t.id === taskId; });
         if (!task) return;
         
-        // 使用任务自带的金币和精力消耗，或默认值
+        // 使用任务自带的金币，或默认值
         const coinsEarned = task.coins || 5;
-        const energyCost = task.energyCost || 2;
+        
+        // 智能计算精力消耗：2小时任务消耗5点精力，按比例计算
+        // 默认30分钟任务消耗约1.25点精力
+        const taskDuration = task.duration || 30; // 分钟
+        const energyCost = task.energyCost || Math.max(1, Math.round(taskDuration / 24)); // 120分钟 = 5点
         
         Storage.updateTask(taskId, { completed: true, completedAt: new Date().toISOString() });
         
@@ -2023,8 +2088,8 @@ const App = {
         // 检查升级
         if (state.completedTasks >= state.level * 5) {
             state.level += 1;
-            state.maxEnergy = 10 + state.level;
-            this.addChatMessage("system", "🎉 恭喜升级！你现在是 Lv." + state.level + " 了！最大精力值+1", "🌟");
+            // 升级不再增加最大精力值，保持用户设置的值
+            this.addChatMessage("system", "🎉 恭喜升级！你现在是 Lv." + state.level + " 了！", "🌟");
         }
         
         Storage.saveGameState(state);
@@ -2033,7 +2098,7 @@ const App = {
         this.updateGameStatus();
         this.loadTimeline();
         this.loadGameSystem();
-        this.loadReviewPanel();
+        this.loadSmartInput(); // 刷新头部显示
         this.closeAllMenus();
         
         this.addChatMessage("system", "太棒了！「" + task.title + "」完成！获得 " + coinsEarned + " 金币 🎉\n精力 -" + energyCost, "🏆");
@@ -2152,7 +2217,6 @@ const App = {
             tags: emotion.tags || ["情绪"]
         });
         this.loadMemoryBank();
-        this.loadReviewPanel();
     },
 
     filterMemories(filter) {
@@ -2291,9 +2355,163 @@ const App = {
 
     updateGameStatus() {
         const state = Storage.getGameState();
-        document.getElementById("coinAmount").textContent = state.coins;
-        document.getElementById("energyFill").style.width = (state.energy / state.maxEnergy * 100) + "%";
-        document.getElementById("energyText").textContent = state.energy + "/" + state.maxEnergy;
+        
+        // 更新智能对话头部的金币和精力显示
+        const headerCoins = document.getElementById("headerCoins");
+        const headerEnergy = document.getElementById("headerEnergy");
+        
+        if (headerCoins) {
+            headerCoins.textContent = state.coins;
+        }
+        if (headerEnergy) {
+            headerEnergy.textContent = state.energy + "/" + state.maxEnergy;
+        }
+    },
+    
+    // 显示精力恢复菜单
+    showEnergyMenu(event) {
+        event.stopPropagation();
+        this.closeAllMenus();
+        
+        const state = Storage.getGameState();
+        
+        const menu = document.createElement("div");
+        menu.className = "energy-menu";
+        menu.id = "energyMenu";
+        menu.innerHTML = 
+            '<div class="energy-menu-header">' +
+                '<span class="energy-menu-title">⚡ 精力管理</span>' +
+                '<span class="energy-menu-current">' + state.energy + '/' + state.maxEnergy + '</span>' +
+            '</div>' +
+            '<div class="energy-menu-desc">选择活动恢复精力：</div>' +
+            '<div class="energy-menu-item" onclick="App.restoreEnergy(\'medicine\', 8)">' +
+                '<span class="menu-icon">💊</span>' +
+                '<span class="menu-text">吃药</span>' +
+                '<span class="menu-effect">+8 ⚡</span>' +
+            '</div>' +
+            '<div class="energy-menu-item" onclick="App.restoreEnergy(\'toilet\', 3)">' +
+                '<span class="menu-icon">🚽</span>' +
+                '<span class="menu-text">上厕所</span>' +
+                '<span class="menu-effect">+3 ⚡</span>' +
+            '</div>' +
+            '<div class="energy-menu-item" onclick="App.restoreEnergy(\'eat\', 5)">' +
+                '<span class="menu-icon">🍽️</span>' +
+                '<span class="menu-text">吃东西</span>' +
+                '<span class="menu-effect">+5 ⚡</span>' +
+            '</div>' +
+            '<div class="energy-menu-item" onclick="App.restoreEnergy(\'drink\', 2)">' +
+                '<span class="menu-icon">🥤</span>' +
+                '<span class="menu-text">喝水</span>' +
+                '<span class="menu-effect">+2 ⚡</span>' +
+            '</div>' +
+            '<div class="energy-menu-item" onclick="App.restoreEnergy(\'rest\', 4)">' +
+                '<span class="menu-icon">😴</span>' +
+                '<span class="menu-text">休息一下</span>' +
+                '<span class="menu-effect">+4 ⚡</span>' +
+            '</div>' +
+            '<div class="energy-menu-item" onclick="App.restoreEnergy(\'walk\', 3)">' +
+                '<span class="menu-icon">🚶</span>' +
+                '<span class="menu-text">走动一下</span>' +
+                '<span class="menu-effect">+3 ⚡</span>' +
+            '</div>' +
+            '<div class="energy-menu-footer">' +
+                '<button class="energy-edit-btn" onclick="App.showEnergySettings()">⚙️ 设置每日精力</button>' +
+            '</div>';
+        
+        // 定位菜单
+        const rect = event.target.closest('.header-stat').getBoundingClientRect();
+        menu.style.position = 'fixed';
+        menu.style.top = (rect.bottom + 5) + 'px';
+        menu.style.right = (window.innerWidth - rect.right) + 'px';
+        
+        document.body.appendChild(menu);
+        
+        setTimeout(function() {
+            document.addEventListener("click", App.closeAllMenus, { once: true });
+        }, 10);
+    },
+    
+    // 恢复精力
+    restoreEnergy(type, amount) {
+        const state = Storage.getGameState();
+        const oldEnergy = state.energy;
+        state.energy = Math.min(state.maxEnergy, state.energy + amount);
+        const actualGain = state.energy - oldEnergy;
+        Storage.saveGameState(state);
+        
+        this.updateGameStatus();
+        this.loadGameSystem();
+        this.closeAllMenus();
+        
+        const typeNames = {
+            medicine: '💊 吃药',
+            toilet: '🚽 上厕所',
+            eat: '🍽️ 吃东西',
+            drink: '🥤 喝水',
+            rest: '😴 休息',
+            walk: '🚶 走动'
+        };
+        
+        if (actualGain > 0) {
+            this.addChatMessage("system", typeNames[type] + " 恢复了 " + actualGain + " 点精力！\n当前精力：" + state.energy + "/" + state.maxEnergy, "⚡");
+        } else {
+            this.addChatMessage("system", "精力已满，无需恢复~", "✨");
+        }
+    },
+    
+    // 显示精力设置
+    showEnergySettings() {
+        this.closeAllMenus();
+        
+        const state = Storage.getGameState();
+        
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay show';
+        modal.id = 'energySettingsModal';
+        modal.innerHTML = 
+            '<div class="modal-content" style="max-width: 380px;">' +
+                '<div class="modal-header">' +
+                    '<span class="modal-icon">⚡</span>' +
+                    '<h2>精力设置</h2>' +
+                '</div>' +
+                '<div class="modal-body">' +
+                    '<div class="form-group">' +
+                        '<label style="display:block;margin-bottom:8px;font-weight:600;">每日最大精力值</label>' +
+                        '<input type="number" id="maxEnergyInput" class="api-key-input" value="' + state.maxEnergy + '" min="10" max="100">' +
+                        '<p style="font-size:12px;color:#888;margin-top:6px;">建议设置为 25，2小时任务消耗约5点精力</p>' +
+                    '</div>' +
+                    '<div class="form-group" style="margin-top:16px;">' +
+                        '<label style="display:block;margin-bottom:8px;font-weight:600;">当前精力值</label>' +
+                        '<input type="number" id="currentEnergyInput" class="api-key-input" value="' + state.energy + '" min="0" max="100">' +
+                    '</div>' +
+                '</div>' +
+                '<div class="modal-footer">' +
+                    '<button class="modal-btn btn-cancel" onclick="document.getElementById(\'energySettingsModal\').remove()">取消</button>' +
+                    '<button class="modal-btn btn-confirm" onclick="App.saveEnergySettings()">保存</button>' +
+                '</div>' +
+            '</div>';
+        
+        document.body.appendChild(modal);
+    },
+    
+    // 保存精力设置
+    saveEnergySettings() {
+        const maxEnergy = parseInt(document.getElementById('maxEnergyInput').value) || 25;
+        const currentEnergy = parseInt(document.getElementById('currentEnergyInput').value) || maxEnergy;
+        
+        const state = Storage.getGameState();
+        state.maxEnergy = Math.max(10, Math.min(100, maxEnergy));
+        state.energy = Math.max(0, Math.min(state.maxEnergy, currentEnergy));
+        Storage.saveGameState(state);
+        
+        document.getElementById('energySettingsModal').remove();
+        this.updateGameStatus();
+        this.loadGameSystem();
+        this.loadSmartInput();
+        
+        if (typeof Settings !== 'undefined') {
+            Settings.showToast('success', '精力设置已保存', '每日最大精力：' + state.maxEnergy);
+        }
     },
 
     showCoinAnimation(amount) {

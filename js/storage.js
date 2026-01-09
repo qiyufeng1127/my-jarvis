@@ -104,8 +104,8 @@ const Storage = {
     getGameState() {
         return this.load(this.KEYS.GAME_STATE, {
             coins: 0,
-            energy: 10,
-            maxEnergy: 10,
+            energy: 25,
+            maxEnergy: 25,
             level: 1,
             exp: 0,
             completedTasks: 0,
