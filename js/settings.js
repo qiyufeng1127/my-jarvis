@@ -287,11 +287,12 @@ const Settings = {
     currentOnboardingStep: 0,
 
     checkFirstVisit() {
+        // 不再自动显示引导教程
+        // 用户可以在设置中手动重置引导
         const hasVisited = localStorage.getItem('adhd-onboarding-complete');
         if (!hasVisited) {
-            setTimeout(() => {
-                this.showOnboarding();
-            }, 500);
+            // 直接标记为已完成，不显示引导
+            localStorage.setItem('adhd-onboarding-complete', 'true');
         }
     },
 

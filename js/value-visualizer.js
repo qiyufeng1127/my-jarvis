@@ -47,9 +47,10 @@ const ValueVisualizer = {
         // 计算今日目标
         this.calculateDailyTarget();
         
-        // 检查是否需要初始化设置
+        // 标记为已初始化（不再显示设置弹窗）
         if (!this.settings.initialized) {
-            setTimeout(() => this.showSetupModal(), 1000);
+            this.settings.initialized = true;
+            this.saveSettings();
         }
     },
     
