@@ -183,7 +183,10 @@ const MobileApp = {
                            target.isContentEditable ||
                            target.closest('.modal-overlay') ||
                            target.closest('.onboarding-overlay') ||
-                           target.closest('.value-setup-overlay');
+                           target.closest('.value-setup-overlay') ||
+                           // 在更多菜单内时，不触发下拉刷新逻辑，避免干扰菜单点击
+                           target.closest('.more-menu') ||
+                           target.closest('.more-menu-content');
             
             if (window.scrollY === 0 && !isInput) {
                 startY = e.touches[0].pageY;
