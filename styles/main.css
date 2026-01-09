@@ -606,6 +606,7 @@ body {
     z-index: 50;
     display: flex;
     align-items: center;
+    transition: top 0.5s ease-out;
 }
 
 .current-time-indicator::before {
@@ -615,6 +616,7 @@ body {
     background: #FF6B9D;
     border-radius: 50%;
     margin-left: -5px;
+    box-shadow: 0 0 8px rgba(255, 107, 157, 0.6);
 }
 
 .current-time-label {
@@ -626,6 +628,11 @@ body {
     font-weight: 700;
     padding: 2px 5px;
     border-radius: 3px;
+    background: rgba(255, 255, 255, 0.9);
+}
+
+[data-theme="dark"] .current-time-label {
+    background: rgba(40, 40, 60, 0.9);
 }
 
 .timeline-track {
@@ -635,13 +642,43 @@ body {
 
 .time-slot {
     position: relative;
-    min-height: 50px;
+    min-height: 42px;
     border-bottom: 1px dashed rgba(0,0,0,0.08);
     padding: 3px 0;
 }
 
 .time-slot:hover {
     background: rgba(74, 144, 226, 0.04);
+}
+
+/* 空闲时间槽样式 */
+.time-slot.gap-slot {
+    min-height: 30px;
+    background: rgba(74, 144, 226, 0.02);
+    border-bottom: 1px dashed rgba(74, 144, 226, 0.15);
+}
+
+.time-slot.gap-slot:hover {
+    background: rgba(74, 144, 226, 0.08);
+}
+
+.time-slot.gap-slot .gap-add-section {
+    opacity: 0.6;
+}
+
+.time-slot.gap-slot:hover .gap-add-section {
+    opacity: 1;
+}
+
+/* 任务时间槽样式 */
+.time-slot.task-slot {
+    min-height: auto;
+    padding: 4px 0;
+}
+
+/* 空时间槽样式 */
+.time-slot.empty-slot {
+    min-height: 50px;
 }
 
 .time-label {

@@ -887,10 +887,7 @@ const App = {
             this.addChatMessage(msg.type, msg.text, msg.emoji, true);
         });
         
-        // 如果没有消息，显示欢迎消息
-        if (todayMessages.length === 0) {
-            this.addChatMessage('system', '早上好！今天想做些什么呢？', '🌟', true);
-        }
+        // 不再显示欢迎消息，保持界面简洁
     },
 
     getEmoji(text, type) {
@@ -999,7 +996,8 @@ const App = {
         const container = document.getElementById("timelineBody");
         const tasks = Storage.getTasks();
         const today = this.formatDate(this.currentDate);
-        const todayTasks = tasks.filter(function(t) { return t.date === today; });
+        const todayTasks = tasks.filter(function(t) { return t.date === today; })
+            .sort(function(a, b) { return a.startTime.localeCompare(b.startTime); });
         const self = this;
         
         // 获取日历展开/收缩状态
@@ -1008,36 +1006,85 @@ const App = {
         // 生成日历HTML（根据状态显示整月或当周）
         const calendarHtml = isCalendarCollapsed ? this.generateWeekCalendarHtml() : this.generateCalendarHtml();
         
-        // 生成时间轴HTML（30分钟间隔）
+        // 生成智能时间轴HTML（只在有间隔时显示空白）
         var timeSlots = "";
-        for (var hour = 0; hour < 24; hour++) {
-            for (var half = 0; half < 2; half++) {
-                const minutes = half * 30;
-                const timeStr = hour.toString().padStart(2, "0") + ":" + minutes.toString().padStart(2, "0");
-                const h = hour;
-                const m = minutes;
+        var lastEndMinutes = 0; // 上一个任务的结束时间（分钟）
+        
+        // 如果没有任务，显示简化的时间轴
+        if (todayTasks.length === 0) {
+            // 只显示整点时间标签和添加按钮
+            for (var hour = 6; hour < 24; hour++) {
+                timeSlots += 
+                    '<div class="time-slot empty-slot" data-hour="' + hour + '" data-minutes="0">' +
+                        '<span class="time-label">' + hour.toString().padStart(2, "0") + ':00</span>' +
+                        '<div class="gap-add-section">' +
+                            '<button class="gap-add-link" onclick="App.showGapMenu(event, ' + hour + ', 0)">' +
+                                '<span>+</span> 添加任务' +
+                            '</button>' +
+                        '</div>' +
+                    '</div>';
+            }
+        } else {
+            // 有任务时，智能显示
+            for (var i = 0; i < todayTasks.length; i++) {
+                var task = todayTasks[i];
+                var taskStartParts = task.startTime.split(':');
+                var taskStartMinutes = parseInt(taskStartParts[0]) * 60 + parseInt(taskStartParts[1] || 0);
+                var taskDuration = task.duration || 30;
+                var taskEndMinutes = taskStartMinutes + taskDuration;
                 
-                // 查找这个时间段的任务
-                const tasksInSlot = todayTasks.filter(function(t) {
-                    const taskHour = parseInt(t.startTime.split(":")[0]);
-                    const taskMin = parseInt(t.startTime.split(":")[1]) || 0;
-                    return taskHour === h && taskMin >= m && taskMin < m + 30;
-                });
+                // 计算与上一个任务的间隔
+                var gapMinutes = taskStartMinutes - lastEndMinutes;
                 
-                var eventCards = "";
-                for (var i = 0; i < tasksInSlot.length; i++) {
-                    eventCards += this.renderEventCard(tasksInSlot[i], i);
+                // 如果有间隔（超过5分钟），显示间隔区域
+                if (gapMinutes > 5) {
+                    var gapStartHour = Math.floor(lastEndMinutes / 60);
+                    var gapStartMin = lastEndMinutes % 60;
+                    var gapEndHour = Math.floor(taskStartMinutes / 60);
+                    var gapEndMin = taskStartMinutes % 60;
+                    
+                    // 显示间隔时间标签
+                    var gapTimeLabel = '';
+                    if (gapStartMin === 0 || lastEndMinutes === 0) {
+                        gapTimeLabel = '<span class="time-label">' + gapStartHour.toString().padStart(2, "0") + ':' + gapStartMin.toString().padStart(2, "0") + '</span>';
+                    }
+                    
+                    timeSlots += 
+                        '<div class="time-slot gap-slot" data-hour="' + gapStartHour + '" data-minutes="' + gapStartMin + '" style="min-height: ' + Math.min(gapMinutes * 1.4, 80) + 'px;">' +
+                            gapTimeLabel +
+                            '<div class="gap-add-section">' +
+                                '<button class="gap-add-link" onclick="App.showGapMenu(event, ' + gapStartHour + ', ' + gapStartMin + ')">' +
+                                    '<span>+</span> ' + gapMinutes + '分钟空闲' +
+                                '</button>' +
+                            '</div>' +
+                        '</div>';
                 }
                 
-                // 只在整点显示时间标签
-                var timeLabel = half === 0 ? '<span class="time-label">' + hour.toString().padStart(2, "0") + ':00</span>' : '';
+                // 显示任务时间标签
+                var taskHour = parseInt(taskStartParts[0]);
+                var taskMin = parseInt(taskStartParts[1] || 0);
+                var taskTimeLabel = '<span class="time-label">' + taskHour.toString().padStart(2, "0") + ':' + taskMin.toString().padStart(2, "0") + '</span>';
                 
+                // 显示任务卡片
                 timeSlots += 
-                    '<div class="time-slot" data-hour="' + hour + '" data-minutes="' + minutes + '">' +
-                        timeLabel +
-                        eventCards +
+                    '<div class="time-slot task-slot" data-hour="' + taskHour + '" data-minutes="' + taskMin + '">' +
+                        taskTimeLabel +
+                        this.renderEventCard(task, i) +
+                    '</div>';
+                
+                lastEndMinutes = taskEndMinutes;
+            }
+            
+            // 最后一个任务后面的空闲时间（到24:00）
+            var remainingMinutes = 24 * 60 - lastEndMinutes;
+            if (remainingMinutes > 30) {
+                var lastHour = Math.floor(lastEndMinutes / 60);
+                var lastMin = lastEndMinutes % 60;
+                timeSlots += 
+                    '<div class="time-slot gap-slot" data-hour="' + lastHour + '" data-minutes="' + lastMin + '">' +
+                        '<span class="time-label">' + lastHour.toString().padStart(2, "0") + ':' + lastMin.toString().padStart(2, "0") + '</span>' +
                         '<div class="gap-add-section">' +
-                            '<button class="gap-add-link" onclick="App.showGapMenu(event, ' + hour + ', ' + minutes + ')">' +
+                            '<button class="gap-add-link" onclick="App.showGapMenu(event, ' + lastHour + ', ' + lastMin + ')">' +
                                 '<span>+</span> 添加任务' +
                             '</button>' +
                         '</div>' +
@@ -1045,11 +1092,15 @@ const App = {
             }
         }
         
-        // 计算当前时间指示器位置
+        // 计算当前时间指示器位置（修正计算公式）
         const now = new Date();
         const currentHour = now.getHours();
         const currentMinute = now.getMinutes();
-        const indicatorTop = (currentHour * 2 + Math.floor(currentMinute / 30)) * 42 + (currentMinute % 30) * (42/30);
+        // 每个时间槽高度为42px，每30分钟一个槽
+        // 位置 = 总分钟数 / 30 * 42
+        const slotHeight = 42;
+        const totalMinutes = currentHour * 60 + currentMinute;
+        const indicatorTop = (totalMinutes / 30) * slotHeight;
         const currentTimeStr = currentHour.toString().padStart(2, "0") + ":" + currentMinute.toString().padStart(2, "0");
         
         // 获取保存的日历高度
@@ -3668,6 +3719,98 @@ const App = {
         if (minuteLoss <= 0) return '';
         
         return '⚠️ 效率损失：每分钟少赚 ' + VV.formatMoney(minuteLoss) + '！';
+    },
+    
+    // ==================== 时间指示器功能 ====================
+    
+    // 滚动到当前时间位置
+    scrollToCurrentTime() {
+        const timelineSection = document.getElementById('timelineSection');
+        const indicator = document.getElementById('currentTimeIndicator');
+        if (!timelineSection || !indicator) return;
+        
+        // 获取指示器位置
+        const indicatorTop = parseFloat(indicator.style.top) || 0;
+        
+        // 滚动到指示器位置（居中显示）
+        const sectionHeight = timelineSection.clientHeight;
+        const scrollTarget = Math.max(0, indicatorTop - sectionHeight / 3);
+        
+        timelineSection.scrollTo({
+            top: scrollTarget,
+            behavior: 'smooth'
+        });
+    },
+    
+    // 启动时间指示器实时更新
+    startTimeIndicatorUpdate() {
+        // 清除之前的定时器
+        if (this._timeIndicatorTimer) {
+            clearInterval(this._timeIndicatorTimer);
+        }
+        
+        const self = this;
+        
+        // 立即更新一次
+        this.updateTimeIndicator();
+        
+        // 每分钟更新一次
+        this._timeIndicatorTimer = setInterval(function() {
+            self.updateTimeIndicator();
+        }, 60000); // 60秒
+        
+        // 计算到下一分钟的时间，确保在整分钟时更新
+        const now = new Date();
+        const msUntilNextMinute = (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
+        
+        setTimeout(function() {
+            self.updateTimeIndicator();
+            // 重新设置定时器，确保每分钟整点更新
+            if (self._timeIndicatorTimer) {
+                clearInterval(self._timeIndicatorTimer);
+            }
+            self._timeIndicatorTimer = setInterval(function() {
+                self.updateTimeIndicator();
+            }, 60000);
+        }, msUntilNextMinute);
+    },
+    
+    // 更新时间指示器位置和时间
+    updateTimeIndicator() {
+        const indicator = document.getElementById('currentTimeIndicator');
+        const timeLabel = indicator ? indicator.querySelector('.current-time-label') : null;
+        if (!indicator) return;
+        
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+        
+        // 计算正确的位置
+        // 每个时间槽高度为42px，每小时有2个槽（0分和30分）
+        // 位置 = (小时 * 2 + 分钟/30的整数部分) * 42 + (分钟%30) * (42/30)
+        const slotHeight = 42;
+        const totalMinutes = currentHour * 60 + currentMinute;
+        const indicatorTop = (totalMinutes / 30) * slotHeight;
+        
+        // 更新位置（带平滑动画）
+        indicator.style.transition = 'top 0.5s ease-out';
+        indicator.style.top = indicatorTop + 'px';
+        
+        // 更新时间标签
+        const currentTimeStr = currentHour.toString().padStart(2, "0") + ":" + currentMinute.toString().padStart(2, "0");
+        if (timeLabel) {
+            timeLabel.textContent = 'Now ' + currentTimeStr;
+        }
+        
+        console.log('⏰ Now线更新:', currentTimeStr, '位置:', indicatorTop + 'px');
+    },
+    
+    // 停止时间指示器更新（页面卸载时调用）
+    stopTimeIndicatorUpdate() {
+        if (this._timeIndicatorTimer) {
+            clearInterval(this._timeIndicatorTimer);
+            this._timeIndicatorTimer = null;
+        }
     }
 };
 
