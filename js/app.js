@@ -1100,13 +1100,13 @@ const App = {
         // 初始位置设为0，稍后通过 updateTimeIndicator 精确定位
         const indicatorTop = 0;
         
-        // 获取保存的日历高度
-        const savedCalendarHeight = isCalendarCollapsed ? '100' : (localStorage.getItem('calendarHeight') || '120');
+        // 日历高度：收缩时只显示一行（约80px），展开时自动适应内容
+        const calendarHeight = isCalendarCollapsed ? 'auto' : 'auto';
         
         container.innerHTML = 
             '<div class="timeline-container">' +
-                // 顶部日历区（可调整高度，可展开/收缩）
-                '<div class="calendar-section' + (isCalendarCollapsed ? ' collapsed' : '') + '" id="calendarSection" style="height: ' + savedCalendarHeight + 'px;">' +
+                // 顶部日历区（可展开/收缩）
+                '<div class="calendar-section' + (isCalendarCollapsed ? ' collapsed' : ' expanded') + '" id="calendarSection">' +
                     '<div class="calendar-header">' +
                         '<span class="calendar-month">' + this.getMonthYearStr(this.currentDate) + '</span>' +
                         '<div class="calendar-nav">' +
@@ -1114,23 +1114,25 @@ const App = {
                             '<button class="calendar-nav-btn" onclick="App.nextMonth()">▶</button>' +
                         '</div>' +
                     '</div>' +
-                    '<button class="calendar-toggle-btn' + (isCalendarCollapsed ? ' collapsed' : '') + '" onclick="App.toggleCalendarView()" title="' + (isCalendarCollapsed ? '展开月视图' : '收缩为周视图') + '">▲</button>' +
                     '<div class="calendar-weekdays">' +
-                        '<span class="weekday-label">MO</span>' +
-                        '<span class="weekday-label">TU</span>' +
-                        '<span class="weekday-label">WE</span>' +
-                        '<span class="weekday-label">TH</span>' +
-                        '<span class="weekday-label">FR</span>' +
-                        '<span class="weekday-label">SA</span>' +
-                        '<span class="weekday-label">SU</span>' +
+                        '<span class="weekday-label">一</span>' +
+                        '<span class="weekday-label">二</span>' +
+                        '<span class="weekday-label">三</span>' +
+                        '<span class="weekday-label">四</span>' +
+                        '<span class="weekday-label">五</span>' +
+                        '<span class="weekday-label">六</span>' +
+                        '<span class="weekday-label">日</span>' +
                     '</div>' +
                     '<div class="calendar-grid" id="calendarGrid">' +
                         calendarHtml +
                     '</div>' +
-                    '<button class="add-event-btn" onclick="App.showAddEventForm()">+ Add event</button>' +
+                    '<div class="calendar-footer">' +
+                        '<button class="calendar-toggle-btn' + (isCalendarCollapsed ? ' collapsed' : '') + '" onclick="App.toggleCalendarView()">' +
+                            (isCalendarCollapsed ? '▼ 展开月视图' : '▲ 收缩为周视图') +
+                        '</button>' +
+                        '<button class="add-event-btn" onclick="App.showAddEventForm()">+ 添加任务</button>' +
+                    '</div>' +
                 '</div>' +
-                // 可拖拽分隔线
-                '<div class="calendar-resize-handle" id="calendarResizeHandle"></div>' +
                 // 时间轴区
                 '<div class="timeline-section" id="timelineSection">' +
                     '<div class="current-time-indicator" id="currentTimeIndicator" style="top: ' + indicatorTop + 'px;">' +
@@ -1143,7 +1145,6 @@ const App = {
             '</div>';
         
         this.initTaskDrag();
-        this.initCalendarResize();
         this.scrollToCurrentTime();
         this.startTimeIndicatorUpdate();
         
