@@ -11,6 +11,7 @@ const ProcrastinationMonitor = {
     preAlertShown: false,       // 是否已显示预警提示
     triggeredTasks: [],         // 已触发过的任务ID列表
     history: [],                // 拖延历史记录
+    audioContext: null,         // Web Audio API 上下文
     
     // 设置项
     settings: {
@@ -22,7 +23,14 @@ const ProcrastinationMonitor = {
         maxCost: 50,                // 最高成本上限
         preAlertMessage: "⏰ 还有{seconds}秒！准备开始【{task}】的启动步骤【{step}】！",
         alertMessage: "🚨 时间到！请立即完成【{step}】！否则将扣除金币！",
-        successReward: 3            // 成功启动奖励金币
+        successReward: 3,           // 成功启动奖励金币
+        // 声音设置
+        soundEnabled: true,         // 是否启用声音提醒
+        soundVolume: 0.7,           // 音量 (0-1)
+        taskStartSound: 'chime',    // 任务开始提示音类型
+        preAlertSound: 'warning',   // 预警提示音类型
+        alertSound: 'alarm',        // 超时警报音类型
+        successSound: 'success'     // 成功提示音类型
     },
     
     // 初始化
@@ -41,10 +49,220 @@ const ProcrastinationMonitor = {
         const savedTriggered = Storage.load('adhd_triggered_tasks', {});
         this.triggeredTasks = savedTriggered[today] || [];
         
+        // 初始化音频系统
+        this.initAudio();
+        
         // 启动自动监控
         if (this.settings.enabled) {
             this.startAutoMonitor();
         }
+    },
+    
+    // ==================== 声音系统 ====================
+    
+    // 初始化音频系统
+    initAudio() {
+        try {
+            // 创建 AudioContext（需要用户交互后才能播放）
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // 监听用户交互以解锁音频
+            const unlockAudio = () => {
+                if (this.audioContext && this.audioContext.state === 'suspended') {
+                    this.audioContext.resume();
+                }
+                document.removeEventListener('click', unlockAudio);
+                document.removeEventListener('touchstart', unlockAudio);
+            };
+            document.addEventListener('click', unlockAudio);
+            document.addEventListener('touchstart', unlockAudio);
+            
+            console.log('音频系统初始化完成');
+        } catch (e) {
+            console.error('音频系统初始化失败:', e);
+        }
+    },
+    
+    // 播放提示音
+    playSound(type) {
+        if (!this.settings.soundEnabled) return;
+        
+        // 确保音频上下文已创建
+        if (!this.audioContext) {
+            this.initAudio();
+        }
+        
+        // 如果音频上下文被暂停，尝试恢复
+        if (this.audioContext && this.audioContext.state === 'suspended') {
+            this.audioContext.resume();
+        }
+        
+        const volume = this.settings.soundVolume;
+        
+        switch (type) {
+            case 'chime':       // 任务开始 - 清脆的提示音
+                this.playChime(volume);
+                break;
+            case 'warning':     // 预警 - 警告音
+                this.playWarning(volume);
+                break;
+            case 'alarm':       // 超时警报 - 紧急警报音
+                this.playAlarm(volume);
+                break;
+            case 'success':     // 成功 - 欢快的成功音
+                this.playSuccess(volume);
+                break;
+            default:
+                this.playChime(volume);
+        }
+    },
+    
+    // 清脆提示音（任务开始）
+    playChime(volume) {
+        if (!this.audioContext) return;
+        
+        const ctx = this.audioContext;
+        const now = ctx.currentTime;
+        
+        // 创建振荡器
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const gain = ctx.createGain();
+        
+        osc1.type = 'sine';
+        osc2.type = 'sine';
+        
+        // 双音和弦
+        osc1.frequency.setValueAtTime(523.25, now); // C5
+        osc2.frequency.setValueAtTime(659.25, now); // E5
+        
+        gain.gain.setValueAtTime(volume * 0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+        
+        osc1.connect(gain);
+        osc2.connect(gain);
+        gain.connect(ctx.destination);
+        
+        osc1.start(now);
+        osc2.start(now);
+        osc1.stop(now + 0.5);
+        osc2.stop(now + 0.5);
+    },
+    
+    // 警告音（预警）
+    playWarning(volume) {
+        if (!this.audioContext) return;
+        
+        const ctx = this.audioContext;
+        const now = ctx.currentTime;
+        
+        // 播放两次短促的警告音
+        for (let i = 0; i < 2; i++) {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(880, now + i * 0.2); // A5
+            
+            gain.gain.setValueAtTime(volume * 0.4, now + i * 0.2);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.2 + 0.15);
+            
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            osc.start(now + i * 0.2);
+            osc.stop(now + i * 0.2 + 0.15);
+        }
+    },
+    
+    // 紧急警报音（超时）
+    playAlarm(volume) {
+        if (!this.audioContext) return;
+        
+        const ctx = this.audioContext;
+        const now = ctx.currentTime;
+        
+        // 播放紧急警报 - 交替高低音
+        for (let i = 0; i < 4; i++) {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            
+            osc.type = 'square';
+            // 交替高低频率
+            const freq = i % 2 === 0 ? 800 : 600;
+            osc.frequency.setValueAtTime(freq, now + i * 0.15);
+            
+            gain.gain.setValueAtTime(volume * 0.35, now + i * 0.15);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.15 + 0.12);
+            
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            osc.start(now + i * 0.15);
+            osc.stop(now + i * 0.15 + 0.12);
+        }
+    },
+    
+    // 成功音
+    playSuccess(volume) {
+        if (!this.audioContext) return;
+        
+        const ctx = this.audioContext;
+        const now = ctx.currentTime;
+        
+        // 上升的三音符
+        const notes = [523.25, 659.25, 783.99]; // C5, E5, G5
+        
+        notes.forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now + i * 0.12);
+            
+            gain.gain.setValueAtTime(volume * 0.3, now + i * 0.12);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.12 + 0.3);
+            
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            osc.start(now + i * 0.12);
+            osc.stop(now + i * 0.12 + 0.3);
+        });
+    },
+    
+    // 测试声音
+    testSound(type) {
+        const originalEnabled = this.settings.soundEnabled;
+        this.settings.soundEnabled = true;
+        this.playSound(type || 'chime');
+        this.settings.soundEnabled = originalEnabled;
+    },
+    
+    // 更新音量
+    setVolume(volume) {
+        this.settings.soundVolume = Math.max(0, Math.min(1, volume));
+        Storage.save('adhd_procrastination_settings_v2', this.settings);
+    },
+    
+    // 切换声音开关
+    toggleSound() {
+        this.settings.soundEnabled = !this.settings.soundEnabled;
+        Storage.save('adhd_procrastination_settings_v2', this.settings);
+        
+        if (this.settings.soundEnabled) {
+            this.playSound('chime'); // 播放一个提示音确认已开启
+        }
+        
+        if (typeof Settings !== 'undefined') {
+            Settings.showToast(
+                this.settings.soundEnabled ? 'success' : 'info',
+                this.settings.soundEnabled ? '声音提醒已开启' : '声音提醒已关闭',
+                ''
+            );
+        }
+        
+        return this.settings.soundEnabled;
     },
     
     // 启动自动任务监控（每秒检查是否有任务到时间）
@@ -127,6 +345,18 @@ const ProcrastinationMonitor = {
         const startupStep = task.substeps && task.substeps.length > 0 ? 
             task.substeps[0].title : '开始执行';
         
+        // 🔊 播放任务开始提示音
+        this.playSound(this.settings.taskStartSound);
+        
+        // 发送浏览器通知
+        if (typeof Settings !== 'undefined') {
+            Settings.sendNotification(
+                '⏰ 任务时间到！',
+                '【' + task.title + '】请在 ' + (this.settings.gracePeriod / 60) + ' 分钟内开始',
+                '⏰'
+            );
+        }
+        
         // 发送通知
         if (typeof App !== 'undefined') {
             App.addChatMessage("system", 
@@ -185,6 +415,18 @@ const ProcrastinationMonitor = {
             .replace('{task}', task.title)
             .replace('{step}', startupStep);
         
+        // 🔊 播放预警提示音
+        this.playSound(this.settings.preAlertSound);
+        
+        // 发送浏览器通知
+        if (typeof Settings !== 'undefined') {
+            Settings.sendNotification(
+                '⚠️ 预警提醒',
+                '还有 ' + remainingSeconds + ' 秒！准备开始【' + task.title + '】',
+                '⚠️'
+            );
+        }
+        
         if (typeof App !== 'undefined') {
             App.addChatMessage("system", message, "⚠️");
         }
@@ -207,6 +449,18 @@ const ProcrastinationMonitor = {
         Storage.saveGameState(state);
         
         this.totalPaidCoins += actualCost;
+        
+        // 🔊 播放超时警报音
+        this.playSound(this.settings.alertSound);
+        
+        // 发送浏览器通知
+        if (typeof Settings !== 'undefined') {
+            Settings.sendNotification(
+                '🚨 启动超时！',
+                '已扣除 ' + actualCost + ' 金币！请立即开始【' + task.title + '】',
+                '🚨'
+            );
+        }
         
         // 发送警报消息
         var message = this.settings.alertMessage
@@ -272,6 +526,9 @@ const ProcrastinationMonitor = {
             state.coins += coins;
             Storage.saveGameState(state);
             
+            // 🔊 播放成功提示音
+            this.playSound(this.settings.successSound);
+            
             if (typeof App !== 'undefined') {
                 App.updateGameStatus();
                 App.showCoinAnimation(coins);
@@ -286,6 +543,9 @@ const ProcrastinationMonitor = {
             status = this.totalPaidCoins > 0 ? 'paid' : 'delayed';
             coins = -this.totalPaidCoins;
             duration = Math.floor(this.elapsedSeconds / 60) + '分' + (this.elapsedSeconds % 60) + '秒';
+            
+            // 🔊 播放完成提示音（虽然超时但还是完成了）
+            this.playSound('chime');
             
             if (typeof App !== 'undefined') {
                 App.addChatMessage("system", 

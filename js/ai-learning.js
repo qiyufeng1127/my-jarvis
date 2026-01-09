@@ -65,7 +65,18 @@ const AILearning = {
         
         const savedPatterns = Storage.load('adhd_learned_patterns', null);
         if (savedPatterns) {
+            // 合并时确保数组字段正确
             this.learnedPatterns = { ...this.learnedPatterns, ...savedPatterns };
+            // 验证并修复数组字段
+            if (!Array.isArray(this.learnedPatterns.procrastinationRiskFactors)) {
+                this.learnedPatterns.procrastinationRiskFactors = [];
+            }
+            if (!Array.isArray(this.learnedPatterns.valuePreferences)) {
+                this.learnedPatterns.valuePreferences = [];
+            }
+            if (!Array.isArray(this.learnedPatterns.optimalTaskOrder)) {
+                this.learnedPatterns.optimalTaskOrder = [];
+            }
         }
         
         if (!this.learningData.learningStartDate) {
@@ -350,15 +361,25 @@ const AILearning = {
         const daysSinceLearning = this.learningData.learningStartDate ? 
             Math.floor((new Date() - new Date(this.learningData.learningStartDate)) / (1000 * 60 * 60 * 24)) : 0;
         
+        // 确保 valuePreferences 是数组
+        const valuePrefs = Array.isArray(this.learnedPatterns.valuePreferences) 
+            ? this.learnedPatterns.valuePreferences 
+            : [];
+        
+        // 确保 procrastinationRiskFactors 是数组
+        const riskFactors = Array.isArray(this.learnedPatterns.procrastinationRiskFactors)
+            ? this.learnedPatterns.procrastinationRiskFactors
+            : [];
+        
         return {
             daysSinceLearning,
-            totalSamples: this.learningData.totalSamples,
+            totalSamples: this.learningData.totalSamples || 0,
             patterns: {
                 energyCycle: this.getEnergyCycleDescription(),
-                procrastinationTriggers: this.learnedPatterns.procrastinationRiskFactors,
-                valuePreferences: this.learnedPatterns.valuePreferences.slice(0, 3),
-                timeEstimationBias: this.learnedPatterns.timeEstimationBias,
-                avgInterruptionRecovery: this.learnedPatterns.avgInterruptionRecovery
+                procrastinationTriggers: riskFactors,
+                valuePreferences: valuePrefs.slice(0, 3),
+                timeEstimationBias: this.learnedPatterns.timeEstimationBias || 0,
+                avgInterruptionRecovery: this.learnedPatterns.avgInterruptionRecovery || 8
             },
             appliedOptimizations: this.getAppliedOptimizations()
         };
@@ -385,19 +406,27 @@ const AILearning = {
     getAppliedOptimizations() {
         const optimizations = [];
         
-        if (this.learnedPatterns.procrastinationRiskFactors.length > 0) {
+        // 确保数组存在
+        const riskFactors = Array.isArray(this.learnedPatterns.procrastinationRiskFactors)
+            ? this.learnedPatterns.procrastinationRiskFactors
+            : [];
+        const valuePrefs = Array.isArray(this.learnedPatterns.valuePreferences)
+            ? this.learnedPatterns.valuePreferences
+            : [];
+        
+        if (riskFactors.length > 0) {
             optimizations.push('复杂任务自动提前15分钟提醒');
         }
         
-        if (this.learnedPatterns.valuePreferences.length > 0) {
+        if (valuePrefs.length > 0) {
             optimizations.push('高价值任务优先安排在高效时段');
         }
         
-        if (this.learnedPatterns.timeEstimationBias > 15) {
+        if ((this.learnedPatterns.timeEstimationBias || 0) > 15) {
             optimizations.push('超长任务自动插入5分钟休息');
         }
         
-        if (this.learnedPatterns.avgInterruptionRecovery > 5) {
+        if ((this.learnedPatterns.avgInterruptionRecovery || 0) > 5) {
             optimizations.push('根据你的节奏调整计时器敏感度');
         }
         
@@ -410,9 +439,14 @@ const AILearning = {
         const taskType = task.category || task.type || '其他';
         const complexity = this.getTaskComplexity(task);
         
+        // 确保数组存在
+        const riskFactors = Array.isArray(this.learnedPatterns.procrastinationRiskFactors)
+            ? this.learnedPatterns.procrastinationRiskFactors
+            : [];
+        
         // 基于拖延风险的建议
-        const isHighRisk = this.learnedPatterns.procrastinationRiskFactors
-            .some(f => f.factor.includes(taskType) || (complexity === 'high' && f.factor.includes('复杂度')));
+        const isHighRisk = riskFactors
+            .some(f => f.factor && (f.factor.includes(taskType) || (complexity === 'high' && f.factor.includes('复杂度'))));
         
         if (isHighRisk) {
             suggestions.push({
@@ -422,8 +456,9 @@ const AILearning = {
         }
         
         // 基于时间估算的建议
-        if (this.learnedPatterns.timeEstimationBias > 20) {
-            const adjustedDuration = Math.round(task.duration * (1 + this.learnedPatterns.timeEstimationBias / 100));
+        const timeBias = this.learnedPatterns.timeEstimationBias || 0;
+        if (timeBias > 20 && task.duration) {
+            const adjustedDuration = Math.round(task.duration * (1 + timeBias / 100));
             suggestions.push({
                 type: 'time',
                 message: '⏱️ 根据你的习惯，实际可能需要 ' + adjustedDuration + ' 分钟'

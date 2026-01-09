@@ -508,10 +508,46 @@ const App = {
 
     async checkApiConnection() {
         const statusDot = document.querySelector(".online-status");
-        if (!statusDot) return;
         
-        this.isConnected = await AIService.checkConnection();
-        statusDot.className = "online-status " + (this.isConnected ? "connected" : "disconnected");
+        // 先检查是否有 API Key
+        const apiKey = Storage.getApiKey();
+        if (!apiKey) {
+            this.isConnected = false;
+            if (statusDot) {
+                statusDot.className = "online-status disconnected";
+            }
+            this.updateConnectionUI(false);
+            return;
+        }
+        
+        // 有 API Key，尝试连接
+        try {
+            this.isConnected = await AIService.checkConnection();
+        } catch (e) {
+            console.error('API连接检查失败:', e);
+            this.isConnected = false;
+        }
+        
+        if (statusDot) {
+            statusDot.className = "online-status " + (this.isConnected ? "connected" : "disconnected");
+        }
+        
+        this.updateConnectionUI(this.isConnected);
+    },
+    
+    // 更新连接状态UI
+    updateConnectionUI(isConnected) {
+        // 更新所有状态点
+        const allStatusDots = document.querySelectorAll(".online-status");
+        allStatusDots.forEach(dot => {
+            dot.className = "online-status " + (isConnected ? "connected" : "disconnected");
+        });
+        
+        // 更新用户信息区域的文字
+        const userInfoSpan = document.querySelector(".user-info span");
+        if (userInfoSpan) {
+            userInfoSpan.textContent = isConnected ? '🤖 KiiKii 在线' : '未连接AI';
+        }
     },
 
     showApiKeyModal() {
@@ -2588,7 +2624,39 @@ const App = {
         const settings = PM.settings;
         const stats = PM.getStats();
         
+        // 声音设置
+        const soundEnabled = settings.soundEnabled !== false;
+        const soundVolume = settings.soundVolume || 0.7;
+        const volumePercent = Math.round(soundVolume * 100);
+        
         return '<div class="settings-section">' +
+            '<div class="settings-title" onclick="App.toggleSettingsSection(this)">🔊 声音提醒 <span class="toggle-icon">▼</span></div>' +
+            '<div class="settings-content">' +
+                '<div class="setting-row">' +
+                    '<span class="setting-label">声音提醒</span>' +
+                    '<button class="monitor-btn ' + (soundEnabled ? 'primary' : 'ghost') + '" style="padding:6px 12px;min-width:auto;" onclick="ProcrastinationMonitor.toggleSound(); App.loadProcrastinationPanel();">' +
+                        (soundEnabled ? '🔊 已开启' : '🔇 已关闭') +
+                    '</button>' +
+                '</div>' +
+                '<div class="setting-row">' +
+                    '<span class="setting-label">音量大小</span>' +
+                    '<div style="display:flex;align-items:center;gap:8px;">' +
+                        '<input type="range" min="0" max="100" value="' + volumePercent + '" style="width:100px;" onchange="ProcrastinationMonitor.setVolume(this.value/100); document.getElementById(\'volumeValue\').textContent=this.value+\'%\'">' +
+                        '<span id="volumeValue" style="font-size:12px;color:#666;min-width:35px;">' + volumePercent + '%</span>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="setting-row">' +
+                    '<span class="setting-label">测试声音</span>' +
+                    '<div style="display:flex;gap:6px;">' +
+                        '<button class="monitor-btn ghost" style="padding:4px 8px;font-size:11px;" onclick="ProcrastinationMonitor.testSound(\'chime\')" title="任务开始">🔔</button>' +
+                        '<button class="monitor-btn ghost" style="padding:4px 8px;font-size:11px;" onclick="ProcrastinationMonitor.testSound(\'warning\')" title="预警">⚠️</button>' +
+                        '<button class="monitor-btn ghost" style="padding:4px 8px;font-size:11px;" onclick="ProcrastinationMonitor.testSound(\'alarm\')" title="超时">🚨</button>' +
+                        '<button class="monitor-btn ghost" style="padding:4px 8px;font-size:11px;" onclick="ProcrastinationMonitor.testSound(\'success\')" title="成功">✅</button>' +
+                    '</div>' +
+                '</div>' +
+            '</div>' +
+        '</div>' +
+        '<div class="settings-section">' +
             '<div class="settings-title" onclick="App.toggleSettingsSection(this)">⚙️ 监控设置 <span class="toggle-icon">▼</span></div>' +
             '<div class="settings-content">' +
                 '<div class="setting-row">' +

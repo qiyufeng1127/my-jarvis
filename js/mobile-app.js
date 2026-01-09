@@ -152,7 +152,7 @@ const MobileApp = {
         
         // 为关闭按钮单独绑定事件（使用touchend和click双重绑定）
         const closeBtn = document.getElementById('moreMenuCloseBtn');
-        if (closeBtn) {
+            if (closeBtn) {
             const handleClose = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -160,11 +160,11 @@ const MobileApp = {
             };
             closeBtn.addEventListener('touchend', handleClose, { passive: false });
             closeBtn.addEventListener('click', handleClose);
-        }
-        
+            }
+            
         // 为遮罩层绑定关闭事件
         const overlay = document.getElementById('moreMenuOverlay');
-        if (overlay) {
+            if (overlay) {
             const handleOverlayClose = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -172,8 +172,8 @@ const MobileApp = {
             };
             overlay.addEventListener('touchend', handleOverlayClose, { passive: false });
             overlay.addEventListener('click', handleOverlayClose);
-        }
-        
+            }
+            
         // 为每个菜单项单独绑定事件
         const menuItems = moreMenu.querySelectorAll('.more-menu-item');
         menuItems.forEach(item => {
@@ -189,26 +189,26 @@ const MobileApp = {
                 item.style.opacity = '0.7';
                 
                 setTimeout(() => {
-                    if (viewId) {
-                        // 切换视图
-                        this.switchViewAndClose(viewId);
-                    } else if (action === 'cloudSync') {
-                        // 云同步
-                        this.hideMoreMenu();
+                if (viewId) {
+                    // 切换视图
+                    this.switchViewAndClose(viewId);
+                } else if (action === 'cloudSync') {
+                    // 云同步
+                    this.hideMoreMenu();
                         setTimeout(() => {
-                            if (window.CloudSync) {
-                                CloudSync.showConfigModal();
-                            }
-                        }, 100);
-                    } else if (action === 'settings') {
-                        // 设置
-                        this.hideMoreMenu();
-                        setTimeout(() => {
-                            if (typeof toggleSettingsPanel === 'function') {
-                                toggleSettingsPanel();
-                            }
-                        }, 100);
+                    if (window.CloudSync) {
+                        CloudSync.showConfigModal();
                     }
+                        }, 100);
+                } else if (action === 'settings') {
+                    // 设置
+                    this.hideMoreMenu();
+                        setTimeout(() => {
+                    if (typeof toggleSettingsPanel === 'function') {
+                        toggleSettingsPanel();
+                    }
+                        }, 100);
+            }
                 }, 50);
             };
             

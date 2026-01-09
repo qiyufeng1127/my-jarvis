@@ -26,21 +26,44 @@ const CloudSync = {
         this.setupOnlineListener();
         this.loadPendingChanges();
         
-        if (this.config.configured) {
-            await this.initSupabase();
-        }
+        // 清理过大的待同步数据（防止 QuotaExceededError）
+        this.cleanupStorage();
         
-        // 更新云同步按钮状态
+        // 更新云同步按钮状态（先显示UI）
         this.updateCloudButton();
+        
+        // 延迟初始化 Supabase，不阻塞页面加载
+        if (this.config.configured) {
+            // 使用 setTimeout 让页面先渲染完成
+            setTimeout(async () => {
+                await this.initSupabase();
+            }, 100);
+        }
         
         // 监听页面可见性变化，恢复时同步
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible' && this.state.userId) {
-                this.syncNow();
+            if (document.visibilityState === 'visible' && this.state.userId && !this.state.syncInProgress) {
+                // 延迟同步，避免频繁触发
+                setTimeout(() => this.syncNow(), 2000);
             }
         });
         
         console.log('云同步模块初始化完成');
+    },
+    
+    // 清理过大的存储数据
+    cleanupStorage() {
+        try {
+            // 清理待同步队列
+            const pendingSync = localStorage.getItem('adhd_pending_sync');
+            if (pendingSync && pendingSync.length > 50000) { // 50KB
+                console.warn('待同步数据过大，已清理');
+                localStorage.removeItem('adhd_pending_sync');
+                this.state.pendingChanges = [];
+            }
+        } catch (e) {
+            console.error('清理存储失败:', e);
+        }
     },
     
     // 更新云同步按钮状态
@@ -94,9 +117,13 @@ const CloudSync = {
         }
         
         try {
-            // 动态加载Supabase SDK
+            // 动态加载Supabase SDK（带超时）
             if (!window.supabase) {
-                await this.loadSupabaseSDK();
+                const loadPromise = this.loadSupabaseSDK();
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('SDK加载超时')), 10000)
+                );
+                await Promise.race([loadPromise, timeoutPromise]);
             }
             
             this.supabase = window.supabase.createClient(
@@ -107,6 +134,15 @@ const CloudSync = {
                         persistSession: true,
                         autoRefreshToken: true,
                         detectSessionInUrl: true
+                    },
+                    // 添加超时设置
+                    global: {
+                        fetch: (url, options) => {
+                            return fetch(url, {
+                                ...options,
+                                signal: AbortSignal.timeout(15000) // 15秒超时
+                            });
+                        }
                     }
                 }
             );
@@ -130,22 +166,39 @@ const CloudSync = {
                 }
             });
             
-            // 检查认证状态
-            const { data: { session } } = await this.supabase.auth.getSession();
-            if (session) {
-                this.state.userId = session.user.id;
-                this.state.userEmail = session.user.email;
-                Storage.save('adhd_cloud_user_id', this.state.userId);
-                Storage.save('adhd_cloud_user_email', this.state.userEmail);
-                this.updateCloudButton();
-                this.startAutoSync();
-                // 登录后立即同步
-                setTimeout(() => this.syncNow(), 1000);
+            // 检查认证状态（带超时）
+            try {
+                const sessionPromise = this.supabase.auth.getSession();
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('认证检查超时')), 8000)
+                );
+                const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]);
+                
+                if (session) {
+                    this.state.userId = session.user.id;
+                    this.state.userEmail = session.user.email;
+                    Storage.save('adhd_cloud_user_id', this.state.userId);
+                    Storage.save('adhd_cloud_user_email', this.state.userEmail);
+                    this.updateCloudButton();
+                    this.startAutoSync();
+                    // 登录后延迟同步，不阻塞页面
+                    setTimeout(() => this.syncNow(), 3000);
+                }
+            } catch (authError) {
+                console.warn('认证检查失败，使用本地缓存:', authError.message);
+                // 使用本地缓存的用户信息
+                if (this.state.userId) {
+                    this.updateCloudButton();
+                }
             }
             
             return true;
         } catch (error) {
             console.error('Supabase初始化失败:', error);
+            // 初始化失败时使用本地缓存
+            if (this.state.userId) {
+                this.updateCloudButton();
+            }
             return false;
         }
     },
@@ -203,7 +256,7 @@ const CloudSync = {
                             <p style="margin: 0;">💡 数据会自动同步到云端，您可以在其他设备登录同一账号访问数据。</p>
                         </div>
                         <div class="cloud-actions" style="margin-top: 16px;">
-                            <button class="cloud-action-btn" onclick="CloudSync.syncNow(); document.getElementById('cloudConfigModal').remove();">
+                            <button class="cloud-action-btn" onclick="CloudSync.manualSync(); document.getElementById('cloudConfigModal').remove();">
                                 🔄 立即同步
                             </button>
                             <button class="cloud-action-btn danger" onclick="CloudSync.logout(); document.getElementById('cloudConfigModal').remove();">
@@ -335,8 +388,14 @@ const CloudSync = {
             
             // 刷新界面
             if (typeof App !== 'undefined') {
-                App.renderTimeline();
-                App.updateGameStatus();
+                if (typeof App.loadTimeline === 'function') {
+                    App.loadTimeline();
+                } else if (typeof App.renderTimeline === 'function') {
+                    App.renderTimeline();
+                }
+                if (typeof App.updateGameStatus === 'function') {
+                    App.updateGameStatus();
+                }
             }
             
         } catch (error) {
@@ -452,12 +511,19 @@ const CloudSync = {
         // 重写Storage的save方法来追踪变化
         const originalSave = Storage.save.bind(Storage);
         Storage.save = (key, data) => {
-            originalSave(key, data);
+            // 如果正在合并远程数据，直接保存不记录变化
+            if (this._merging) {
+                return originalSave(key, data);
+            }
+            
+            const result = originalSave(key, data);
             
             // 记录需要同步的变化
             if (this.shouldSync(key)) {
                 this.recordChange(key, data);
             }
+            
+            return result;
         };
     },
     
@@ -478,13 +544,46 @@ const CloudSync = {
     
     // 记录变化
     recordChange(key, data) {
-        this.state.pendingChanges.push({
-            key,
-            data,
-            timestamp: Date.now()
-        });
+        // 如果正在合并远程数据，不记录变化（避免循环）
+        if (this._merging) return;
         
-        Storage.save('adhd_pending_sync', this.state.pendingChanges);
+        // 限制待同步队列大小，防止 QuotaExceededError
+        if (this.state.pendingChanges.length > 50) {
+            this.state.pendingChanges = this.state.pendingChanges.slice(-20);
+        }
+        
+        // 检查是否已有相同 key 的变化，如果有则更新而不是添加
+        const existingIndex = this.state.pendingChanges.findIndex(c => c.key === key);
+        if (existingIndex !== -1) {
+            this.state.pendingChanges[existingIndex] = {
+                key,
+                data,
+                timestamp: Date.now()
+            };
+        } else {
+            this.state.pendingChanges.push({
+                key,
+                data,
+                timestamp: Date.now()
+            });
+        }
+        
+        // 使用原始的 localStorage 保存，避免触发监听
+        try {
+            // 只保存 key 和 timestamp，不保存完整数据（减少存储空间）
+            const minimalChanges = this.state.pendingChanges.map(c => ({
+                key: c.key,
+                timestamp: c.timestamp
+            }));
+            localStorage.setItem('adhd_pending_sync', JSON.stringify(minimalChanges));
+        } catch (e) {
+            console.error('保存待同步数据失败:', e);
+            // 如果存储失败，清空待同步队列
+            this.state.pendingChanges = [];
+            try {
+                localStorage.removeItem('adhd_pending_sync');
+            } catch (e2) {}
+        }
         
         // 如果在线，延迟同步
         if (this.state.isOnline && this.state.userId) {
@@ -513,43 +612,90 @@ const CloudSync = {
         this.showSyncIndicator();
         
         try {
-            // 1. 上传本地变化
-            await this.uploadChanges();
+            // 设置同步超时
+            const syncPromise = this._doSync();
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('同步超时，请检查网络')), 20000)
+            );
             
-            // 2. 下载远程变化
-            await this.downloadChanges();
+            await Promise.race([syncPromise, timeoutPromise]);
             
-            // 3. 更新同步时间
+            // 更新同步时间
             this.state.lastSync = Date.now();
             Storage.save('adhd_last_sync', this.state.lastSync);
             
-            // 4. 清空待同步队列
+            // 清空待同步队列
             this.state.pendingChanges = [];
             Storage.save('adhd_pending_sync', []);
             
             this.hideSyncIndicator();
+            console.log('云同步完成:', new Date().toLocaleString());
             
         } catch (error) {
             console.error('同步失败:', error);
-            Settings.showToast('error', '同步失败', error.message);
+            this.hideSyncIndicator(true);
+            
+            // 只在用户主动操作时显示错误提示
+            if (this._manualSync) {
+                Settings.showToast('error', '同步失败', error.message || '请检查网络连接');
+            }
         } finally {
             this.state.syncInProgress = false;
+            this._manualSync = false;
         }
+    },
+    
+    // 实际执行同步
+    async _doSync() {
+        // 1. 上传本地变化
+        await this.uploadChanges();
+        
+        // 2. 下载远程变化
+        await this.downloadChanges();
+    },
+    
+    // 手动触发同步（显示错误提示）
+    async manualSync() {
+        this._manualSync = true;
+        await this.syncNow();
     },
     
     // 上传变化
     async uploadChanges() {
-        if (this.state.pendingChanges.length === 0) return;
+        const syncData = this.getAllSyncData();
         
-        const { error } = await this.supabase
+        // 先检查是否已有数据
+        const { data: existingData } = await this.supabase
             .from('user_data')
-            .upsert({
-                user_id: this.state.userId,
-                data: this.getAllSyncData(),
-                updated_at: new Date().toISOString()
-            });
+            .select('user_id')
+            .eq('user_id', this.state.userId)
+            .single();
         
-        if (error) throw error;
+        if (existingData) {
+            // 更新现有数据
+            const { error } = await this.supabase
+                .from('user_data')
+                .update({
+                    data: syncData,
+                    data_type: 'full_sync',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('user_id', this.state.userId);
+            
+            if (error) throw error;
+        } else {
+            // 插入新数据
+            const { error } = await this.supabase
+                .from('user_data')
+                .insert({
+                    user_id: this.state.userId,
+                    data: syncData,
+                    data_type: 'full_sync',
+                    updated_at: new Date().toISOString()
+                });
+            
+            if (error) throw error;
+        }
     },
     
     // 下载变化
@@ -558,9 +704,9 @@ const CloudSync = {
             .from('user_data')
             .select('data, updated_at')
             .eq('user_id', this.state.userId)
-            .single();
+            .maybeSingle();  // 使用 maybeSingle 避免没有数据时报错
         
-        if (error && error.code !== 'PGRST116') throw error;
+        if (error) throw error;
         
         if (data && data.data) {
             // 合并远程数据
@@ -584,20 +730,42 @@ const CloudSync = {
     
     // 合并远程数据
     mergeRemoteData(remoteData) {
-        // 简单策略：远程数据覆盖本地（可以改进为更智能的合并）
-        if (remoteData.tasks) Storage.saveTasks(remoteData.tasks);
-        if (remoteData.memories) Storage.saveMemories(remoteData.memories);
-        if (remoteData.gameState) Storage.save('adhd_focus_game_state', remoteData.gameState);
-        if (remoteData.valueFinance) Storage.save('adhd_value_finance', remoteData.valueFinance);
-        if (remoteData.aiMemory) Storage.save('adhd_ai_memory_data', remoteData.aiMemory);
-        if (remoteData.customTags) Storage.save('adhd_custom_tags', remoteData.customTags);
-        if (remoteData.templates) Storage.save('adhd_task_templates', remoteData.templates);
-        if (remoteData.recurring) Storage.save('adhd_recurring_tasks', remoteData.recurring);
+        // 暂时禁用同步监听，避免循环触发
+        this._merging = true;
         
-        // 刷新界面
-        if (typeof App !== 'undefined') {
-            App.renderTimeline();
-            App.updateGameStatus();
+        try {
+            // 使用原始 localStorage 直接保存，完全绕过 Storage.save 的监听
+            const saveDirectly = (key, data) => {
+                try {
+                    localStorage.setItem(key, JSON.stringify(data));
+                } catch (e) {
+                    console.error('直接保存失败:', key, e);
+                }
+            };
+            
+            // 简单策略：远程数据覆盖本地
+            if (remoteData.tasks) saveDirectly('adhd_focus_tasks', remoteData.tasks);
+            if (remoteData.memories) saveDirectly('adhd_focus_memories', remoteData.memories);
+            if (remoteData.gameState) saveDirectly('adhd_focus_game_state', remoteData.gameState);
+            if (remoteData.valueFinance) saveDirectly('adhd_value_finance', remoteData.valueFinance);
+            if (remoteData.aiMemory) saveDirectly('adhd_ai_memory_data', remoteData.aiMemory);
+            if (remoteData.customTags) saveDirectly('adhd_custom_tags', remoteData.customTags);
+            if (remoteData.templates) saveDirectly('adhd_task_templates', remoteData.templates);
+            if (remoteData.recurring) saveDirectly('adhd_recurring_tasks', remoteData.recurring);
+            
+            // 刷新界面
+            if (typeof App !== 'undefined') {
+                if (typeof App.loadTimeline === 'function') {
+                    App.loadTimeline();
+                } else if (typeof App.renderTimeline === 'function') {
+                    App.renderTimeline();
+                }
+                if (typeof App.updateGameStatus === 'function') {
+                    App.updateGameStatus();
+                }
+            }
+        } finally {
+            this._merging = false;
         }
     },
     
@@ -614,13 +782,34 @@ const CloudSync = {
             document.body.appendChild(indicator);
         }
         indicator.classList.add('show');
+        
+        // 设置超时自动隐藏（防止一直显示）
+        if (this._syncTimeout) {
+            clearTimeout(this._syncTimeout);
+        }
+        this._syncTimeout = setTimeout(() => {
+            this.hideSyncIndicator(true);
+        }, 30000); // 30秒超时
     },
     
     // 隐藏同步指示器
-    hideSyncIndicator() {
+    hideSyncIndicator(isTimeout = false) {
+        if (this._syncTimeout) {
+            clearTimeout(this._syncTimeout);
+            this._syncTimeout = null;
+        }
+        
         const indicator = document.getElementById('syncIndicator');
         if (indicator) {
-            indicator.classList.remove('show');
+            if (isTimeout) {
+                // 超时时显示失败状态
+                indicator.innerHTML = '<span style="color: #E74C3C;">⚠️</span><span>同步超时</span>';
+                setTimeout(() => {
+                    indicator.classList.remove('show');
+                }, 2000);
+            } else {
+                indicator.classList.remove('show');
+            }
         }
     },
     
@@ -644,7 +833,28 @@ const CloudSync = {
     
     // 加载待同步变化
     loadPendingChanges() {
-        this.state.pendingChanges = Storage.load('adhd_pending_sync', []);
+        try {
+            const saved = localStorage.getItem('adhd_pending_sync');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                // 检查数据大小，如果太大则清空
+                if (saved.length > 100000) { // 100KB 限制
+                    console.warn('待同步数据过大，已清空');
+                    localStorage.removeItem('adhd_pending_sync');
+                    this.state.pendingChanges = [];
+                } else {
+                    this.state.pendingChanges = Array.isArray(parsed) ? parsed : [];
+                }
+            } else {
+                this.state.pendingChanges = [];
+            }
+        } catch (e) {
+            console.error('加载待同步数据失败:', e);
+            this.state.pendingChanges = [];
+            try {
+                localStorage.removeItem('adhd_pending_sync');
+            } catch (e2) {}
+        }
     },
     
     // 格式化时间
