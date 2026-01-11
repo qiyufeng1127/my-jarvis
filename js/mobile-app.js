@@ -3,16 +3,18 @@ const MobileApp = {
     currentView: 'smartInput',
     isMobile: false,
     
-    // 默认底部导航配置
+    // 固定的"更多"按钮配置
+    moreButton: { id: 'more', icon: '⋯', label: '更多' },
+    
+    // 默认底部导航配置（4个自定义 + 更多）
     defaultNavItems: [
         { id: 'smartInput', icon: '💬', label: '对话' },
         { id: 'timeline', icon: '📅', label: '任务' },
         { id: 'procrastinationPanel', icon: '⏰', label: '监控' },
-        { id: 'gameSystem', icon: '🎮', label: '游戏' },
-        { id: 'more', icon: '⋯', label: '更多' }
+        { id: 'gameSystem', icon: '🎮', label: '游戏' }
     ],
     
-    // 可选的导航项
+    // 所有可选的导航项（不包含"更多"）
     availableNavItems: [
         { id: 'smartInput', icon: '💬', label: '对话' },
         { id: 'timeline', icon: '📅', label: '任务' },
@@ -22,13 +24,12 @@ const MobileApp = {
         { id: 'memoryBank', icon: '🧠', label: '记忆库' },
         { id: 'valuePanel', icon: '💰', label: '价值显化' },
         { id: 'reviewPanel', icon: '📊', label: '复盘' },
-        { id: 'aiInsights', icon: '🧠', label: 'AI洞察' },
+        { id: 'aiInsights', icon: '💡', label: 'AI洞察' },
         { id: 'aiMemory', icon: '💖', label: 'KiiKii记忆' },
-        { id: 'promptPanel', icon: '📝', label: '提示词' },
-        { id: 'more', icon: '⋯', label: '更多' }
+        { id: 'promptPanel', icon: '📝', label: '提示词' }
     ],
     
-    // 用户自定义的导航项
+    // 用户自定义的导航项（最多4个，不包含"更多"）
     customNavItems: null,
     
     // 初始化
@@ -68,25 +69,45 @@ const MobileApp = {
         this.renderMobileNav();
     },
     
-    // 获取当前使用的导航项
+    // 获取当前使用的导航项（4个自定义项）
     getCurrentNavItems() {
         return this.customNavItems || this.defaultNavItems;
     },
     
-    // 渲染移动端导航栏
+    // 获取未在底部导航显示的组件（用于"更多"菜单）
+    getMoreMenuItems() {
+        const currentNavIds = this.getCurrentNavItems().map(item => item.id);
+        return this.availableNavItems.filter(item => !currentNavIds.includes(item.id));
+    },
+    
+    // 渲染移动端导航栏（4个自定义 + 更多按钮）
     renderMobileNav() {
         const nav = document.getElementById('mobileNav');
         if (!nav) return;
         
         const items = this.getCurrentNavItems();
-        nav.innerHTML = items.map(item => `
+        
+        // 渲染4个自定义导航项
+        let html = items.slice(0, 4).map(item => `
             <button class="mobile-nav-item ${this.currentView === item.id ? 'active' : ''}" 
                     data-view="${item.id}" 
-                    onclick="MobileApp.${item.id === 'more' ? 'showMoreMenu()' : 'switchView(\'' + item.id + '\')'}">
+                    onclick="MobileApp.switchView('${item.id}')">
                 <span class="mobile-nav-icon">${item.icon}</span>
                 <span class="mobile-nav-label">${item.label}</span>
             </button>
         `).join('');
+        
+        // 添加固定的"更多"按钮
+        html += `
+            <button class="mobile-nav-item ${this.currentView === 'more' ? 'active' : ''}" 
+                    data-view="more" 
+                    onclick="MobileApp.showMoreMenu()">
+                <span class="mobile-nav-icon">${this.moreButton.icon}</span>
+                <span class="mobile-nav-label">${this.moreButton.label}</span>
+            </button>
+        `;
+        
+        nav.innerHTML = html;
     },
     
     // 检测是否为移动端
@@ -162,6 +183,17 @@ const MobileApp = {
         // 获取云同步状态
         const isLoggedIn = window.CloudSync && CloudSync.state.userId;
         
+        // 获取未在底部导航显示的组件
+        const moreItems = this.getMoreMenuItems();
+        
+        // 生成动态组件列表HTML
+        const componentItemsHtml = moreItems.map(item => `
+            <button class="more-menu-item" data-view="${item.id}" type="button">
+                <span class="more-menu-icon">${item.icon}</span>
+                <span>${item.label}</span>
+            </button>
+        `).join('');
+        
         // 创建更多菜单
         const moreMenu = document.createElement('div');
         moreMenu.id = 'moreMenu';
@@ -174,46 +206,31 @@ const MobileApp = {
                     <button class="more-menu-close-btn" id="moreMenuCloseBtn" type="button">×</button>
                 </div>
                 <div class="more-menu-grid" id="moreMenuGrid">
-                    <button class="more-menu-item" data-view="memoryBank" type="button">
-                        <span class="more-menu-icon">🧠</span>
-                        <span>记忆库</span>
-                    </button>
-                    <button class="more-menu-item" data-view="valuePanel" type="button">
-                        <span class="more-menu-icon">💰</span>
-                        <span>价值显化</span>
-                    </button>
-                    <button class="more-menu-item" data-view="reviewPanel" type="button">
-                        <span class="more-menu-icon">📊</span>
-                        <span>复盘</span>
-                    </button>
-                    <button class="more-menu-item" data-view="aiInsights" type="button">
-                        <span class="more-menu-icon">🧠</span>
-                        <span>AI洞察</span>
-                    </button>
-                    <button class="more-menu-item" data-view="aiMemory" type="button">
-                        <span class="more-menu-icon">💖</span>
-                        <span>KiiKii记忆</span>
-                    </button>
-                    <button class="more-menu-item" data-view="inefficiencyPanel" type="button">
-                        <span class="more-menu-icon">📉</span>
-                        <span>低效监控</span>
-                    </button>
-                    <button class="more-menu-item" data-view="promptPanel" type="button">
-                        <span class="more-menu-icon">📝</span>
-                        <span>提示词</span>
-                    </button>
-                    <button class="more-menu-item" data-action="customizeNav" type="button">
-                        <span class="more-menu-icon">🎨</span>
-                        <span>自定义布局</span>
-                    </button>
-                    <button class="more-menu-item ${isLoggedIn ? 'logged-in' : ''}" data-action="cloudSync" type="button">
-                        <span class="more-menu-icon">${isLoggedIn ? '✅' : '☁️'}</span>
-                        <span>${isLoggedIn ? '已同步' : '云同步'}</span>
-                    </button>
-                    <button class="more-menu-item" data-action="settings" type="button">
-                        <span class="more-menu-icon">⚙️</span>
-                        <span>设置</span>
-                    </button>
+                    ${moreItems.length > 0 ? `
+                        <div class="more-menu-section">
+                            <div class="more-menu-section-title">📱 其他组件</div>
+                            <div class="more-menu-section-grid">
+                                ${componentItemsHtml}
+                            </div>
+                        </div>
+                    ` : ''}
+                    <div class="more-menu-section">
+                        <div class="more-menu-section-title">⚙️ 系统功能</div>
+                        <div class="more-menu-section-grid">
+                            <button class="more-menu-item" data-action="customizeNav" type="button">
+                                <span class="more-menu-icon">🎨</span>
+                                <span>自定义导航</span>
+                            </button>
+                            <button class="more-menu-item ${isLoggedIn ? 'logged-in' : ''}" data-action="cloudSync" type="button">
+                                <span class="more-menu-icon">${isLoggedIn ? '✅' : '☁️'}</span>
+                                <span>${isLoggedIn ? '已同步' : '云同步'}</span>
+                            </button>
+                            <button class="more-menu-item" data-action="settings" type="button">
+                                <span class="more-menu-icon">⚙️</span>
+                                <span>设置</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
@@ -317,7 +334,7 @@ const MobileApp = {
         this.switchView(viewId);
     },
     
-    // 显示自定义导航栏模态框
+    // 显示自定义导航栏模态框（支持拖拽排序）
     showCustomizeNavModal() {
         const modal = document.createElement('div');
         modal.id = 'customizeNavModal';
@@ -326,30 +343,60 @@ const MobileApp = {
         const currentItems = this.getCurrentNavItems();
         const selectedIds = currentItems.map(item => item.id);
         
+        // 分离已选中和未选中的项目
+        const selectedItems = currentItems.slice(0, 4);
+        const unselectedItems = this.availableNavItems.filter(item => !selectedIds.includes(item.id));
+        
         modal.innerHTML = `
-            <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-content customize-nav-modal">
                 <div class="modal-header">
                     <span class="modal-icon">🎨</span>
                     <h2>自定义底部导航</h2>
                 </div>
                 <div class="modal-body">
-                    <p class="modal-desc">选择最多5个功能显示在底部导航栏（建议保留"更多"按钮）</p>
-                    <div class="customize-nav-list" id="customizeNavList">
-                        ${this.availableNavItems.map(item => `
-                            <label class="customize-nav-item">
-                                <input type="checkbox" 
-                                       value="${item.id}" 
-                                       ${selectedIds.includes(item.id) ? 'checked' : ''}
-                                       ${item.id === 'more' ? 'disabled' : ''}>
-                                <span class="customize-nav-icon">${item.icon}</span>
-                                <span class="customize-nav-label">${item.label}</span>
-                                ${item.id === 'more' ? '<span class="customize-nav-badge">推荐</span>' : ''}
-                            </label>
-                        `).join('')}
-                    </div>
-                    <div class="customize-nav-hint">
-                        <span>💡 提示：</span>
-                        <span>已选择 <strong id="selectedCount">${selectedIds.length}</strong> / 5 个功能</span>
+                    <p class="modal-desc">拖拽调整顺序，选择4个常用功能显示在底部导航栏</p>
+                    
+                    <div class="customize-nav-container">
+                        <!-- 左侧：已选中的导航项（可拖拽排序） -->
+                        <div class="customize-nav-selected">
+                            <div class="customize-nav-section-header">
+                                <span class="section-icon">📌</span>
+                                <span class="section-title">底部导航栏</span>
+                                <span class="section-count" id="selectedNavCount">${selectedItems.length}/4</span>
+                            </div>
+                            <div class="customize-nav-sortable" id="selectedNavList">
+                                ${selectedItems.map((item, index) => `
+                                    <div class="customize-nav-drag-item" data-id="${item.id}" draggable="true">
+                                        <span class="drag-handle">⋮⋮</span>
+                                        <span class="drag-order">${index + 1}</span>
+                                        <span class="drag-icon">${item.icon}</span>
+                                        <span class="drag-label">${item.label}</span>
+                                        <button class="drag-remove" onclick="MobileApp.removeFromNav('${item.id}')" title="移除">×</button>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <div class="customize-nav-hint-box">
+                                <span>💡 拖拽调整顺序，点击 × 移除</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 右侧：可添加的组件 -->
+                        <div class="customize-nav-available">
+                            <div class="customize-nav-section-header">
+                                <span class="section-icon">📦</span>
+                                <span class="section-title">可添加组件</span>
+                            </div>
+                            <div class="customize-nav-grid" id="availableNavList">
+                                ${unselectedItems.map(item => `
+                                    <button class="customize-nav-add-item" data-id="${item.id}" onclick="MobileApp.addToNav('${item.id}')">
+                                        <span class="add-icon">${item.icon}</span>
+                                        <span class="add-label">${item.label}</span>
+                                        <span class="add-btn">+</span>
+                                    </button>
+                                `).join('')}
+                                ${unselectedItems.length === 0 ? '<div class="customize-nav-empty">已添加所有组件</div>' : ''}
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -363,25 +410,166 @@ const MobileApp = {
         document.body.appendChild(modal);
         setTimeout(() => modal.classList.add('show'), 10);
         
-        // 绑定复选框事件
-        const checkboxes = modal.querySelectorAll('input[type="checkbox"]:not([disabled])');
-        checkboxes.forEach(checkbox => {
-            checkbox.addEventListener('change', () => {
-                const checked = modal.querySelectorAll('input[type="checkbox"]:checked').length;
-                document.getElementById('selectedCount').textContent = checked;
-                
-                // 限制最多5个
-                if (checked >= 5) {
-                    checkboxes.forEach(cb => {
-                        if (!cb.checked) cb.disabled = true;
-                    });
-                } else {
-                    checkboxes.forEach(cb => {
-                        cb.disabled = false;
-                    });
-                }
-            });
+        // 初始化拖拽排序
+        this.initDragSort();
+    },
+    
+    // 初始化拖拽排序
+    initDragSort() {
+        const sortableList = document.getElementById('selectedNavList');
+        if (!sortableList) return;
+        
+        let draggedItem = null;
+        
+        sortableList.addEventListener('dragstart', (e) => {
+            if (e.target.classList.contains('customize-nav-drag-item')) {
+                draggedItem = e.target;
+                e.target.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+            }
         });
+        
+        sortableList.addEventListener('dragend', (e) => {
+            if (e.target.classList.contains('customize-nav-drag-item')) {
+                e.target.classList.remove('dragging');
+                draggedItem = null;
+                this.updateDragOrderNumbers();
+            }
+        });
+        
+        sortableList.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const afterElement = this.getDragAfterElement(sortableList, e.clientY);
+            if (draggedItem) {
+                if (afterElement == null) {
+                    sortableList.appendChild(draggedItem);
+                } else {
+                    sortableList.insertBefore(draggedItem, afterElement);
+                }
+            }
+        });
+    },
+    
+    // 获取拖拽后的位置
+    getDragAfterElement(container, y) {
+        const draggableElements = [...container.querySelectorAll('.customize-nav-drag-item:not(.dragging)')];
+        
+        return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closest.offset) {
+                return { offset: offset, element: child };
+            } else {
+                return closest;
+            }
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
+    },
+    
+    // 更新拖拽序号显示
+    updateDragOrderNumbers() {
+        const items = document.querySelectorAll('#selectedNavList .customize-nav-drag-item');
+        items.forEach((item, index) => {
+            const orderSpan = item.querySelector('.drag-order');
+            if (orderSpan) {
+                orderSpan.textContent = index + 1;
+            }
+        });
+    },
+    
+    // 添加到导航栏
+    addToNav(itemId) {
+        const selectedList = document.getElementById('selectedNavList');
+        const availableList = document.getElementById('availableNavList');
+        const countSpan = document.getElementById('selectedNavCount');
+        
+        const currentCount = selectedList.querySelectorAll('.customize-nav-drag-item').length;
+        
+        if (currentCount >= 4) {
+            if (typeof Settings !== 'undefined') {
+                Settings.showToast('warning', '已达上限', '底部导航最多显示4个组件');
+            }
+            return;
+        }
+        
+        const item = this.availableNavItems.find(i => i.id === itemId);
+        if (!item) return;
+        
+        // 添加到已选列表
+        const newItem = document.createElement('div');
+        newItem.className = 'customize-nav-drag-item';
+        newItem.dataset.id = item.id;
+        newItem.draggable = true;
+        newItem.innerHTML = `
+            <span class="drag-handle">⋮⋮</span>
+            <span class="drag-order">${currentCount + 1}</span>
+            <span class="drag-icon">${item.icon}</span>
+            <span class="drag-label">${item.label}</span>
+            <button class="drag-remove" onclick="MobileApp.removeFromNav('${item.id}')" title="移除">×</button>
+        `;
+        selectedList.appendChild(newItem);
+        
+        // 从可添加列表移除
+        const availableItem = availableList.querySelector(`[data-id="${itemId}"]`);
+        if (availableItem) {
+            availableItem.remove();
+        }
+        
+        // 更新计数
+        countSpan.textContent = `${currentCount + 1}/4`;
+        
+        // 检查是否为空
+        if (availableList.querySelectorAll('.customize-nav-add-item').length === 0) {
+            availableList.innerHTML = '<div class="customize-nav-empty">已添加所有组件</div>';
+        }
+        
+        // 重新初始化拖拽
+        this.initDragSort();
+    },
+    
+    // 从导航栏移除
+    removeFromNav(itemId) {
+        const selectedList = document.getElementById('selectedNavList');
+        const availableList = document.getElementById('availableNavList');
+        const countSpan = document.getElementById('selectedNavCount');
+        
+        const currentCount = selectedList.querySelectorAll('.customize-nav-drag-item').length;
+        
+        if (currentCount <= 1) {
+            if (typeof Settings !== 'undefined') {
+                Settings.showToast('warning', '至少保留一个', '底部导航至少需要1个组件');
+            }
+            return;
+        }
+        
+        const item = this.availableNavItems.find(i => i.id === itemId);
+        if (!item) return;
+        
+        // 从已选列表移除
+        const selectedItem = selectedList.querySelector(`[data-id="${itemId}"]`);
+        if (selectedItem) {
+            selectedItem.remove();
+        }
+        
+        // 添加到可添加列表
+        const emptyMsg = availableList.querySelector('.customize-nav-empty');
+        if (emptyMsg) {
+            emptyMsg.remove();
+        }
+        
+        const newAvailableItem = document.createElement('button');
+        newAvailableItem.className = 'customize-nav-add-item';
+        newAvailableItem.dataset.id = item.id;
+        newAvailableItem.onclick = () => this.addToNav(item.id);
+        newAvailableItem.innerHTML = `
+            <span class="add-icon">${item.icon}</span>
+            <span class="add-label">${item.label}</span>
+            <span class="add-btn">+</span>
+        `;
+        availableList.appendChild(newAvailableItem);
+        
+        // 更新计数和序号
+        countSpan.textContent = `${currentCount - 1}/4`;
+        this.updateDragOrderNumbers();
     },
     
     // 关闭自定义导航模态框
@@ -395,28 +583,26 @@ const MobileApp = {
     
     // 保存自定义导航
     saveCustomNav() {
-        const modal = document.getElementById('customizeNavModal');
-        if (!modal) return;
+        const selectedList = document.getElementById('selectedNavList');
+        if (!selectedList) return;
         
-        const checkboxes = modal.querySelectorAll('input[type="checkbox"]:checked');
-        const selectedIds = Array.from(checkboxes).map(cb => cb.value);
-        
-        if (selectedIds.length === 0) {
-            alert('请至少选择一个功能');
+        const items = selectedList.querySelectorAll('.customize-nav-drag-item');
+        if (items.length === 0) {
+            if (typeof Settings !== 'undefined') {
+                Settings.showToast('warning', '请选择组件', '至少选择一个组件');
+            }
             return;
         }
         
-        // 确保"更多"按钮在最后
-        const moreIndex = selectedIds.indexOf('more');
-        if (moreIndex !== -1 && moreIndex !== selectedIds.length - 1) {
-            selectedIds.splice(moreIndex, 1);
-            selectedIds.push('more');
-        }
-        
-        // 构建新的导航项
-        const newNavItems = selectedIds.map(id => {
-            return this.availableNavItems.find(item => item.id === id);
-        }).filter(item => item);
+        // 按当前顺序构建新的导航项
+        const newNavItems = [];
+        items.forEach(item => {
+            const id = item.dataset.id;
+            const navItem = this.availableNavItems.find(i => i.id === id);
+            if (navItem) {
+                newNavItems.push(navItem);
+            }
+        });
         
         // 保存配置
         this.saveCustomNavItems(newNavItems);
