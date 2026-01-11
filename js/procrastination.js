@@ -12,6 +12,10 @@ const ProcrastinationMonitor = {
     triggeredTasks: [],         // 已触发过的任务ID列表
     history: [],                // 拖延历史记录
     audioContext: null,         // Web Audio API 上下文
+    voiceLoopTimer: null,       // 语音循环定时器
+    isPaused: false,            // 是否处于暂停状态
+    pauseEndTime: null,         // 暂停结束时间
+    speechSynthesis: null,      // 语音合成对象
     
     // 设置项
     settings: {
@@ -30,7 +34,17 @@ const ProcrastinationMonitor = {
         taskStartSound: 'chime',    // 任务开始提示音类型
         preAlertSound: 'warning',   // 预警提示音类型
         alertSound: 'alarm',        // 超时警报音类型
-        successSound: 'success'     // 成功提示音类型
+        successSound: 'success',    // 成功提示音类型
+        // 自定义语音提示
+        customPreAlertText: "距离{task}开始还有{seconds}秒，请准备启动步骤：{step}",
+        customAlertText: "任务{task}已超时，请立即开始执行步骤：{step}",
+        useVoiceAlert: true,        // 是否使用语音播报
+        voiceLoopEnabled: true,     // 是否循环播放语音
+        voiceLoopInterval: 10,      // 语音循环间隔（秒）
+        // 金币暂停功能
+        pauseCost: 10,              // 暂停提醒的金币成本
+        pauseDuration: 1800,        // 暂停时长（秒，30分钟）
+        pauseEnabled: true          // 是否启用金币暂停功能
     },
     
     // 初始化
@@ -52,9 +66,22 @@ const ProcrastinationMonitor = {
         // 初始化音频系统
         this.initAudio();
         
+        // 初始化语音合成
+        this.initSpeechSynthesis();
+        
         // 启动自动监控
         if (this.settings.enabled) {
             this.startAutoMonitor();
+        }
+    },
+    
+    // 初始化语音合成
+    initSpeechSynthesis() {
+        if ('speechSynthesis' in window) {
+            this.speechSynthesis = window.speechSynthesis;
+            console.log('语音合成系统初始化完成');
+        } else {
+            console.warn('浏览器不支持语音合成');
         }
     },
     
@@ -497,6 +524,15 @@ const ProcrastinationMonitor = {
         // 🔊 播放预警提示音
         this.playSound(this.settings.preAlertSound);
         
+        // 🎤 播放自定义语音提示
+        if (this.settings.useVoiceAlert) {
+            const voiceText = this.settings.customPreAlertText
+                .replace('{seconds}', remainingSeconds)
+                .replace('{task}', task.title)
+                .replace('{step}', startupStep);
+            this.speakText(voiceText);
+        }
+        
         // 发送浏览器通知
         if (typeof Settings !== 'undefined') {
             Settings.sendNotification(
@@ -532,6 +568,14 @@ const ProcrastinationMonitor = {
         // 🔊 播放超时警报音
         this.playSound(this.settings.alertSound);
         
+        // 🎤 开始循环播放语音警报
+        if (this.settings.useVoiceAlert && this.settings.voiceLoopEnabled && !this.isPaused) {
+            const voiceText = this.settings.customAlertText
+                .replace('{task}', task.title)
+                .replace('{step}', startupStep);
+            this.startVoiceLoop(voiceText);
+        }
+        
         // 发送浏览器通知
         if (typeof Settings !== 'undefined') {
             Settings.sendNotification(
@@ -558,7 +602,8 @@ const ProcrastinationMonitor = {
             App.addChatMessage("system", 
                 "🚨 启动超时！已扣除 " + actualCost + " 金币！\n" +
                 message + lossWarning + "\n" +
-                "第 " + this.currentCycle + " 次循环，累计扣除：" + this.totalPaidCoins + " 金币", 
+                "第 " + this.currentCycle + " 次循环，累计扣除：" + this.totalPaidCoins + " 金币\n" +
+                (this.settings.pauseEnabled ? "💰 支付 " + this.settings.pauseCost + " 金币可暂停提醒30分钟" : ""), 
                 "🚨"
             );
             App.updateGameStatus();
@@ -580,6 +625,157 @@ const ProcrastinationMonitor = {
         return Math.min(cost, this.settings.maxCost);
     },
     
+    // ==================== 语音播报系统 ====================
+    
+    // 播放语音文本
+    speakText(text) {
+        if (!this.speechSynthesis || !this.settings.useVoiceAlert) {
+            console.log('语音播报未启用或不支持');
+            return;
+        }
+        
+        // 停止当前播放
+        this.speechSynthesis.cancel();
+        
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'zh-CN';
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        utterance.volume = this.settings.soundVolume;
+        
+        this.speechSynthesis.speak(utterance);
+        console.log('播放语音:', text);
+    },
+    
+    // 开始循环播放语音
+    startVoiceLoop(text) {
+        // 清除之前的循环
+        this.stopVoiceLoop();
+        
+        const self = this;
+        
+        // 立即播放一次
+        this.speakText(text);
+        
+        // 设置循环定时器
+        this.voiceLoopTimer = setInterval(function() {
+            // 检查是否暂停
+            if (self.isPaused) {
+                return;
+            }
+            
+            // 检查暂停是否已结束
+            if (self.pauseEndTime && new Date() >= self.pauseEndTime) {
+                self.resumeFromPause();
+            }
+            
+            // 播放语音
+            self.speakText(text);
+        }, this.settings.voiceLoopInterval * 1000);
+        
+        console.log('开始循环播放语音，间隔:', this.settings.voiceLoopInterval, '秒');
+    },
+    
+    // 停止循环播放语音
+    stopVoiceLoop() {
+        if (this.voiceLoopTimer) {
+            clearInterval(this.voiceLoopTimer);
+            this.voiceLoopTimer = null;
+        }
+        
+        if (this.speechSynthesis) {
+            this.speechSynthesis.cancel();
+        }
+        
+        console.log('停止循环播放语音');
+    },
+    
+    // ==================== 金币暂停功能 ====================
+    
+    // 支付金币暂停提醒
+    pauseWithCoins() {
+        if (!this.settings.pauseEnabled) {
+            if (typeof App !== 'undefined') {
+                App.addChatMessage("system", "暂停功能未启用", "ℹ️");
+            }
+            return;
+        }
+        
+        const cost = this.settings.pauseCost;
+        const state = Storage.getGameState();
+        
+        if (state.coins < cost) {
+            if (typeof App !== 'undefined') {
+                App.addChatMessage("system", 
+                    "金币不足！需要 " + cost + " 金币，当前只有 " + state.coins + " 金币", 
+                    "❌"
+                );
+            }
+            return;
+        }
+        
+        // 扣除金币
+        state.coins -= cost;
+        Storage.saveGameState(state);
+        
+        // 设置暂停状态
+        this.isPaused = true;
+        this.pauseEndTime = new Date(Date.now() + this.settings.pauseDuration * 1000);
+        
+        // 停止语音循环
+        this.stopVoiceLoop();
+        
+        const pauseMinutes = Math.floor(this.settings.pauseDuration / 60);
+        
+        if (typeof App !== 'undefined') {
+            App.updateGameStatus();
+            App.addChatMessage("system", 
+                "✅ 已支付 " + cost + " 金币暂停提醒\n" +
+                "暂停时长：" + pauseMinutes + " 分钟\n" +
+                "暂停结束时间：" + this.formatTime(this.pauseEndTime) + "\n" +
+                "⚠️ 超时后若未完成任务，语音警报将重新启动", 
+                "💰"
+            );
+            App.loadProcrastinationPanel();
+        }
+    },
+    
+    // 从暂停中恢复
+    resumeFromPause() {
+        this.isPaused = false;
+        this.pauseEndTime = null;
+        
+        // 如果仍在警报状态，重新启动语音循环
+        if (this.isAlertActive && this.currentTask) {
+            const task = this.currentTask;
+            const startupStep = task.substeps && task.substeps.length > 0 ? 
+                task.substeps[0].title : '开始执行';
+            
+            const voiceText = this.settings.customAlertText
+                .replace('{task}', task.title)
+                .replace('{step}', startupStep);
+            
+            this.startVoiceLoop(voiceText);
+            
+            if (typeof App !== 'undefined') {
+                App.addChatMessage("system", 
+                    "⏰ 暂停时间已结束！\n" +
+                    "语音警报已重新启动\n" +
+                    "请立即完成任务【" + task.title + "】", 
+                    "🚨"
+                );
+                App.loadProcrastinationPanel();
+            }
+        }
+    },
+    
+    // 格式化时间
+    formatTime(date) {
+        const d = new Date(date);
+        return d.getHours().toString().padStart(2, '0') + ':' + 
+               d.getMinutes().toString().padStart(2, '0');
+    },
+    
     // 完成启动步骤
     completeStep() {
         if (!this.currentTask) return;
@@ -589,6 +785,9 @@ const ProcrastinationMonitor = {
             clearInterval(this.countdownTimer);
             this.countdownTimer = null;
         }
+        
+        // 停止语音循环
+        this.stopVoiceLoop();
         
         const task = this.currentTask;
         var coins = 0;
@@ -654,6 +853,8 @@ const ProcrastinationMonitor = {
         this.currentCycle = 1;
         this.totalPaidCoins = 0;
         this.preAlertShown = false;
+        this.isPaused = false;
+        this.pauseEndTime = null;
         
         if (typeof App !== 'undefined') {
             App.loadProcrastinationPanel();
@@ -670,6 +871,9 @@ const ProcrastinationMonitor = {
             this.countdownTimer = null;
         }
         
+        // 停止语音循环
+        this.stopVoiceLoop();
+        
         const task = this.currentTask;
         
         if (typeof App !== 'undefined') {
@@ -683,6 +887,8 @@ const ProcrastinationMonitor = {
         this.currentCycle = 1;
         this.totalPaidCoins = 0;
         this.preAlertShown = false;
+        this.isPaused = false;
+        this.pauseEndTime = null;
         
         if (typeof App !== 'undefined') {
             App.loadProcrastinationPanel();

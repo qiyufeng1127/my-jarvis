@@ -11,6 +11,10 @@ const InefficiencyMonitor = {
     halfwayAlertShown: false,   // 是否已显示半程提醒
     efficiencyScore: 100,       // 当前效率评分
     history: [],                // 低效率历史记录
+    voiceLoopTimer: null,       // 语音循环定时器
+    isPaused: false,            // 是否处于暂停状态
+    pauseEndTime: null,         // 暂停结束时间
+    speechSynthesis: null,      // 语音合成对象
     
     // 设置项
     settings: {
@@ -23,7 +27,16 @@ const InefficiencyMonitor = {
         halfwayMessage: "🤔 一切顺利吗？您已在此步骤停留{minutes}分钟了",
         alertMessage: "🚨 您在此步骤已停留{minutes}分钟，可能陷入低效循环",
         focusMusic: false,          // 专注音乐
-        whiteNoise: false           // 白噪音
+        whiteNoise: false,          // 白噪音
+        // 自定义语音提示
+        customAlertText: "您已在当前步骤停留{minutes}分钟，可能陷入低效循环，请及时调整",
+        useVoiceAlert: true,        // 是否使用语音播报
+        voiceLoopEnabled: true,     // 是否循环播放语音
+        voiceLoopInterval: 15,      // 语音循环间隔（秒）
+        // 金币暂停功能
+        pauseCost: 10,              // 暂停提醒的金币成本
+        pauseDuration: 1800,        // 暂停时长（秒，30分钟）
+        pauseEnabled: true          // 是否启用金币暂停功能
     },
     
     // 初始化
@@ -35,6 +48,19 @@ const InefficiencyMonitor = {
         const savedSettings = Storage.load('adhd_inefficiency_settings', null);
         if (savedSettings) {
             Object.assign(this.settings, savedSettings);
+        }
+        
+        // 初始化语音合成
+        this.initSpeechSynthesis();
+    },
+    
+    // 初始化语音合成
+    initSpeechSynthesis() {
+        if ('speechSynthesis' in window) {
+            this.speechSynthesis = window.speechSynthesis;
+            console.log('低效率监控：语音合成系统初始化完成');
+        } else {
+            console.warn('低效率监控：浏览器不支持语音合成');
         }
     },
     
@@ -162,6 +188,13 @@ const InefficiencyMonitor = {
         var message = this.settings.alertMessage
             .replace('{minutes}', minutes);
         
+        // 🎤 开始循环播放语音警报
+        if (this.settings.useVoiceAlert && this.settings.voiceLoopEnabled && !this.isPaused) {
+            const voiceText = this.settings.customAlertText
+                .replace('{minutes}', minutes);
+            this.startVoiceLoop(voiceText);
+        }
+        
         // 获取价值损失警告
         var lossWarning = '';
         if (typeof ValueVisualizer !== 'undefined') {
@@ -176,7 +209,8 @@ const InefficiencyMonitor = {
                 "🚨 低效率警报！\n" +
                 message + lossWarning + "\n" +
                 "已扣除 " + actualCost + " 金币\n" +
-                "第 " + this.currentCycle + " 次循环，累计扣除：" + this.totalPaidCoins + " 金币", 
+                "第 " + this.currentCycle + " 次循环，累计扣除：" + this.totalPaidCoins + " 金币\n" +
+                (this.settings.pauseEnabled ? "💰 支付 " + this.settings.pauseCost + " 金币可暂停提醒30分钟" : ""), 
                 "🚨"
             );
             App.updateGameStatus();
@@ -196,12 +230,162 @@ const InefficiencyMonitor = {
         return Math.min(cost, this.settings.maxCost);
     },
     
+    // ==================== 语音播报系统 ====================
+    
+    // 播放语音文本
+    speakText(text) {
+        if (!this.speechSynthesis || !this.settings.useVoiceAlert) {
+            console.log('语音播报未启用或不支持');
+            return;
+        }
+        
+        // 停止当前播放
+        this.speechSynthesis.cancel();
+        
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'zh-CN';
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        utterance.volume = 0.7;
+        
+        this.speechSynthesis.speak(utterance);
+        console.log('低效率监控播放语音:', text);
+    },
+    
+    // 开始循环播放语音
+    startVoiceLoop(text) {
+        // 清除之前的循环
+        this.stopVoiceLoop();
+        
+        const self = this;
+        
+        // 立即播放一次
+        this.speakText(text);
+        
+        // 设置循环定时器
+        this.voiceLoopTimer = setInterval(function() {
+            // 检查是否暂停
+            if (self.isPaused) {
+                return;
+            }
+            
+            // 检查暂停是否已结束
+            if (self.pauseEndTime && new Date() >= self.pauseEndTime) {
+                self.resumeFromPause();
+            }
+            
+            // 播放语音
+            self.speakText(text);
+        }, this.settings.voiceLoopInterval * 1000);
+        
+        console.log('低效率监控开始循环播放语音，间隔:', this.settings.voiceLoopInterval, '秒');
+    },
+    
+    // 停止循环播放语音
+    stopVoiceLoop() {
+        if (this.voiceLoopTimer) {
+            clearInterval(this.voiceLoopTimer);
+            this.voiceLoopTimer = null;
+        }
+        
+        if (this.speechSynthesis) {
+            this.speechSynthesis.cancel();
+        }
+        
+        console.log('低效率监控停止循环播放语音');
+    },
+    
+    // ==================== 金币暂停功能 ====================
+    
+    // 支付金币暂停提醒
+    pauseWithCoins() {
+        if (!this.settings.pauseEnabled) {
+            if (typeof App !== 'undefined') {
+                App.addChatMessage("system", "暂停功能未启用", "ℹ️");
+            }
+            return;
+        }
+        
+        const cost = this.settings.pauseCost;
+        const state = Storage.getGameState();
+        
+        if (state.coins < cost) {
+            if (typeof App !== 'undefined') {
+                App.addChatMessage("system", 
+                    "金币不足！需要 " + cost + " 金币，当前只有 " + state.coins + " 金币", 
+                    "❌"
+                );
+            }
+            return;
+        }
+        
+        // 扣除金币
+        state.coins -= cost;
+        Storage.saveGameState(state);
+        
+        // 设置暂停状态
+        this.isPaused = true;
+        this.pauseEndTime = new Date(Date.now() + this.settings.pauseDuration * 1000);
+        
+        // 停止语音循环
+        this.stopVoiceLoop();
+        
+        const pauseMinutes = Math.floor(this.settings.pauseDuration / 60);
+        
+        if (typeof App !== 'undefined') {
+            App.updateGameStatus();
+            App.addChatMessage("system", 
+                "✅ 已支付 " + cost + " 金币暂停低效率提醒\n" +
+                "暂停时长：" + pauseMinutes + " 分钟\n" +
+                "暂停结束时间：" + this.formatTime(this.pauseEndTime) + "\n" +
+                "⚠️ 超时后若仍处于低效率状态，语音警报将重新启动", 
+                "💰"
+            );
+            App.loadInefficiencyPanel();
+        }
+    },
+    
+    // 从暂停中恢复
+    resumeFromPause() {
+        this.isPaused = false;
+        this.pauseEndTime = null;
+        
+        // 如果仍在警报状态，重新启动语音循环
+        if (this.isAlertActive && this.currentTask) {
+            const minutes = Math.floor(this.elapsedSeconds / 60);
+            const voiceText = this.settings.customAlertText
+                .replace('{minutes}', minutes);
+            
+            this.startVoiceLoop(voiceText);
+            
+            if (typeof App !== 'undefined') {
+                App.addChatMessage("system", 
+                    "⏰ 暂停时间已结束！\n" +
+                    "低效率语音警报已重新启动\n" +
+                    "请及时调整工作状态", 
+                    "🚨"
+                );
+                App.loadInefficiencyPanel();
+            }
+        }
+    },
+    
+    // 格式化时间
+    formatTime(date) {
+        const d = new Date(date);
+        return d.getHours().toString().padStart(2, '0') + ':' + 
+               d.getMinutes().toString().padStart(2, '0');
+    },
+    
     // 完成当前步骤
     completeStep() {
         if (!this.currentTask) return;
         
         const currentStep = this.getCurrentStep();
         const duration = this.formatDuration(this.elapsedSeconds);
+        
+        // 停止语音循环
+        this.stopVoiceLoop();
         
         // 记录历史
         this.addHistory({
@@ -279,6 +463,11 @@ const InefficiencyMonitor = {
             this.totalPaidCoins = 0;
             this.halfwayAlertShown = false;
             this.efficiencyScore = 100;
+            this.isPaused = false;
+            this.pauseEndTime = null;
+            
+            // 停止语音循环
+            this.stopVoiceLoop();
             
             const nextStep = this.getCurrentStep();
             
@@ -303,6 +492,9 @@ const InefficiencyMonitor = {
             this.monitorTimer = null;
         }
         
+        // 停止语音循环
+        this.stopVoiceLoop();
+        
         const task = this.currentTask;
         
         if (typeof App !== 'undefined') {
@@ -320,6 +512,8 @@ const InefficiencyMonitor = {
         this.isAlertActive = false;
         this.currentCycle = 1;
         this.totalPaidCoins = 0;
+        this.isPaused = false;
+        this.pauseEndTime = null;
         
         if (typeof App !== 'undefined') {
             App.loadInefficiencyPanel();
@@ -332,6 +526,9 @@ const InefficiencyMonitor = {
             clearInterval(this.monitorTimer);
             this.monitorTimer = null;
         }
+        
+        // 停止语音循环
+        this.stopVoiceLoop();
         
         if (this.currentTask && this.totalPaidCoins > 0) {
             // 记录历史
@@ -359,6 +556,8 @@ const InefficiencyMonitor = {
         this.isAlertActive = false;
         this.currentCycle = 1;
         this.totalPaidCoins = 0;
+        this.isPaused = false;
+        this.pauseEndTime = null;
         
         if (typeof App !== 'undefined') {
             App.loadInefficiencyPanel();
