@@ -10,7 +10,7 @@ const MobileApp = {
     defaultNavItems: [
         { id: 'smartInput', icon: '💬', label: '对话' },
         { id: 'timeline', icon: '📅', label: '任务' },
-        { id: 'procrastinationPanel', icon: '⏰', label: '监控' },
+        { id: 'monitorPanel', icon: '📊', label: '监控' },
         { id: 'gameSystem', icon: '🎮', label: '游戏' }
     ],
     
@@ -18,8 +18,7 @@ const MobileApp = {
     availableNavItems: [
         { id: 'smartInput', icon: '💬', label: '对话' },
         { id: 'timeline', icon: '📅', label: '任务' },
-        { id: 'procrastinationPanel', icon: '⏰', label: '拖延监控' },
-        { id: 'inefficiencyPanel', icon: '📉', label: '低效监控' },
+        { id: 'monitorPanel', icon: '📊', label: '监控' },
         { id: 'gameSystem', icon: '🎮', label: '游戏' },
         { id: 'memoryBank', icon: '🧠', label: '记忆库' },
         { id: 'valuePanel', icon: '💰', label: '价值显化' },
