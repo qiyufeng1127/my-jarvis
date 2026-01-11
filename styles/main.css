@@ -7690,3 +7690,218 @@ body {
     background: #E8ECF0;
 }
 
+
+/* ==================== 鍚堝苟鐩戞帶闈㈡澘鏍峰紡 ==================== */
+.monitor-panel-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.monitor-tabs {
+    display: flex;
+    gap: 0;
+    padding: 8px 12px;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    flex-shrink: 0;
+}
+
+[data-theme="dark"] .monitor-tabs {
+    background: linear-gradient(135deg, rgba(40, 40, 70, 0.6) 0%, rgba(30, 30, 50, 0.6) 100%);
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.monitor-tab {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 16px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.monitor-tab .tab-icon {
+    font-size: 16px;
+}
+
+.monitor-tab .tab-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: #666;
+}
+
+[data-theme="dark"] .monitor-tab .tab-label {
+    color: #A0A0A0;
+}
+
+.monitor-tab:hover {
+    background: rgba(102, 126, 234, 0.1);
+}
+
+.monitor-tab.active {
+    background: white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="dark"] .monitor-tab.active {
+    background: rgba(102, 126, 234, 0.2);
+}
+
+.monitor-tab.active .tab-label {
+    color: #667eea;
+    font-weight: 600;
+}
+
+.monitor-tab .tab-badge {
+    position: absolute;
+    top: 6px;
+    right: 10px;
+    width: 8px;
+    height: 8px;
+    color: #E74C3C;
+    font-size: 10px;
+    animation: monitorPulse 1.5s infinite;
+}
+
+.monitor-tab.has-activity {
+    background: rgba(231, 76, 60, 0.1);
+}
+
+.monitor-tab.has-activity.active {
+    background: rgba(231, 76, 60, 0.15);
+}
+
+@keyframes monitorPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+.monitor-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+}
+
+.monitor-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: #999;
+    font-size: 14px;
+}
+
+/* ==================== 璁板繂搴撴墿灞曟牱寮?==================== */
+.memory-search {
+    margin-bottom: 12px;
+}
+
+.memory-search-input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    font-size: 14px;
+    background: rgba(255, 255, 255, 0.8);
+    transition: all 0.2s;
+}
+
+[data-theme="dark"] .memory-search-input {
+    background: rgba(40, 40, 70, 0.6);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #E0E0E0;
+}
+
+.memory-search-input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.category-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+    align-items: center;
+}
+
+.tag-label {
+    font-size: 12px;
+    color: #666;
+    margin-right: 4px;
+}
+
+[data-theme="dark"] .tag-label {
+    color: #A0A0A0;
+}
+
+.category-tag {
+    padding: 5px 10px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.8);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+[data-theme="dark"] .category-tag {
+    background: rgba(40, 40, 70, 0.4);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #A0A0A0;
+}
+
+.category-tag:hover {
+    background: rgba(102, 126, 234, 0.1);
+    border-color: #667eea;
+}
+
+.category-tag.active {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+}
+
+.memory-categories {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 8px;
+}
+
+.memory-category-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 10px;
+    font-size: 11px;
+}
+
+.memory-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.memory-tag {
+    display: inline-block;
+    padding: 2px 6px;
+    background: rgba(102, 126, 234, 0.1);
+    color: #667eea;
+    border-radius: 4px;
+    font-size: 11px;
+}
+
+[data-theme="dark"] .memory-tag {
+    background: rgba(102, 126, 234, 0.2);
+}

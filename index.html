@@ -110,37 +110,19 @@
             <div class="resize-handle"></div>
         </div>
 
-        <!-- 拖延面板组件 -->
-        <div class="draggable-component" id="procrastinationPanel" data-component="procrastination-panel" style="left: 1200px; top: 70px; width: 360px; height: 620px;">
+        <!-- 监控组件（合并拖延监控和低效率监控） -->
+        <div class="draggable-component" id="monitorPanel" data-component="monitor-panel" style="left: 1200px; top: 70px; width: 400px; height: 700px;">
             <div class="component-header">
-                <span class="component-title">⏰ 拖延监控</span>
+                <span class="component-title">📊 监控</span>
                 <div class="component-controls">
-                    <button class="component-btn btn-settings" title="设置" onclick="App.showProcrastinationSettingsModal()">⚙️</button>
+                    <button class="component-btn btn-settings" title="设置" onclick="App.showMonitorSettingsModal()">⚙️</button>
                     <button class="component-btn btn-minimize" title="最小化"></button>
                     <button class="component-btn btn-maximize" title="最大化"></button>
                     <button class="color-picker-btn" title="背景颜色">🎨</button>
                     <input type="color" class="color-picker" value="#ffffff">
                 </div>
             </div>
-            <div class="component-body" id="procrastinationBody">
-                <!-- 组件内容由JS加载 -->
-            </div>
-            <div class="resize-handle"></div>
-        </div>
-
-        <!-- 低效率面板组件 -->
-        <div class="draggable-component" id="inefficiencyPanel" data-component="inefficiency-panel" style="left: 1580px; top: 70px; width: 380px; height: 680px;">
-            <div class="component-header">
-                <span class="component-title">📉 低效率监控</span>
-                <div class="component-controls">
-                    <button class="component-btn btn-settings" title="设置" onclick="App.showInefficiencySettingsModal()">⚙️</button>
-                    <button class="component-btn btn-minimize" title="最小化"></button>
-                    <button class="component-btn btn-maximize" title="最大化"></button>
-                    <button class="color-picker-btn" title="背景颜色">🎨</button>
-                    <input type="color" class="color-picker" value="#ffffff">
-                </div>
-            </div>
-            <div class="component-body" id="inefficiencyBody">
+            <div class="component-body" id="monitorBody">
                 <!-- 组件内容由JS加载 -->
             </div>
             <div class="resize-handle"></div>
@@ -226,8 +208,8 @@
     <!-- Toast通知容器 -->
     <div class="toast-container" id="toastContainer"></div>
 
-    <!-- 主题切换按钮 -->
-    <button class="theme-toggle" id="themeToggle" title="切换深色/浅色模式">🌙</button>
+    <!-- 主题切换按钮已移除，可在设置面板中切换 -->
+    <!-- <button class="theme-toggle" id="themeToggle" title="切换深色/浅色模式">🌙</button> -->
     
     <!-- 设置按钮 -->
     <button class="settings-toggle" id="settingsToggle" onclick="toggleSettingsPanel()" title="设置">⚙️</button>

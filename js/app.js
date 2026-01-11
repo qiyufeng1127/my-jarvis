@@ -40,8 +40,7 @@ const App = {
         this.loadMemoryBank();
         this.loadPromptPanel();
         this.loadGameSystem();
-        this.loadProcrastinationPanel();
-        this.loadInefficiencyPanel();
+        this.loadMonitorPanel(); // 合并的监控面板
         this.loadValuePanel();
         
         // 初始化拖延监控模块
@@ -2168,7 +2167,20 @@ const App = {
         container.innerHTML = 
             '<div class="memory-container">' +
                 '<div class="memory-header">' +
+                    '<div class="memory-search">' +
+                        '<input type="text" class="memory-search-input" placeholder="🔍 搜索记忆..." oninput="App.searchMemories(this.value)">' +
+                    '</div>' +
+                    '<div class="category-tags">' +
+                        '<span class="tag-label">📁 类别：</span>' +
+                        '<button class="category-tag active" data-category="all" onclick="App.filterMemoriesByCategory(\'all\')">全部</button>' +
+                        '<button class="category-tag" data-category="work" onclick="App.filterMemoriesByCategory(\'work\')">💼 工作</button>' +
+                        '<button class="category-tag" data-category="housework" onclick="App.filterMemoriesByCategory(\'housework\')">🏠 家务</button>' +
+                        '<button class="category-tag" data-category="life" onclick="App.filterMemoriesByCategory(\'life\')">🌟 生活</button>' +
+                        '<button class="category-tag" data-category="study" onclick="App.filterMemoriesByCategory(\'study\')">📚 学习</button>' +
+                        '<button class="category-tag" data-category="health" onclick="App.filterMemoriesByCategory(\'health\')">💪 健康</button>' +
+                    '</div>' +
                     '<div class="emotion-tags">' +
+                        '<span class="tag-label">😊 情绪：</span>' +
                         '<button class="emotion-tag active" onclick="App.filterMemories(\'all\')">全部</button>' +
                         '<button class="emotion-tag happy" onclick="App.filterMemories(\'happy\')">😊 开心</button>' +
                         '<button class="emotion-tag calm" onclick="App.filterMemories(\'calm\')">😌 平静</button>' +
@@ -2209,12 +2221,14 @@ const App = {
             taskLink = '<div class="memory-task-link">🔗 关联任务</div>';
         }
         
-        return '<div class="memory-card ' + memory.type + '" style="border-left-color: ' + borderColor + ';" data-emotion="' + (memory.emotionType || '') + '">' +
+        return '<div class="memory-card ' + memory.type + '" style="border-left-color: ' + borderColor + ';" data-emotion="' + (memory.emotionType || '') + '" data-categories="' + (memory.categories ? JSON.stringify(memory.categories).replace(/"/g, '&quot;') : '') + '" data-content="' + (memory.content || '').replace(/"/g, '&quot;') + '">' +
                    '<div class="memory-card-header">' +
                        '<span class="memory-type-icon">' + icon + '</span>' +
                        '<span class="memory-time">' + this.formatTime(memory.createdAt) + '</span>' +
                    '</div>' +
                    '<div class="memory-content">' + memory.content + '</div>' +
+                   this.renderMemoryCategoryTags(memory) +
+                   this.renderMemoryTags(memory) +
                    taskLink +
                '</div>';
     },
@@ -2237,12 +2251,26 @@ const App = {
         if (emotionType === 'positive') emotionType = 'happy';
         if (emotionType === 'neutral') emotionType = 'calm';
         
+        // 自动识别内容并添加类别标签
+        var content = emotion.content || ("记录了" + emotionType + "的情绪");
+        var autoTags = this.autoTagMemoryContent(content);
+        
+        // 合并标签
+        var tags = emotion.tags || [];
+        if (autoTags.tags.length > 0) {
+            tags = tags.concat(autoTags.tags);
+        }
+        if (tags.length === 0) {
+            tags = ["情绪"];
+        }
+        
         Storage.addMemory({
             type: "emotion",
             emotionType: emotionType,
-            content: emotion.content || ("记录了" + emotionType + "的情绪"),
+            content: content,
             intensity: emotion.intensity || 0.5,
-            tags: emotion.tags || ["情绪"]
+            tags: tags,
+            categories: autoTags.categories
         });
         this.loadMemoryBank();
     },
@@ -2255,13 +2283,188 @@ const App = {
         tags.forEach(function(tag) { tag.classList.remove("active"); });
         event.target.classList.add("active");
         
+        // 保存当前筛选状态
+        this.memoryEmotionFilter = filter;
+        
+        this.applyMemoryFilters();
+    },
+    
+    // 按类别筛选记忆
+    filterMemoriesByCategory(category) {
+        const tags = document.querySelectorAll(".category-tag");
+        tags.forEach(function(tag) { tag.classList.remove("active"); });
+        event.target.classList.add("active");
+        
+        // 保存当前筛选状态
+        this.memoryCategoryFilter = category;
+        
+        this.applyMemoryFilters();
+    },
+    
+    // 搜索记忆
+    searchMemories(keyword) {
+        this.memorySearchKeyword = keyword.toLowerCase();
+        this.applyMemoryFilters();
+    },
+    
+    // 应用所有筛选条件
+    applyMemoryFilters() {
+        const grid = document.getElementById("memoryGrid");
+        if (!grid) return;
+        
+        const cards = grid.querySelectorAll(".memory-card");
+        const emotionFilter = this.memoryEmotionFilter || 'all';
+        const categoryFilter = this.memoryCategoryFilter || 'all';
+        const searchKeyword = this.memorySearchKeyword || '';
+        
         cards.forEach(function(card) {
-            if (filter === "all" || card.dataset.emotion === filter) {
+            var showByEmotion = (emotionFilter === 'all' || card.dataset.emotion === emotionFilter);
+            var showByCategory = true;
+            var showBySearch = true;
+            
+            // 类别筛选
+            if (categoryFilter !== 'all') {
+                var categories = card.dataset.categories;
+                if (categories) {
+                    try {
+                        var catArray = JSON.parse(categories);
+                        showByCategory = catArray.some(function(cat) {
+                            return cat.main === categoryFilter;
+                        });
+                    } catch(e) {
+                        showByCategory = false;
+                    }
+                } else {
+                    showByCategory = false;
+                }
+            }
+            
+            // 搜索筛选
+            if (searchKeyword) {
+                var content = (card.dataset.content || '').toLowerCase();
+                showBySearch = content.indexOf(searchKeyword) !== -1;
+            }
+            
+            if (showByEmotion && showByCategory && showBySearch) {
                 card.style.display = "block";
             } else {
                 card.style.display = "none";
             }
         });
+    },
+    
+    // 渲染记忆的类别标签
+    renderMemoryCategoryTags(memory) {
+        if (!memory.categories || memory.categories.length === 0) return '';
+        
+        const categoryIcons = {
+            work: "💼",
+            housework: "🏠",
+            life: "🌟",
+            study: "📚",
+            health: "💪"
+        };
+        
+        var html = '<div class="memory-categories">';
+        for (var i = 0; i < memory.categories.length; i++) {
+            var cat = memory.categories[i];
+            var catIcon = categoryIcons[cat.main] || '📁';
+            var catLabel = cat.sub ? (this.getCategoryLabel(cat.main) + '/' + cat.sub) : this.getCategoryLabel(cat.main);
+            html += '<span class="memory-category-tag">' + catIcon + ' ' + catLabel + '</span>';
+        }
+        html += '</div>';
+        return html;
+    },
+    
+    // 获取类别中文标签
+    getCategoryLabel(category) {
+        const labels = {
+            work: "工作",
+            housework: "家务",
+            life: "生活",
+            study: "学习",
+            health: "健康"
+        };
+        return labels[category] || category;
+    },
+    
+    // 渲染记忆的自定义标签
+    renderMemoryTags(memory) {
+        if (!memory.tags || memory.tags.length === 0) return '';
+        
+        var html = '<div class="memory-tags">';
+        for (var i = 0; i < memory.tags.length; i++) {
+            html += '<span class="memory-tag">#' + memory.tags[i] + '</span>';
+        }
+        html += '</div>';
+        return html;
+    },
+    
+    // 自动识别内容并添加类别标签
+    autoTagMemoryContent(content) {
+        var categories = [];
+        var tags = [];
+        
+        // 工作相关关键词
+        const workKeywords = ['客户', '设计', '项目', '会议', '报告', '方案', '合同', '订单', '拍摄', '修图', '插画', '约稿', '运营', '小红书', '抖音', '直播', '文案', '策划', '开发', '代码', '上线', '发布', '交付', '验收', '照相馆', '摄影', '工作室'];
+        // 家务相关关键词
+        const houseworkKeywords = ['打扫', '洗衣', '做饭', '买菜', '收拾', '整理', '清洁', '拖地', '洗碗', '晾衣', '倒垃圾', '换床单', '擦窗', '修理'];
+        // 生活相关关键词
+        const lifeKeywords = ['购物', '逛街', '聚餐', '约会', '旅行', '电影', '游戏', '休息', '睡觉', '娱乐', '朋友', '家人', '聚会', '生日', '节日'];
+        // 学习相关关键词
+        const studyKeywords = ['学习', '看书', '课程', '培训', '考试', '练习', '笔记', '复习', '教程', '技能', '知识', '阅读'];
+        // 健康相关关键词
+        const healthKeywords = ['运动', '健身', '跑步', '瑜伽', '锻炼', '体检', '医院', '吃药', '睡眠', '早起', '饮食', '减肥', '养生'];
+        
+        var contentLower = content.toLowerCase();
+        
+        // 检测工作类别
+        for (var i = 0; i < workKeywords.length; i++) {
+            if (content.indexOf(workKeywords[i]) !== -1) {
+                var subTag = workKeywords[i];
+                categories.push({ main: 'work', sub: subTag });
+                tags.push(subTag);
+                break;
+            }
+        }
+        
+        // 检测家务类别
+        for (var j = 0; j < houseworkKeywords.length; j++) {
+            if (content.indexOf(houseworkKeywords[j]) !== -1) {
+                categories.push({ main: 'housework', sub: houseworkKeywords[j] });
+                tags.push(houseworkKeywords[j]);
+                break;
+            }
+        }
+        
+        // 检测生活类别
+        for (var k = 0; k < lifeKeywords.length; k++) {
+            if (content.indexOf(lifeKeywords[k]) !== -1) {
+                categories.push({ main: 'life', sub: lifeKeywords[k] });
+                tags.push(lifeKeywords[k]);
+                break;
+            }
+        }
+        
+        // 检测学习类别
+        for (var l = 0; l < studyKeywords.length; l++) {
+            if (content.indexOf(studyKeywords[l]) !== -1) {
+                categories.push({ main: 'study', sub: studyKeywords[l] });
+                tags.push(studyKeywords[l]);
+                break;
+            }
+        }
+        
+        // 检测健康类别
+        for (var m = 0; m < healthKeywords.length; m++) {
+            if (content.indexOf(healthKeywords[m]) !== -1) {
+                categories.push({ main: 'health', sub: healthKeywords[m] });
+                tags.push(healthKeywords[m]);
+                break;
+            }
+        }
+        
+        return { categories: categories, tags: tags };
     },
 
     // 提示词面板
@@ -2694,10 +2897,133 @@ const App = {
         }
     },
 
+    // ==================== 合并监控面板功能 ====================
+    
+    // 当前监控面板的活动标签
+    monitorActiveTab: 'procrastination',
+    
+    // 加载合并监控面板
+    loadMonitorPanel() {
+        const container = document.getElementById("monitorBody");
+        if (!container) return;
+        
+        const PM = typeof ProcrastinationMonitor !== 'undefined' ? ProcrastinationMonitor : null;
+        const IM = typeof InefficiencyMonitor !== 'undefined' ? InefficiencyMonitor : null;
+        
+        if (!PM && !IM) {
+            container.innerHTML = '<div style="padding:20px;text-align:center;color:#999;">监控模块加载中...</div>';
+            return;
+        }
+        
+        // 判断哪个监控正在活跃
+        const procrastinationActive = PM && PM.currentTask;
+        const inefficiencyActive = IM && IM.currentTask;
+        
+        // 如果有活跃的监控，自动切换到对应标签
+        if (procrastinationActive && !inefficiencyActive) {
+            this.monitorActiveTab = 'procrastination';
+        } else if (inefficiencyActive && !procrastinationActive) {
+            this.monitorActiveTab = 'inefficiency';
+        }
+        
+        // 生成标签页HTML
+        var tabsHtml = '<div class="monitor-tabs">' +
+            '<button class="monitor-tab ' + (this.monitorActiveTab === 'procrastination' ? 'active' : '') + 
+                (procrastinationActive ? ' has-activity' : '') + '" onclick="App.switchMonitorTab(\'procrastination\')">' +
+                '<span class="tab-icon">⏰</span>' +
+                '<span class="tab-label">拖延监控</span>' +
+                (procrastinationActive ? '<span class="tab-badge">●</span>' : '') +
+            '</button>' +
+            '<button class="monitor-tab ' + (this.monitorActiveTab === 'inefficiency' ? 'active' : '') + 
+                (inefficiencyActive ? ' has-activity' : '') + '" onclick="App.switchMonitorTab(\'inefficiency\')">' +
+                '<span class="tab-icon">📉</span>' +
+                '<span class="tab-label">低效监控</span>' +
+                (inefficiencyActive ? '<span class="tab-badge">●</span>' : '') +
+            '</button>' +
+        '</div>';
+        
+        // 生成内容HTML
+        var contentHtml = '';
+        if (this.monitorActiveTab === 'procrastination') {
+            contentHtml = this.renderProcrastinationContent();
+        } else {
+            contentHtml = this.renderInefficiencyContent();
+        }
+        
+        container.innerHTML = 
+            '<div class="monitor-panel-container">' +
+                tabsHtml +
+                '<div class="monitor-content">' +
+                    contentHtml +
+                '</div>' +
+            '</div>';
+        
+        // 重新应用背景色
+        setTimeout(function() { Canvas.reapplyBackground('monitorPanel'); }, 10);
+    },
+    
+    // 切换监控标签
+    switchMonitorTab(tab) {
+        this.monitorActiveTab = tab;
+        this.loadMonitorPanel();
+    },
+    
+    // 渲染拖延监控内容
+    renderProcrastinationContent() {
+        const PM = typeof ProcrastinationMonitor !== 'undefined' ? ProcrastinationMonitor : null;
+        if (!PM) return '<div class="monitor-empty">拖延监控模块未加载</div>';
+        
+        var monitorHtml = this.renderProcrastinationMonitor();
+        var statsHtml = this.renderProcrastinationStats();
+        var historyHtml = this.renderProcrastinationHistory();
+        
+        return '<div class="procrastination-container">' +
+            '<div class="procrastination-monitor">' + monitorHtml + '</div>' +
+            '<div class="procrastination-stats">' + statsHtml + '</div>' +
+            '<div class="procrastination-history">' +
+                '<div class="history-title">📜 拖延历史记录</div>' +
+                '<div class="history-timeline" id="procrastinationHistoryList">' + historyHtml + '</div>' +
+            '</div>' +
+        '</div>';
+    },
+    
+    // 渲染低效率监控内容
+    renderInefficiencyContent() {
+        const IM = typeof InefficiencyMonitor !== 'undefined' ? InefficiencyMonitor : null;
+        if (!IM) return '<div class="monitor-empty">低效率监控模块未加载</div>';
+        
+        var monitorHtml = this.renderInefficiencyMonitor();
+        var analysisHtml = this.renderInefficiencyAnalysis();
+        var historyHtml = this.renderInefficiencyHistory();
+        
+        return '<div class="inefficiency-container">' +
+            '<div class="inefficiency-monitor">' + monitorHtml + '</div>' +
+            '<div class="inefficiency-analysis">' + analysisHtml + '</div>' +
+            '<div class="inefficiency-history">' +
+                '<div class="history-title">📊 卡顿事件分析</div>' +
+                '<div class="history-timeline" id="inefficiencyHistoryList">' + historyHtml + '</div>' +
+            '</div>' +
+        '</div>';
+    },
+    
+    // 显示合并监控设置弹窗
+    showMonitorSettingsModal() {
+        if (this.monitorActiveTab === 'procrastination') {
+            this.showProcrastinationSettingsModal();
+        } else {
+            this.showInefficiencySettingsModal();
+        }
+    },
+
     // ==================== 拖延面板功能 ====================
     
-    // 加载拖延面板
+    // 加载拖延面板（保留兼容性，实际刷新合并面板）
     loadProcrastinationPanel() {
+        // 刷新合并监控面板
+        this.loadMonitorPanel();
+        return;
+        
+        // 以下为原有代码，保留但不执行
         const container = document.getElementById("procrastinationBody");
         if (!container) return;
         
@@ -3117,10 +3443,12 @@ const App = {
                             <div class="setting-row" style="flex-direction:column;align-items:stretch;margin-top:10px;">
                                 <span class="setting-label" style="margin-bottom:6px;">预警语音（可用变量：{seconds}, {task}, {step}）</span>
                                 <input type="text" class="setting-input" style="width:100%;" value="${settings.customPreAlertText || ''}" onchange="ProcrastinationMonitor.updateSetting('customPreAlertText', this.value)">
+                                <button class="monitor-btn ghost" style="padding:6px 12px;margin-top:6px;" onclick="App.testVoiceAlert('procrastination', 'pre')">🔊 试听预警语音</button>
                             </div>
                             <div class="setting-row" style="flex-direction:column;align-items:stretch;margin-top:10px;">
                                 <span class="setting-label" style="margin-bottom:6px;">超时语音（可用变量：{task}, {step}）</span>
                                 <input type="text" class="setting-input" style="width:100%;" value="${settings.customAlertText || ''}" onchange="ProcrastinationMonitor.updateSetting('customAlertText', this.value)">
+                                <button class="monitor-btn ghost" style="padding:6px 12px;margin-top:6px;" onclick="App.testVoiceAlert('procrastination', 'alert')">🔊 试听超时语音</button>
                             </div>
                         </div>
                     </div>
@@ -3423,8 +3751,13 @@ const App = {
 
     // ==================== 低效率面板功能 ====================
     
-    // 加载低效率面板
+    // 加载低效率面板（保留兼容性，实际刷新合并面板）
     loadInefficiencyPanel() {
+        // 刷新合并监控面板
+        this.loadMonitorPanel();
+        return;
+        
+        // 以下为原有代码，保留但不执行
         const container = document.getElementById("inefficiencyBody");
         if (!container) return;
         
@@ -3434,7 +3767,7 @@ const App = {
             return;
         }
         
-        // 生成监控区HTML
+        // 生成监控区HTML（原有代码保留）
         var monitorHtml = this.renderInefficiencyMonitor();
         
         // 生成历史记录HTML
@@ -3837,6 +4170,7 @@ const App = {
                             <div class="setting-row" style="flex-direction:column;align-items:stretch;margin-top:10px;">
                                 <span class="setting-label" style="margin-bottom:6px;">超时语音（可用变量：{minutes}）</span>
                                 <input type="text" class="setting-input" style="width:100%;" value="${settings.customAlertText || ''}" onchange="InefficiencyMonitor.updateSetting('customAlertText', this.value)">
+                                <button class="monitor-btn ghost" style="padding:6px 12px;margin-top:6px;" onclick="App.testVoiceAlert('inefficiency', 'alert')">🔊 试听超时语音</button>
                             </div>
                         </div>
                     </div>
@@ -3866,6 +4200,86 @@ const App = {
         }
         // 刷新面板
         this.loadInefficiencyPanel();
+    },
+    
+    // 试听语音警告
+    testVoiceAlert(type, alertType) {
+        let text = '';
+        const testTask = '示例任务';
+        const testStep = '当前步骤';
+        
+        if (type === 'procrastination') {
+            const PM = typeof ProcrastinationMonitor !== 'undefined' ? ProcrastinationMonitor : null;
+            if (!PM) return;
+            
+            if (alertType === 'pre') {
+                // 预警语音
+                const input = document.getElementById('procrastinationPreAlertText');
+                text = input ? input.value : (PM.settings.customPreAlertText || '注意！{task}的{step}还有{seconds}秒就要超时了！');
+                text = text.replace('{task}', testTask).replace('{step}', testStep).replace('{seconds}', '30');
+            } else {
+                // 超时语音
+                const input = document.getElementById('procrastinationAlertText');
+                text = input ? input.value : (PM.settings.customAlertText || '{task}的{step}已严重拖延，请立即处理！');
+                text = text.replace('{task}', testTask).replace('{step}', testStep);
+            }
+        } else if (type === 'inefficiency') {
+            const IM = typeof InefficiencyMonitor !== 'undefined' ? InefficiencyMonitor : null;
+            if (!IM) return;
+            
+            // 超时语音
+            text = IM.settings.customAlertText || '你已经在{task}上花费了{minutes}分钟，效率可能较低，请检查是否需要调整方向！';
+            text = text.replace('{task}', testTask).replace('{minutes}', '60');
+        }
+        
+        if (!text) {
+            text = '这是一条测试语音警告';
+        }
+        
+        // 使用浏览器语音合成
+        if ('speechSynthesis' in window) {
+            // 停止之前的语音
+            window.speechSynthesis.cancel();
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'zh-CN';
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+            utterance.volume = 1.0;
+            
+            // 尝试使用中文语音
+            const voices = window.speechSynthesis.getVoices();
+            const chineseVoice = voices.find(v => v.lang.includes('zh'));
+            if (chineseVoice) {
+                utterance.voice = chineseVoice;
+            }
+            
+            window.speechSynthesis.speak(utterance);
+            
+            // 显示提示
+            this.showToast('🔊 正在播放: ' + text.substring(0, 30) + (text.length > 30 ? '...' : ''));
+        } else {
+            this.showToast('❌ 您的浏览器不支持语音合成');
+        }
+    },
+    
+    // 显示提示消息
+    showToast(message) {
+        // 移除已有的toast
+        const existing = document.querySelector('.app-toast');
+        if (existing) existing.remove();
+        
+        const toast = document.createElement('div');
+        toast.className = 'app-toast';
+        toast.textContent = message;
+        toast.style.cssText = 'position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:white;padding:12px 24px;border-radius:8px;z-index:10000;font-size:14px;max-width:80%;text-align:center;';
+        document.body.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transition = 'opacity 0.3s';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
     },
     
     // 渲染低效率设置区（保留但不再直接显示在面板上）

@@ -53,6 +53,11 @@ const AICopilot = {
     
     // 检查是否需要每周设置
     checkWeeklySetup() {
+        // 禁用每周设置弹窗，用户可以通过对话自行设置
+        // 直接显示每日问候
+        setTimeout(() => this.showDailyGreeting(), 1000);
+        
+        /* 原有逻辑已禁用
         const now = new Date();
         const dayOfWeek = now.getDay();
         const lastSetup = this.userProfile.lastWeeklySetup ? 
@@ -69,6 +74,7 @@ const AICopilot = {
             // 显示每日问候
             setTimeout(() => this.showDailyGreeting(), 1000);
         }
+        */
     },
     
     // 显示每周设置弹窗
