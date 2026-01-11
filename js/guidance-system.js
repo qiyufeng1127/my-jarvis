@@ -124,10 +124,12 @@ const GuidanceSystem = {
     // 初始化
     init() {
         this.loadState();
-        this.addHelpButtons();
+        // 禁用帮助按钮和首次使用教程
+        // this.addHelpButtons();
         this.addFocusModeButton();
         this.setupAutoCollapse();
-        this.checkFirstTimeFeatures();
+        // 禁用首次使用功能检查
+        // this.checkFirstTimeFeatures();
         console.log('引导系统初始化完成');
     },
     

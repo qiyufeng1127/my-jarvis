@@ -117,10 +117,10 @@ const App = {
         // 检查API连接
         await this.checkApiConnection();
         
-        // 如果没有API Key，显示设置弹窗
-        if (!Storage.getApiKey()) {
-            this.showApiKeyModal();
-        }
+        // 禁用自动弹出API Key设置弹窗，用户可以在智能对话中手动设置
+        // if (!Storage.getApiKey()) {
+        //     this.showApiKeyModal();
+        // }
         
         console.log("ADHD Focus 初始化完成！");
     },
@@ -2713,22 +2713,16 @@ const App = {
         // 生成历史记录HTML
         var historyHtml = this.renderProcrastinationHistory();
         
-        // 生成设置区HTML
-        var settingsHtml = this.renderProcrastinationSettings();
-        
-        // 生成拖延警告设置HTML
-        var warningSettingsHtml = this.renderProcrastinationWarningSettings();
+        // 生成本周统计HTML
+        var statsHtml = this.renderProcrastinationStats();
         
         container.innerHTML = 
             '<div class="procrastination-container">' +
                 '<div class="procrastination-monitor">' +
                     monitorHtml +
                 '</div>' +
-                '<div class="procrastination-settings">' +
-                    settingsHtml +
-                '</div>' +
-                '<div class="procrastination-warning-settings">' +
-                    warningSettingsHtml +
+                '<div class="procrastination-stats">' +
+                    statsHtml +
                 '</div>' +
                 '<div class="procrastination-history">' +
                     '<div class="history-title">📜 拖延历史记录</div>' +
@@ -2915,7 +2909,250 @@ const App = {
         return html;
     },
     
-    // 渲染设置区
+    // 渲染本周统计
+    renderProcrastinationStats() {
+        const PM = typeof ProcrastinationMonitor !== 'undefined' ? ProcrastinationMonitor : null;
+        if (!PM) return '';
+        
+        const stats = PM.getStats();
+        
+        return '<div class="settings-section">' +
+            '<div class="settings-title">📊 本周统计</div>' +
+            '<div class="stats-grid">' +
+                '<div class="stat-mini">' +
+                    '<div class="stat-mini-value" style="color:#27AE60;">' + stats.weeklySuccess + '</div>' +
+                    '<div class="stat-mini-label">成功启动</div>' +
+                '</div>' +
+                '<div class="stat-mini">' +
+                    '<div class="stat-mini-value" style="color:#E74C3C;">' + stats.weeklyDelays + '</div>' +
+                    '<div class="stat-mini-label">拖延次数</div>' +
+                '</div>' +
+                '<div class="stat-mini">' +
+                    '<div class="stat-mini-value" style="color:#F39C12;">' + stats.totalSpent + '</div>' +
+                    '<div class="stat-mini-label">扣除金币</div>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+    },
+    
+    // 显示拖延监控设置弹窗
+    showProcrastinationSettingsModal() {
+        const PM = typeof ProcrastinationMonitor !== 'undefined' ? ProcrastinationMonitor : null;
+        if (!PM) return;
+        
+        const settings = PM.settings;
+        
+        // 声音设置
+        const soundEnabled = settings.soundEnabled !== false;
+        const soundVolume = settings.soundVolume || 0.7;
+        const volumePercent = Math.round(soundVolume * 100);
+        
+        // 语音提醒设置
+        const useVoiceAlert = settings.useVoiceAlert !== false;
+        const voiceLoopEnabled = settings.voiceLoopEnabled !== false;
+        const voiceLoopInterval = settings.voiceLoopInterval || 10;
+        
+        // 金币暂停设置
+        const pauseEnabled = settings.pauseEnabled !== false;
+        const pauseCost = settings.pauseCost || 10;
+        const pauseDuration = settings.pauseDuration || 1800;
+        
+        const modal = document.createElement('div');
+        modal.id = 'procrastinationSettingsModal';
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 500px; max-height: 85vh; overflow-y: auto;">
+                <div class="modal-header">
+                    <span class="modal-icon">⚙️</span>
+                    <h2>拖延监控设置</h2>
+                </div>
+                <div class="modal-body">
+                    <!-- 声音提醒 -->
+                    <div class="settings-section">
+                        <div class="settings-title">🔊 声音提醒</div>
+                        <div class="settings-content">
+                            <div class="setting-row">
+                                <span class="setting-label">声音提醒</span>
+                                <button class="setting-toggle ${soundEnabled ? 'active' : ''}" onclick="ProcrastinationMonitor.toggleSound(); App.refreshProcrastinationSettingsModal();">
+                                    ${soundEnabled ? '✅ 开启' : '❌ 关闭'}
+                                </button>
+                            </div>
+                            <div class="setting-row">
+                                <span class="setting-label">音量大小</span>
+                                <div style="display:flex;align-items:center;gap:8px;">
+                                    <input type="range" min="0" max="100" value="${volumePercent}" style="width:100px;" onchange="ProcrastinationMonitor.setVolume(this.value/100); this.nextElementSibling.textContent=this.value+'%'">
+                                    <span style="font-size:12px;color:#666;min-width:35px;">${volumePercent}%</span>
+                                </div>
+                            </div>
+                            <div class="setting-row">
+                                <span class="setting-label">测试声音</span>
+                                <div style="display:flex;gap:6px;">
+                                    <button class="monitor-btn ghost" style="padding:4px 8px;font-size:11px;" onclick="ProcrastinationMonitor.testSound('chime')" title="任务开始">🔔</button>
+                                    <button class="monitor-btn ghost" style="padding:4px 8px;font-size:11px;" onclick="ProcrastinationMonitor.testSound('warning')" title="预警">⚠️</button>
+                                    <button class="monitor-btn ghost" style="padding:4px 8px;font-size:11px;" onclick="ProcrastinationMonitor.testSound('alarm')" title="超时">🚨</button>
+                                    <button class="monitor-btn ghost" style="padding:4px 8px;font-size:11px;" onclick="ProcrastinationMonitor.testSound('success')" title="成功">✅</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 监控设置 -->
+                    <div class="settings-section">
+                        <div class="settings-title">⚙️ 监控设置</div>
+                        <div class="settings-content">
+                            <div class="setting-row">
+                                <span class="setting-label">启动宽限期</span>
+                                <select class="setting-input" style="width:auto;" onchange="ProcrastinationMonitor.updateSetting('gracePeriod', parseInt(this.value))">
+                                    <option value="60"${settings.gracePeriod === 60 ? ' selected' : ''}>1分钟</option>
+                                    <option value="120"${settings.gracePeriod === 120 ? ' selected' : ''}>2分钟</option>
+                                    <option value="180"${settings.gracePeriod === 180 ? ' selected' : ''}>3分钟</option>
+                                    <option value="300"${settings.gracePeriod === 300 ? ' selected' : ''}>5分钟</option>
+                                </select>
+                            </div>
+                            <div class="setting-row">
+                                <span class="setting-label">预警提前时间</span>
+                                <select class="setting-input" style="width:auto;" onchange="ProcrastinationMonitor.updateSetting('preAlertTime', parseInt(this.value))">
+                                    <option value="10"${settings.preAlertTime === 10 ? ' selected' : ''}>10秒</option>
+                                    <option value="20"${settings.preAlertTime === 20 ? ' selected' : ''}>20秒</option>
+                                    <option value="30"${settings.preAlertTime === 30 ? ' selected' : ''}>30秒</option>
+                                </select>
+                            </div>
+                            <div class="setting-row">
+                                <span class="setting-label">成功奖励</span>
+                                <span class="setting-value">🪙 ${settings.successReward} 金币</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 扣币规则 -->
+                    <div class="settings-section">
+                        <div class="settings-title">🪙 扣币规则</div>
+                        <div class="settings-content">
+                            <div class="setting-row">
+                                <span class="setting-label">首次扣除</span>
+                                <span class="setting-value">${settings.baseCost} 金币</span>
+                            </div>
+                            <div class="setting-row">
+                                <span class="setting-label">递增比率</span>
+                                <span class="setting-value">+${Math.round((settings.costIncrement - 1) * 100)}%/次</span>
+                            </div>
+                            <div class="setting-row">
+                                <span class="setting-label">最高上限</span>
+                                <span class="setting-value">${settings.maxCost} 金币</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 拖延警告设置 -->
+                    <div class="settings-section">
+                        <div class="settings-title">🔔 拖延警告设置</div>
+                        <div class="settings-content">
+                            <div class="setting-row">
+                                <span class="setting-label">语音播报</span>
+                                <button class="setting-toggle ${useVoiceAlert ? 'active' : ''}" onclick="ProcrastinationMonitor.updateSetting('useVoiceAlert', ${!useVoiceAlert}); App.refreshProcrastinationSettingsModal();">
+                                    ${useVoiceAlert ? '✅ 开启' : '❌ 关闭'}
+                                </button>
+                            </div>
+                            <div class="setting-row">
+                                <span class="setting-label">循环播放</span>
+                                <button class="setting-toggle ${voiceLoopEnabled ? 'active' : ''}" onclick="ProcrastinationMonitor.updateSetting('voiceLoopEnabled', ${!voiceLoopEnabled}); App.refreshProcrastinationSettingsModal();">
+                                    ${voiceLoopEnabled ? '✅ 开启' : '❌ 关闭'}
+                                </button>
+                            </div>
+                            <div class="setting-row">
+                                <span class="setting-label">循环间隔</span>
+                                <select class="setting-input" style="width:auto;" onchange="ProcrastinationMonitor.updateSetting('voiceLoopInterval', parseInt(this.value))">
+                                    <option value="5"${voiceLoopInterval === 5 ? ' selected' : ''}>5秒</option>
+                                    <option value="10"${voiceLoopInterval === 10 ? ' selected' : ''}>10秒</option>
+                                    <option value="15"${voiceLoopInterval === 15 ? ' selected' : ''}>15秒</option>
+                                    <option value="20"${voiceLoopInterval === 20 ? ' selected' : ''}>20秒</option>
+                                    <option value="30"${voiceLoopInterval === 30 ? ' selected' : ''}>30秒</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 金币暂停功能 -->
+                    <div class="settings-section">
+                        <div class="settings-title">💰 金币暂停功能</div>
+                        <div class="settings-content">
+                            <div class="setting-row">
+                                <span class="setting-label">启用暂停</span>
+                                <button class="setting-toggle ${pauseEnabled ? 'active' : ''}" onclick="ProcrastinationMonitor.updateSetting('pauseEnabled', ${!pauseEnabled}); App.refreshProcrastinationSettingsModal();">
+                                    ${pauseEnabled ? '✅ 开启' : '❌ 关闭'}
+                                </button>
+                            </div>
+                            <div class="setting-row">
+                                <span class="setting-label">暂停费用</span>
+                                <select class="setting-input" style="width:auto;" onchange="ProcrastinationMonitor.updateSetting('pauseCost', parseInt(this.value))">
+                                    <option value="5"${pauseCost === 5 ? ' selected' : ''}>5 金币</option>
+                                    <option value="10"${pauseCost === 10 ? ' selected' : ''}>10 金币</option>
+                                    <option value="15"${pauseCost === 15 ? ' selected' : ''}>15 金币</option>
+                                    <option value="20"${pauseCost === 20 ? ' selected' : ''}>20 金币</option>
+                                </select>
+                            </div>
+                            <div class="setting-row">
+                                <span class="setting-label">暂停时长</span>
+                                <select class="setting-input" style="width:auto;" onchange="ProcrastinationMonitor.updateSetting('pauseDuration', parseInt(this.value))">
+                                    <option value="900"${pauseDuration === 900 ? ' selected' : ''}>15分钟</option>
+                                    <option value="1800"${pauseDuration === 1800 ? ' selected' : ''}>30分钟</option>
+                                    <option value="3600"${pauseDuration === 3600 ? ' selected' : ''}>1小时</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 自定义提示语 -->
+                    <div class="settings-section">
+                        <div class="settings-title">💬 自定义提示语</div>
+                        <div class="settings-content">
+                            <div class="setting-row" style="flex-direction:column;align-items:stretch;">
+                                <span class="setting-label" style="margin-bottom:6px;">预警提示（可用变量：{seconds}, {task}, {step}）</span>
+                                <input type="text" class="setting-input" style="width:100%;" value="${settings.preAlertMessage || ''}" onchange="ProcrastinationMonitor.updateSetting('preAlertMessage', this.value)">
+                            </div>
+                            <div class="setting-row" style="flex-direction:column;align-items:stretch;margin-top:10px;">
+                                <span class="setting-label" style="margin-bottom:6px;">超时提示（可用变量：{step}）</span>
+                                <input type="text" class="setting-input" style="width:100%;" value="${settings.alertMessage || ''}" onchange="ProcrastinationMonitor.updateSetting('alertMessage', this.value)">
+                            </div>
+                            <div class="setting-row" style="flex-direction:column;align-items:stretch;margin-top:10px;">
+                                <span class="setting-label" style="margin-bottom:6px;">预警语音（可用变量：{seconds}, {task}, {step}）</span>
+                                <input type="text" class="setting-input" style="width:100%;" value="${settings.customPreAlertText || ''}" onchange="ProcrastinationMonitor.updateSetting('customPreAlertText', this.value)">
+                            </div>
+                            <div class="setting-row" style="flex-direction:column;align-items:stretch;margin-top:10px;">
+                                <span class="setting-label" style="margin-bottom:6px;">超时语音（可用变量：{task}, {step}）</span>
+                                <input type="text" class="setting-input" style="width:100%;" value="${settings.customAlertText || ''}" onchange="ProcrastinationMonitor.updateSetting('customAlertText', this.value)">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="modal-btn btn-confirm" onclick="App.closeProcrastinationSettingsModal()">完成</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        setTimeout(() => modal.classList.add('show'), 10);
+    },
+    
+    // 刷新拖延监控设置弹窗
+    refreshProcrastinationSettingsModal() {
+        this.closeProcrastinationSettingsModal();
+        this.showProcrastinationSettingsModal();
+    },
+    
+    // 关闭拖延监控设置弹窗
+    closeProcrastinationSettingsModal() {
+        const modal = document.getElementById('procrastinationSettingsModal');
+        if (modal) {
+            modal.classList.remove('show');
+            setTimeout(() => modal.remove(), 300);
+        }
+        // 刷新面板
+        this.loadProcrastinationPanel();
+    },
+    
+    // 渲染设置区（保留但不再直接显示在面板上）
     renderProcrastinationSettings() {
         const PM = typeof ProcrastinationMonitor !== 'undefined' ? ProcrastinationMonitor : null;
         if (!PM) return '';
@@ -3203,16 +3440,16 @@ const App = {
         // 生成历史记录HTML
         var historyHtml = this.renderInefficiencyHistory();
         
-        // 生成设置区HTML
-        var settingsHtml = this.renderInefficiencySettings();
+        // 生成效率分析HTML
+        var analysisHtml = this.renderInefficiencyAnalysis();
         
         container.innerHTML = 
             '<div class="inefficiency-container">' +
                 '<div class="inefficiency-monitor">' +
                     monitorHtml +
                 '</div>' +
-                '<div class="inefficiency-settings">' +
-                    settingsHtml +
+                '<div class="inefficiency-analysis">' +
+                    analysisHtml +
                 '</div>' +
                 '<div class="inefficiency-history">' +
                     '<div class="history-title">📊 卡顿事件分析</div>' +
@@ -3424,7 +3661,214 @@ const App = {
         return html;
     },
     
-    // 渲染低效率设置区
+    // 渲染效率分析
+    renderInefficiencyAnalysis() {
+        const IM = typeof InefficiencyMonitor !== 'undefined' ? InefficiencyMonitor : null;
+        if (!IM) return '';
+        
+        const stats = IM.getStats();
+        
+        return '<div class="settings-section">' +
+            '<div class="settings-title">📈 效率分析</div>' +
+            '<div class="stats-analysis">' +
+                '<div class="analysis-row">' +
+                    '<span class="analysis-label">本周卡顿</span>' +
+                    '<span class="analysis-value" style="color:#E74C3C;">' + stats.weeklyStuck + ' 次</span>' +
+                '</div>' +
+                '<div class="analysis-row">' +
+                    '<span class="analysis-label">正常完成</span>' +
+                    '<span class="analysis-value" style="color:#27AE60;">' + stats.completedCount + ' 次</span>' +
+                '</div>' +
+                '<div class="analysis-row">' +
+                    '<span class="analysis-label">累计扣币</span>' +
+                    '<span class="analysis-value" style="color:#F39C12;">🪙 ' + stats.totalSpent + '</span>' +
+                '</div>' +
+                '<div class="analysis-row">' +
+                    '<span class="analysis-label">常见卡顿点</span>' +
+                    '<span class="analysis-value" style="font-size:11px;">' + stats.commonStuck + '</span>' +
+                '</div>' +
+                '<div class="analysis-row">' +
+                    '<span class="analysis-label">高效时间段</span>' +
+                    '<span class="analysis-value">' + stats.bestHour + '</span>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+    },
+    
+    // 显示低效率监控设置弹窗
+    showInefficiencySettingsModal() {
+        const IM = typeof InefficiencyMonitor !== 'undefined' ? InefficiencyMonitor : null;
+        if (!IM) return;
+        
+        const settings = IM.settings;
+        
+        // 语音提醒设置
+        const useVoiceAlert = settings.useVoiceAlert !== false;
+        const voiceLoopEnabled = settings.voiceLoopEnabled !== false;
+        const voiceLoopInterval = settings.voiceLoopInterval || 15;
+        
+        // 金币暂停设置
+        const pauseEnabled = settings.pauseEnabled !== false;
+        const pauseCost = settings.pauseCost || 10;
+        const pauseDuration = settings.pauseDuration || 1800;
+        
+        const modal = document.createElement('div');
+        modal.id = 'inefficiencySettingsModal';
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 500px; max-height: 85vh; overflow-y: auto;">
+                <div class="modal-header">
+                    <span class="modal-icon">⚙️</span>
+                    <h2>低效率监控设置</h2>
+                </div>
+                <div class="modal-body">
+                    <!-- 效率设置 -->
+                    <div class="settings-section">
+                        <div class="settings-title">⚙️ 效率设置</div>
+                        <div class="settings-content">
+                            <div class="setting-row">
+                                <span class="setting-label">判定时长</span>
+                                <select class="setting-input" style="width:auto;" onchange="InefficiencyMonitor.updateSetting('thresholdMinutes', parseInt(this.value))">
+                                    <option value="30"${settings.thresholdMinutes === 30 ? ' selected' : ''}>30分钟</option>
+                                    <option value="45"${settings.thresholdMinutes === 45 ? ' selected' : ''}>45分钟</option>
+                                    <option value="60"${settings.thresholdMinutes === 60 ? ' selected' : ''}>1小时</option>
+                                    <option value="90"${settings.thresholdMinutes === 90 ? ' selected' : ''}>1.5小时</option>
+                                    <option value="120"${settings.thresholdMinutes === 120 ? ' selected' : ''}>2小时</option>
+                                </select>
+                            </div>
+                            <div class="setting-row">
+                                <span class="setting-label">半程提醒</span>
+                                <button class="setting-toggle ${settings.halfwayAlert ? 'active' : ''}" onclick="InefficiencyMonitor.updateSetting('halfwayAlert', ${!settings.halfwayAlert}); App.refreshInefficiencySettingsModal();">
+                                    ${settings.halfwayAlert ? '✅ 开启' : '❌ 关闭'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 金币规则 -->
+                    <div class="settings-section">
+                        <div class="settings-title">🪙 金币规则</div>
+                        <div class="settings-content">
+                            <div class="setting-row">
+                                <span class="setting-label">首次解除</span>
+                                <span class="setting-value">${settings.baseCost} 金币</span>
+                            </div>
+                            <div class="setting-row">
+                                <span class="setting-label">递增比率</span>
+                                <span class="setting-value">+${Math.round((settings.costIncrement - 1) * 100)}%/次</span>
+                            </div>
+                            <div class="setting-row">
+                                <span class="setting-label">最高上限</span>
+                                <span class="setting-value">${settings.maxCost} 金币</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 语音警告设置 -->
+                    <div class="settings-section">
+                        <div class="settings-title">🔔 语音警告设置</div>
+                        <div class="settings-content">
+                            <div class="setting-row">
+                                <span class="setting-label">语音播报</span>
+                                <button class="setting-toggle ${useVoiceAlert ? 'active' : ''}" onclick="InefficiencyMonitor.updateSetting('useVoiceAlert', ${!useVoiceAlert}); App.refreshInefficiencySettingsModal();">
+                                    ${useVoiceAlert ? '✅ 开启' : '❌ 关闭'}
+                                </button>
+                            </div>
+                            <div class="setting-row">
+                                <span class="setting-label">循环播放</span>
+                                <button class="setting-toggle ${voiceLoopEnabled ? 'active' : ''}" onclick="InefficiencyMonitor.updateSetting('voiceLoopEnabled', ${!voiceLoopEnabled}); App.refreshInefficiencySettingsModal();">
+                                    ${voiceLoopEnabled ? '✅ 开启' : '❌ 关闭'}
+                                </button>
+                            </div>
+                            <div class="setting-row">
+                                <span class="setting-label">循环间隔</span>
+                                <select class="setting-input" style="width:auto;" onchange="InefficiencyMonitor.updateSetting('voiceLoopInterval', parseInt(this.value))">
+                                    <option value="10"${voiceLoopInterval === 10 ? ' selected' : ''}>10秒</option>
+                                    <option value="15"${voiceLoopInterval === 15 ? ' selected' : ''}>15秒</option>
+                                    <option value="20"${voiceLoopInterval === 20 ? ' selected' : ''}>20秒</option>
+                                    <option value="30"${voiceLoopInterval === 30 ? ' selected' : ''}>30秒</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 金币暂停功能 -->
+                    <div class="settings-section">
+                        <div class="settings-title">💰 金币暂停功能</div>
+                        <div class="settings-content">
+                            <div class="setting-row">
+                                <span class="setting-label">启用暂停</span>
+                                <button class="setting-toggle ${pauseEnabled ? 'active' : ''}" onclick="InefficiencyMonitor.updateSetting('pauseEnabled', ${!pauseEnabled}); App.refreshInefficiencySettingsModal();">
+                                    ${pauseEnabled ? '✅ 开启' : '❌ 关闭'}
+                                </button>
+                            </div>
+                            <div class="setting-row">
+                                <span class="setting-label">暂停费用</span>
+                                <select class="setting-input" style="width:auto;" onchange="InefficiencyMonitor.updateSetting('pauseCost', parseInt(this.value))">
+                                    <option value="5"${pauseCost === 5 ? ' selected' : ''}>5 金币</option>
+                                    <option value="10"${pauseCost === 10 ? ' selected' : ''}>10 金币</option>
+                                    <option value="15"${pauseCost === 15 ? ' selected' : ''}>15 金币</option>
+                                    <option value="20"${pauseCost === 20 ? ' selected' : ''}>20 金币</option>
+                                </select>
+                            </div>
+                            <div class="setting-row">
+                                <span class="setting-label">暂停时长</span>
+                                <select class="setting-input" style="width:auto;" onchange="InefficiencyMonitor.updateSetting('pauseDuration', parseInt(this.value))">
+                                    <option value="900"${pauseDuration === 900 ? ' selected' : ''}>15分钟</option>
+                                    <option value="1800"${pauseDuration === 1800 ? ' selected' : ''}>30分钟</option>
+                                    <option value="3600"${pauseDuration === 3600 ? ' selected' : ''}>1小时</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 自定义提示语 -->
+                    <div class="settings-section">
+                        <div class="settings-title">💬 自定义提示语</div>
+                        <div class="settings-content">
+                            <div class="setting-row" style="flex-direction:column;align-items:stretch;">
+                                <span class="setting-label" style="margin-bottom:6px;">半程提示（可用变量：{minutes}）</span>
+                                <input type="text" class="setting-input" style="width:100%;" value="${settings.halfwayMessage || ''}" onchange="InefficiencyMonitor.updateSetting('halfwayMessage', this.value)">
+                            </div>
+                            <div class="setting-row" style="flex-direction:column;align-items:stretch;margin-top:10px;">
+                                <span class="setting-label" style="margin-bottom:6px;">超时提示（可用变量：{minutes}）</span>
+                                <input type="text" class="setting-input" style="width:100%;" value="${settings.alertMessage || ''}" onchange="InefficiencyMonitor.updateSetting('alertMessage', this.value)">
+                            </div>
+                            <div class="setting-row" style="flex-direction:column;align-items:stretch;margin-top:10px;">
+                                <span class="setting-label" style="margin-bottom:6px;">超时语音（可用变量：{minutes}）</span>
+                                <input type="text" class="setting-input" style="width:100%;" value="${settings.customAlertText || ''}" onchange="InefficiencyMonitor.updateSetting('customAlertText', this.value)">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="modal-btn btn-confirm" onclick="App.closeInefficiencySettingsModal()">完成</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        setTimeout(() => modal.classList.add('show'), 10);
+    },
+    
+    // 刷新低效率监控设置弹窗
+    refreshInefficiencySettingsModal() {
+        this.closeInefficiencySettingsModal();
+        this.showInefficiencySettingsModal();
+    },
+    
+    // 关闭低效率监控设置弹窗
+    closeInefficiencySettingsModal() {
+        const modal = document.getElementById('inefficiencySettingsModal');
+        if (modal) {
+            modal.classList.remove('show');
+            setTimeout(() => modal.remove(), 300);
+        }
+        // 刷新面板
+        this.loadInefficiencyPanel();
+    },
+    
+    // 渲染低效率设置区（保留但不再直接显示在面板上）
     renderInefficiencySettings() {
         const IM = typeof InefficiencyMonitor !== 'undefined' ? InefficiencyMonitor : null;
         if (!IM) return '';
