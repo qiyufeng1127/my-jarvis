@@ -2716,19 +2716,25 @@ const App = {
         // 生成设置区HTML
         var settingsHtml = this.renderProcrastinationSettings();
         
+        // 生成拖延警告设置HTML
+        var warningSettingsHtml = this.renderProcrastinationWarningSettings();
+        
         container.innerHTML = 
             '<div class="procrastination-container">' +
                 '<div class="procrastination-monitor">' +
                     monitorHtml +
+                '</div>' +
+                '<div class="procrastination-settings">' +
+                    settingsHtml +
+                '</div>' +
+                '<div class="procrastination-warning-settings">' +
+                    warningSettingsHtml +
                 '</div>' +
                 '<div class="procrastination-history">' +
                     '<div class="history-title">📜 拖延历史记录</div>' +
                     '<div class="history-timeline" id="procrastinationHistoryList">' +
                         historyHtml +
                     '</div>' +
-                '</div>' +
-                '<div class="procrastination-settings">' +
-                    settingsHtml +
                 '</div>' +
             '</div>';
         
@@ -3024,6 +3030,104 @@ const App = {
         '</div>';
     },
     
+    // 渲染拖延警告设置（仿照低效率监控的效率设置）
+    renderProcrastinationWarningSettings() {
+        const PM = typeof ProcrastinationMonitor !== 'undefined' ? ProcrastinationMonitor : null;
+        if (!PM) return '';
+        
+        const settings = PM.settings;
+        
+        // 语音提醒设置
+        const useVoiceAlert = settings.useVoiceAlert !== false;
+        const voiceLoopEnabled = settings.voiceLoopEnabled !== false;
+        const voiceLoopInterval = settings.voiceLoopInterval || 10;
+        
+        // 金币暂停设置
+        const pauseEnabled = settings.pauseEnabled !== false;
+        const pauseCost = settings.pauseCost || 10;
+        const pauseDuration = settings.pauseDuration || 1800;
+        const pauseMinutes = Math.floor(pauseDuration / 60);
+        
+        return '<div class="settings-section">' +
+            '<div class="settings-title" onclick="App.toggleSettingsSection(this)">🔔 拖延警告设置 <span class="toggle-icon">▼</span></div>' +
+            '<div class="settings-content">' +
+                '<div class="setting-row">' +
+                    '<span class="setting-label">语音播报</span>' +
+                    '<button class="setting-toggle ' + (useVoiceAlert ? 'active' : '') + '" onclick="ProcrastinationMonitor.updateSetting(\'useVoiceAlert\', ' + !useVoiceAlert + '); App.loadProcrastinationPanel();">' +
+                        (useVoiceAlert ? '✅ 开启' : '❌ 关闭') +
+                    '</button>' +
+                '</div>' +
+                '<div class="setting-row">' +
+                    '<span class="setting-label">循环播放</span>' +
+                    '<button class="setting-toggle ' + (voiceLoopEnabled ? 'active' : '') + '" onclick="ProcrastinationMonitor.updateSetting(\'voiceLoopEnabled\', ' + !voiceLoopEnabled + '); App.loadProcrastinationPanel();">' +
+                        (voiceLoopEnabled ? '✅ 开启' : '❌ 关闭') +
+                    '</button>' +
+                '</div>' +
+                '<div class="setting-row">' +
+                    '<span class="setting-label">循环间隔</span>' +
+                    '<select class="setting-input" style="width:auto;" onchange="ProcrastinationMonitor.updateSetting(\'voiceLoopInterval\', parseInt(this.value))">' +
+                        '<option value="5"' + (voiceLoopInterval === 5 ? ' selected' : '') + '>5秒</option>' +
+                        '<option value="10"' + (voiceLoopInterval === 10 ? ' selected' : '') + '>10秒</option>' +
+                        '<option value="15"' + (voiceLoopInterval === 15 ? ' selected' : '') + '>15秒</option>' +
+                        '<option value="20"' + (voiceLoopInterval === 20 ? ' selected' : '') + '>20秒</option>' +
+                        '<option value="30"' + (voiceLoopInterval === 30 ? ' selected' : '') + '>30秒</option>' +
+                    '</select>' +
+                '</div>' +
+            '</div>' +
+        '</div>' +
+        '<div class="settings-section">' +
+            '<div class="settings-title" onclick="App.toggleSettingsSection(this)">💰 金币暂停功能 <span class="toggle-icon">▼</span></div>' +
+            '<div class="settings-content">' +
+                '<div class="setting-row">' +
+                    '<span class="setting-label">启用暂停</span>' +
+                    '<button class="setting-toggle ' + (pauseEnabled ? 'active' : '') + '" onclick="ProcrastinationMonitor.updateSetting(\'pauseEnabled\', ' + !pauseEnabled + '); App.loadProcrastinationPanel();">' +
+                        (pauseEnabled ? '✅ 开启' : '❌ 关闭') +
+                    '</button>' +
+                '</div>' +
+                '<div class="setting-row">' +
+                    '<span class="setting-label">暂停费用</span>' +
+                    '<select class="setting-input" style="width:auto;" onchange="ProcrastinationMonitor.updateSetting(\'pauseCost\', parseInt(this.value))">' +
+                        '<option value="5"' + (pauseCost === 5 ? ' selected' : '') + '>5 金币</option>' +
+                        '<option value="10"' + (pauseCost === 10 ? ' selected' : '') + '>10 金币</option>' +
+                        '<option value="15"' + (pauseCost === 15 ? ' selected' : '') + '>15 金币</option>' +
+                        '<option value="20"' + (pauseCost === 20 ? ' selected' : '') + '>20 金币</option>' +
+                    '</select>' +
+                '</div>' +
+                '<div class="setting-row">' +
+                    '<span class="setting-label">暂停时长</span>' +
+                    '<select class="setting-input" style="width:auto;" onchange="ProcrastinationMonitor.updateSetting(\'pauseDuration\', parseInt(this.value))">' +
+                        '<option value="900"' + (pauseDuration === 900 ? ' selected' : '') + '>15分钟</option>' +
+                        '<option value="1800"' + (pauseDuration === 1800 ? ' selected' : '') + '>30分钟</option>' +
+                        '<option value="3600"' + (pauseDuration === 3600 ? ' selected' : '') + '>1小时</option>' +
+                    '</select>' +
+                '</div>' +
+                (PM.isPaused ? 
+                    '<div class="setting-row" style="background:rgba(39,174,96,0.1);padding:8px;border-radius:8px;margin-top:8px;">' +
+                        '<span class="setting-label" style="color:#27AE60;">⏸️ 当前已暂停</span>' +
+                        '<span class="setting-value" style="color:#27AE60;">至 ' + PM.formatTime(PM.pauseEndTime) + '</span>' +
+                    '</div>' : 
+                    (PM.isAlertActive && pauseEnabled ? 
+                        '<button class="monitor-btn primary" style="width:100%;margin-top:10px;" onclick="ProcrastinationMonitor.pauseWithCoins()">' +
+                            '💰 支付 ' + pauseCost + ' 金币暂停 ' + pauseMinutes + ' 分钟' +
+                        '</button>' : '')
+                ) +
+            '</div>' +
+        '</div>' +
+        '<div class="settings-section">' +
+            '<div class="settings-title" onclick="App.toggleSettingsSection(this)">🎤 自定义语音内容 <span class="toggle-icon">▼</span></div>' +
+            '<div class="settings-content collapsed">' +
+                '<div class="setting-row" style="flex-direction:column;align-items:stretch;">' +
+                    '<span class="setting-label" style="margin-bottom:6px;">预警语音（可用变量：{seconds}, {task}, {step}）</span>' +
+                    '<input type="text" class="setting-input" style="width:100%;" value="' + (settings.customPreAlertText || '') + '" onchange="ProcrastinationMonitor.updateSetting(\'customPreAlertText\', this.value)">' +
+                '</div>' +
+                '<div class="setting-row" style="flex-direction:column;align-items:stretch;margin-top:10px;">' +
+                    '<span class="setting-label" style="margin-bottom:6px;">超时语音（可用变量：{task}, {step}）</span>' +
+                    '<input type="text" class="setting-input" style="width:100%;" value="' + (settings.customAlertText || '') + '" onchange="ProcrastinationMonitor.updateSetting(\'customAlertText\', this.value)">' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+    },
+    
     // 切换设置区折叠
     toggleSettingsSection(titleEl) {
         titleEl.classList.toggle('collapsed');
@@ -3107,14 +3211,14 @@ const App = {
                 '<div class="inefficiency-monitor">' +
                     monitorHtml +
                 '</div>' +
+                '<div class="inefficiency-settings">' +
+                    settingsHtml +
+                '</div>' +
                 '<div class="inefficiency-history">' +
                     '<div class="history-title">📊 卡顿事件分析</div>' +
                     '<div class="history-timeline" id="inefficiencyHistoryList">' +
                         historyHtml +
                     '</div>' +
-                '</div>' +
-                '<div class="inefficiency-settings">' +
-                    settingsHtml +
                 '</div>' +
             '</div>';
         
