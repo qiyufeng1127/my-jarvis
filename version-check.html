@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>版本检查</title>
+</head>
+<body>
+    <h1>ADHD Focus 版本检查</h1>
+    <p>当前版本：v3.1</p>
+    <p>更新时间：2025-01-11</p>
+    <p>提交哈希：71963d9</p>
+    
+    <h2>新功能清单：</h2>
+    <ul>
+        <li>✅ 移动端自定义导航</li>
+        <li>✅ 拖延监控语音警报</li>
+        <li>✅ 低效率监控语音警报</li>
+        <li>✅ 金币暂停功能</li>
+        <li>✅ Kiki 智能问候</li>
+    </ul>
+    
+    <script>
+        // 检查功能是否存在
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                const checks = {
+                    'ProcrastinationMonitor': typeof window.ProcrastinationMonitor !== 'undefined',
+                    'pauseWithCoins': typeof window.ProcrastinationMonitor?.pauseWithCoins === 'function',
+                    'customPreAlertText': window.ProcrastinationMonitor?.settings?.customPreAlertText !== undefined,
+                    'MobileApp': typeof window.MobileApp !== 'undefined',
+                    'showCustomizeNavModal': typeof window.MobileApp?.showCustomizeNavModal === 'function'
+                };
+                
+                console.log('功能检查结果:', checks);
+                
+                const results = document.createElement('div');
+                results.innerHTML = '<h2>功能检查结果：</h2>';
+                for (const [key, value] of Object.entries(checks)) {
+                    results.innerHTML += `<p>${value ? '✅' : '❌'} ${key}</p>`;
+                }
+                document.body.appendChild(results);
+            }, 2000);
+        });
+    </script>
+</body>
+</html>
+
