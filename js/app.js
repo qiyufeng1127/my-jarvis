@@ -808,6 +808,8 @@ const App = {
     // 显示AI思考动画
     showAIThinking() {
         const container = document.getElementById("chatMessages");
+        if (!container) return;
+        
         const thinkingDiv = document.createElement("div");
         thinkingDiv.className = "ai-thinking";
         thinkingDiv.id = "aiThinkingIndicator";
@@ -819,7 +821,11 @@ const App = {
             '</div>' +
             '<span class="ai-thinking-text">KiiKii 正在思考...</span>';
         container.appendChild(thinkingDiv);
-        container.scrollTop = container.scrollHeight;
+        
+        // 使用 requestAnimationFrame 确保 DOM 更新后再滚动
+        requestAnimationFrame(() => {
+            container.scrollTop = container.scrollHeight;
+        });
     },
     
     // 隐藏AI思考动画
@@ -832,11 +838,21 @@ const App = {
 
     addChatMessage(type, text, emoji, skipSave = false) {
         const container = document.getElementById("chatMessages");
+        if (!container) return;
+        
         const msgDiv = document.createElement("div");
         msgDiv.className = "message " + type;
         msgDiv.innerHTML = '<span class="message-emoji">' + emoji + '</span><div class="message-bubble">' + text + '</div>';
         container.appendChild(msgDiv);
-        container.scrollTop = container.scrollHeight;
+        
+        // 只在用户发送消息或系统回复时才自动滚动到底部
+        // 避免在输入时触发滚动
+        if (type === 'user' || type === 'system') {
+            // 使用 requestAnimationFrame 确保 DOM 更新后再滚动
+            requestAnimationFrame(() => {
+                container.scrollTop = container.scrollHeight;
+            });
+        }
         
         // 更新气泡颜色
         this.updateChatBubbleColors();
@@ -4808,11 +4824,17 @@ const App = {
 
 // API Key 相关全局函数
 function closeApiKeyModal() {
-    document.getElementById("apiKeyModal").classList.remove("show");
+    const modal = document.getElementById("apiKeyModal");
+    if (modal) {
+        modal.classList.remove("show");
+    }
 }
 
 function saveApiKey() {
-    const key = document.getElementById("apiKeyInput").value.trim();
+    const input = document.getElementById("apiKeyInput");
+    if (!input) return;
+    
+    const key = input.value.trim();
     if (key) {
         Storage.setApiKey(key);
         closeApiKeyModal();
@@ -4826,6 +4848,92 @@ function saveApiKey() {
         });
     }
 }
+
+// 显示监控设置模态框（统一的设置界面）
+App.showMonitorSettingsModal = function() {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay show';
+    modal.id = 'monitorSettingsModal';
+    
+    // 获取拖延监控和低效率监控的设置HTML
+    const procrastinationSettings = this.renderProcrastinationSettings();
+    const inefficiencySettings = this.renderInefficiencySettings();
+    
+    modal.innerHTML = `
+        <div class="modal-content monitor-settings-modal">
+            <div class="modal-header">
+                <span class="modal-icon">⚙️</span>
+                <h2>监控设置</h2>
+                <button class="modal-close-btn" onclick="App.closeMonitorSettingsModal()">×</button>
+            </div>
+            <div class="modal-body monitor-settings-body">
+                <div class="monitor-settings-tabs">
+                    <button class="monitor-tab active" data-tab="procrastination" onclick="App.switchMonitorTab('procrastination')">
+                        ⏰ 拖延监控
+                    </button>
+                    <button class="monitor-tab" data-tab="inefficiency" onclick="App.switchMonitorTab('inefficiency')">
+                        📉 低效率监控
+                    </button>
+                </div>
+                <div class="monitor-settings-content">
+                    <div class="monitor-tab-content active" id="procrastinationSettings">
+                        ${procrastinationSettings}
+                    </div>
+                    <div class="monitor-tab-content" id="inefficiencySettings">
+                        ${inefficiencySettings}
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn btn-confirm" onclick="App.closeMonitorSettingsModal()">完成</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // 阻止模态框内的滚动事件冒泡
+    const modalContent = modal.querySelector('.modal-content');
+    if (modalContent) {
+        modalContent.addEventListener('touchmove', function(e) {
+            e.stopPropagation();
+        }, { passive: true });
+    }
+};
+
+// 关闭监控设置模态框
+App.closeMonitorSettingsModal = function() {
+    const modal = document.getElementById('monitorSettingsModal');
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => modal.remove(), 300);
+    }
+    // 刷新监控面板显示
+    this.loadMonitorPanel();
+};
+
+// 切换监控设置标签
+App.switchMonitorTab = function(tabName) {
+    // 更新标签按钮状态
+    const tabs = document.querySelectorAll('.monitor-tab');
+    tabs.forEach(tab => {
+        if (tab.dataset.tab === tabName) {
+            tab.classList.add('active');
+        } else {
+            tab.classList.remove('active');
+        }
+    });
+    
+    // 更新内容显示
+    const contents = document.querySelectorAll('.monitor-tab-content');
+    contents.forEach(content => {
+        if (content.id === tabName + 'Settings') {
+            content.classList.add('active');
+        } else {
+            content.classList.remove('active');
+        }
+    });
+};
 
 // 页面加载完成后初始化
 document.addEventListener("DOMContentLoaded", function() {
