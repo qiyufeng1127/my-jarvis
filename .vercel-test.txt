@@ -1,0 +1,3 @@
+Vercel deployment test - 2026-01-11
+This file is used to test GitHub to Vercel auto-sync.
+

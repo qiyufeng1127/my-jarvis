@@ -1,0 +1,53 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>提示词面板组件</title>
+    <link rel="stylesheet" href="../styles/main.css">
+    <style>
+        body { 
+            background: linear-gradient(135deg, #E8F4F8 0%, #F0E6F6 100%); 
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .component-preview {
+            width: 420px;
+            height: 400px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <div class="component-preview">
+        <div class="prompt-container">
+            <div class="prompt-section">
+                <div class="prompt-label">🎯 任务解析提示词</div>
+                <textarea class="prompt-textarea">请分析用户输入，提取任务信息（时间、内容、情绪）。返回JSON格式：{task: {title, date, startTime, endTime, tags}, emotion: {type, content}}</textarea>
+                <div class="prompt-preset">
+                    <span class="preset-tag">默认</span>
+                    <span class="preset-tag">详细版</span>
+                </div>
+            </div>
+            <div class="prompt-section">
+                <div class="prompt-label">🔧 任务拆解提示词</div>
+                <textarea class="prompt-textarea">请将这个任务拆解成更小的可执行步骤，每个步骤不超过15分钟</textarea>
+            </div>
+            <div class="prompt-section">
+                <div class="prompt-label">💡 间隙建议提示词</div>
+                <textarea class="prompt-textarea">根据前后任务，推荐一个适合在间隙时间做的轻松活动</textarea>
+            </div>
+            <div class="prompt-section">
+                <div class="prompt-label">💭 情绪分析提示词</div>
+                <textarea class="prompt-textarea">分析这段文字的情绪倾向，返回：happy/calm/anxious/sad/angry</textarea>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
