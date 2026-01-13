@@ -1,0 +1,475 @@
+/* ==================== 增强版拖延监控样式 ==================== */
+
+/* 全屏警报遮罩 */
+#fullscreenAlertOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 0, 0, 0.9);
+    z-index: 99999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    animation: alertPulse 0.5s ease-in-out infinite alternate;
+}
+
+#fullscreenAlertOverlay.flashing {
+    animation: alertFlash 0.3s ease-in-out infinite;
+}
+
+@keyframes alertFlash {
+    0%, 100% { background: rgba(255, 0, 0, 0.9); }
+    50% { background: rgba(139, 0, 0, 0.95); }
+}
+
+@keyframes alertPulse {
+    0% { transform: scale(1); }
+    100% { transform: scale(1.02); }
+}
+
+/* 警报内容容器 */
+.fullscreen-alert-content {
+    background: white;
+    border-radius: 20px;
+    padding: 40px;
+    max-width: 500px;
+    width: 90%;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    animation: alertBounce 0.5s ease-out;
+}
+
+@keyframes alertBounce {
+    0% { transform: scale(0.5); opacity: 0; }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+[data-theme="dark"] .fullscreen-alert-content {
+    background: #1a1a2e;
+    color: #E8E8E8;
+}
+
+/* 警报图标 */
+.alert-icon {
+    font-size: 80px;
+    margin-bottom: 20px;
+    animation: shake 0.5s ease-in-out infinite;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-10px); }
+    75% { transform: translateX(10px); }
+}
+
+/* 警报标题 */
+.alert-title {
+    font-size: 32px;
+    font-weight: 800;
+    color: #FF4444;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+/* 任务名称 */
+.alert-task {
+    font-size: 24px;
+    font-weight: 600;
+    color: #2C3E50;
+    margin-bottom: 15px;
+    padding: 10px 20px;
+    background: linear-gradient(135deg, #FFE5E5, #FFF0F0);
+    border-radius: 10px;
+    display: inline-block;
+}
+
+[data-theme="dark"] .alert-task {
+    color: #E8E8E8;
+    background: linear-gradient(135deg, #4a1a1a, #3a1515);
+}
+
+/* 警报消息 */
+.alert-message {
+    font-size: 18px;
+    color: #666;
+    margin-bottom: 20px;
+}
+
+[data-theme="dark"] .alert-message {
+    color: #A0A0A0;
+}
+
+/* 启动步骤 */
+.alert-step {
+    font-size: 20px;
+    font-weight: 600;
+    color: #667eea;
+    padding: 15px 25px;
+    background: linear-gradient(135deg, #EEF2FF, #E8EDFF);
+    border-radius: 12px;
+    margin-bottom: 25px;
+    border-left: 4px solid #667eea;
+}
+
+[data-theme="dark"] .alert-step {
+    background: linear-gradient(135deg, #2a2a4a, #252545);
+    color: #8B9FE8;
+}
+
+/* 按钮容器 */
+.alert-buttons {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+/* 警报按钮 */
+.alert-btn {
+    padding: 15px 30px;
+    font-size: 18px;
+    font-weight: 600;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.alert-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+}
+
+.alert-btn:active {
+    transform: translateY(0);
+}
+
+.alert-btn.start-btn {
+    background: linear-gradient(135deg, #27AE60, #2ECC71);
+    color: white;
+}
+
+.alert-btn.start-btn:hover {
+    background: linear-gradient(135deg, #219A52, #27AE60);
+}
+
+.alert-btn.stuck-btn {
+    background: linear-gradient(135deg, #F39C12, #F1C40F);
+    color: white;
+}
+
+.alert-btn.stuck-btn:hover {
+    background: linear-gradient(135deg, #D68910, #F39C12);
+}
+
+.alert-btn.ai-btn {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    width: 100%;
+    justify-content: center;
+}
+
+.alert-btn.ai-btn:hover {
+    background: linear-gradient(135deg, #5a6fd6, #6a4190);
+}
+
+.alert-btn.try-btn {
+    background: linear-gradient(135deg, #3498DB, #2980B9);
+    color: white;
+    width: 100%;
+    justify-content: center;
+    margin-top: 10px;
+}
+
+/* 卡住表单 */
+.stuck-form {
+    margin-top: 20px;
+    padding: 20px;
+    background: #F8F9FA;
+    border-radius: 12px;
+}
+
+[data-theme="dark"] .stuck-form {
+    background: rgba(40, 40, 70, 0.5);
+}
+
+.stuck-form textarea {
+    width: 100%;
+    min-height: 100px;
+    padding: 15px;
+    border: 2px solid #E0E0E0;
+    border-radius: 10px;
+    font-size: 16px;
+    font-family: inherit;
+    resize: vertical;
+    margin-bottom: 15px;
+    transition: border-color 0.3s;
+}
+
+.stuck-form textarea:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+[data-theme="dark"] .stuck-form textarea {
+    background: #2a2a4a;
+    border-color: #4a4a6a;
+    color: #E8E8E8;
+}
+
+/* AI建议区域 */
+.ai-suggestion {
+    margin-top: 20px;
+    padding: 20px;
+    background: linear-gradient(135deg, #E8F5E9, #F1F8E9);
+    border-radius: 12px;
+    border-left: 4px solid #27AE60;
+}
+
+[data-theme="dark"] .ai-suggestion {
+    background: linear-gradient(135deg, #1a3a1a, #1a2a1a);
+}
+
+.ai-suggestion .loading {
+    font-size: 18px;
+    color: #666;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.ai-result .ai-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #27AE60;
+    margin-bottom: 10px;
+}
+
+.ai-result .ai-steps {
+    font-size: 20px;
+    font-weight: 700;
+    color: #2C3E50;
+    padding: 15px;
+    background: white;
+    border-radius: 10px;
+    margin-bottom: 10px;
+}
+
+[data-theme="dark"] .ai-result .ai-steps {
+    background: #2a2a4a;
+    color: #E8E8E8;
+}
+
+/* 倒计时显示 */
+#enhancedCountdownDisplay {
+    font-size: 48px;
+    font-weight: 800;
+    font-family: 'Courier New', monospace;
+    color: #2C3E50;
+    text-align: center;
+    padding: 20px;
+    background: linear-gradient(135deg, #F8F9FA, #FFFFFF);
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    margin: 20px 0;
+}
+
+[data-theme="dark"] #enhancedCountdownDisplay {
+    background: linear-gradient(135deg, #2a2a4a, #1a1a2e);
+    color: #E8E8E8;
+}
+
+#enhancedCountdownDisplay.warning {
+    color: #FF4444;
+    animation: countdownPulse 0.5s ease-in-out infinite;
+}
+
+@keyframes countdownPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+/* 拖延监控面板增强 */
+.procrastination-enhanced-panel {
+    background: linear-gradient(135deg, #FFF5F5, #FFFFFF);
+    border: 2px solid #FFE0E0;
+    border-radius: 16px;
+    padding: 20px;
+    margin: 15px 0;
+}
+
+[data-theme="dark"] .procrastination-enhanced-panel {
+    background: linear-gradient(135deg, #2a1a1a, #1a1a2e);
+    border-color: #4a2a2a;
+}
+
+.procrastination-enhanced-panel .panel-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.procrastination-enhanced-panel .panel-icon {
+    font-size: 28px;
+}
+
+.procrastination-enhanced-panel .panel-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #E74C3C;
+}
+
+/* 设置面板 */
+.enhanced-settings {
+    background: #F8F9FA;
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 15px;
+}
+
+[data-theme="dark"] .enhanced-settings {
+    background: rgba(40, 40, 70, 0.4);
+}
+
+.enhanced-settings .setting-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid #E0E0E0;
+}
+
+[data-theme="dark"] .enhanced-settings .setting-item {
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.enhanced-settings .setting-item:last-child {
+    border-bottom: none;
+}
+
+.enhanced-settings .setting-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: #2C3E50;
+}
+
+[data-theme="dark"] .enhanced-settings .setting-label {
+    color: #E8E8E8;
+}
+
+.enhanced-settings .setting-desc {
+    font-size: 12px;
+    color: #888;
+    margin-top: 4px;
+}
+
+/* 开关样式 */
+.toggle-switch {
+    position: relative;
+    width: 50px;
+    height: 26px;
+    background: #E0E0E0;
+    border-radius: 13px;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.toggle-switch.active {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+}
+
+.toggle-switch::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.3s;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch.active::after {
+    transform: translateX(24px);
+}
+
+/* 测试按钮 */
+.test-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+    flex-wrap: wrap;
+}
+
+.test-btn {
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    transition: all 0.3s;
+}
+
+.test-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+    .fullscreen-alert-content {
+        padding: 25px;
+        margin: 10px;
+    }
+    
+    .alert-icon {
+        font-size: 60px;
+    }
+    
+    .alert-title {
+        font-size: 24px;
+    }
+    
+    .alert-task {
+        font-size: 18px;
+    }
+    
+    .alert-step {
+        font-size: 16px;
+        padding: 12px 18px;
+    }
+    
+    .alert-btn {
+        padding: 12px 20px;
+        font-size: 16px;
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .alert-buttons {
+        flex-direction: column;
+    }
+    
+    #enhancedCountdownDisplay {
+        font-size: 36px;
+        padding: 15px;
+    }
+}
+
