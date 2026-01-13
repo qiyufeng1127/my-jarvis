@@ -224,6 +224,10 @@ const MobileApp = {
                                 <span class="more-menu-icon">${isLoggedIn ? '✅' : '☁️'}</span>
                                 <span>${isLoggedIn ? '已同步' : '云同步'}</span>
                             </button>
+                            <button class="more-menu-item" data-action="apiKey" type="button">
+                                <span class="more-menu-icon">🔑</span>
+                                <span>API Key</span>
+                            </button>
                             <button class="more-menu-item" data-action="settings" type="button">
                                 <span class="more-menu-icon">⚙️</span>
                                 <span>设置</span>
@@ -299,6 +303,14 @@ const MobileApp = {
                         CloudSync.showConfigModal();
                     }
                         }, 100);
+                } else if (action === 'apiKey') {
+                    // API Key 配置
+                    this.hideMoreMenu();
+                    setTimeout(() => {
+                        if (typeof showApiKeyModal === 'function') {
+                            showApiKeyModal();
+                        }
+                    }, 100);
                 } else if (action === 'settings') {
                     // 设置
                     this.hideMoreMenu();

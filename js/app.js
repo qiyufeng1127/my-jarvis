@@ -585,7 +585,6 @@ const App = {
                             '<span class="stat-value" id="headerEnergy">' + state.energy + '/' + state.maxEnergy + '</span>' +
                         '</div>' +
                     '</div>' +
-                    '<button class="api-key-btn" onclick="App.showApiKeyModal()" title="设置API Key">🔑</button>' +
                 '</div>' +
                 '<div class="chat-messages" id="chatMessages">' +
                     '<!-- 消息将动态添加 -->' +
@@ -1978,7 +1977,7 @@ const App = {
     },
 
     closeAllMenus() {
-        document.querySelectorAll(".gap-menu, .context-menu, .task-detail-popup, .color-picker-popup").forEach(function(el) {
+        document.querySelectorAll(".gap-menu, .context-menu, .task-detail-popup, .color-picker-popup, .energy-menu, .energy-menu-overlay").forEach(function(el) {
             el.remove();
         });
     },
@@ -2622,13 +2621,25 @@ const App = {
         
         const state = Storage.getGameState();
         
+        // 创建遮罩层
+        const overlay = document.createElement("div");
+        overlay.className = "energy-menu-overlay";
+        overlay.id = "energyMenuOverlay";
+        overlay.onclick = function() { App.closeAllMenus(); };
+        document.body.appendChild(overlay);
+        
         const menu = document.createElement("div");
         menu.className = "energy-menu";
         menu.id = "energyMenu";
         menu.innerHTML = 
             '<div class="energy-menu-header">' +
                 '<span class="energy-menu-title">⚡ 精力管理</span>' +
-                '<span class="energy-menu-current">' + state.energy + '/' + state.maxEnergy + '</span>' +
+                '<button class="energy-menu-close" onclick="App.closeAllMenus()">×</button>' +
+            '</div>' +
+            '<div class="energy-menu-current-display">' +
+                '<span class="energy-bar-label">当前精力</span>' +
+                '<div class="energy-bar-container"><div class="energy-bar-fill" style="width:' + (state.energy / state.maxEnergy * 100) + '%"></div></div>' +
+                '<span class="energy-bar-value">' + state.energy + '/' + state.maxEnergy + '</span>' +
             '</div>' +
             '<div class="energy-menu-desc">选择活动恢复精力：</div>' +
             '<div class="energy-menu-item" onclick="App.restoreEnergy(\'medicine\', 8)">' +
@@ -2665,17 +2676,21 @@ const App = {
                 '<button class="energy-edit-btn" onclick="App.showEnergySettings()">⚙️ 设置每日精力</button>' +
             '</div>';
         
-        // 定位菜单
-        const rect = event.target.closest('.header-stat').getBoundingClientRect();
-        menu.style.position = 'fixed';
-        menu.style.top = (rect.bottom + 5) + 'px';
-        menu.style.right = (window.innerWidth - rect.right) + 'px';
+        // 移动端居中显示，桌面端定位到按钮下方
+        if (window.innerWidth <= 768) {
+            menu.style.position = 'fixed';
+            menu.style.top = '50%';
+            menu.style.left = '50%';
+            menu.style.transform = 'translate(-50%, -50%)';
+            menu.style.right = 'auto';
+        } else {
+            const rect = event.target.closest('.header-stat').getBoundingClientRect();
+            menu.style.position = 'fixed';
+            menu.style.top = (rect.bottom + 5) + 'px';
+            menu.style.right = (window.innerWidth - rect.right) + 'px';
+        }
         
         document.body.appendChild(menu);
-        
-        setTimeout(function() {
-            document.addEventListener("click", App.closeAllMenus, { once: true });
-        }, 10);
     },
     
     // 恢复精力
@@ -4823,6 +4838,21 @@ const App = {
 };
 
 // API Key 相关全局函数
+function showApiKeyModal() {
+    const modal = document.getElementById("apiKeyModal");
+    if (modal) {
+        // 加载当前保存的 API Key（如果有）
+        const input = document.getElementById("apiKeyInput");
+        if (input) {
+            const savedKey = Storage.getApiKey();
+            if (savedKey) {
+                input.value = savedKey;
+            }
+        }
+        modal.classList.add("show");
+    }
+}
+
 function closeApiKeyModal() {
     const modal = document.getElementById("apiKeyModal");
     if (modal) {
