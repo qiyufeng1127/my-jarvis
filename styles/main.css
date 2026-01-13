@@ -8211,3 +8211,68 @@ body {
     color: #E74C3C;
     transform: scale(1.1);
 }
+
+/* ==================== 鏅鸿兘瀵硅瘽澶撮儴璁剧疆鎸夐挳鏍峰紡 ==================== */
+.settings-btn-header {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(102, 126, 234, 0.1);
+    border: none;
+    border-radius: 50%;
+    font-size: 18px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-left: 8px;
+}
+
+.settings-btn-header:hover {
+    background: rgba(102, 126, 234, 0.2);
+    transform: scale(1.1);
+}
+
+.settings-btn-header:active {
+    transform: scale(0.95);
+}
+
+[data-theme="dark"] .settings-btn-header {
+    background: rgba(102, 126, 234, 0.2);
+}
+
+[data-theme="dark"] .settings-btn-header:hover {
+    background: rgba(102, 126, 234, 0.3);
+}
+
+/* API Key 鎸夐挳鏍峰紡浼樺寲 */
+.api-key-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(241, 196, 15, 0.15);
+    border: none;
+    border-radius: 50%;
+    font-size: 18px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.api-key-btn:hover {
+    background: rgba(241, 196, 15, 0.3);
+    transform: scale(1.1);
+}
+
+.api-key-btn:active {
+    transform: scale(0.95);
+}
+
+[data-theme="dark"] .api-key-btn {
+    background: rgba(241, 196, 15, 0.2);
+}
+
+[data-theme="dark"] .api-key-btn:hover {
+    background: rgba(241, 196, 15, 0.35);
+}

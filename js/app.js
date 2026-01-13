@@ -586,6 +586,7 @@ const App = {
                         '</div>' +
                     '</div>' +
                     '<button class="api-key-btn" onclick="App.showApiKeyModal()" title="设置API Key">🔑</button>' +
+                    '<button class="settings-btn-header" onclick="toggleSettingsPanel()" title="全局设置">⚙️</button>' +
                 '</div>' +
                 '<div class="chat-messages" id="chatMessages">' +
                     '<!-- 消息将动态添加 -->' +
