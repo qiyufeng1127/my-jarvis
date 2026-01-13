@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>修复测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .test-pass {
+            color: green;
+            font-weight: bold;
+        }
+        .test-fail {
+            color: red;
+            font-weight: bold;
+        }
+        .test-desc {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>界面交互问题修复测试</h1>
+    
+    <div class="test-section">
+        <h2>修复1: API Key配置入口优化</h2>
+        <div class="test-desc">
+            <p>✅ 已修复：API Key配置入口已从"钥匙"图标移至设置面板</p>
+            <p>✅ 已修复：移动端更多菜单中添加了API Key配置入口</p>
+            <p>✅ 已修复：移除了旧的"钥匙"图标按钮</p>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>修复2: 精力管理菜单退出问题</h2>
+        <div class="test-desc">
+            <p>✅ 已修复：更新了closeAllMenus函数，现在包含energy-menu</p>
+            <p>✅ 已修复：精力管理菜单现在可以通过点击外部区域正常关闭</p>
+            <p>✅ 已修复：移动端精力管理界面交互正常</p>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>具体修改内容：</h2>
+        <ul>
+            <li>1. 在js/mobile-app.js中添加了API Key配置入口到更多菜单</li>
+            <li>2. 在js/app.js中修复了closeAllMenus函数，添加了.energy-menu选择器</li>
+            <li>3. 在index.html中移除了旧的"钥匙"图标按钮</li>
+            <li>4. 确保移动端用户可以通过"更多"→"API Key"访问配置</li>
+            <li>5. 确保桌面端用户可以通过"设置"→"API Key"访问配置</li>
+        </ul>
+    </div>
+    
+    <div class="test-section">
+        <h2>测试说明：</h2>
+        <p>1. 在移动端，点击底部导航的"更多"按钮，应该能看到"API Key"选项</p>
+        <p>2. 点击精力数值（?图标），应该能打开精力管理菜单</p>
+        <p>3. 点击菜单外部区域，应该能正常关闭精力管理菜单</p>
+        <p>4. 在设置面板中，应该有"API Key"配置按钮</p>
+    </div>
+</body>
+</html>
