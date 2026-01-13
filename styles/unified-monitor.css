@@ -692,11 +692,33 @@
     background: white;
     border-radius: 10px;
     border: 1px solid #E0E0E0;
+    transition: all 0.2s;
 }
 
 [data-theme="dark"] .setting-item {
     background: rgba(40, 40, 70, 0.6);
     border-color: rgba(102, 126, 234, 0.2);
+}
+
+.setting-item.clickable {
+    cursor: pointer;
+}
+
+.setting-item.clickable:hover {
+    border-color: #667eea;
+    background: rgba(102, 126, 234, 0.05);
+    transform: translateX(4px);
+}
+
+[data-theme="dark"] .setting-item.clickable:hover {
+    background: rgba(102, 126, 234, 0.15);
+    border-color: #667eea;
+}
+
+.setting-arrow {
+    font-size: 18px;
+    color: #667eea;
+    font-weight: bold;
 }
 
 .setting-label {

@@ -334,51 +334,75 @@ const UnifiedMonitor = {
     renderSettings: function(PM, IM, PE) {
         var html = '';
         
-        // ADHD Enhanced Settings Entry
+        // 启动监控设置
+        if (PM) {
+            html += '<div class="settings-section">' +
+                '<div class="section-title">⏰ 启动监控</div>' +
+                '<div class="settings-list">' +
+                    '<div class="setting-item">' +
+                        '<span class="setting-label">自动监控</span>' +
+                        '<button class="toggle-btn small ' + (PM.settings.enabled ? 'active' : '') + '" onclick="ProcrastinationMonitor.toggleEnabled(); UnifiedMonitor.refresh();">' + (PM.settings.enabled ? '开' : '关') + '</button>' +
+                    '</div>' +
+                    '<div class="setting-item">' +
+                        '<span class="setting-label">宽限期</span>' +
+                        '<span class="setting-value">' + PM.settings.gracePeriod + '秒</span>' +
+                    '</div>' +
+                    '<div class="setting-item">' +
+                        '<span class="setting-label">基础扣币 / 成功奖励</span>' +
+                        '<span class="setting-value">' + PM.settings.baseCost + ' / ' + PM.settings.successReward + ' 金币</span>' +
+                    '</div>' +
+                    '<div class="setting-item">' +
+                        '<span class="setting-label">声音提醒</span>' +
+                        '<button class="toggle-btn small ' + (PM.settings.soundEnabled ? 'active' : '') + '" onclick="ProcrastinationMonitor.toggleSound(); UnifiedMonitor.refresh();">' + (PM.settings.soundEnabled ? '开' : '关') + '</button>' +
+                    '</div>' +
+                    '<div class="setting-item">' +
+                        '<span class="setting-label">语音播报</span>' +
+                        '<button class="toggle-btn small ' + (PM.settings.useVoiceAlert ? 'active' : '') + '" onclick="ProcrastinationMonitor.updateSetting(\'useVoiceAlert\', ' + !PM.settings.useVoiceAlert + '); UnifiedMonitor.refresh();">' + (PM.settings.useVoiceAlert ? '开' : '关') + '</button>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+        }
+        
+        // 效率监控设置
+        if (IM) {
+            html += '<div class="settings-section">' +
+                '<div class="section-title">📊 效率监控</div>' +
+                '<div class="settings-list">' +
+                    '<div class="setting-item">' +
+                        '<span class="setting-label">效率监控</span>' +
+                        '<button class="toggle-btn small ' + (IM.settings.enabled ? 'active' : '') + '" onclick="InefficiencyMonitor.settings.enabled = !InefficiencyMonitor.settings.enabled; UnifiedMonitor.refresh();">' + (IM.settings.enabled ? '开' : '关') + '</button>' +
+                    '</div>' +
+                    '<div class="setting-item">' +
+                        '<span class="setting-label">判定时长</span>' +
+                        '<span class="setting-value">' + IM.settings.thresholdMinutes + '分钟</span>' +
+                    '</div>' +
+                    '<div class="setting-item">' +
+                        '<span class="setting-label">半程提醒</span>' +
+                        '<button class="toggle-btn small ' + (IM.settings.halfwayAlert ? 'active' : '') + '" onclick="InefficiencyMonitor.updateSetting(\'halfwayAlert\', ' + !IM.settings.halfwayAlert + '); UnifiedMonitor.refresh();">' + (IM.settings.halfwayAlert ? '开' : '关') + '</button>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+        }
+        
+        // AI提示词设置（整合入口）
         html += '<div class="settings-section">' +
-            '<div class="section-title">🧠 ADHD增强版设置</div>' +
-            '<div class="settings-card">' +
-                '<p>配置AI提示词、API Key和高级功能</p>' +
-                '<button class="action-btn primary full-width" onclick="ProcrastinationEnhanced.showSettingsPanel()">' +
-                    '⚙️ 打开提示词设置面板' +
-                '</button>' +
+            '<div class="section-title">🤖 AI提示词</div>' +
+            '<div class="settings-list">' +
+                '<div class="setting-item clickable" onclick="ProcrastinationEnhanced.showSettingsPanel()">' +
+                    '<span class="setting-label">配置API Key和自定义提示词</span>' +
+                    '<span class="setting-arrow">→</span>' +
+                '</div>' +
             '</div>' +
         '</div>';
         
-        // Procrastination Settings
-        if (PM) {
-            html += '<div class="settings-section">' +
-                '<div class="section-title">⏰ 启动监控设置</div>' +
-                '<div class="settings-list">' +
-                    '<div class="setting-item"><span class="setting-label">宽限期</span><span class="setting-value">' + PM.settings.gracePeriod + '秒</span></div>' +
-                    '<div class="setting-item"><span class="setting-label">预警时间</span><span class="setting-value">' + PM.settings.preAlertTime + '秒</span></div>' +
-                    '<div class="setting-item"><span class="setting-label">基础扣币</span><span class="setting-value">' + PM.settings.baseCost + '金币</span></div>' +
-                    '<div class="setting-item"><span class="setting-label">成功奖励</span><span class="setting-value">' + PM.settings.successReward + '金币</span></div>' +
-                    '<div class="setting-item"><span class="setting-label">语音播报</span><button class="toggle-btn small ' + (PM.settings.useVoiceAlert ? 'active' : '') + '" onclick="ProcrastinationMonitor.updateSetting(\'useVoiceAlert\', ' + !PM.settings.useVoiceAlert + '); UnifiedMonitor.refresh();">' + (PM.settings.useVoiceAlert ? '开' : '关') + '</button></div>' +
-                '</div>' +
-            '</div>';
-        }
-        
-        // Inefficiency Settings
-        if (IM) {
-            html += '<div class="settings-section">' +
-                '<div class="section-title">📊 效率监控设置</div>' +
-                '<div class="settings-list">' +
-                    '<div class="setting-item"><span class="setting-label">判定时长</span><span class="setting-value">' + IM.settings.thresholdMinutes + '分钟</span></div>' +
-                    '<div class="setting-item"><span class="setting-label">基础扣币</span><span class="setting-value">' + IM.settings.baseCost + '金币</span></div>' +
-                    '<div class="setting-item"><span class="setting-label">半程提醒</span><button class="toggle-btn small ' + (IM.settings.halfwayAlert ? 'active' : '') + '" onclick="InefficiencyMonitor.updateSetting(\'halfwayAlert\', ' + !IM.settings.halfwayAlert + '); UnifiedMonitor.refresh();">' + (IM.settings.halfwayAlert ? '开' : '关') + '</button></div>' +
-                '</div>' +
-            '</div>';
-        }
-        
-        // Test Functions
+        // 测试功能
         html += '<div class="settings-section">' +
-            '<div class="section-title">🧪 测试功能</div>' +
+            '<div class="section-title">🧪 测试</div>' +
             '<div class="test-buttons-grid">' +
-                '<button class="test-btn" onclick="ProcrastinationEnhanced.testCountdown(10)">测试10秒倒计时</button>' +
-                '<button class="test-btn" onclick="ProcrastinationEnhanced.testAlert()">测试全屏警报</button>' +
-                '<button class="test-btn" onclick="ProcrastinationEnhanced.testVoice()">测试语音播报</button>' +
-                '<button class="test-btn" onclick="ProcrastinationMonitor.testSound(\'chime\')">测试提示音</button>' +
+                '<button class="test-btn" onclick="ProcrastinationEnhanced.testCountdown(10)">倒计时</button>' +
+                '<button class="test-btn" onclick="ProcrastinationEnhanced.testAlert()">全屏警报</button>' +
+                '<button class="test-btn" onclick="ProcrastinationEnhanced.testVoice()">语音播报</button>' +
+                '<button class="test-btn" onclick="ProcrastinationMonitor.testSound(\'chime\')">提示音</button>' +
             '</div>' +
         '</div>';
         
