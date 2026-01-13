@@ -452,6 +452,55 @@ const AIService = {
         const newH = Math.floor(totalMinutes / 60) % 24;
         const newM = totalMinutes % 60;
         return newH.toString().padStart(2, '0') + ':' + newM.toString().padStart(2, '0');
+    },
+
+    // AI智能分析任务
+    async analyzeTask(title, notes, substeps) {
+        try {
+            const substepsText = substeps && substeps.length > 0 
+                ? '\n子步骤: ' + substeps.map(s => s.title).join(', ')
+                : '';
+            
+            const prompt = `请分析以下任务，返回JSON格式的分析结果：
+任务名称: ${title}
+${notes ? '备注: ' + notes : ''}${substepsText}
+
+请返回以下格式的JSON（不要包含其他文字）：
+{
+    "tags": ["标签1", "标签2"],
+    "verifyMethod": "验证方式描述",
+    "coins": 金币数量(1-20),
+    "energyCost": 精力消耗(1-5),
+    "difficulty": 难度(1-5),
+    "priority": "high/medium/low"
+}
+
+标签建议：💼工作、📚学习、💪健康、🏠家务、🎮休闲、🛒购物、📌其他
+验证方式建议：完成打卡、拍照验证、截图验证、步数验证、时长验证等`;
+
+            const response = await this.chat([
+                { role: 'user', content: prompt }
+            ], '你是一个任务分析助手，专门帮助用户分析任务属性。只返回JSON格式，不要其他文字。');
+            
+            // 尝试解析JSON
+            const jsonMatch = response.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                const result = JSON.parse(jsonMatch[0]);
+                return {
+                    tags: result.tags || ['📌 其他'],
+                    verifyMethod: result.verifyMethod || '完成打卡',
+                    coins: Math.min(20, Math.max(1, result.coins || 5)),
+                    energyCost: Math.min(5, Math.max(1, result.energyCost || 2)),
+                    difficulty: result.difficulty || 3,
+                    priority: result.priority || 'medium'
+                };
+            }
+            
+            return null;
+        } catch (e) {
+            console.error('AI分析任务失败:', e);
+            return null;
+        }
     }
 };
 
