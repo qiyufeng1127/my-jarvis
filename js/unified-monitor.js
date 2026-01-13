@@ -413,8 +413,44 @@ const UnifiedMonitor = {
         if (typeof App !== 'undefined' && App.loadMonitorPanel) {
             App.loadMonitorPanel();
         }
+    },
+    
+    // 初始化：覆盖App.loadMonitorPanel
+    init: function() {
+        var self = this;
+        var checkApp = setInterval(function() {
+            if (typeof App !== 'undefined') {
+                clearInterval(checkApp);
+                
+                // 覆盖 loadMonitorPanel
+                App.loadMonitorPanel = function() {
+                    var container = document.getElementById("monitorBody");
+                    if (!container) return;
+                    
+                    // 使用 UnifiedMonitor 渲染
+                    container.innerHTML = self.render();
+                    
+                    // 重新应用背景
+                    setTimeout(function() { 
+                        if (typeof Canvas !== 'undefined' && Canvas.reapplyBackground) {
+                            Canvas.reapplyBackground('monitorPanel'); 
+                        }
+                    }, 10);
+                };
+                
+                // 刷新面板
+                App.loadMonitorPanel();
+                
+                console.log('UnifiedMonitor 初始化完成');
+            }
+        }, 500);
     }
 };
+
+// 初始化
+document.addEventListener('DOMContentLoaded', function() {
+    UnifiedMonitor.init();
+});
 
 window.UnifiedMonitor = UnifiedMonitor;
 
