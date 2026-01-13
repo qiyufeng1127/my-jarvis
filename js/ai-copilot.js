@@ -339,17 +339,32 @@ const AICopilot = {
         const hour = new Date().getHours();
         let greeting = '';
         let emoji = '';
+        let timePeriod = '';
         
         if (hour < 12) {
             greeting = '早上好';
             emoji = '🌅';
+            timePeriod = 'morning';
         } else if (hour < 18) {
             greeting = '下午好';
             emoji = '☀️';
+            timePeriod = 'afternoon';
         } else {
             greeting = '晚上好';
             emoji = '🌙';
+            timePeriod = 'evening';
         }
+        
+        // 检查今天这个时段是否已经问候过
+        const today = this.formatDate(new Date());
+        const greetingKey = 'adhd_greeting_' + today + '_' + timePeriod;
+        if (Storage.load(greetingKey, false)) {
+            // 今天这个时段已经问候过，不再重复
+            return;
+        }
+        
+        // 标记为已问候
+        Storage.save(greetingKey, true);
         
         // 获取今日任务统计
         const todayStats = this.getTodayStats();

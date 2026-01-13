@@ -1024,12 +1024,12 @@ const App = {
         var timeSlots = "";
         var lastEndMinutes = 0; // 上一个任务的结束时间（分钟）
         
-        // 如果没有任务，显示简化的时间轴
+        // 如果没有任务，显示简化的时间轴（0-24点全天）
         if (todayTasks.length === 0) {
-            // 只显示整点时间标签和添加按钮
-            for (var hour = 6; hour < 24; hour++) {
+            // 显示全天时间标签和添加按钮
+            for (var hour = 0; hour < 24; hour++) {
                 timeSlots += 
-                    '<div class="time-slot empty-slot" data-hour="' + hour + '" data-minutes="0">' +
+                    '<div class="time-slot empty-slot hour-slot" data-hour="' + hour + '" data-minutes="0">' +
                         '<span class="time-label">' + hour.toString().padStart(2, "0") + ':00</span>' +
                         '<div class="gap-add-section">' +
                             '<button class="gap-add-link" onclick="App.showGapMenu(event, ' + hour + ', 0)">' +
@@ -1616,7 +1616,11 @@ const App = {
         if (existingModal) existingModal.remove();
         
         const now = new Date();
-        const defaultTime = now.getHours().toString().padStart(2, "0") + ":" + (Math.ceil(now.getMinutes() / 30) * 30).toString().padStart(2, "0");
+        // 默认开始时间为当前时间（向上取整到5分钟）
+        const minutes = Math.ceil(now.getMinutes() / 5) * 5;
+        const adjustedMinutes = minutes >= 60 ? 0 : minutes;
+        const adjustedHours = minutes >= 60 ? now.getHours() + 1 : now.getHours();
+        const defaultTime = adjustedHours.toString().padStart(2, "0") + ":" + adjustedMinutes.toString().padStart(2, "0");
         
         const modal = document.createElement("div");
         modal.className = "event-form-modal";
@@ -1634,8 +1638,8 @@ const App = {
                         '<input type="time" class="event-form-input" id="eventStartInput" value="' + defaultTime + '">' +
                     '</div>' +
                     '<div class="event-form-group">' +
-                        '<label class="event-form-label">结束时间</label>' +
-                        '<input type="time" class="event-form-input" id="eventEndInput">' +
+                        '<label class="event-form-label">持续时间（分钟）</label>' +
+                        '<input type="number" class="event-form-input" id="eventDurationInput" value="30" min="5" step="5" placeholder="30">' +
                     '</div>' +
                 '</div>' +
                 '<div class="event-form-group">' +
@@ -1670,7 +1674,8 @@ const App = {
     submitEventForm() {
         const title = document.getElementById("eventTitleInput").value.trim();
         const startTime = document.getElementById("eventStartInput").value;
-        const endTime = document.getElementById("eventEndInput").value;
+        const durationInput = document.getElementById("eventDurationInput");
+        const duration = parseInt(durationInput.value) || 30;
         const location = document.getElementById("eventLocationInput").value.trim();
         const notes = document.getElementById("eventNotesInput").value.trim();
         
@@ -1684,11 +1689,19 @@ const App = {
             return;
         }
         
+        // 根据持续时间计算结束时间
+        const endTime = this.addMinutes(startTime, duration);
+        
+        // 根据任务名称自动匹配图标
+        const emoji = this.getTaskEmoji(title);
+        const displayTitle = emoji ? emoji + ' ' + title : title;
+        
         const task = {
-            title: title,
+            title: displayTitle,
             date: this.formatDate(this.currentDate),
             startTime: startTime,
-            endTime: endTime || this.addMinutes(startTime, 30),
+            endTime: endTime,
+            duration: duration,
             location: location || null,
             notes: notes || null,
             coins: 5,
@@ -1698,7 +1711,49 @@ const App = {
         
         this.addTaskToTimeline(task);
         this.closeEventForm();
-        this.addChatMessage("system", "已添加事件「" + title + "」到 " + startTime, "📅");
+        this.addChatMessage("system", "已添加事件「" + title + "」" + startTime + " - " + endTime + "（" + duration + "分钟）", "📅");
+    },
+    
+    // 根据任务名称获取对应的Emoji图标
+    getTaskEmoji(title) {
+        const emojiMap = {
+            // 日常生活
+            '洗漱': '🪥', '刷牙': '🪥', '洗脸': '🧴', '洗澡': '🚿', '护肤': '🧴',
+            '吃饭': '🍽️', '早餐': '🥣', '午餐': '🍱', '晚餐': '🍲', '做饭': '👨‍🍳', '煮饭': '🍚',
+            '睡觉': '😴', '午睡': '💤', '休息': '😌', '小憩': '💤',
+            '喝水': '💧', '喝咖啡': '☕', '喝茶': '🍵',
+            // 工作学习
+            '工作': '💼', '上班': '🏢', '开会': '👥', '会议': '📊',
+            '学习': '📚', '看书': '📖', '阅读': '📖', '写作': '✍️',
+            '编程': '💻', '代码': '👨‍💻', '开发': '🖥️',
+            '设计': '🎨', '画画': '🖌️', '插画': '🎨', '绘画': '🖼️',
+            '摄影': '📷', '拍照': '📸', '修图': '🖼️',
+            // 运动健康
+            '运动': '🏃', '跑步': '🏃‍♂️', '健身': '💪', '锻炼': '🏋️',
+            '瑜伽': '🧘', '游泳': '🏊', '骑车': '🚴', '散步': '🚶',
+            '吃药': '💊', '看医生': '🏥',
+            // 家务
+            '打扫': '🧹', '扫地': '🧹', '拖地': '🧽', '洗衣': '👕', '洗碗': '🍽️',
+            '整理': '📦', '收拾': '🗂️', '倒垃圾': '🗑️',
+            '买菜': '🥬', '购物': '🛒', '超市': '🛒',
+            // 社交娱乐
+            '约会': '💑', '聚会': '🎉', '见面': '🤝', '聊天': '💬',
+            '游戏': '🎮', '看电影': '🎬', '看剧': '📺', '听音乐': '🎵',
+            // 出行
+            '出门': '🚪', '外出': '🚶', '通勤': '🚇', '开车': '🚗', '坐车': '🚌',
+            // 其他
+            '电话': '📞', '打电话': '📱', '发邮件': '📧', '回复': '💬',
+            '计划': '📋', '复盘': '📊', '总结': '📝'
+        };
+        
+        // 遍历关键词匹配
+        for (const [keyword, emoji] of Object.entries(emojiMap)) {
+            if (title.includes(keyword)) {
+                return emoji;
+            }
+        }
+        
+        return null; // 没有匹配到则返回null
     },
 
     // 旧的时间指示器更新函数已移除，使用文件末尾的新版本
@@ -7629,4 +7684,206 @@ document.addEventListener("DOMContentLoaded", function() {
 
 
 
+
+
+// ==================== 鏃堕棿杞村寮哄姛鑳?====================
+
+// 鏇存柊浠诲姟杩涘害濉厖鏁堟灉
+App.updateTaskProgress = function(currentTotalMinutes) {
+    const tasks = Storage.getTasks();
+    const today = this.formatDate(new Date());
+    const todayTasks = tasks.filter(function(t) { return t.date === today; });
+    const self = this;
+    
+    todayTasks.forEach(function(task) {
+        const card = document.querySelector('.event-card[data-task-id="' + task.id + '"]');
+        if (!card) return;
+        
+        const startParts = task.startTime.split(':');
+        const taskStartMinutes = parseInt(startParts[0]) * 60 + parseInt(startParts[1] || 0);
+        const taskDuration = task.duration || 30;
+        const taskEndMinutes = taskStartMinutes + taskDuration;
+        
+        // 绉婚櫎涔嬪墠鐨勭姸鎬佺被
+        card.classList.remove('in-progress', 'past-due');
+        
+        if (task.completed) {
+            return;
+        }
+        
+        if (currentTotalMinutes >= taskStartMinutes && currentTotalMinutes < taskEndMinutes) {
+            // 浠诲姟姝ｅ湪杩涜涓?- 娣诲姞杩涘害濉厖鏁堟灉
+            card.classList.add('in-progress');
+            const progress = ((currentTotalMinutes - taskStartMinutes) / taskDuration) * 100;
+            
+            // 鍒涘缓鎴栨洿鏂拌繘搴﹀～鍏呭厓绱?            let progressFill = card.querySelector('.progress-fill');
+            if (!progressFill) {
+                progressFill = document.createElement('div');
+                progressFill.className = 'progress-fill';
+                progressFill.style.cssText = 'position:absolute;top:0;left:0;height:100%;background:rgba(255,107,157,0.2);z-index:0;transition:width 1s linear;pointer-events:none;border-radius:inherit;';
+                card.style.position = 'relative';
+                card.insertBefore(progressFill, card.firstChild);
+            }
+            progressFill.style.width = progress + '%';
+        } else if (currentTotalMinutes >= taskEndMinutes) {
+            // 浠诲姟鏃堕棿宸茶繃浣嗘湭瀹屾垚 - 娣诲姞璀︾ず鏍峰紡
+            card.classList.add('past-due');
+            card.style.borderLeft = '4px solid #E74C3C';
+        }
+    });
+};
+
+// 鍒濆鍖栦换鍔℃嫋鎷藉姛鑳?App.initTaskDrag = function() {
+    const self = this;
+    const timelineTrack = document.getElementById('timelineTrack');
+    if (!timelineTrack) return;
+    
+    let draggedCard = null;
+    let dragStartY = 0;
+    let originalTop = 0;
+    let dragTimeout = null;
+    
+    // 涓烘墍鏈変换鍔″崱鐗囨坊鍔犳嫋鎷戒簨浠?    const cards = timelineTrack.querySelectorAll('.event-card');
+    
+    cards.forEach(function(card) {
+        // 闀挎寜寮€濮嬫嫋鎷?        card.addEventListener('touchstart', function(e) {
+            dragTimeout = setTimeout(function() {
+                startDrag(e, card);
+            }, 500); // 500ms闀挎寜瑙﹀彂
+        }, { passive: true });
+        
+        card.addEventListener('touchend', function() {
+            if (dragTimeout) {
+                clearTimeout(dragTimeout);
+                dragTimeout = null;
+            }
+            if (draggedCard) {
+                endDrag();
+            }
+        });
+        
+        card.addEventListener('touchmove', function(e) {
+            if (draggedCard) {
+                e.preventDefault();
+                moveDrag(e);
+            } else if (dragTimeout) {
+                // 濡傛灉绉诲姩浜嗭紝鍙栨秷闀挎寜
+                clearTimeout(dragTimeout);
+                dragTimeout = null;
+            }
+        }, { passive: false });
+        
+        // 榧犳爣鎷栨嫿鏀寔
+        card.addEventListener('mousedown', function(e) {
+            if (e.button === 0) { // 宸﹂敭
+                dragTimeout = setTimeout(function() {
+                    startDrag(e, card);
+                }, 300);
+            }
+        });
+    });
+    
+    document.addEventListener('mouseup', function() {
+        if (dragTimeout) {
+            clearTimeout(dragTimeout);
+            dragTimeout = null;
+        }
+        if (draggedCard) {
+            endDrag();
+        }
+    });
+    
+    document.addEventListener('mousemove', function(e) {
+        if (draggedCard) {
+            moveDrag(e);
+        }
+    });
+    
+    function startDrag(e, card) {
+        draggedCard = card;
+        card.classList.add('dragging');
+        
+        const touch = e.touches ? e.touches[0] : e;
+        dragStartY = touch.clientY;
+        originalTop = card.offsetTop;
+        
+        // 闇囧姩鍙嶉锛堝鏋滄敮鎸侊級
+        if (navigator.vibrate) {
+            navigator.vibrate(50);
+        }
+    }
+    
+    function moveDrag(e) {
+        if (!draggedCard) return;
+        
+        const touch = e.touches ? e.touches[0] : e;
+        const deltaY = touch.clientY - dragStartY;
+        
+        draggedCard.style.transform = 'translateY(' + deltaY + 'px) scale(1.02)';
+    }
+    
+    function endDrag() {
+        if (!draggedCard) return;
+        
+        const card = draggedCard;
+        const taskId = card.dataset.taskId;
+        const transform = card.style.transform;
+        
+        // 瑙ｆ瀽绉诲姩璺濈
+        const match = transform.match(/translateY\((-?\d+(?:\.\d+)?)px\)/);
+        const deltaY = match ? parseFloat(match[1]) : 0;
+        
+        // 璁＄畻鏂扮殑鏃堕棿锛堟瘡60px绾︾瓑浜?灏忔椂锛?        const deltaMinutes = Math.round(deltaY / 1); // 1px = 1鍒嗛挓
+        
+        if (Math.abs(deltaMinutes) >= 5) {
+            // 鏇存柊浠诲姟鏃堕棿
+            const tasks = Storage.getTasks();
+            const task = tasks.find(function(t) { return t.id === taskId; });
+            
+            if (task) {
+                const startParts = task.startTime.split(':');
+                let totalMinutes = parseInt(startParts[0]) * 60 + parseInt(startParts[1] || 0);
+                totalMinutes += deltaMinutes;
+                
+                // 闄愬埗鍦?-24灏忔椂鑼冨洿鍐?                totalMinutes = Math.max(0, Math.min(23 * 60 + 59, totalMinutes));
+                
+                const newHour = Math.floor(totalMinutes / 60);
+                const newMin = totalMinutes % 60;
+                const newStartTime = newHour.toString().padStart(2, '0') + ':' + newMin.toString().padStart(2, '0');
+                
+                task.startTime = newStartTime;
+                if (task.duration) {
+                    task.endTime = self.addMinutes(newStartTime, task.duration);
+                }
+                
+                Storage.updateTask(taskId, task);
+                
+                // 鏄剧ず鎻愮ず
+                if (typeof Settings !== 'undefined') {
+                    Settings.showToast('success', '鏃堕棿宸茶皟鏁?, '浠诲姟绉诲姩鍒?' + newStartTime);
+                }
+            }
+        }
+        
+        // 閲嶇疆鏍峰紡
+        card.classList.remove('dragging');
+        card.style.transform = '';
+        
+        draggedCard = null;
+        
+        // 閲嶆柊鍔犺浇鏃堕棿杞?        self.loadTimeline();
+    }
+};
+
+// 鎵╁睍鍘熸湁鐨剈pdateTimeIndicator锛屾坊鍔犺繘搴︽洿鏂?(function() {
+    const originalUpdate = App.updateTimeIndicator;
+    App.updateTimeIndicator = function() {
+        originalUpdate.call(this);
+        
+        // 鏇存柊浠诲姟杩涘害
+        const now = new Date();
+        const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
+        this.updateTaskProgress(currentTotalMinutes);
+    };
+})();
 
