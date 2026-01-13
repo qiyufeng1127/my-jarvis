@@ -580,10 +580,7 @@ const App = {
                             '<span class="stat-emoji">🪙</span>' +
                             '<span class="stat-value" id="headerCoins">' + state.coins + '</span>' +
                         '</div>' +
-                        '<div class="header-stat energy" onclick="App.showEnergyMenu(event)" title="点击恢复精力">' +
-                            '<span class="stat-emoji">⚡</span>' +
-                            '<span class="stat-value" id="headerEnergy">' + state.energy + '/' + state.maxEnergy + '</span>' +
-                        '</div>' +
+                        
                     '</div>' +
                     '<button class="api-key-btn" onclick="App.showApiKeyModal()" title="设置API Key">🔑</button>' +
                     '<button class="settings-btn-header" onclick="toggleSettingsPanel()" title="全局设置">⚙️</button>' +
@@ -5029,4 +5026,6 @@ App.showEnergyMenu = function(event) {
     
     document.body.appendChild(menu);
 };
+
+
 

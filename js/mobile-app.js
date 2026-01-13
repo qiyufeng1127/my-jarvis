@@ -781,3 +781,14 @@ document.addEventListener('DOMContentLoaded', () => {
 // 导出
 window.MobileApp = MobileApp;
 
+
+// Override switchView to set data-view attribute for CSS targeting
+(function() {
+    const originalSwitchView = MobileApp.switchView.bind(MobileApp);
+    MobileApp.switchView = function(viewId) {
+        originalSwitchView(viewId);
+        // Set data-view attribute on body for CSS targeting
+        document.body.setAttribute('data-view', viewId);
+    };
+})();
+
