@@ -1,0 +1,140 @@
+/* Mobile Input Fix - 移动端输入框修复 */
+
+/* API Key 输入框样式 - 移动端优化 */
+.api-key-input {
+    width: 100%;
+    padding: 14px 16px;
+    font-size: 16px !important; /* 防止iOS自动缩放 */
+    border: 2px solid #E0E0E0;
+    border-radius: 10px;
+    outline: none;
+    transition: border-color 0.3s, box-shadow 0.3s;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background: white;
+    color: #2C3E50;
+    font-family: 'Courier New', monospace;
+    box-sizing: border-box;
+    /* 移动端触摸优化 */
+    touch-action: manipulation;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+[data-theme="dark"] .api-key-input {
+    background: rgba(40, 40, 70, 0.8);
+    border-color: rgba(102, 126, 234, 0.3);
+    color: #E8E8E8;
+}
+
+.api-key-input:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+}
+
+.api-key-input::placeholder {
+    color: #999;
+    font-family: 'Courier New', monospace;
+}
+
+/* 移动端模态框输入优化 */
+@media (max-width: 768px) {
+    /* 确保模态框内容可滚动 */
+    .modal-content {
+        max-height: 85vh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    /* 所有输入框统一优化 */
+    .modal-content input[type="text"],
+    .modal-content input[type="password"],
+    .modal-content input[type="number"],
+    .modal-content input[type="email"],
+    .modal-content textarea,
+    .modal-content select {
+        font-size: 16px !important; /* 防止iOS缩放 */
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        border-radius: 10px;
+        padding: 14px 16px;
+        touch-action: manipulation;
+        -webkit-user-select: text;
+        user-select: text;
+    }
+    
+    .modal-content input:focus,
+    .modal-content textarea:focus,
+    .modal-content select:focus {
+        outline: none;
+        border-color: #667eea;
+    }
+    
+    /* 确保模态框在键盘弹出时可见 */
+    .modal-overlay.show {
+        align-items: flex-start;
+        padding-top: 5vh;
+        overflow-y: auto;
+    }
+    
+    .modal-overlay.show .modal-content {
+        margin-bottom: 30vh; /* 为键盘留出空间 */
+    }
+    
+    /* API Key 模态框特殊处理 */
+    #apiKeyModal .modal-content {
+        margin-top: 10vh;
+    }
+    
+    #apiKeyModal .api-key-input {
+        font-size: 16px !important;
+        padding: 16px;
+        min-height: 50px;
+    }
+}
+
+/* 设置面板输入框修复 */
+.setting-input,
+.settings-input {
+    font-size: 16px !important;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    touch-action: manipulation;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+/* 提示词设置面板输入框 */
+.prompt-textarea,
+.prompt-input,
+.settings-panel input,
+.settings-panel textarea {
+    font-size: 16px !important;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    touch-action: manipulation;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+/* 确保输入框可以获得焦点 */
+input, textarea, select {
+    pointer-events: auto !important;
+}
+
+/* 修复iOS Safari输入框问题 */
+@supports (-webkit-touch-callout: none) {
+    input, textarea, select {
+        font-size: 16px !important;
+    }
+    
+    .modal-content {
+        -webkit-transform: translateZ(0);
+        transform: translateZ(0);
+    }
+}
+

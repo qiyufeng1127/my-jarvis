@@ -781,6 +781,188 @@ document.addEventListener('DOMContentLoaded', () => {
 // 导出
 window.MobileApp = MobileApp;
 
+// 全局函数：显示API Key设置模态框（移动端优化版）
+function showApiKeyModal() {
+    // 移除已存在的模态框
+    const existingModal = document.getElementById('apiKeyModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    const currentKey = typeof Storage !== 'undefined' ? Storage.getApiKey() : '';
+    const maskedKey = currentKey ? currentKey.substring(0, 8) + '...' + currentKey.substring(currentKey.length - 4) : '';
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'apiKeyModal';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width:450px;">
+            <div class="modal-header">
+                <span class="modal-icon">🔑</span>
+                <h2>API Key 设置</h2>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom:16px;color:#666;font-size:14px;">
+                    配置 DeepSeek API Key 以启用 AI 功能
+                </p>
+                ${currentKey ? `
+                    <div style="margin-bottom:16px;padding:12px;background:rgba(39,174,96,0.1);border-radius:8px;border-left:3px solid #27AE60;">
+                        <div style="font-size:12px;color:#27AE60;margin-bottom:4px;">✅ 当前已配置</div>
+                        <div style="font-size:13px;color:#666;font-family:monospace;">${maskedKey}</div>
+                    </div>
+                ` : `
+                    <div style="margin-bottom:16px;padding:12px;background:rgba(231,76,60,0.1);border-radius:8px;border-left:3px solid #E74C3C;">
+                        <div style="font-size:12px;color:#E74C3C;">⚠️ 尚未配置 API Key</div>
+                    </div>
+                `}
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;margin-bottom:8px;font-weight:600;font-size:14px;">
+                        ${currentKey ? '更新 API Key' : '输入 API Key'}
+                    </label>
+                    <input type="text" 
+                           id="apiKeyInput" 
+                           class="api-key-input" 
+                           placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx"
+                           autocomplete="off"
+                           autocorrect="off"
+                           autocapitalize="off"
+                           spellcheck="false"
+                           style="width:100%;padding:14px 16px;font-size:16px;border:2px solid #E0E0E0;border-radius:10px;outline:none;transition:border-color 0.3s;-webkit-appearance:none;appearance:none;">
+                </div>
+                <div style="font-size:12px;color:#888;line-height:1.6;">
+                    💡 获取方式：访问 <a href="https://platform.deepseek.com" target="_blank" style="color:#667eea;">platform.deepseek.com</a> 注册并创建 API Key
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn btn-cancel" id="apiKeyModalCancelBtn">取消</button>
+                <button class="modal-btn btn-confirm" id="apiKeyModalSaveBtn">保存</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // 显示模态框
+    requestAnimationFrame(() => {
+        modal.classList.add('show');
+    });
+    
+    // 获取输入框并设置焦点
+    const input = document.getElementById('apiKeyInput');
+    if (input) {
+        // 延迟聚焦，确保模态框动画完成
+        setTimeout(() => {
+            input.focus();
+            // 移动端需要触发点击才能弹出键盘
+            if (MobileApp.isMobile) {
+                input.click();
+            }
+        }, 300);
+        
+        // 输入框获得焦点时的样式
+        input.addEventListener('focus', function() {
+            this.style.borderColor = '#667eea';
+        });
+        
+        input.addEventListener('blur', function() {
+            this.style.borderColor = '#E0E0E0';
+        });
+        
+        // 回车键保存
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveApiKeyFromModal();
+            }
+        });
+    }
+    
+    // 绑定按钮事件
+    const cancelBtn = document.getElementById('apiKeyModalCancelBtn');
+    const saveBtn = document.getElementById('apiKeyModalSaveBtn');
+    
+    if (cancelBtn) {
+        const handleCancel = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            closeApiKeyModalNew();
+        };
+        cancelBtn.addEventListener('click', handleCancel);
+        cancelBtn.addEventListener('touchend', handleCancel, { passive: false });
+    }
+    
+    if (saveBtn) {
+        const handleSave = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            saveApiKeyFromModal();
+        };
+        saveBtn.addEventListener('click', handleSave);
+        saveBtn.addEventListener('touchend', handleSave, { passive: false });
+    }
+    
+    // 点击遮罩关闭
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            closeApiKeyModalNew();
+        }
+    });
+}
+
+// 关闭API Key模态框
+function closeApiKeyModalNew() {
+    const modal = document.getElementById('apiKeyModal');
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => modal.remove(), 300);
+    }
+}
+
+// 保存API Key
+function saveApiKeyFromModal() {
+    const input = document.getElementById('apiKeyInput');
+    if (!input) return;
+    
+    const key = input.value.trim();
+    if (!key) {
+        if (typeof Settings !== 'undefined') {
+            Settings.showToast('warning', '请输入 API Key', '');
+        }
+        return;
+    }
+    
+    // 验证格式
+    if (!key.startsWith('sk-')) {
+        if (typeof Settings !== 'undefined') {
+            Settings.showToast('warning', '格式错误', 'API Key 应以 sk- 开头');
+        }
+        return;
+    }
+    
+    // 保存
+    if (typeof Storage !== 'undefined') {
+        Storage.setApiKey(key);
+    }
+    
+    closeApiKeyModalNew();
+    
+    if (typeof Settings !== 'undefined') {
+        Settings.showToast('success', 'API Key 已保存', '');
+    }
+    
+    // 检查连接
+    if (typeof App !== 'undefined' && App.checkApiConnection) {
+        App.checkApiConnection().then(function() {
+            if (typeof App.loadSmartInput === 'function') {
+                App.loadSmartInput();
+            }
+        });
+    }
+}
+
+// 确保全局可用
+window.showApiKeyModal = showApiKeyModal;
+
 
 // Override switchView to set data-view attribute for CSS targeting
 (function() {
