@@ -1979,7 +1979,7 @@ const App = {
     },
 
     closeAllMenus() {
-        document.querySelectorAll(".gap-menu, .context-menu, .task-detail-popup, .color-picker-popup").forEach(function(el) {
+        document.querySelectorAll(".gap-menu, .context-menu, .task-detail-popup, .color-picker-popup, .energy-menu, .energy-menu-overlay").forEach(function(el) {
             el.remove();
         });
     },
@@ -4943,4 +4943,90 @@ document.addEventListener("DOMContentLoaded", function() {
 
 
 
+
+
+
+
+// Override showEnergyMenu to add overlay and close button
+App.showEnergyMenu = function(event) {
+    event.stopPropagation();
+    this.closeAllMenus();
+    
+    const state = Storage.getGameState();
+    
+    // Create overlay
+    const overlay = document.createElement("div");
+    overlay.className = "energy-menu-overlay";
+    overlay.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);z-index:9998;";
+    overlay.onclick = function() { App.closeAllMenus(); };
+    document.body.appendChild(overlay);
+    
+    const menu = document.createElement("div");
+    menu.className = "energy-menu";
+    menu.id = "energyMenu";
+    menu.style.zIndex = "9999";
+    menu.innerHTML = 
+        '<div class="energy-menu-header" style="position:relative;">' +
+            '<span class="energy-menu-title">Energy Management</span>' +
+            '<button class="energy-menu-close" onclick="App.closeAllMenus()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.2);border:none;color:white;width:28px;height:28px;border-radius:50%;font-size:18px;cursor:pointer;">x</button>' +
+        '</div>' +
+        '<div class="energy-menu-current-display" style="padding:12px 16px;background:rgba(52,152,219,0.05);">' +
+            '<span style="font-size:12px;color:#888;display:block;margin-bottom:6px;">Current Energy</span>' +
+            '<div style="height:8px;background:#E0E0E0;border-radius:4px;overflow:hidden;margin-bottom:4px;">' +
+                '<div style="height:100%;background:linear-gradient(90deg,#3498DB,#2ECC71);border-radius:4px;width:' + (state.energy / state.maxEnergy * 100) + '%;"></div>' +
+            '</div>' +
+            '<span style="font-size:13px;font-weight:600;color:#3498DB;">' + state.energy + '/' + state.maxEnergy + '</span>' +
+        '</div>' +
+        '<div class="energy-menu-desc">Select activity to restore energy:</div>' +
+        '<div class="energy-menu-item" onclick="App.restoreEnergy(\'medicine\', 8)">' +
+            '<span class="menu-icon">馃拪</span>' +
+            '<span class="menu-text">Take Medicine</span>' +
+            '<span class="menu-effect">+8 鈿?/span>' +
+        '</div>' +
+        '<div class="energy-menu-item" onclick="App.restoreEnergy(\'toilet\', 3)">' +
+            '<span class="menu-icon">馃毥</span>' +
+            '<span class="menu-text">Bathroom</span>' +
+            '<span class="menu-effect">+3 鈿?/span>' +
+        '</div>' +
+        '<div class="energy-menu-item" onclick="App.restoreEnergy(\'eat\', 5)">' +
+            '<span class="menu-icon">馃嵔锔?/span>' +
+            '<span class="menu-text">Eat</span>' +
+            '<span class="menu-effect">+5 鈿?/span>' +
+        '</div>' +
+        '<div class="energy-menu-item" onclick="App.restoreEnergy(\'drink\', 2)">' +
+            '<span class="menu-icon">馃イ</span>' +
+            '<span class="menu-text">Drink Water</span>' +
+            '<span class="menu-effect">+2 鈿?/span>' +
+        '</div>' +
+        '<div class="energy-menu-item" onclick="App.restoreEnergy(\'rest\', 4)">' +
+            '<span class="menu-icon">馃槾</span>' +
+            '<span class="menu-text">Rest</span>' +
+            '<span class="menu-effect">+4 鈿?/span>' +
+        '</div>' +
+        '<div class="energy-menu-item" onclick="App.restoreEnergy(\'walk\', 3)">' +
+            '<span class="menu-icon">馃毝</span>' +
+            '<span class="menu-text">Walk</span>' +
+            '<span class="menu-effect">+3 鈿?/span>' +
+        '</div>' +
+        '<div class="energy-menu-footer">' +
+            '<button class="energy-edit-btn" onclick="App.showEnergySettings()">鈿欙笍 Settings</button>' +
+        '</div>';
+    
+    // Position menu - center on mobile, near button on desktop
+    if (window.innerWidth <= 768) {
+        menu.style.position = 'fixed';
+        menu.style.top = '50%';
+        menu.style.left = '50%';
+        menu.style.transform = 'translate(-50%, -50%)';
+        menu.style.right = 'auto';
+        menu.style.maxWidth = '90vw';
+    } else {
+        const rect = event.target.closest('.header-stat').getBoundingClientRect();
+        menu.style.position = 'fixed';
+        menu.style.top = (rect.bottom + 5) + 'px';
+        menu.style.right = (window.innerWidth - rect.right) + 'px';
+    }
+    
+    document.body.appendChild(menu);
+};
 
