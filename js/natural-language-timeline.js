@@ -91,29 +91,39 @@ const NaturalLanguageTimeline = {
         // 预处理文本
         const cleanText = text.trim();
         
+        console.log('🔍 [NaturalLanguageTimeline] 收到输入:', cleanText);
+        
         // 首先尝试正则匹配
         for (const cmd of this.commandPatterns) {
             const match = cleanText.match(cmd.pattern);
             if (match) {
-                console.log('匹配到指令:', cmd.action, match);
+                console.log('✅ [NaturalLanguageTimeline] 匹配到指令:', cmd.action, match);
                 const result = await this.executeAction(cmd.action, match, cleanText);
-                if (result) return result;
+                if (result) {
+                    console.log('✅ [NaturalLanguageTimeline] 执行结果:', result);
+                    return result;
+                }
             }
         }
+        
+        console.log('🔄 [NaturalLanguageTimeline] 正则未匹配，尝试智能解析...');
         
         // 如果正则没匹配到，尝试智能关键词匹配
         const smartResult = await this.smartParse(cleanText);
         if (smartResult) {
+            console.log('✅ [NaturalLanguageTimeline] 智能解析结果:', smartResult);
             return smartResult;
         }
         
+        console.log('❌ [NaturalLanguageTimeline] 未识别为时间轴控制指令');
         // 没有匹配到，返回null让AI处理
         return null;
     },
     
     // 智能解析（关键词匹配）
     async smartParse(text) {
-        const lowerText = text.toLowerCase();
+        // 中文不需要转小写
+        const lowerText = text;
         
         // 检测删除意图
         if (this.hasDeleteIntent(lowerText)) {
@@ -164,35 +174,82 @@ const NaturalLanguageTimeline = {
     
     // 处理删除意图
     handleDeleteIntent(text) {
+        console.log('🗑️ [handleDeleteIntent] 处理删除意图:', text);
+        
         // 尝试提取任务名称
         const taskName = this.extractTaskName(text);
         if (taskName) {
+            console.log('✅ [handleDeleteIntent] 找到任务名:', taskName);
             return this.deleteTaskByNameDirect(taskName);
         }
         
         // 尝试提取时间
         const timeInfo = this.extractTime(text);
         if (timeInfo && text.includes('之后')) {
+            console.log('✅ [handleDeleteIntent] 删除时间之后的任务:', timeInfo);
             return this.deleteTasksAfterTime(timeInfo.hour, timeInfo.minute);
         }
         
+        console.log('❌ [handleDeleteIntent] 无法提取任务名或时间');
         return null;
     },
     
     // 处理移动意图
     handleMoveIntent(text) {
+        console.log('📅 [handleMoveIntent] 处理移动意图:', text);
+        
         const taskName = this.extractTaskName(text);
         const timeInfo = this.extractTime(text);
+        
+        console.log('📅 [handleMoveIntent] 提取结果 - 任务名:', taskName, '时间:', timeInfo);
         
         if (taskName && timeInfo) {
             return this.moveTaskToTimeDirect(taskName, timeInfo.hour, timeInfo.minute);
         }
         
+        // 如果只有任务名，尝试提取日期
+        if (taskName) {
+            if (text.includes('明天')) {
+                return this.moveTaskToRelativeDateDirect(taskName, 1);
+            }
+            if (text.includes('后天')) {
+                return this.moveTaskToRelativeDateDirect(taskName, 2);
+            }
+        }
+        
+        console.log('❌ [handleMoveIntent] 信息不完整');
         return null;
+    },
+    
+    // 直接移动任务到相对日期
+    moveTaskToRelativeDateDirect(taskName, daysToAdd) {
+        const now = new Date();
+        const targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + daysToAdd);
+        const targetDateStr = this.formatDate(targetDate);
+        const dayName = daysToAdd === 1 ? '明天' : '后天';
+        
+        const tasks = Storage.getTasks();
+        const task = tasks.find(t => t.title.includes(taskName));
+        
+        if (!task) {
+            return { success: false, message: `❌ 找不到任务「${taskName}」` };
+        }
+        
+        Storage.updateTask(task.id, { date: targetDateStr });
+        
+        if (typeof App !== 'undefined') {
+            App.loadTimeline();
+        }
+        
+        return {
+            success: true,
+            message: `✅ 已将「${task.title}」移动到${dayName}`
+        };
     },
     
     // 处理完成意图
     handleCompleteIntent(text) {
+        console.log('✅ [handleCompleteIntent] 处理完成意图:', text);
         const taskName = this.extractTaskName(text);
         if (taskName) {
             return this.completeTaskDirect(taskName);
@@ -202,6 +259,7 @@ const NaturalLanguageTimeline = {
     
     // 处理查询意图
     handleQueryIntent(text) {
+        console.log('🔍 [handleQueryIntent] 处理查询意图:', text);
         if (text.includes('今天')) {
             return this.listTodayTasksDirect();
         }
@@ -211,30 +269,48 @@ const NaturalLanguageTimeline = {
         return this.listTodayTasksDirect();
     },
     
-    // 提取任务名称
+    // 提取任务名称（增强版）
     extractTaskName(text) {
+        console.log('🔍 [extractTaskName] 尝试从文本提取任务名:', text);
+        
         // 尝试从引号中提取
         const quotedMatch = text.match(/[「"'【](.+?)[」"'】]/);
-        if (quotedMatch) return quotedMatch[1];
+        if (quotedMatch) {
+            console.log('✅ [extractTaskName] 从引号提取:', quotedMatch[1]);
+            return quotedMatch[1];
+        }
         
         // 尝试从"把...删除"等模式提取
         const patterns = [
-            /把(.+?)(删除|删掉|取消|移除|移到|调到|改到|完成)/,
-            /(删除|删掉|取消|移除|完成)(.+?)(任务|$)/,
-            /(.+?)(已经)?完成了?$/,
+            { regex: /把(.+?)(删除|删掉|取消|移除|移到|调到|改到|换到|完成)/, group: 1 },
+            { regex: /(删除|删掉|取消|移除)(.+?)$/, group: 2 },
+            { regex: /(删除|删掉|取消|移除)(.+?)(任务)?$/, group: 2 },
+            { regex: /完成(.+?)(任务)?$/, group: 1 },
+            { regex: /(.+?)(已经)?完成了?$/, group: 1 },
+            { regex: /(.+?)(移到|调到|改到|换到)/, group: 1 },
         ];
         
         for (const p of patterns) {
-            const m = text.match(p);
+            const m = text.match(p.regex);
             if (m) {
-                const name = (m[1] || m[2]).trim();
+                const name = m[p.group]?.trim();
                 // 过滤掉常见的无意义词
-                if (name && !['把', '将', '帮我', '请', '今天', '这个', '那个'].includes(name)) {
+                const stopWords = ['把', '将', '帮我', '请', '今天', '这个', '那个', '我要', '我想', '帮忙', ''];
+                if (name && !stopWords.includes(name) && name.length > 0) {
+                    console.log('✅ [extractTaskName] 从模式提取:', name);
                     return name;
                 }
             }
         }
         
+        // 最后尝试：如果文本很短（可能就是任务名本身），直接返回
+        const cleanText = text.replace(/(删除|删掉|取消|移除|完成|把|将|帮我|请)/g, '').trim();
+        if (cleanText.length > 0 && cleanText.length <= 20) {
+            console.log('✅ [extractTaskName] 清理后直接使用:', cleanText);
+            return cleanText;
+        }
+        
+        console.log('❌ [extractTaskName] 未能提取任务名');
         return null;
     },
     

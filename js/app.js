@@ -596,6 +596,19 @@ const App = {
     // 智能输入框
     loadSmartInput() {
         const container = document.getElementById("smartInputBody");
+        
+        // 🔧 修复：保存当前输入框的内容，避免刷新时丢失用户正在输入的内容
+        const existingInput = document.getElementById("chatInput");
+        const savedInputValue = existingInput ? existingInput.value : '';
+        const isInputFocused = existingInput && document.activeElement === existingInput;
+        
+        // 如果用户正在输入（输入框有焦点且有内容），不刷新整个组件
+        if (isInputFocused && savedInputValue.length > 0) {
+            // 只更新头部信息，不重建整个组件
+            this.updateSmartInputHeader();
+            return;
+        }
+        
         const profile = Storage.getUserProfile();
         const state = Storage.getGameState();
         const defaultAvatar = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%23E8F4F8' width='100' height='100'/%3E%3Ctext x='50' y='65' font-size='50' text-anchor='middle'%3E🦊%3C/text%3E%3C/svg%3E";
@@ -645,6 +658,36 @@ const App = {
             App.updateChatBubbleColors();
             App.loadChatMessages();
         }, 10);
+    },
+    
+    // 🔧 新增：只更新头部信息，不重建整个组件（避免输入框内容丢失）
+    updateSmartInputHeader() {
+        const profile = Storage.getUserProfile();
+        const state = Storage.getGameState();
+        
+        // 更新金币显示
+        const coinsEl = document.getElementById('headerCoins');
+        if (coinsEl) {
+            coinsEl.textContent = state.coins;
+        }
+        
+        // 更新在线状态
+        const statusEl = document.querySelector('.online-status');
+        if (statusEl) {
+            statusEl.className = 'online-status ' + (this.isConnected ? 'connected' : 'disconnected');
+        }
+        
+        // 更新用户名
+        const userNameEl = document.querySelector('.user-info h3');
+        if (userNameEl) {
+            userNameEl.textContent = profile.name;
+        }
+        
+        // 更新连接状态文字
+        const statusTextEl = document.querySelector('.user-info span');
+        if (statusTextEl) {
+            statusTextEl.textContent = this.isConnected ? '🤖 KiiKii 在线' : '未连接AI';
+        }
     },
     
     // 快捷回复
