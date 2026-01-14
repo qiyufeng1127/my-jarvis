@@ -2808,62 +2808,52 @@ const App = {
         const container = document.getElementById("promptPanelBody");
         const prompts = Storage.getPrompts();
         
-        // 截取提示词的前100个字符用于显示
-        var taskParseShort = prompts.taskParse.substring(0, 150) + '...';
-        var taskBreakdownShort = prompts.taskBreakdown.substring(0, 150) + '...';
-        var gapSuggestionShort = prompts.gapSuggestion.substring(0, 150) + '...';
-        var emotionAnalysisShort = prompts.emotionAnalysis.substring(0, 150) + '...';
-        var coinAllocationShort = (prompts.coinAllocation || '').substring(0, 150) + '...';
-        
-        // 自然语言指令示例
-        var nlCommandsHtml = 
-            '<div class="prompt-section nl-commands-section">' +
-                '<div class="prompt-label">🗣️ 自然语言指挥时间轴</div>' +
-                '<div class="nl-commands-panel">' +
-                    '<div class="nl-commands-intro">直接在对话框输入以下指令，即可操控时间轴：</div>' +
-                    '<div class="nl-commands-grid">' +
-                        '<div class="nl-command-group">' +
-                            '<div class="nl-command-category">📅 移动任务</div>' +
-                            '<div class="nl-command-example" onclick="App.useNLCommand(\'把15号的所有任务移到14号\')">把15号的所有任务移到14号</div>' +
-                            '<div class="nl-command-example" onclick="App.useNLCommand(\'把洗澡移到3点\')">把洗澡移到3点</div>' +
-                        '</div>' +
-                        '<div class="nl-command-group">' +
-                            '<div class="nl-command-category">🗑️ 批量删除</div>' +
-                            '<div class="nl-command-example" onclick="App.useNLCommand(\'把今天下午2点之后的任务全部删掉\')">把今天下午2点之后的任务全部删掉</div>' +
-                            '<div class="nl-command-example" onclick="App.useNLCommand(\'清空20号的所有任务\')">清空20号的所有任务</div>' +
-                        '</div>' +
-                        '<div class="nl-command-group">' +
-                            '<div class="nl-command-category">⚡ 智能调整</div>' +
-                            '<div class="nl-command-example" onclick="App.useNLCommand(\'把所有时间重叠的任务自动分开\')">把所有时间重叠的任务自动分开</div>' +
-                            '<div class="nl-command-example" onclick="App.useNLCommand(\'优化今天的时间安排\')">优化今天的时间安排</div>' +
-                        '</div>' +
-                        '<div class="nl-command-group">' +
-                            '<div class="nl-command-category">➕ 插入顺延</div>' +
-                            '<div class="nl-command-example" onclick="App.useNLCommand(\'在下午2点帮我加一个写报告的任务，把后面的任务都往后顺延\')">在下午2点加写报告，后面顺延</div>' +
-                            '<div class="nl-command-example" onclick="App.useNLCommand(\'3点加一个开会\')">3点加一个开会</div>' +
-                        '</div>' +
-                        '<div class="nl-command-group">' +
-                            '<div class="nl-command-category">⏰ 批量调整</div>' +
-                            '<div class="nl-command-example" onclick="App.useNLCommand(\'把今天所有任务都延后30分钟\')">把今天所有任务都延后30分钟</div>' +
-                            '<div class="nl-command-example" onclick="App.useNLCommand(\'把今天所有任务都提前1小时\')">把今天所有任务都提前1小时</div>' +
-                        '</div>' +
-                        '<div class="nl-command-group">' +
-                            '<div class="nl-command-category">📋 复制交换</div>' +
-                            '<div class="nl-command-example" onclick="App.useNLCommand(\'把今天的任务复制到20号\')">把今天的任务复制到20号</div>' +
-                            '<div class="nl-command-example" onclick="App.useNLCommand(\'交换洗澡和吃饭的时间\')">交换洗澡和吃饭的时间</div>' +
-                        '</div>' +
-                        '<div class="nl-command-group">' +
-                            '<div class="nl-command-category">📊 查询统计</div>' +
-                            '<div class="nl-command-example" onclick="App.useNLCommand(\'今天还有多少任务\')">今天还有多少任务</div>' +
-                            '<div class="nl-command-example" onclick="App.useNLCommand(\'15号有什么任务\')">15号有什么任务</div>' +
+        container.innerHTML = 
+            '<div class="prompt-container">' +
+                // 语言操控时间轴提示词（置顶，可编辑）
+                '<div class="prompt-section timeline-control-section">' +
+                    '<div class="prompt-label">🗣️ 语言操控时间轴</div>' +
+                    '<div class="prompt-description">直接在对话框用自然语言控制时间轴，支持添加、删除、移动、顺延任务等操作</div>' +
+                    '<textarea class="prompt-textarea timeline-control-textarea" id="promptTimelineControl" onchange="App.savePrompt(\'timelineControl\', this.value)">' + (prompts.timelineControl || '') + '</textarea>' +
+                    '<div class="prompt-preset">' +
+                        '<span class="preset-tag" onclick="App.resetPrompt(\'timelineControl\')">重置默认</span>' +
+                        '<span class="preset-tag example-tag" onclick="App.toggleTimelineExamples()">📋 查看示例指令</span>' +
+                    '</div>' +
+                    '<div class="timeline-examples-panel" id="timelineExamplesPanel" style="display:none;">' +
+                        '<div class="examples-grid">' +
+                            '<div class="example-group">' +
+                                '<div class="example-category">➕ 添加任务</div>' +
+                                '<div class="example-item" onclick="App.useNLCommand(\'下午3点去健身房锻炼1小时\')">下午3点去健身房锻炼1小时</div>' +
+                                '<div class="example-item" onclick="App.useNLCommand(\'明天上午10点开会\')">明天上午10点开会</div>' +
+                            '</div>' +
+                            '<div class="example-group">' +
+                                '<div class="example-category">🗑️ 删除任务</div>' +
+                                '<div class="example-item" onclick="App.useNLCommand(\'把今天下午2点之后的任务全部删掉\')">把今天下午2点之后的任务全部删掉</div>' +
+                                '<div class="example-item" onclick="App.useNLCommand(\'删除明天所有任务\')">删除明天所有任务</div>' +
+                            '</div>' +
+                            '<div class="example-group">' +
+                                '<div class="example-category">📅 移动任务</div>' +
+                                '<div class="example-item" onclick="App.useNLCommand(\'把3点的会议改到4点半\')">把3点的会议改到4点半</div>' +
+                                '<div class="example-item" onclick="App.useNLCommand(\'把洗澡移到晚上9点\')">把洗澡移到晚上9点</div>' +
+                            '</div>' +
+                            '<div class="example-group">' +
+                                '<div class="example-category">⏰ 顺延任务</div>' +
+                                '<div class="example-item" onclick="App.useNLCommand(\'2点之后的所有任务都顺延1小时\')">2点之后的所有任务都顺延1小时</div>' +
+                                '<div class="example-item" onclick="App.useNLCommand(\'把今天所有任务都延后30分钟\')">把今天所有任务都延后30分钟</div>' +
+                            '</div>' +
+                            '<div class="example-group">' +
+                                '<div class="example-category">➕ 插入并顺延</div>' +
+                                '<div class="example-item" onclick="App.useNLCommand(\'在下午2点和3点之间加一个15分钟的休息\')">在2点和3点之间加15分钟休息</div>' +
+                                '<div class="example-item" onclick="App.useNLCommand(\'在3点插入一个开会，后面的任务顺延\')">在3点插入开会，后面顺延</div>' +
+                            '</div>' +
+                            '<div class="example-group">' +
+                                '<div class="example-category">⚡ 解决冲突</div>' +
+                                '<div class="example-item" onclick="App.useNLCommand(\'把所有时间重叠的任务自动分开\')">把所有时间重叠的任务自动分开</div>' +
+                                '<div class="example-item" onclick="App.useNLCommand(\'优化今天的时间安排\')">优化今天的时间安排</div>' +
+                            '</div>' +
                         '</div>' +
                     '</div>' +
                 '</div>' +
-            '</div>';
-        
-        container.innerHTML = 
-            '<div class="prompt-container">' +
-                nlCommandsHtml +
                 '<div class="prompt-section">' +
                     '<div class="prompt-label">🎯 自然语言解析（多任务+情绪）</div>' +
                     '<textarea class="prompt-textarea" id="promptTaskParse" onchange="App.savePrompt(\'taskParse\', this.value)">' + prompts.taskParse + '</textarea>' +
@@ -2903,6 +2893,14 @@ const App = {
         
         // 重新应用背景色
         setTimeout(function() { Canvas.reapplyBackground('promptPanel'); }, 10);
+    },
+    
+    // 切换时间轴示例面板显示
+    toggleTimelineExamples() {
+        const panel = document.getElementById('timelineExamplesPanel');
+        if (panel) {
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        }
     },
     
     // 使用自然语言指令
