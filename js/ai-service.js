@@ -111,6 +111,22 @@ const AIService = {
 你是用户的专属AI秘书${secretaryName}，要用温暖、亲切的语气回应。
 根据用户的个人信息，给出个性化的回应和建议。
 
+【重要：智能时长估算规则】
+创建任务时，必须根据任务描述进行合理的时长估算，遵循以下规则：
+- 洗漱/换衣服/取快递 -> 5-10分钟
+- 洗澡/吃早餐 -> 15-25分钟
+- 打扫/整理房间 -> 15-30分钟
+- 吃饭/用餐 -> 30-45分钟
+- 出门吃饭 -> 45-60分钟
+- 运动/健身 -> 30-60分钟
+- 常规工作/学习 -> 60-120分钟
+- 和朋友聚餐/喝酒 -> 120-180分钟
+- "准备睡觉"/"上楼睡觉" -> 这是准备动作，只需5-15分钟，不是睡眠本身！
+- 绝对不要出现超过4小时(240分钟)的单个任务
+
+【重要：不自动拆解任务】
+创建任务时，绝不自动生成子任务(substeps/steps)。子任务拆解功能完全由用户手动点击"AI拆解"按钮触发。
+
 【上下文理解增强】
 1. 如果用户说"那个"、"这个"等指代词，请根据"最近提到的任务"推断具体指什么
 2. 如果用户只说时间（如"明天"、"下午"）没说具体几点，请根据"用户高效时间段"安排
@@ -134,17 +150,32 @@ const AIService = {
                 
                 // 处理多任务情况
                 if (result.tasks && result.tasks.length > 0) {
-                    // 为每个任务计算结束时间
+                    // 为每个任务计算结束时间和智能时长
                     result.tasks.forEach(function(task) {
+                        // 智能时长估算：如果AI没有给出合理时长，使用本地估算
+                        if (!task.duration || task.duration > 480) {
+                            // 使用智能时长估算
+                            const estimatedDuration = AIService.estimateTaskDuration(task.title, task.notes);
+                            task.duration = estimatedDuration;
+                        }
+                        
+                        // 计算结束时间
                         if (task.startTime && task.duration) {
                             task.endTime = AIService.addMinutesToTime(task.startTime, task.duration);
                         }
+                        
                         // 确保有默认值
-                        task.coins = task.coins || 5;
-                        task.energyCost = task.energyCost || 2;
+                        task.coins = task.coins || Math.max(3, Math.round(task.duration / 10));
+                        task.energyCost = task.energyCost || Math.max(1, Math.round(task.duration / 30));
                         task.tags = task.tags || [task.type || '任务'];
+                        
                         // 确保有价值估算
                         task.value = task.value || AIService.estimateTaskValue(task);
+                        
+                        // 重要：不自动生成子任务，子任务拆解由用户手动点击"AI拆解"按钮触发
+                        // 删除AI可能自动生成的子任务
+                        delete task.substeps;
+                        delete task.steps;
                         
                         // 智能推荐步数验证
                         if (!task.verificationType) {
@@ -264,6 +295,110 @@ const AIService = {
         
         // 默认估算
         return Math.round(duration * 1.5);
+    },
+    
+    // 智能估算任务时长（基于任务类型和关键词）
+    estimateTaskDuration(title, notes = '') {
+        const text = (title + ' ' + (notes || '')).toLowerCase();
+        
+        // 快速任务（5-15分钟）
+        const quickTasks = [
+            { keywords: ['洗漱', '刷牙', '洗脸', '漱口'], duration: 10 },
+            { keywords: ['换衣服', '换衣', '穿衣'], duration: 5 },
+            { keywords: ['取快递', '拿快递', '收快递'], duration: 10 },
+            { keywords: ['倒垃圾', '扔垃圾'], duration: 5 },
+            { keywords: ['喝水', '喝咖啡', '泡茶'], duration: 5 },
+            { keywords: ['上厕所', '去厕所', '上洗手间'], duration: 5 },
+            { keywords: ['准备', '准备一下', '收拾一下'], duration: 10 },
+            { keywords: ['上楼', '下楼', '回房间'], duration: 5 },
+        ];
+        
+        // 短任务（15-30分钟）
+        const shortTasks = [
+            { keywords: ['洗澡', '冲澡', '淋浴'], duration: 20 },
+            { keywords: ['吃早餐', '早饭', '早餐'], duration: 20 },
+            { keywords: ['打扫', '扫地', '拖地', '吸尘'], duration: 20 },
+            { keywords: ['整理', '收拾房间', '整理房间'], duration: 25 },
+            { keywords: ['洗碗', '刷碗'], duration: 15 },
+            { keywords: ['洗衣服', '洗衣', '晾衣服'], duration: 20 },
+            { keywords: ['化妆', '护肤'], duration: 20 },
+            { keywords: ['遛狗', '遛弯'], duration: 20 },
+        ];
+        
+        // 中等任务（30-60分钟）
+        const mediumTasks = [
+            { keywords: ['吃饭', '午饭', '晚饭', '午餐', '晚餐', '用餐'], duration: 40 },
+            { keywords: ['出门吃饭', '外出吃饭'], duration: 60 },
+            { keywords: ['做饭', '做菜', '烧饭', '煮饭'], duration: 45 },
+            { keywords: ['运动', '健身', '锻炼', '跑步'], duration: 45 },
+            { keywords: ['购物', '买东西', '超市'], duration: 45 },
+            { keywords: ['开会', '会议', '电话会议'], duration: 60 },
+            { keywords: ['看书', '阅读', '读书'], duration: 45 },
+        ];
+        
+        // 长任务（1-2小时）
+        const longTasks = [
+            { keywords: ['工作', '办公', '处理工作'], duration: 120 },
+            { keywords: ['学习', '上课', '培训'], duration: 90 },
+            { keywords: ['写报告', '写文档', '写方案'], duration: 90 },
+            { keywords: ['摄影', '拍照', '拍摄'], duration: 120 },
+            { keywords: ['插画', '画画', '绑画'], duration: 90 },
+            { keywords: ['运营', '发布内容', '小红书'], duration: 60 },
+            { keywords: ['修图', '后期', 'P图'], duration: 90 },
+        ];
+        
+        // 社交/娱乐任务（2-4小时）
+        const socialTasks = [
+            { keywords: ['聚餐', '朋友聚餐', '聚会'], duration: 150 },
+            { keywords: ['喝酒', '喝一杯', '小酌'], duration: 120 },
+            { keywords: ['看电影', '电影'], duration: 150 },
+            { keywords: ['逛街', '购物中心', '商场'], duration: 180 },
+            { keywords: ['约会', '见面'], duration: 120 },
+        ];
+        
+        // 特殊处理：睡觉相关
+        if (text.includes('睡觉') || text.includes('睡眠') || text.includes('休息')) {
+            // 如果是"准备睡觉"、"上楼睡觉"等准备动作
+            if (text.includes('准备') || text.includes('上楼') || text.includes('回房')) {
+                return 15; // 准备动作只需15分钟
+            }
+            // 如果是午休/小憩
+            if (text.includes('午休') || text.includes('小憩') || text.includes('眯一会')) {
+                return 30;
+            }
+            // 真正的睡眠不应该作为任务，返回合理的准备时间
+            return 15;
+        }
+        
+        // 检查各类任务
+        const allTaskTypes = [
+            ...quickTasks,
+            ...shortTasks,
+            ...mediumTasks,
+            ...longTasks,
+            ...socialTasks
+        ];
+        
+        for (const taskType of allTaskTypes) {
+            for (const keyword of taskType.keywords) {
+                if (text.includes(keyword)) {
+                    return taskType.duration;
+                }
+            }
+        }
+        
+        // 检查用户是否在描述中指定了时长
+        const durationMatch = text.match(/(\d+)\s*(小时|h|hour)/i);
+        if (durationMatch) {
+            return parseInt(durationMatch[1]) * 60;
+        }
+        const minuteMatch = text.match(/(\d+)\s*(分钟|min|分)/i);
+        if (minuteMatch) {
+            return parseInt(minuteMatch[1]);
+        }
+        
+        // 默认30分钟
+        return 30;
     },
 
     // 任务拆解（增强版）

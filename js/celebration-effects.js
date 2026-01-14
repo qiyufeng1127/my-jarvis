@@ -256,6 +256,37 @@ const CelebrationEffects = {
         setTimeout(() => toast.remove(), 2000);
     },
     
+    // 播放子任务完成音效（轻快的叮咚声）
+    playSubtaskCompleteSound() {
+        this.ensureAudioContext();
+        if (!this.audioContext) return;
+        
+        try {
+            const now = this.audioContext.currentTime;
+            
+            // 轻快的两音符
+            const playNote = (freq, startTime, duration) => {
+                const osc = this.audioContext.createOscillator();
+                const gain = this.audioContext.createGain();
+                osc.connect(gain);
+                gain.connect(this.audioContext.destination);
+                osc.frequency.value = freq;
+                osc.type = 'sine';
+                gain.gain.setValueAtTime(0.15, startTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+                osc.start(startTime);
+                osc.stop(startTime + duration);
+            };
+            
+            // 简单的两音符叮咚
+            playNote(880, now, 0.1);       // A5
+            playNote(1047, now + 0.1, 0.15); // C6
+            
+        } catch (e) {
+            console.warn('播放子任务完成音效失败:', e);
+        }
+    },
+    
     // ==================== 工具方法 ====================
     
     // 获取或创建动画容器

@@ -1214,6 +1214,219 @@ const App = {
         localStorage.setItem('calendarCollapsed', !isCollapsed);
         this.loadTimeline();
     },
+    
+    // 切换子任务列表展开/折叠
+    toggleSubsteps(event, taskId) {
+        event.stopPropagation();
+        const substepsContainer = document.getElementById('substeps_' + taskId);
+        const toggleBtn = event.currentTarget;
+        
+        if (substepsContainer) {
+            substepsContainer.classList.toggle('collapsed');
+            // 更新按钮图标
+            if (substepsContainer.classList.contains('collapsed')) {
+                toggleBtn.innerHTML = toggleBtn.innerHTML.replace('▼', '▶');
+            } else {
+                toggleBtn.innerHTML = toggleBtn.innerHTML.replace('▶', '▼');
+            }
+        }
+    },
+    
+    // 显示时间编辑器弹窗
+    showTimeEditor(event, taskId) {
+        event.stopPropagation();
+        this.closeAllMenus();
+        
+        const tasks = Storage.getTasks();
+        const task = tasks.find(t => t.id === taskId);
+        if (!task) return;
+        
+        const endTime = task.endTime || this.addMinutes(task.startTime, task.duration || 30);
+        const duration = task.duration || this.getMinutesDiff(task.startTime, endTime);
+        
+        const popup = document.createElement('div');
+        popup.className = 'time-editor-popup';
+        popup.innerHTML = `
+            <div class="time-editor-header">
+                <span class="time-editor-title">⏰ 编辑时间</span>
+                <button class="time-editor-close" onclick="App.closeAllMenus()">×</button>
+            </div>
+            <div class="time-editor-body">
+                <div class="time-editor-row">
+                    <label>开始时间</label>
+                    <input type="time" id="editStartTime" value="${task.startTime}" onchange="App.updateTaskTimePreview('${taskId}')">
+                </div>
+                <div class="time-editor-row">
+                    <label>持续时间</label>
+                    <div class="duration-input-group">
+                        <input type="number" id="editDuration" value="${duration}" min="5" max="480" onchange="App.updateTaskTimePreview('${taskId}')">
+                        <span class="duration-unit">分钟</span>
+                    </div>
+                </div>
+                <div class="time-editor-row">
+                    <label>结束时间</label>
+                    <input type="time" id="editEndTime" value="${endTime}" onchange="App.updateTaskDurationFromEnd('${taskId}')">
+                </div>
+                <div class="time-editor-quick-durations">
+                    <span class="quick-duration-label">快速设置：</span>
+                    <button class="quick-duration-btn" onclick="App.setQuickDuration('${taskId}', 15)">15分</button>
+                    <button class="quick-duration-btn" onclick="App.setQuickDuration('${taskId}', 30)">30分</button>
+                    <button class="quick-duration-btn" onclick="App.setQuickDuration('${taskId}', 60)">1小时</button>
+                    <button class="quick-duration-btn" onclick="App.setQuickDuration('${taskId}', 120)">2小时</button>
+                </div>
+            </div>
+            <div class="time-editor-footer">
+                <button class="time-editor-btn cancel" onclick="App.closeAllMenus()">取消</button>
+                <button class="time-editor-btn confirm" onclick="App.saveTaskTime('${taskId}')">保存</button>
+            </div>
+        `;
+        
+        // 定位弹窗
+        const rect = event.target.getBoundingClientRect();
+        popup.style.position = 'fixed';
+        popup.style.left = Math.min(rect.left, window.innerWidth - 280) + 'px';
+        popup.style.top = Math.min(rect.bottom + 5, window.innerHeight - 300) + 'px';
+        popup.style.zIndex = '10000';
+        
+        document.body.appendChild(popup);
+    },
+    
+    // 更新时间预览（当开始时间或持续时间改变时）
+    updateTaskTimePreview(taskId) {
+        const startTime = document.getElementById('editStartTime').value;
+        const duration = parseInt(document.getElementById('editDuration').value) || 30;
+        const endTimeInput = document.getElementById('editEndTime');
+        
+        if (startTime && duration) {
+            endTimeInput.value = this.addMinutes(startTime, duration);
+        }
+    },
+    
+    // 从结束时间更新持续时间
+    updateTaskDurationFromEnd(taskId) {
+        const startTime = document.getElementById('editStartTime').value;
+        const endTime = document.getElementById('editEndTime').value;
+        const durationInput = document.getElementById('editDuration');
+        
+        if (startTime && endTime) {
+            const duration = this.getMinutesDiff(startTime, endTime);
+            if (duration > 0) {
+                durationInput.value = duration;
+            }
+        }
+    },
+    
+    // 快速设置持续时间
+    setQuickDuration(taskId, minutes) {
+        document.getElementById('editDuration').value = minutes;
+        this.updateTaskTimePreview(taskId);
+    },
+    
+    // 保存任务时间
+    saveTaskTime(taskId) {
+        const startTime = document.getElementById('editStartTime').value;
+        const duration = parseInt(document.getElementById('editDuration').value) || 30;
+        const endTime = document.getElementById('editEndTime').value;
+        
+        if (startTime && duration > 0) {
+            Storage.updateTask(taskId, {
+                startTime: startTime,
+                duration: duration,
+                endTime: endTime
+            });
+            
+            this.closeAllMenus();
+            this.loadTimeline();
+            this.addChatMessage("system", "✅ 任务时间已更新", "⏰");
+        }
+    },
+    
+    // 任务拖拽开始
+    onTaskDragStart(event, taskId) {
+        event.dataTransfer.setData('text/plain', taskId);
+        event.dataTransfer.effectAllowed = 'move';
+        event.target.classList.add('dragging');
+        
+        // 存储拖拽的任务ID
+        this._draggingTaskId = taskId;
+        
+        // 显示拖放提示
+        this.showDragDropHints();
+    },
+    
+    // 任务拖拽结束
+    onTaskDragEnd(event) {
+        event.target.classList.remove('dragging');
+        this._draggingTaskId = null;
+        
+        // 隐藏拖放提示
+        this.hideDragDropHints();
+    },
+    
+    // 显示拖放提示
+    showDragDropHints() {
+        const timeSlots = document.querySelectorAll('.time-slot');
+        timeSlots.forEach(slot => {
+            slot.classList.add('drop-target');
+            slot.addEventListener('dragover', this.onTimeSlotDragOver);
+            slot.addEventListener('drop', this.onTimeSlotDrop.bind(this));
+            slot.addEventListener('dragleave', this.onTimeSlotDragLeave);
+        });
+    },
+    
+    // 隐藏拖放提示
+    hideDragDropHints() {
+        const timeSlots = document.querySelectorAll('.time-slot');
+        timeSlots.forEach(slot => {
+            slot.classList.remove('drop-target', 'drag-over');
+            slot.removeEventListener('dragover', this.onTimeSlotDragOver);
+            slot.removeEventListener('drop', this.onTimeSlotDrop);
+            slot.removeEventListener('dragleave', this.onTimeSlotDragLeave);
+        });
+    },
+    
+    // 时间槽拖拽悬停
+    onTimeSlotDragOver(event) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        event.currentTarget.classList.add('drag-over');
+    },
+    
+    // 时间槽拖拽离开
+    onTimeSlotDragLeave(event) {
+        event.currentTarget.classList.remove('drag-over');
+    },
+    
+    // 时间槽放置
+    onTimeSlotDrop(event) {
+        event.preventDefault();
+        event.currentTarget.classList.remove('drag-over');
+        
+        const taskId = event.dataTransfer.getData('text/plain');
+        if (!taskId) return;
+        
+        // 获取目标时间槽的时间
+        const slot = event.currentTarget;
+        const hour = slot.dataset.hour;
+        const minutes = slot.dataset.minutes || '00';
+        const newStartTime = hour.padStart(2, '0') + ':' + minutes.padStart(2, '0');
+        
+        // 更新任务时间
+        const tasks = Storage.getTasks();
+        const task = tasks.find(t => t.id === taskId);
+        if (task) {
+            const duration = task.duration || 30;
+            const newEndTime = this.addMinutes(newStartTime, duration);
+            
+            Storage.updateTask(taskId, {
+                startTime: newStartTime,
+                endTime: newEndTime
+            });
+            
+            this.loadTimeline();
+            this.addChatMessage("system", `✅ 已将「${task.title}」移动到 ${newStartTime}`, "🔄");
+        }
+    },
 
     // 生成当周日历HTML
     generateWeekCalendarHtml() {
@@ -1469,10 +1682,11 @@ const App = {
         // 按钮背景色 - 与卡片背景色一致（透明）
         var btnStyle = 'background: transparent; color: ' + cardText + ';';
         
-        // 子步骤HTML（AI拆解后直接显示，不需要展开）
+        // 子步骤HTML（默认折叠，点击展开按钮才显示）
         var substepsHtml = '';
-        if (task.substeps && task.substeps.length > 0) {
-            substepsHtml = '<div class="event-substeps">';
+        var hasSubsteps = task.substeps && task.substeps.length > 0;
+        if (hasSubsteps) {
+            substepsHtml = '<div class="event-substeps collapsed" id="substeps_' + task.id + '">';
             for (var j = 0; j < task.substeps.length; j++) {
                 var step = task.substeps[j];
                 var checkedClass = step.completed ? ' checked' : '';
@@ -1485,11 +1699,17 @@ const App = {
             substepsHtml += '</div>';
         }
         
-        return quickCompleteCircle + '<div class="event-card' + completedClass + '" data-task-id="' + task.id + '" style="' + cardStyle + '" onclick="App.toggleEventDetails(event, \'' + task.id + '\')">' +
+        // 子任务展开按钮（仅当有子任务时显示）
+        var substepsToggleBtn = hasSubsteps ? 
+            '<button class="event-substeps-toggle" style="' + btnStyle + '" onclick="App.toggleSubsteps(event, \'' + task.id + '\')" title="展开/收起子任务">' +
+                '<span class="substeps-count">' + task.substeps.length + '</span>▶' +
+            '</button>' : '';
+        
+        return quickCompleteCircle + '<div class="event-card' + completedClass + '" data-task-id="' + task.id + '" draggable="true" ondragstart="App.onTaskDragStart(event, \'' + task.id + '\')" ondragend="App.onTaskDragEnd(event)" style="' + cardStyle + '" onclick="App.toggleEventDetails(event, \'' + task.id + '\')">' +
                    '<div class="event-icon">' + icon + '</div>' +
                    '<div class="event-content">' +
                        '<div class="event-title" style="color:' + cardText + ';">' + task.title + coinBadgeHtml + stepBadgeHtml + '</div>' +
-                       '<div class="event-time" style="color:' + cardText + ';">' + task.startTime + ' - ' + endTime + ' (' + duration + ' min)</div>' +
+                       '<div class="event-time" style="color:' + cardText + ';" onclick="App.showTimeEditor(event, \'' + task.id + '\')" title="点击编辑时间">' + task.startTime + ' - ' + endTime + ' <span class="duration-badge">(' + duration + 'min)</span></div>' +
                        locationHtml +
                        tagsHtml +
                        substepsHtml +
@@ -1513,6 +1733,7 @@ const App = {
                            '</div>' +
                        '</div>' +
                    '</div>' +
+                   substepsToggleBtn +
                    '<button class="event-color-btn" style="' + btnStyle + '" onclick="App.showCardColorPicker(event, \'' + task.id + '\')" title="换颜色">🎨</button>' +
                    '<button class="event-ai-btn" style="' + btnStyle + '" onclick="App.aiBreakdownTask(\'' + task.id + '\')" title="AI拆解">🔧</button>' +
                    '<button class="event-expand-btn" style="' + btnStyle + '" onclick="App.toggleEventDetails(event, \'' + task.id + '\')">▼</button>' +
@@ -1526,8 +1747,26 @@ const App = {
         const task = tasks.find(function(t) { return t.id === taskId; });
         if (!task || !task.substeps || !task.substeps[stepIndex]) return;
         
-        task.substeps[stepIndex].completed = !task.substeps[stepIndex].completed;
+        const wasCompleted = task.substeps[stepIndex].completed;
+        task.substeps[stepIndex].completed = !wasCompleted;
         Storage.updateTask(taskId, { substeps: task.substeps });
+        
+        // 如果子任务被标记为完成，触发子任务完成事件 - 通知监控系统
+        if (!wasCompleted) {
+            // 触发子任务完成事件
+            document.dispatchEvent(new CustomEvent('subtaskCompleted', { 
+                detail: { taskId: taskId, subtaskIndex: stepIndex, task: task } 
+            }));
+            
+            // 触发价值收入
+            this.onStepComplete(task, stepIndex);
+            
+            // 播放小庆祝音效
+            if (typeof CelebrationEffects !== 'undefined') {
+                CelebrationEffects.playSubtaskCompleteSound();
+            }
+        }
+        
         this.loadTimeline();
     },
     
@@ -2197,6 +2436,11 @@ const App = {
         
         Storage.saveGameState(state);
         
+        // 触发任务完成事件 - 通知监控系统立即终止
+        document.dispatchEvent(new CustomEvent('taskCompleted', { 
+            detail: { taskId: taskId, task: task } 
+        }));
+        
         // 触发庆祝效果（撒彩带 + 音效）
         if (triggerCelebration && typeof CelebrationEffects !== 'undefined') {
             CelebrationEffects.triggerTaskComplete(task);
@@ -2204,13 +2448,9 @@ const App = {
             this.showCoinAnimation(coinsEarned);
         }
         
-        // 语音播报
+        // 语音播报（仅在语音助手开启时播报完成庆祝）
         if (typeof VoiceAssistant !== 'undefined' && VoiceAssistant.isEnabled) {
             VoiceAssistant.speak('太棒了！' + task.title + '已完成！');
-            // 播报下一个任务
-            setTimeout(() => {
-                VoiceAssistant.announceNextTask();
-            }, 2000);
         }
         
         // 触发价值显化器

@@ -69,9 +69,145 @@ const ProcrastinationMonitor = {
         // 初始化语音合成
         this.initSpeechSynthesis();
         
+        // 监听任务完成事件 - 即时响应
+        this.setupTaskCompletionListener();
+        
         // 启动自动监控
         if (this.settings.enabled) {
             this.startAutoMonitor();
+        }
+    },
+    
+    // 设置任务完成事件监听器 - 即时响应监控系统
+    setupTaskCompletionListener() {
+        const self = this;
+        
+        // 监听自定义任务完成事件
+        document.addEventListener('taskCompleted', function(e) {
+            const taskId = e.detail && e.detail.taskId;
+            self.onTaskOrSubtaskCompleted(taskId, 'task');
+        });
+        
+        // 监听子任务完成事件
+        document.addEventListener('subtaskCompleted', function(e) {
+            const taskId = e.detail && e.detail.taskId;
+            const subtaskIndex = e.detail && e.detail.subtaskIndex;
+            self.onTaskOrSubtaskCompleted(taskId, 'subtask', subtaskIndex);
+        });
+        
+        console.log('任务完成事件监听器已设置');
+    },
+    
+    // 当任务或子任务完成时的处理 - 即时终止监控
+    onTaskOrSubtaskCompleted(taskId, type, subtaskIndex) {
+        // 检查是否是当前正在监控的任务
+        if (!this.currentTask) return;
+        
+        if (this.currentTask.id === taskId) {
+            console.log('检测到任务/子任务完成，立即终止监控:', type, taskId);
+            
+            // 立即终止监控并给予奖励
+            this.immediateCompleteWithReward(type, subtaskIndex);
+        }
+    },
+    
+    // 立即完成并给予奖励（被任务完成事件触发）
+    immediateCompleteWithReward(completionType, subtaskIndex) {
+        if (!this.currentTask) return;
+        
+        // 停止倒计时
+        if (this.countdownTimer) {
+            clearInterval(this.countdownTimer);
+            this.countdownTimer = null;
+        }
+        
+        // 停止语音循环
+        this.stopVoiceLoop();
+        
+        const task = this.currentTask;
+        
+        // 计算奖励金币（根据完成速度）
+        let rewardCoins = this.settings.successReward;
+        let bonusMessage = '';
+        
+        // 如果在宽限期内完成，额外奖励
+        if (!this.isAlertActive && this.currentCycle === 1) {
+            if (this.elapsedSeconds < 30) {
+                rewardCoins += 2; // 30秒内完成额外奖励
+                bonusMessage = '⚡ 闪电速度！额外+2金币！';
+            } else if (this.elapsedSeconds < 60) {
+                rewardCoins += 1; // 1分钟内完成额外奖励
+                bonusMessage = '🚀 快速启动！额外+1金币！';
+            }
+        }
+        
+        // 如果之前扣过金币，返还部分
+        let refundCoins = 0;
+        if (this.totalPaidCoins > 0) {
+            refundCoins = Math.floor(this.totalPaidCoins * 0.3); // 返还30%
+            rewardCoins += refundCoins;
+        }
+        
+        // 添加金币
+        const state = Storage.getGameState();
+        state.coins += rewardCoins;
+        Storage.saveGameState(state);
+        
+        // 播放成功音效和金币动画
+        this.playSound(this.settings.successSound);
+        
+        if (typeof CelebrationEffects !== 'undefined') {
+            CelebrationEffects.showCoinAnimation(rewardCoins);
+            CelebrationEffects.playCoinSound();
+        } else if (typeof App !== 'undefined') {
+            App.showCoinAnimation(rewardCoins);
+        }
+        
+        // 构建消息
+        let message = '';
+        if (completionType === 'subtask') {
+            message = `✅ 子任务完成！监控已自动终止\n获得 ${rewardCoins} 金币奖励！`;
+        } else {
+            message = `🎉 任务【${task.title}】完成！\n获得 ${rewardCoins} 金币奖励！`;
+        }
+        
+        if (bonusMessage) {
+            message += '\n' + bonusMessage;
+        }
+        
+        if (refundCoins > 0) {
+            message += `\n💰 返还 ${refundCoins} 金币（之前扣除的30%）`;
+        }
+        
+        if (typeof App !== 'undefined') {
+            App.updateGameStatus();
+            App.addChatMessage("system", message, "🏆");
+        }
+        
+        // 记录历史
+        this.addHistory({
+            taskId: task.id,
+            taskTitle: task.title,
+            status: 'success',
+            duration: this.elapsedSeconds + '秒',
+            coins: rewardCoins,
+            cycles: this.currentCycle,
+            totalPaid: this.totalPaidCoins,
+            completionType: completionType
+        });
+        
+        // 重置状态
+        this.currentTask = null;
+        this.isAlertActive = false;
+        this.elapsedSeconds = 0;
+        this.currentCycle = 1;
+        this.totalPaidCoins = 0;
+        this.preAlertShown = false;
+        this.isPaused = false;
+        this.pauseEndTime = null;
+        
+        if (typeof App !== 'undefined') {
+            App.loadProcrastinationPanel();
         }
     },
     

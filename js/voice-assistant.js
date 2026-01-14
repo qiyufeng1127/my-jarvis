@@ -246,18 +246,17 @@ const VoiceAssistant = {
                 Storage.updateTask(task.id, { substeps: task.substeps });
                 
                 // 触发金币动画
-                CelebrationEffects.showCoinAnimation(5);
-                CelebrationEffects.playCoinSound();
+                if (typeof CelebrationEffects !== 'undefined') {
+                    CelebrationEffects.showCoinAnimation(5);
+                    CelebrationEffects.playCoinSound();
+                }
                 
                 // 检查是否所有子步骤都完成了
                 const allCompleted = task.substeps.every(s => s.completed);
                 if (allCompleted) {
                     this.markTaskComplete(task);
-                } else {
-                    // 播报下一个子步骤
-                    const nextStep = task.substeps.find(s => !s.completed);
-                    this.speak(`已完成。下一个子任务是：${nextStep.title}`);
                 }
+                // 精简播报：不再播报"下一个子任务是..."，用户可以主动询问
                 
                 if (typeof App !== 'undefined') {
                     App.loadTimeline();
@@ -283,21 +282,22 @@ const VoiceAssistant = {
         });
         
         // 触发庆祝效果
-        CelebrationEffects.triggerConfetti();
-        CelebrationEffects.playConfettiSound();
+        if (typeof CelebrationEffects !== 'undefined') {
+            CelebrationEffects.triggerConfetti();
+            CelebrationEffects.playConfettiSound();
+        }
         
         // 增加金币
         const gameState = Storage.getGameState();
         gameState.coins = (gameState.coins || 0) + (task.coins || 5);
         Storage.saveGameState(gameState);
         
-        // 语音播报
-        this.speak('太棒了！当前任务已完成！');
+        // 语音播报（仅在语音助手开启时播报完成庆祝）
+        if (this.isEnabled) {
+            this.speak('太棒了！当前任务已完成！');
+        }
         
-        // 播报下一个任务
-        setTimeout(() => {
-            this.announceNextTask();
-        }, 2000);
+        // 精简播报：不再自动播报下一个任务，用户可以主动询问
         
         // 刷新界面
         if (typeof App !== 'undefined') {
@@ -354,8 +354,11 @@ const VoiceAssistant = {
                 
                 const nextStep = task.substeps.find(s => !s.completed);
                 if (nextStep) {
+                    // 仅在用户主动说"下一步"时才播报
                     this.speak(`下一步：${nextStep.title}`);
-                    CelebrationEffects.showCoinAnimation(3);
+                    if (typeof CelebrationEffects !== 'undefined') {
+                        CelebrationEffects.showCoinAnimation(3);
+                    }
                 } else {
                     this.markTaskComplete(task);
                 }
@@ -374,7 +377,9 @@ const VoiceAssistant = {
         const task = this.getCurrentTask();
         if (task) {
             this.speak(`继续进行：${task.title}`);
-            CelebrationEffects.showCoinAnimation(2);
+            if (typeof CelebrationEffects !== 'undefined') {
+                CelebrationEffects.showCoinAnimation(2);
+            }
         } else {
             this.announceCurrentTask();
         }
@@ -505,7 +510,7 @@ const VoiceAssistant = {
         console.log('语音播报:', text);
     },
     
-    // 任务监控 - 自动播报任务开始
+    // 任务监控 - 仅在关键节点播报（任务开始提醒）
     startTaskMonitor() {
         // 每分钟检查一次
         setInterval(() => {
@@ -521,7 +526,7 @@ const VoiceAssistant = {
         }, 5000);
     },
     
-    // 检查任务开始
+    // 检查任务开始 - 精简播报策略
     checkTaskStart() {
         const tasks = Storage.getTasks();
         const now = new Date();
@@ -539,15 +544,8 @@ const VoiceAssistant = {
             // 标记已播报
             Storage.updateTask(startingTask.id, { announced: true });
             
-            // 播报任务开始
-            this.speak(`当前任务：${startingTask.title}`);
-            
-            // 如果有子步骤，播报第一步
-            if (startingTask.substeps && startingTask.substeps.length > 0) {
-                setTimeout(() => {
-                    this.speak(`第一步：${startingTask.substeps[0].title}`);
-                }, 2000);
-            }
+            // 仅播报任务开始（精简：不再播报子步骤）
+            this.speak(`任务开始：${startingTask.title}`);
             
             // 启动拖延监控
             if (typeof ProcrastinationMonitor !== 'undefined') {

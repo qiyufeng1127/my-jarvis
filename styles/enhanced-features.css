@@ -788,3 +788,369 @@
     background: rgba(39, 174, 96, 0.3);
 }
 
+/* ==================== 子任务折叠样式 ==================== */
+
+.event-substeps {
+    max-height: 500px;
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.3s ease, padding 0.3s ease;
+    opacity: 1;
+}
+
+.event-substeps.collapsed {
+    max-height: 0;
+    opacity: 0;
+    padding: 0;
+    margin: 0;
+}
+
+.event-substeps-toggle {
+    position: absolute;
+    right: 90px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0,0,0,0.1);
+    border: none;
+    border-radius: 12px;
+    padding: 4px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s;
+}
+
+.event-substeps-toggle:hover {
+    background: rgba(0,0,0,0.2);
+    transform: translateY(-50%) scale(1.05);
+}
+
+.event-substeps-toggle .substeps-count {
+    background: rgba(255,255,255,0.3);
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+}
+
+/* ==================== 时间编辑器弹窗 ==================== */
+
+.time-editor-popup {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.25);
+    width: 280px;
+    overflow: hidden;
+    animation: timeEditorSlide 0.2s ease-out;
+}
+
+@keyframes timeEditorSlide {
+    from {
+        transform: translateY(-10px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.time-editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, #4A90E2, #357ABD);
+    color: white;
+}
+
+.time-editor-title {
+    font-weight: 600;
+    font-size: 15px;
+}
+
+.time-editor-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 22px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+
+.time-editor-close:hover {
+    opacity: 1;
+}
+
+.time-editor-body {
+    padding: 16px;
+}
+
+.time-editor-row {
+    margin-bottom: 14px;
+}
+
+.time-editor-row label {
+    display: block;
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 6px;
+    font-weight: 500;
+}
+
+.time-editor-row input[type="time"],
+.time-editor-row input[type="number"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid #E0E0E0;
+    border-radius: 10px;
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.time-editor-row input:focus {
+    border-color: #4A90E2;
+}
+
+.duration-input-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.duration-input-group input {
+    flex: 1;
+}
+
+.duration-unit {
+    font-size: 13px;
+    color: #888;
+    white-space: nowrap;
+}
+
+.time-editor-quick-durations {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    margin-top: 4px;
+}
+
+.quick-duration-label {
+    font-size: 11px;
+    color: #888;
+    width: 100%;
+    margin-bottom: 4px;
+}
+
+.quick-duration-btn {
+    padding: 6px 12px;
+    background: rgba(74, 144, 226, 0.1);
+    border: 1px solid rgba(74, 144, 226, 0.3);
+    border-radius: 16px;
+    font-size: 12px;
+    color: #4A90E2;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.quick-duration-btn:hover {
+    background: rgba(74, 144, 226, 0.2);
+    transform: scale(1.05);
+}
+
+.time-editor-footer {
+    display: flex;
+    gap: 10px;
+    padding: 12px 16px;
+    background: #f8f9fa;
+    border-top: 1px solid #E0E0E0;
+}
+
+.time-editor-btn {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.time-editor-btn.cancel {
+    background: #E0E0E0;
+    color: #666;
+}
+
+.time-editor-btn.cancel:hover {
+    background: #d0d0d0;
+}
+
+.time-editor-btn.confirm {
+    background: linear-gradient(135deg, #4A90E2, #357ABD);
+    color: white;
+}
+
+.time-editor-btn.confirm:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(74, 144, 226, 0.4);
+}
+
+/* 时间显示可点击提示 */
+.event-time {
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.event-time:hover {
+    color: #4A90E2 !important;
+}
+
+.event-time .duration-badge {
+    background: rgba(0,0,0,0.1);
+    padding: 2px 6px;
+    border-radius: 8px;
+    font-size: 11px;
+}
+
+.event-time:hover .duration-badge {
+    background: rgba(74, 144, 226, 0.2);
+}
+
+/* ==================== 任务拖拽样式 ==================== */
+
+.event-card[draggable="true"] {
+    cursor: grab;
+}
+
+.event-card[draggable="true"]:active {
+    cursor: grabbing;
+}
+
+.event-card.dragging {
+    opacity: 0.5;
+    transform: scale(0.98);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+}
+
+.time-slot.drop-target {
+    position: relative;
+}
+
+.time-slot.drop-target::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border: 2px dashed rgba(74, 144, 226, 0.3);
+    border-radius: 8px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.time-slot.drag-over {
+    background: rgba(74, 144, 226, 0.1) !important;
+}
+
+.time-slot.drag-over::after {
+    opacity: 1;
+    border-color: #4A90E2;
+}
+
+/* 拖拽时的视觉提示 */
+.timeline-events-container.drag-active .time-slot {
+    min-height: 60px;
+}
+
+/* ==================== 深色模式 - 时间编辑器 ==================== */
+
+[data-theme="dark"] .time-editor-popup {
+    background: #2d3748;
+}
+
+[data-theme="dark"] .time-editor-header {
+    background: linear-gradient(135deg, #4A90E2, #357ABD);
+}
+
+[data-theme="dark"] .time-editor-row label {
+    color: #a0aec0;
+}
+
+[data-theme="dark"] .time-editor-row input {
+    background: #1a202c;
+    border-color: #4a5568;
+    color: white;
+}
+
+[data-theme="dark"] .time-editor-row input:focus {
+    border-color: #4A90E2;
+}
+
+[data-theme="dark"] .duration-unit {
+    color: #a0aec0;
+}
+
+[data-theme="dark"] .quick-duration-btn {
+    background: rgba(74, 144, 226, 0.2);
+    border-color: rgba(74, 144, 226, 0.4);
+    color: #63b3ed;
+}
+
+[data-theme="dark"] .quick-duration-btn:hover {
+    background: rgba(74, 144, 226, 0.3);
+}
+
+[data-theme="dark"] .time-editor-footer {
+    background: #1a202c;
+    border-top-color: #4a5568;
+}
+
+[data-theme="dark"] .time-editor-btn.cancel {
+    background: #4a5568;
+    color: #e2e8f0;
+}
+
+[data-theme="dark"] .time-editor-btn.cancel:hover {
+    background: #5a6578;
+}
+
+[data-theme="dark"] .event-substeps-toggle {
+    background: rgba(255,255,255,0.1);
+}
+
+[data-theme="dark"] .event-substeps-toggle:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+[data-theme="dark"] .event-substeps-toggle .substeps-count {
+    background: rgba(0,0,0,0.3);
+}
+
+[data-theme="dark"] .event-time .duration-badge {
+    background: rgba(255,255,255,0.1);
+}
+
+[data-theme="dark"] .event-time:hover .duration-badge {
+    background: rgba(74, 144, 226, 0.3);
+}
+
+[data-theme="dark"] .time-slot.drag-over {
+    background: rgba(74, 144, 226, 0.2) !important;
+}
+
+
