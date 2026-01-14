@@ -19,6 +19,7 @@
     <link rel="stylesheet" href="styles/unified-monitor.css">
     <link rel="stylesheet" href="styles/mobile-input-fix.css">
     <link rel="stylesheet" href="styles/enhanced-features.css">
+    <link rel="stylesheet" href="styles/voice-settings.css">
     <style>
         /* 覆盖默认字体为更有特色的 Outfit */
         body {
@@ -182,6 +183,23 @@
             </div>
             <div class="resize-handle"></div>
         </div>
+
+        <!-- 语音设置组件 -->
+        <div class="draggable-component" id="voiceSettings" data-component="voice-settings" style="left: 440px; top: 670px; width: 340px; height: 680px;">
+            <div class="component-header">
+                <span class="component-title">🔊 语音设置</span>
+                <div class="component-controls">
+                    <button class="component-btn btn-minimize" title="最小化"></button>
+                    <button class="component-btn btn-maximize" title="最大化"></button>
+                    <button class="color-picker-btn" title="背景颜色">🎨</button>
+                    <input type="color" class="color-picker" value="#ffffff">
+                </div>
+            </div>
+            <div class="component-body" id="voiceSettingsBody">
+                <!-- 组件内容由JS加载 -->
+            </div>
+            <div class="resize-handle"></div>
+        </div>
     </div>
 
     <!-- API Key 弹窗 -->
@@ -321,7 +339,8 @@
     <script src="js/ui-enhancements.js"></script>
     <script src="js/task-form-enhanced.js"></script>
     <script src="js/celebration-effects.js"></script>
-    <script src="js/voice-assistant.js"></script>
+    <script src="js/unified-voice-system.js"></script>
+    <script src="js/voice-settings-panel.js"></script>
     <script src="js/natural-language-timeline.js"></script>
     <script src="js/timeline-controller.js"></script>
     <script src="js/background-monitor.js"></script>

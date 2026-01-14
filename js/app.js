@@ -104,9 +104,9 @@ const App = {
             StepVerification.init();
         }
         
-        // 初始化语音助手模块
-        if (typeof VoiceAssistant !== 'undefined') {
-            VoiceAssistant.init();
+        // 初始化统一语音系统
+        if (typeof UnifiedVoiceSystem !== 'undefined') {
+            UnifiedVoiceSystem.init();
         }
         
         // 初始化庆祝效果模块
@@ -135,6 +135,9 @@ const App = {
         // 加载KiiKii记忆面板
         this.loadAIMemoryPanel();
         
+        // 加载语音设置面板
+        this.loadVoiceSettingsPanel();
+        
         // 更新游戏状态显示
         this.updateGameStatus();
         
@@ -160,6 +163,14 @@ const App = {
     loadAIMemoryPanel() {
         if (typeof AIMemoryPanel !== 'undefined') {
             AIMemoryPanel.render();
+        }
+    },
+    
+    // 加载语音设置面板
+    loadVoiceSettingsPanel() {
+        const container = document.getElementById('voiceSettingsBody');
+        if (container && typeof VoiceSettingsPanel !== 'undefined') {
+            container.innerHTML = VoiceSettingsPanel.render();
         }
     },
     

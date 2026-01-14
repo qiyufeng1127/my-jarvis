@@ -533,6 +533,7 @@ const ProcrastinationMonitor = {
         const today = this.formatDate(now);
         const currentTime = now.getHours().toString().padStart(2, '0') + ':' + 
                            now.getMinutes().toString().padStart(2, '0');
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
         
         // 获取今天的任务
         const tasks = Storage.getTasks();
@@ -547,8 +548,21 @@ const ProcrastinationMonitor = {
             // 跳过已触发过的任务
             if (this.triggeredTasks.indexOf(task.id) !== -1) continue;
             
-            // 检查任务时间是否到了
-            if (task.startTime === currentTime) {
+            // 解析任务开始时间
+            const taskTimeParts = task.startTime.split(':');
+            const taskStartMinutes = parseInt(taskTimeParts[0]) * 60 + parseInt(taskTimeParts[1] || 0);
+            
+            // 计算任务结束时间（基于duration或endTime）
+            let taskEndMinutes = taskStartMinutes + (task.duration || 30);
+            if (task.endTime) {
+                const endParts = task.endTime.split(':');
+                taskEndMinutes = parseInt(endParts[0]) * 60 + parseInt(endParts[1] || 0);
+            }
+            
+            // 只在任务开始时间触发，且当前时间不能超过任务结束时间
+            // 这样可以避免在任务已经结束后还触发提醒
+            if (task.startTime === currentTime && currentMinutes < taskEndMinutes) {
+                console.log('触发任务监控:', task.title, '开始时间:', task.startTime, '结束时间:', taskEndMinutes);
                 this.triggerTaskMonitor(task);
                 break;
             }

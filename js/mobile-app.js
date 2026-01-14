@@ -20,6 +20,7 @@ const MobileApp = {
         { id: 'timeline', icon: '📅', label: '任务' },
         { id: 'monitorPanel', icon: '📊', label: '监控' },
         { id: 'gameSystem', icon: '🎮', label: '游戏' },
+        { id: 'voiceSettings', icon: '🔊', label: '语音设置' },
         { id: 'memoryBank', icon: '🧠', label: '记忆库' },
         { id: 'valuePanel', icon: '💰', label: '价值显化' },
         { id: 'reviewPanel', icon: '📊', label: '复盘' },

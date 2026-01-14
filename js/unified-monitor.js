@@ -85,43 +85,79 @@ const UnifiedMonitor = {
             '</div>' +
         '</div>';
         
-        // Current Status Card
+        // Current Status Card - 更醒目的监控状态显示
         if (procrastinationActive || inefficiencyActive) {
-            html += '<div class="overview-card status-card active">' +
-                '<div class="card-header">' +
-                    '<span class="card-icon">🔴</span>' +
-                    '<div class="card-title">监控进行中</div>' +
+            html += '<div class="overview-card status-card active" style="border: 2px solid #E74C3C; background: linear-gradient(135deg, rgba(231,76,60,0.1), rgba(241,196,15,0.1));">' +
+                '<div class="card-header" style="background: rgba(231,76,60,0.15);">' +
+                    '<span class="card-icon" style="animation: pulse 1s infinite;">🔴</span>' +
+                    '<div class="card-title" style="color: #E74C3C; font-weight: 700;">⚡ 正在监控中 ⚡</div>' +
                 '</div>' +
-                '<div class="status-info">';
+                '<div class="status-info" style="padding: 12px;">';
             
             if (procrastinationActive && PM.currentTask) {
                 var remaining = PM.settings.gracePeriod - PM.elapsedSeconds;
-                html += '<div class="status-item">' +
-                    '<span class="status-label">启动监控</span>' +
-                    '<span class="status-task">' + PM.currentTask.title + '</span>' +
-                    '<span class="status-time ' + (remaining < 30 ? 'urgent' : '') + '">' + 
-                        Math.floor(remaining/60) + ':' + (remaining%60).toString().padStart(2,'0') + 
-                    '</span>' +
+                var urgentClass = remaining < 30 ? 'color: #E74C3C; font-weight: bold;' : '';
+                html += '<div class="status-item" style="background: rgba(255,255,255,0.8); padding: 10px; border-radius: 8px; margin-bottom: 8px;">' +
+                    '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">' +
+                        '<span style="font-size: 18px;">⏰</span>' +
+                        '<span style="font-weight: 600; color: #333;">启动监控</span>' +
+                    '</div>' +
+                    '<div style="font-size: 16px; font-weight: 600; color: #2C3E50; margin-bottom: 4px;">📌 ' + PM.currentTask.title + '</div>' +
+                    '<div style="display: flex; justify-content: space-between; align-items: center;">' +
+                        '<span style="color: #666;">剩余时间</span>' +
+                        '<span style="font-size: 20px; font-weight: bold; ' + urgentClass + '">' + 
+                            Math.floor(remaining/60) + ':' + (remaining%60).toString().padStart(2,'0') + 
+                        '</span>' +
+                    '</div>' +
+                    '<div style="margin-top: 8px;">' +
+                        '<button class="action-btn success" style="width: 100%; padding: 8px;" onclick="ProcrastinationMonitor.completeStep()">✅ 已完成启动</button>' +
+                    '</div>' +
                 '</div>';
             }
             
             if (inefficiencyActive && IM.currentTask) {
                 var elapsed = Math.floor(IM.elapsedSeconds / 60);
-                html += '<div class="status-item">' +
-                    '<span class="status-label">效率监控</span>' +
-                    '<span class="status-task">' + IM.currentTask.title + '</span>' +
-                    '<span class="status-time">' + elapsed + '分钟</span>' +
+                html += '<div class="status-item" style="background: rgba(255,255,255,0.8); padding: 10px; border-radius: 8px;">' +
+                    '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">' +
+                        '<span style="font-size: 18px;">📊</span>' +
+                        '<span style="font-weight: 600; color: #333;">效率监控</span>' +
+                    '</div>' +
+                    '<div style="font-size: 16px; font-weight: 600; color: #2C3E50; margin-bottom: 4px;">📌 ' + IM.currentTask.title + '</div>' +
+                    '<div style="display: flex; justify-content: space-between; align-items: center;">' +
+                        '<span style="color: #666;">已进行</span>' +
+                        '<span style="font-size: 18px; font-weight: bold; color: #3498DB;">' + elapsed + ' 分钟</span>' +
+                    '</div>' +
                 '</div>';
             }
             
             html += '</div></div>';
         } else {
+            // 显示下一个即将开始的任务
+            var nextTask = this.getNextUpcomingTask();
+            var nextTaskHtml = '';
+            if (nextTask) {
+                var now = new Date();
+                var currentMinutes = now.getHours() * 60 + now.getMinutes();
+                var taskParts = nextTask.startTime.split(':');
+                var taskMinutes = parseInt(taskParts[0]) * 60 + parseInt(taskParts[1]);
+                var minutesUntil = taskMinutes - currentMinutes;
+                
+                nextTaskHtml = '<div style="margin-top: 10px; padding: 10px; background: rgba(52,152,219,0.1); border-radius: 8px; border-left: 3px solid #3498DB;">' +
+                    '<div style="font-size: 12px; color: #666; margin-bottom: 4px;">⏳ 下一个任务</div>' +
+                    '<div style="font-weight: 600; color: #2C3E50;">' + nextTask.title + '</div>' +
+                    '<div style="font-size: 13px; color: #3498DB; margin-top: 4px;">' + 
+                        nextTask.startTime + ' 开始 (还有 ' + minutesUntil + ' 分钟)' +
+                    '</div>' +
+                '</div>';
+            }
+            
             html += '<div class="overview-card status-card idle">' +
                 '<div class="card-header">' +
                     '<span class="card-icon">💤</span>' +
                     '<div class="card-title">暂无活跃监控</div>' +
                 '</div>' +
                 '<div class="status-hint">当任务到达开始时间时，监控将自动启动</div>' +
+                nextTaskHtml +
             '</div>';
         }
         
@@ -189,9 +225,17 @@ const UnifiedMonitor = {
         var tasksHtml = '';
         for (var i = 0; i < upcoming.length; i++) {
             var t = upcoming[i];
-            tasksHtml += '<div class="upcoming-task">' +
-                '<span class="task-time">' + t.startTime + '</span>' +
-                '<span class="task-title">' + t.title + '</span>' +
+            var parts = t.startTime.split(':');
+            var taskMinutes = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+            var minutesUntil = taskMinutes - currentMinutes;
+            var urgentStyle = minutesUntil <= 10 ? 'background: rgba(231,76,60,0.1); border-left: 3px solid #E74C3C;' : '';
+            
+            tasksHtml += '<div class="upcoming-task" style="padding: 8px; margin-bottom: 6px; border-radius: 6px; ' + urgentStyle + '">' +
+                '<div style="display: flex; justify-content: space-between; align-items: center;">' +
+                    '<span class="task-time" style="font-weight: 600; color: #3498DB;">' + t.startTime + '</span>' +
+                    '<span style="font-size: 12px; color: #999;">' + (minutesUntil <= 0 ? '即将开始' : minutesUntil + '分钟后') + '</span>' +
+                '</div>' +
+                '<span class="task-title" style="display: block; margin-top: 4px;">' + t.title + '</span>' +
             '</div>';
         }
         
@@ -202,6 +246,27 @@ const UnifiedMonitor = {
             '</div>' +
             '<div class="upcoming-list">' + tasksHtml + '</div>' +
         '</div>';
+    },
+    
+    // 获取下一个即将开始的任务
+    getNextUpcomingTask: function() {
+        var tasks = typeof Storage !== 'undefined' ? Storage.getTasks() : [];
+        var today = new Date();
+        var todayStr = today.getFullYear() + '-' + 
+            (today.getMonth()+1).toString().padStart(2,'0') + '-' + 
+            today.getDate().toString().padStart(2,'0');
+        var currentMinutes = today.getHours() * 60 + today.getMinutes();
+        
+        var upcoming = tasks.filter(function(t) {
+            if (t.date !== todayStr || t.completed) return false;
+            var parts = t.startTime.split(':');
+            var taskMinutes = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+            return taskMinutes > currentMinutes;
+        }).sort(function(a,b) {
+            return a.startTime.localeCompare(b.startTime);
+        });
+        
+        return upcoming.length > 0 ? upcoming[0] : null;
     },
     
     renderProcrastination: function(PM, PE) {
@@ -406,7 +471,113 @@ const UnifiedMonitor = {
             '</div>' +
         '</div>';
         
+        // 调试工具 - 查看今日任务时间
+        html += '<div class="settings-section">' +
+            '<div class="section-title">🔍 调试工具</div>' +
+            '<div class="settings-list">' +
+                '<div class="setting-item clickable" onclick="UnifiedMonitor.showTaskDebugInfo()">' +
+                    '<span class="setting-label">查看今日任务时间设置</span>' +
+                    '<span class="setting-arrow">→</span>' +
+                '</div>' +
+                '<div class="setting-item clickable" onclick="UnifiedMonitor.clearTriggeredTasks()">' +
+                    '<span class="setting-label">清除已触发任务记录</span>' +
+                    '<span class="setting-arrow">🗑️</span>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+        
         return html;
+    },
+    
+    // 显示任务调试信息
+    showTaskDebugInfo: function() {
+        var tasks = typeof Storage !== 'undefined' ? Storage.getTasks() : [];
+        var today = new Date();
+        var todayStr = today.getFullYear() + '-' + 
+            (today.getMonth()+1).toString().padStart(2,'0') + '-' + 
+            today.getDate().toString().padStart(2,'0');
+        
+        var todayTasks = tasks.filter(function(t) { return t.date === todayStr; });
+        
+        // 获取已触发任务列表
+        var triggeredTasks = [];
+        if (typeof ProcrastinationMonitor !== 'undefined') {
+            triggeredTasks = ProcrastinationMonitor.triggeredTasks || [];
+        }
+        
+        var debugHtml = '<div style="max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 12px;">';
+        debugHtml += '<div style="margin-bottom: 10px; padding: 8px; background: #f0f0f0; border-radius: 4px;">';
+        debugHtml += '<strong>今日日期:</strong> ' + todayStr + '<br>';
+        debugHtml += '<strong>当前时间:</strong> ' + today.getHours().toString().padStart(2,'0') + ':' + today.getMinutes().toString().padStart(2,'0') + '<br>';
+        debugHtml += '<strong>任务总数:</strong> ' + todayTasks.length + '<br>';
+        debugHtml += '<strong>已触发任务ID:</strong> ' + (triggeredTasks.length > 0 ? triggeredTasks.join(', ') : '无');
+        debugHtml += '</div>';
+        
+        if (todayTasks.length === 0) {
+            debugHtml += '<div style="color: #999; text-align: center; padding: 20px;">今天没有任务</div>';
+        } else {
+            todayTasks.sort(function(a, b) { return a.startTime.localeCompare(b.startTime); });
+            
+            for (var i = 0; i < todayTasks.length; i++) {
+                var t = todayTasks[i];
+                var isTriggered = triggeredTasks.indexOf(t.id) !== -1;
+                var bgColor = t.completed ? '#d4edda' : (isTriggered ? '#fff3cd' : '#ffffff');
+                var borderColor = t.completed ? '#28a745' : (isTriggered ? '#ffc107' : '#ddd');
+                
+                debugHtml += '<div style="margin-bottom: 8px; padding: 10px; background: ' + bgColor + '; border: 1px solid ' + borderColor + '; border-radius: 6px;">';
+                debugHtml += '<div style="font-weight: bold; margin-bottom: 4px;">' + (i+1) + '. ' + t.title + '</div>';
+                debugHtml += '<div style="color: #666;">';
+                debugHtml += '📅 日期: ' + t.date + '<br>';
+                debugHtml += '⏰ 开始: <strong style="color: #E74C3C;">' + t.startTime + '</strong><br>';
+                debugHtml += '⏱️ 时长: ' + (t.duration || 30) + ' 分钟<br>';
+                if (t.endTime) {
+                    debugHtml += '🏁 结束: ' + t.endTime + '<br>';
+                }
+                debugHtml += '🆔 ID: ' + t.id + '<br>';
+                debugHtml += '✅ 完成: ' + (t.completed ? '是' : '否') + '<br>';
+                debugHtml += '🔔 已触发: ' + (isTriggered ? '是' : '否');
+                debugHtml += '</div></div>';
+            }
+        }
+        
+        debugHtml += '</div>';
+        
+        // 创建弹窗
+        var modal = document.createElement('div');
+        modal.className = 'modal-overlay show';
+        modal.id = 'taskDebugModal';
+        modal.innerHTML = '<div class="modal-content" style="max-width: 500px;">' +
+            '<div class="modal-header">' +
+                '<span class="modal-icon">🔍</span>' +
+                '<h2>今日任务调试信息</h2>' +
+            '</div>' +
+            '<div class="modal-body">' + debugHtml + '</div>' +
+            '<div class="modal-footer">' +
+                '<button class="modal-btn btn-confirm" onclick="document.getElementById(\'taskDebugModal\').remove()">关闭</button>' +
+            '</div>' +
+        '</div>';
+        
+        document.body.appendChild(modal);
+    },
+    
+    // 清除已触发任务记录
+    clearTriggeredTasks: function() {
+        if (typeof ProcrastinationMonitor !== 'undefined') {
+            ProcrastinationMonitor.triggeredTasks = [];
+            var today = new Date();
+            var todayStr = today.getFullYear() + '-' + 
+                (today.getMonth()+1).toString().padStart(2,'0') + '-' + 
+                today.getDate().toString().padStart(2,'0');
+            var savedTriggered = Storage.load('adhd_triggered_tasks', {});
+            savedTriggered[todayStr] = [];
+            Storage.save('adhd_triggered_tasks', savedTriggered);
+            
+            if (typeof Settings !== 'undefined' && Settings.showToast) {
+                Settings.showToast('success', '已清除', '已触发任务记录已清空');
+            } else {
+                alert('已清除已触发任务记录');
+            }
+        }
     },
     
     refresh: function() {
