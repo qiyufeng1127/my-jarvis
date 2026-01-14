@@ -104,6 +104,31 @@ const App = {
             StepVerification.init();
         }
         
+        // 初始化语音助手模块
+        if (typeof VoiceAssistant !== 'undefined') {
+            VoiceAssistant.init();
+        }
+        
+        // 初始化庆祝效果模块
+        if (typeof CelebrationEffects !== 'undefined') {
+            CelebrationEffects.init();
+        }
+        
+        // 初始化自然语言时间轴控制模块
+        if (typeof NaturalLanguageTimeline !== 'undefined') {
+            NaturalLanguageTimeline.init();
+        }
+        
+        // 初始化后台监控模块
+        if (typeof BackgroundMonitor !== 'undefined') {
+            BackgroundMonitor.init();
+        }
+        
+        // 初始化快捷添加模块
+        if (typeof QuickAddTask !== 'undefined') {
+            QuickAddTask.init();
+        }
+        
         // 加载AI洞察面板
         this.loadAIInsightsPanel();
         
@@ -743,6 +768,15 @@ const App = {
         // 广播用户消息事件
         document.dispatchEvent(new CustomEvent('userMessage', { detail: { message: text } }));
         
+        // 先尝试自然语言时间轴控制
+        if (typeof NaturalLanguageTimeline !== 'undefined') {
+            const nlResult = await NaturalLanguageTimeline.parseAndExecute(text);
+            if (nlResult) {
+                this.addChatMessage("system", nlResult.message, nlResult.success ? "✅" : "❌");
+                return;
+            }
+        }
+        
         // 先让AI副驾驶理解输入
         if (typeof AICopilot !== 'undefined') {
             const understood = await AICopilot.understandInput(text);
@@ -1165,6 +1199,13 @@ const App = {
         setTimeout(function() { 
             Canvas.reapplyBackgroundExceptCards('timeline'); 
         }, 10);
+        
+        // 渲染语音助手按钮
+        setTimeout(function() {
+            if (typeof VoiceAssistant !== 'undefined') {
+                VoiceAssistant.renderVoiceButton();
+            }
+        }, 100);
     },
 
     // 切换日历视图（展开/收缩）
@@ -1417,10 +1458,13 @@ const App = {
         var locationHtml = task.location ? '<div class="event-location" style="color:' + cardText + ';">@ ' + task.location + '</div>' : '';
         
         // 完成状态
-        var completedClass = task.completed ? ' completed' : '';
+        var completedClass = task.completed ? ' completed task-completed' : '';
+        
+        // 一键完成圆圈HTML
+        var quickCompleteCircle = '<div class="task-complete-circle' + (task.completed ? ' completed' : '') + '" onclick="App.quickCompleteTask(event, \'' + task.id + '\')" title="点击完成任务"></div>';
         
         // 卡片样式 - 确保背景色和文字色都正确应用
-        var cardStyle = 'background-color: ' + cardBg + ' !important; color: ' + cardText + ' !important;';
+        var cardStyle = 'background-color: ' + cardBg + ' !important; color: ' + cardText + ' !important; position: relative; margin-left: 20px;';
         
         // 按钮背景色 - 与卡片背景色一致（透明）
         var btnStyle = 'background: transparent; color: ' + cardText + ';';
@@ -1441,7 +1485,7 @@ const App = {
             substepsHtml += '</div>';
         }
         
-        return '<div class="event-card' + completedClass + '" data-task-id="' + task.id + '" style="' + cardStyle + '" onclick="App.toggleEventDetails(event, \'' + task.id + '\')">' +
+        return quickCompleteCircle + '<div class="event-card' + completedClass + '" data-task-id="' + task.id + '" style="' + cardStyle + '" onclick="App.toggleEventDetails(event, \'' + task.id + '\')">' +
                    '<div class="event-icon">' + icon + '</div>' +
                    '<div class="event-content">' +
                        '<div class="event-title" style="color:' + cardText + ';">' + task.title + coinBadgeHtml + stepBadgeHtml + '</div>' +
@@ -2106,10 +2150,19 @@ const App = {
         document.body.appendChild(popup);
     },
 
-    completeTask(taskId) {
+    // 一键快速完成任务（点击圆圈）
+    quickCompleteTask(event, taskId) {
+        event.stopPropagation();
+        this.completeTask(taskId, true); // true 表示触发庆祝效果
+    },
+
+    completeTask(taskId, triggerCelebration = false) {
         const tasks = Storage.getTasks();
         const task = tasks.find(function(t) { return t.id === taskId; });
         if (!task) return;
+        
+        // 如果任务已完成，不重复处理
+        if (task.completed) return;
         
         // 使用任务自带的金币，或默认值
         const coinsEarned = task.coins || 5;
@@ -2119,7 +2172,16 @@ const App = {
         const taskDuration = task.duration || 30; // 分钟
         const energyCost = task.energyCost || Math.max(1, Math.round(taskDuration / 24)); // 120分钟 = 5点
         
-        Storage.updateTask(taskId, { completed: true, completedAt: new Date().toISOString() });
+        // 记录实际完成时间
+        const now = new Date();
+        const actualEndTime = now.getHours().toString().padStart(2, '0') + ':' + 
+                             now.getMinutes().toString().padStart(2, '0');
+        
+        Storage.updateTask(taskId, { 
+            completed: true, 
+            completedAt: now.toISOString(),
+            actualEndTime: actualEndTime
+        });
         
         const state = Storage.getGameState();
         state.coins += coinsEarned;
@@ -2135,7 +2197,27 @@ const App = {
         
         Storage.saveGameState(state);
         
-        this.showCoinAnimation(coinsEarned);
+        // 触发庆祝效果（撒彩带 + 音效）
+        if (triggerCelebration && typeof CelebrationEffects !== 'undefined') {
+            CelebrationEffects.triggerTaskComplete(task);
+        } else {
+            this.showCoinAnimation(coinsEarned);
+        }
+        
+        // 语音播报
+        if (typeof VoiceAssistant !== 'undefined' && VoiceAssistant.isEnabled) {
+            VoiceAssistant.speak('太棒了！' + task.title + '已完成！');
+            // 播报下一个任务
+            setTimeout(() => {
+                VoiceAssistant.announceNextTask();
+            }, 2000);
+        }
+        
+        // 触发价值显化器
+        if (typeof ValueVisualizer !== 'undefined') {
+            this.onTaskComplete(task);
+        }
+        
         this.updateGameStatus();
         this.loadTimeline();
         this.loadGameSystem();
@@ -2493,8 +2575,55 @@ const App = {
         var emotionAnalysisShort = prompts.emotionAnalysis.substring(0, 150) + '...';
         var coinAllocationShort = (prompts.coinAllocation || '').substring(0, 150) + '...';
         
+        // 自然语言指令示例
+        var nlCommandsHtml = 
+            '<div class="prompt-section nl-commands-section">' +
+                '<div class="prompt-label">🗣️ 自然语言指挥时间轴</div>' +
+                '<div class="nl-commands-panel">' +
+                    '<div class="nl-commands-intro">直接在对话框输入以下指令，即可操控时间轴：</div>' +
+                    '<div class="nl-commands-grid">' +
+                        '<div class="nl-command-group">' +
+                            '<div class="nl-command-category">📅 移动任务</div>' +
+                            '<div class="nl-command-example" onclick="App.useNLCommand(\'把15号的所有任务移到14号\')">把15号的所有任务移到14号</div>' +
+                            '<div class="nl-command-example" onclick="App.useNLCommand(\'把洗澡移到3点\')">把洗澡移到3点</div>' +
+                        '</div>' +
+                        '<div class="nl-command-group">' +
+                            '<div class="nl-command-category">🗑️ 批量删除</div>' +
+                            '<div class="nl-command-example" onclick="App.useNLCommand(\'把今天下午2点之后的任务全部删掉\')">把今天下午2点之后的任务全部删掉</div>' +
+                            '<div class="nl-command-example" onclick="App.useNLCommand(\'清空20号的所有任务\')">清空20号的所有任务</div>' +
+                        '</div>' +
+                        '<div class="nl-command-group">' +
+                            '<div class="nl-command-category">⚡ 智能调整</div>' +
+                            '<div class="nl-command-example" onclick="App.useNLCommand(\'把所有时间重叠的任务自动分开\')">把所有时间重叠的任务自动分开</div>' +
+                            '<div class="nl-command-example" onclick="App.useNLCommand(\'优化今天的时间安排\')">优化今天的时间安排</div>' +
+                        '</div>' +
+                        '<div class="nl-command-group">' +
+                            '<div class="nl-command-category">➕ 插入顺延</div>' +
+                            '<div class="nl-command-example" onclick="App.useNLCommand(\'在下午2点帮我加一个写报告的任务，把后面的任务都往后顺延\')">在下午2点加写报告，后面顺延</div>' +
+                            '<div class="nl-command-example" onclick="App.useNLCommand(\'3点加一个开会\')">3点加一个开会</div>' +
+                        '</div>' +
+                        '<div class="nl-command-group">' +
+                            '<div class="nl-command-category">⏰ 批量调整</div>' +
+                            '<div class="nl-command-example" onclick="App.useNLCommand(\'把今天所有任务都延后30分钟\')">把今天所有任务都延后30分钟</div>' +
+                            '<div class="nl-command-example" onclick="App.useNLCommand(\'把今天所有任务都提前1小时\')">把今天所有任务都提前1小时</div>' +
+                        '</div>' +
+                        '<div class="nl-command-group">' +
+                            '<div class="nl-command-category">📋 复制交换</div>' +
+                            '<div class="nl-command-example" onclick="App.useNLCommand(\'把今天的任务复制到20号\')">把今天的任务复制到20号</div>' +
+                            '<div class="nl-command-example" onclick="App.useNLCommand(\'交换洗澡和吃饭的时间\')">交换洗澡和吃饭的时间</div>' +
+                        '</div>' +
+                        '<div class="nl-command-group">' +
+                            '<div class="nl-command-category">📊 查询统计</div>' +
+                            '<div class="nl-command-example" onclick="App.useNLCommand(\'今天还有多少任务\')">今天还有多少任务</div>' +
+                            '<div class="nl-command-example" onclick="App.useNLCommand(\'15号有什么任务\')">15号有什么任务</div>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+        
         container.innerHTML = 
             '<div class="prompt-container">' +
+                nlCommandsHtml +
                 '<div class="prompt-section">' +
                     '<div class="prompt-label">🎯 自然语言解析（多任务+情绪）</div>' +
                     '<textarea class="prompt-textarea" id="promptTaskParse" onchange="App.savePrompt(\'taskParse\', this.value)">' + prompts.taskParse + '</textarea>' +
@@ -2534,6 +2663,19 @@ const App = {
         
         // 重新应用背景色
         setTimeout(function() { Canvas.reapplyBackground('promptPanel'); }, 10);
+    },
+    
+    // 使用自然语言指令
+    useNLCommand(command) {
+        const input = document.getElementById("chatInput");
+        if (input) {
+            input.value = command;
+            input.focus();
+            // 切换到智能对话视图（移动端）
+            if (typeof MobileApp !== 'undefined' && MobileApp.isMobile) {
+                MobileApp.switchView('smartInput');
+            }
+        }
     },
 
     savePrompt(key, value) {

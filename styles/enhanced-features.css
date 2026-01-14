@@ -1,0 +1,790 @@
+/* 增强功能样式 - 语音助手、庆祝效果、一键完成等 */
+
+/* ==================== 语音助手按钮 ==================== */
+
+.voice-assistant-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+    border: none;
+    border-radius: 20px;
+    color: white;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+}
+
+.voice-assistant-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.voice-assistant-btn.active {
+    background: linear-gradient(135deg, #27AE60, #2ECC71);
+    animation: voicePulse 2s infinite;
+}
+
+.voice-assistant-btn .voice-icon {
+    font-size: 16px;
+}
+
+.voice-assistant-btn .voice-status {
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@keyframes voicePulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(39, 174, 96, 0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(39, 174, 96, 0); }
+}
+
+/* 浮动语音按钮 */
+.floating-voice-btn {
+    position: fixed;
+    bottom: 140px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    z-index: 1000;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.floating-voice-btn:hover {
+    transform: scale(1.1);
+}
+
+.floating-voice-btn.active {
+    background: linear-gradient(135deg, #27AE60, #2ECC71);
+    animation: voicePulse 2s infinite;
+}
+
+/* 移动端调整 */
+@media screen and (max-width: 768px) {
+    .floating-voice-btn {
+        bottom: 90px;
+        right: 15px;
+        width: 50px;
+        height: 50px;
+        font-size: 22px;
+    }
+    
+    .voice-assistant-btn .voice-status {
+        display: none;
+    }
+}
+
+/* ==================== 一键完成圆圈 ==================== */
+
+.task-complete-circle {
+    position: absolute;
+    left: -8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 3px solid #27AE60;
+    background: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+.task-complete-circle:hover {
+    background: rgba(39, 174, 96, 0.1);
+    transform: translateY(-50%) scale(1.15);
+    box-shadow: 0 0 12px rgba(39, 174, 96, 0.4);
+}
+
+.task-complete-circle::after {
+    content: '';
+    width: 0;
+    height: 0;
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.task-complete-circle:hover::after {
+    content: '✓';
+    font-size: 14px;
+    color: #27AE60;
+    font-weight: bold;
+    opacity: 1;
+}
+
+.task-complete-circle.completed {
+    background: #27AE60;
+    border-color: #27AE60;
+}
+
+.task-complete-circle.completed::after {
+    content: '✓';
+    font-size: 14px;
+    color: white;
+    font-weight: bold;
+    opacity: 1;
+}
+
+/* 任务卡片完成状态 - 删除线效果 */
+.event-card.task-completed {
+    opacity: 0.7;
+    position: relative;
+}
+
+.event-card.task-completed .event-title {
+    text-decoration: line-through;
+    text-decoration-thickness: 2px;
+    text-decoration-color: currentColor;
+}
+
+.event-card.task-completed::after {
+    content: '✅ 已完成';
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    font-size: 11px;
+    background: rgba(39, 174, 96, 0.2);
+    color: #27AE60;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 600;
+}
+
+/* ==================== 庆祝效果容器 ==================== */
+
+.celebration-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 10000;
+    overflow: hidden;
+}
+
+/* ==================== 撒彩带动画 ==================== */
+
+.confetti-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.confetti-piece {
+    position: absolute;
+    top: -20px;
+    animation: confettiFall 3s ease-out forwards;
+}
+
+@keyframes confettiFall {
+    0% {
+        transform: translateY(0) rotate(0deg) scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(100vh) rotate(720deg) scale(0.5);
+        opacity: 0;
+    }
+}
+
+/* 庆祝文字 */
+.celebration-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 32px;
+    font-weight: 700;
+    color: #FF6B9D;
+    text-shadow: 0 4px 20px rgba(255, 107, 157, 0.5);
+    animation: celebrationPop 0.5s ease-out, celebrationFade 0.5s ease-in 3s forwards;
+    white-space: nowrap;
+}
+
+@keyframes celebrationPop {
+    0% {
+        transform: translate(-50%, -50%) scale(0);
+        opacity: 0;
+    }
+    50% {
+        transform: translate(-50%, -50%) scale(1.2);
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes celebrationFade {
+    to {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.8);
+    }
+}
+
+/* ==================== 金币动画 ==================== */
+
+.coin-rain-item {
+    position: absolute;
+    top: -30px;
+    font-size: 28px;
+    animation: coinRain 1.5s ease-out forwards;
+}
+
+@keyframes coinRain {
+    0% {
+        transform: translateY(0) rotate(0deg);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(60vh) rotate(360deg);
+        opacity: 0;
+    }
+}
+
+.coin-amount-popup {
+    position: absolute;
+    top: 40%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 48px;
+    font-weight: 700;
+    color: #F1C40F;
+    text-shadow: 0 4px 20px rgba(241, 196, 15, 0.5);
+    animation: coinPopup 2s ease-out forwards;
+}
+
+@keyframes coinPopup {
+    0% {
+        transform: translate(-50%, -50%) scale(0);
+        opacity: 0;
+    }
+    20% {
+        transform: translate(-50%, -50%) scale(1.3);
+        opacity: 1;
+    }
+    80% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(-50%, -80%) scale(0.8);
+        opacity: 0;
+    }
+}
+
+/* 大型金币冲击动画 */
+.coin-impact-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: impactFadeIn 0.3s ease-out;
+}
+
+.coin-impact-overlay.fade-out {
+    animation: impactFadeOut 0.5s ease-out forwards;
+}
+
+@keyframes impactFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes impactFadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+.coin-impact-content {
+    text-align: center;
+    animation: impactBounce 0.5s ease-out;
+}
+
+@keyframes impactBounce {
+    0% { transform: scale(0); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+.coin-burst-container {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.coin-burst-item {
+    font-size: 40px;
+    animation: coinBurst 0.8s ease-out infinite;
+}
+
+.coin-burst-item:nth-child(1) { animation-delay: 0s; }
+.coin-burst-item:nth-child(2) { animation-delay: 0.1s; }
+.coin-burst-item:nth-child(3) { animation-delay: 0.2s; }
+.coin-burst-item:nth-child(4) { animation-delay: 0.3s; }
+.coin-burst-item:nth-child(5) { animation-delay: 0.4s; }
+
+@keyframes coinBurst {
+    0%, 100% { transform: scale(1) rotate(0deg); }
+    50% { transform: scale(1.3) rotate(15deg); }
+}
+
+.coin-impact-amount {
+    font-size: 64px;
+    font-weight: 700;
+    color: #F1C40F;
+    text-shadow: 0 4px 30px rgba(241, 196, 15, 0.8);
+    margin-bottom: 10px;
+}
+
+.coin-impact-task {
+    font-size: 24px;
+    color: white;
+    margin-bottom: 10px;
+}
+
+.coin-impact-message {
+    font-size: 18px;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* 子任务完成提示 */
+.subtask-complete-toast {
+    position: absolute;
+    top: 20%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(39, 174, 96, 0.95);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 25px;
+    font-size: 16px;
+    font-weight: 600;
+    box-shadow: 0 4px 20px rgba(39, 174, 96, 0.4);
+    animation: toastSlide 2s ease-out forwards;
+}
+
+@keyframes toastSlide {
+    0% {
+        transform: translateX(-50%) translateY(-20px);
+        opacity: 0;
+    }
+    20% {
+        transform: translateX(-50%) translateY(0);
+        opacity: 1;
+    }
+    80% {
+        transform: translateX(-50%) translateY(0);
+        opacity: 1;
+    }
+    100% {
+        transform: translateX(-50%) translateY(-20px);
+        opacity: 0;
+    }
+}
+
+/* ==================== 快捷添加按钮 ==================== */
+
+.quick-add-fab {
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #FF6B9D, #FF8E53);
+    border: none;
+    color: white;
+    font-size: 28px;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(255, 107, 157, 0.4);
+    z-index: 999;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.quick-add-fab:hover {
+    transform: scale(1.1) rotate(90deg);
+    box-shadow: 0 6px 30px rgba(255, 107, 157, 0.6);
+}
+
+.quick-add-fab:active {
+    transform: scale(0.95);
+}
+
+/* 快捷添加弹窗 */
+.quick-add-popup {
+    position: fixed;
+    bottom: 150px;
+    right: 20px;
+    width: 320px;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.2);
+    z-index: 1001;
+    overflow: hidden;
+    animation: popupSlideUp 0.3s ease-out;
+}
+
+@keyframes popupSlideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.quick-add-popup-header {
+    padding: 16px;
+    background: linear-gradient(135deg, #FF6B9D, #FF8E53);
+    color: white;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.quick-add-popup-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+
+.quick-add-popup-body {
+    padding: 16px;
+}
+
+.quick-add-input {
+    width: 100%;
+    padding: 14px 16px;
+    border: 2px solid #E0E0E0;
+    border-radius: 12px;
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.3s;
+    margin-bottom: 12px;
+}
+
+.quick-add-input:focus {
+    border-color: #FF6B9D;
+}
+
+.quick-add-time-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.quick-add-time-input {
+    flex: 1;
+    padding: 10px 12px;
+    border: 2px solid #E0E0E0;
+    border-radius: 10px;
+    font-size: 14px;
+    outline: none;
+}
+
+.quick-add-time-input:focus {
+    border-color: #FF6B9D;
+}
+
+.quick-add-submit {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, #FF6B9D, #FF8E53);
+    border: none;
+    border-radius: 12px;
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.quick-add-submit:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(255, 107, 157, 0.4);
+}
+
+/* 自然语言提示 */
+.quick-add-hints {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #E0E0E0;
+}
+
+.quick-add-hint-title {
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 8px;
+}
+
+.quick-add-hint-item {
+    display: inline-block;
+    padding: 4px 10px;
+    background: rgba(255, 107, 157, 0.1);
+    color: #FF6B9D;
+    border-radius: 12px;
+    font-size: 12px;
+    margin: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.quick-add-hint-item:hover {
+    background: rgba(255, 107, 157, 0.2);
+}
+
+/* 移动端调整 */
+@media screen and (max-width: 768px) {
+    .quick-add-popup {
+        bottom: auto;
+        top: 50%;
+        left: 50%;
+        right: auto;
+        transform: translate(-50%, -50%);
+        width: calc(100% - 40px);
+        max-width: 360px;
+    }
+    
+    .quick-add-fab {
+        bottom: 90px;
+        right: 15px;
+        width: 50px;
+        height: 50px;
+        font-size: 24px;
+    }
+    
+    .celebration-text {
+        font-size: 24px;
+        padding: 0 20px;
+    }
+    
+    .coin-impact-amount {
+        font-size: 48px;
+    }
+    
+    .coin-impact-task {
+        font-size: 18px;
+    }
+}
+
+/* ==================== 自然语言指令提示面板 ==================== */
+
+.nl-commands-section {
+    margin-bottom: 20px;
+}
+
+.nl-commands-panel {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 12px;
+    border: 1px solid rgba(255, 107, 157, 0.2);
+}
+
+.nl-commands-intro {
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px dashed rgba(0,0,0,0.1);
+}
+
+.nl-commands-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+}
+
+.nl-command-group {
+    background: rgba(74, 144, 226, 0.05);
+    border-radius: 10px;
+    padding: 12px;
+}
+
+.nl-commands-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.nl-commands-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.nl-command-category {
+    font-size: 12px;
+    font-weight: 600;
+    color: #4A90E2;
+    margin-bottom: 8px;
+}
+
+.nl-command-example {
+    font-size: 12px;
+    color: #666;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+    margin-bottom: 4px;
+}
+
+.nl-command-example:hover {
+    background: rgba(74, 144, 226, 0.15);
+    color: #4A90E2;
+    border-color: rgba(74, 144, 226, 0.3);
+    transform: translateX(4px);
+}
+
+.nl-command-example:active {
+    transform: scale(0.98);
+}
+
+/* ==================== 深色模式适配 ==================== */
+
+[data-theme="dark"] .voice-assistant-btn {
+    background: linear-gradient(135deg, #4a5568, #2d3748);
+}
+
+[data-theme="dark"] .voice-assistant-btn.active {
+    background: linear-gradient(135deg, #27AE60, #2ECC71);
+}
+
+[data-theme="dark"] .floating-voice-btn {
+    background: linear-gradient(135deg, #4a5568, #2d3748);
+}
+
+[data-theme="dark"] .floating-voice-btn.active {
+    background: linear-gradient(135deg, #27AE60, #2ECC71);
+}
+
+[data-theme="dark"] .task-complete-circle {
+    background: #2d3748;
+    border-color: #27AE60;
+}
+
+[data-theme="dark"] .quick-add-popup {
+    background: #2d3748;
+}
+
+[data-theme="dark"] .quick-add-popup-header {
+    background: linear-gradient(135deg, #9B59B6, #8E44AD);
+}
+
+[data-theme="dark"] .quick-add-input,
+[data-theme="dark"] .quick-add-time-input {
+    background: #1a202c;
+    border-color: #4a5568;
+    color: white;
+}
+
+[data-theme="dark"] .quick-add-hints {
+    border-top-color: #4a5568;
+}
+
+[data-theme="dark"] .quick-add-hint-title {
+    color: #a0aec0;
+}
+
+[data-theme="dark"] .quick-add-hint-item {
+    background: rgba(155, 89, 182, 0.2);
+    color: #bb86fc;
+}
+
+[data-theme="dark"] .nl-commands-panel {
+    background: rgba(45, 55, 72, 0.95);
+    border-color: rgba(255, 107, 157, 0.3);
+}
+
+[data-theme="dark"] .nl-commands-intro {
+    color: #a0aec0;
+    border-bottom-color: rgba(255,255,255,0.1);
+}
+
+[data-theme="dark"] .nl-command-group {
+    background: rgba(74, 144, 226, 0.1);
+}
+
+[data-theme="dark"] .nl-commands-title {
+    color: #e2e8f0;
+}
+
+[data-theme="dark"] .nl-command-category {
+    color: #63b3ed;
+}
+
+[data-theme="dark"] .nl-command-example {
+    background: rgba(26, 32, 44, 0.8);
+    color: #a0aec0;
+    border-color: transparent;
+}
+
+[data-theme="dark"] .nl-command-example:hover {
+    background: rgba(74, 144, 226, 0.25);
+    color: #63b3ed;
+    border-color: rgba(74, 144, 226, 0.4);
+}
+
+[data-theme="dark"] .celebration-text {
+    color: #FF8E53;
+    text-shadow: 0 4px 20px rgba(255, 142, 83, 0.5);
+}
+
+[data-theme="dark"] .coin-amount-popup {
+    color: #FFD700;
+    text-shadow: 0 4px 20px rgba(255, 215, 0, 0.5);
+}
+
+[data-theme="dark"] .subtask-complete-toast {
+    background: rgba(39, 174, 96, 0.9);
+}
+
+[data-theme="dark"] .event-card.task-completed::after {
+    background: rgba(39, 174, 96, 0.3);
+}
+

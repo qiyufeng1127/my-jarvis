@@ -641,16 +641,19 @@ const MobileApp = {
     
     // 快速添加任务
     quickAddTask() {
-        // 切换到对话视图
-        this.switchView('smartInput');
-        
-        // 聚焦输入框
-        setTimeout(() => {
-            const input = document.querySelector('.chat-input');
-            if (input) {
-                input.focus();
-            }
-        }, 300);
+        // 直接显示快捷添加弹窗
+        if (typeof QuickAddTask !== 'undefined') {
+            QuickAddTask.openPopup();
+        } else {
+            // 备用方案：切换到对话视图并聚焦输入框
+            this.switchView('smartInput');
+            setTimeout(() => {
+                const input = document.querySelector('.chat-input');
+                if (input) {
+                    input.focus();
+                }
+            }, 300);
+        }
     },
     
     // 绑定事件
