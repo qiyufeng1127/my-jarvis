@@ -5460,6 +5460,3 @@ App.showEnergyMenu = function(event) {
     
     document.body.appendChild(menu);
 };
-
-
-

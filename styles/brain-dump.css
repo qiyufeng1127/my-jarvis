@@ -734,3 +734,62 @@
     }
 }
 
+/* 添加任务按钮行 */
+.add-task-row {
+    padding: 12px 0;
+    flex-shrink: 0;
+}
+
+.add-arranged-task-btn {
+    width: 100%;
+    padding: 14px 16px;
+    border: 2px dashed #E0E0E0;
+    border-radius: 12px;
+    background: transparent;
+    color: #888;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.add-arranged-task-btn:hover {
+    border-color: #E74C3C;
+    color: #E74C3C;
+    background: rgba(231, 76, 60, 0.05);
+}
+
+.add-arranged-task-btn:active {
+    transform: scale(0.98);
+}
+
+.add-arranged-task-btn .add-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #E74C3C, #C0392B);
+    color: white;
+    font-size: 18px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+/* 深色模式 - 添加任务按钮 */
+[data-theme="dark"] .add-arranged-task-btn {
+    border-color: #444;
+    color: #888;
+}
+
+[data-theme="dark"] .add-arranged-task-btn:hover {
+    border-color: #E74C3C;
+    color: #E74C3C;
+    background: rgba(231, 76, 60, 0.1);
+}
+

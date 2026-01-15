@@ -226,8 +226,8 @@ const BrainDump = {
     
     // 智能拆分文本为多个任务
     smartSplitText(text) {
-        // 如果文本很短（少于6个字符），不拆分
-        if (text.length < 6) {
+        // 如果文本很短（少于4个字符），不拆分
+        if (text.length < 4) {
             return [text];
         }
         
@@ -236,124 +236,136 @@ const BrainDump = {
         if (explicitSeparators.test(text)) {
             const parts = text.split(explicitSeparators).map(s => s.trim()).filter(s => s.length > 0);
             if (parts.length > 1) {
-                return parts;
+                // 对每个部分递归拆分
+                const allTasks = [];
+                parts.forEach(part => {
+                    const subTasks = this.smartSplitText(part);
+                    allTasks.push(...subTasks);
+                });
+                return allTasks;
             }
         }
         
-        // 方法2：基于任务短语模式智能拆分
-        // 定义完整的任务短语模式（包含动词+宾语的组合）
-        const taskPatterns = [
-            // 收拾/整理类 - 带位置
-            /(?:把)?(?:收拾|整理)(?:一下)?(?:卧室|客厅|厨房|厕所|工作区|房间|书桌|衣柜)/g,
-            /(?:把)?(?:卧室|客厅|厨房|厕所|工作区|房间|书桌|衣柜)(?:收拾|整理)(?:一下)?/g,
-            // 打扫类
-            /(?:打扫|清洁)(?:一下)?(?:卫生|卧室|客厅|厨房|厕所|房间)?/g,
-            /(?:拖|扫|擦)(?:一下)?(?:地|桌子|桌|窗户|玻璃)/g,
+        // 方法2：基于完整任务关键词列表进行贪婪匹配
+        // 按长度降序排列，优先匹配更长的任务短语
+        const allTaskPhrases = [
+            // 收拾整理类（带位置）- 长的放前面
+            '收拾整理工作区', '收拾整理客厅', '收拾整理厨房', '收拾整理卧室', '收拾整理厕所', '收拾整理房间',
+            '整理收拾工作区', '整理收拾客厅', '整理收拾厨房', '整理收拾卧室', '整理收拾厕所', '整理收拾房间',
+            '收拾工作区', '收拾客厅', '收拾厨房', '收拾卧室', '收拾厕所', '收拾房间', '收拾书桌', '收拾衣柜',
+            '整理工作区', '整理客厅', '整理厨房', '整理卧室', '整理厕所', '整理房间', '整理书桌', '整理衣柜',
+            '打扫工作区', '打扫客厅', '打扫厨房', '打扫卧室', '打扫厕所', '打扫房间', '打扫卫生',
+            '清洁工作区', '清洁客厅', '清洁厨房', '清洁卧室', '清洁厕所', '清洁房间',
+            // 收拾衣服类
+            '收拾衣服', '整理衣服', '叠衣服', '晾衣服', '收衣服', '换衣服',
             // 洗涤类
-            /洗(?:衣服|碗|澡|头|脸|手)/g,
-            /(?:晾|叠|收)衣服/g,
+            '洗衣服', '洗碗', '洗澡', '洗头', '洗脸', '洗手', '刷锅',
             // 个人卫生
-            /刷牙/g,
-            /上厕所/g,
-            /(?:护肤|敷面膜|化妆|卸妆)/g,
+            '刷牙', '上厕所', '护肤', '敷面膜', '化妆', '卸妆',
+            // 地面清洁
+            '拖地', '扫地', '擦地', '擦桌子', '擦窗户', '擦玻璃',
             // 厨房类
-            /(?:做饭|炒菜|煮饭|烧水|泡茶|冲咖啡)/g,
-            /(?:吃|做)?(?:早饭|午饭|晚饭|早餐|午餐|晚餐)/g,
+            '做饭', '炒菜', '煮饭', '烧水', '泡茶', '冲咖啡',
+            '吃早饭', '吃午饭', '吃晚饭', '吃饭', '早饭', '午饭', '晚饭', '早餐', '午餐', '晚餐',
+            '决定晚上的菜单', '决定菜单', '想菜单',
             // 猫咪类
-            /(?:喂猫|倒猫粮|换猫粮|加猫粮|铲猫砂|换猫砂|清理猫砂|换猫水|洗猫碗)/g,
+            '喂猫', '倒猫粮', '换猫粮', '加猫粮', '铲猫砂', '换猫砂', '清理猫砂', '换猫水', '洗猫碗', '加水',
             // 工作学习
-            /(?:工作|开会|写代码|修图|剪辑|拍摄|学习|看书|写作)/g,
+            '训练lora', '训练模型', '写代码', '修图', '剪辑', '拍摄', '学习', '看书', '写作', '开会', '工作',
             // 外出类
-            /(?:拿|取|寄)快递/g,
-            /(?:出门|买东西|购物|逛街)/g,
+            '拿快递', '取快递', '寄快递', '出门', '买东西', '购物', '逛街',
             // 休息娱乐
-            /(?:休息|午睡|睡觉|看电视|玩游戏|刷手机)/g,
+            '休息', '午睡', '睡觉', '看电视', '玩游戏', '刷手机',
             // 其他
-            /(?:换床单|铺床|浇花|倒垃圾)/g,
+            '换床单', '铺床', '浇花', '倒垃圾'
         ];
         
-        // 收集所有匹配的任务
+        // 贪婪匹配：从文本中依次找出所有任务
         const foundTasks = [];
-        const usedRanges = []; // 记录已使用的文本范围，避免重复
+        let remaining = text;
+        let lastLength = -1;
         
-        for (const pattern of taskPatterns) {
-            // 重置正则的lastIndex
-            pattern.lastIndex = 0;
-            let match;
-            while ((match = pattern.exec(text)) !== null) {
-                const start = match.index;
-                const end = start + match[0].length;
-                
-                // 检查是否与已有范围重叠
-                const isOverlapping = usedRanges.some(range => 
-                    (start < range.end && end > range.start)
-                );
-                
-                if (!isOverlapping) {
+        // 循环直到没有新的匹配
+        while (remaining.length > 0 && remaining.length !== lastLength) {
+            lastLength = remaining.length;
+            let matched = false;
+            
+            // 按长度降序尝试匹配
+            for (const phrase of allTaskPhrases) {
+                const index = remaining.indexOf(phrase);
+                if (index !== -1) {
                     foundTasks.push({
-                        text: match[0],
-                        start: start,
-                        end: end
+                        text: phrase,
+                        index: text.indexOf(phrase)
                     });
-                    usedRanges.push({ start, end });
+                    // 用占位符替换已匹配的部分
+                    remaining = remaining.replace(phrase, '§');
+                    matched = true;
+                    break; // 找到一个就重新开始，确保贪婪匹配
                 }
             }
-        }
-        
-        // 如果找到多个任务，按位置排序返回
-        if (foundTasks.length > 1) {
-            foundTasks.sort((a, b) => a.start - b.start);
-            return foundTasks.map(t => t.text);
-        }
-        
-        // 方法3：基于关键词+位置词组合拆分
-        const locations = ['卧室', '客厅', '厨房', '厕所', '工作区', '拍摄间', '洗衣区', '房间'];
-        const actions = ['收拾', '整理', '打扫', '清洁'];
-        
-        const combinedTasks = [];
-        let remaining = text;
-        
-        // 查找 "动作+位置" 或 "把+位置+动作" 的组合
-        for (const loc of locations) {
-            for (const act of actions) {
-                // 模式1: 收拾客厅、整理卧室
-                const pattern1 = new RegExp(`${act}(?:一下)?${loc}`, 'g');
-                // 模式2: 把客厅收拾一下、把卧室整理
-                const pattern2 = new RegExp(`把${loc}${act}(?:一下)?`, 'g');
-                // 模式3: 客厅收拾一下
-                const pattern3 = new RegExp(`${loc}${act}(?:一下)?`, 'g');
+            
+            // 如果没有匹配到预定义短语，尝试匹配动态组合
+            if (!matched) {
+                // 尝试匹配 "收拾/整理 + 任意位置词"
+                const dynamicPatterns = [
+                    /(?:收拾整理|整理收拾|收拾|整理|打扫|清洁)([^\s§]{1,4})/,
+                ];
                 
-                for (const p of [pattern1, pattern2, pattern3]) {
-                    const match = remaining.match(p);
-                    if (match) {
-                        combinedTasks.push(`${act}${loc}`);
-                        remaining = remaining.replace(p, '|||');
+                for (const pattern of dynamicPatterns) {
+                    const match = remaining.match(pattern);
+                    if (match && match[0].length >= 2) {
+                        foundTasks.push({
+                            text: match[0],
+                            index: text.indexOf(match[0])
+                        });
+                        remaining = remaining.replace(match[0], '§');
+                        matched = true;
+                        break;
                     }
                 }
             }
         }
         
-        // 查找剩余的简单关键词任务
-        const simpleKeywords = ['刷牙', '洗脸', '洗澡', '洗头', '上厕所', '洗衣服', '洗碗', 
-            '做饭', '吃饭', '吃早饭', '吃午饭', '吃晚饭', '喂猫', '倒猫粮', '铲猫砂',
-            '拿快递', '取快递', '倒垃圾', '换床单', '工作', '休息', '午睡'];
-        
-        for (const kw of simpleKeywords) {
-            if (remaining.includes(kw)) {
-                combinedTasks.push(kw);
-                remaining = remaining.replace(kw, '|||');
+        // 处理剩余未匹配的文本（可能是自定义任务）
+        const leftover = remaining.split('§').map(s => s.trim()).filter(s => s.length >= 2);
+        leftover.forEach(item => {
+            // 检查是否包含有意义的内容
+            if (!/^[的一下了着]$/.test(item)) {
+                foundTasks.push({
+                    text: item,
+                    index: text.indexOf(item)
+                });
             }
+        });
+        
+        // 如果找到多个任务，按原文位置排序返回
+        if (foundTasks.length > 1) {
+            // 去重
+            const uniqueTasks = [];
+            const seen = new Set();
+            foundTasks.forEach(t => {
+                if (!seen.has(t.text)) {
+                    seen.add(t.text);
+                    uniqueTasks.push(t);
+                }
+            });
+            
+            uniqueTasks.sort((a, b) => a.index - b.index);
+            return uniqueTasks.map(t => t.text);
         }
         
-        if (combinedTasks.length > 1) {
-            return combinedTasks;
-        }
-        
-        // 方法4：尝试用常见的口语连接词拆分
+        // 方法3：尝试用常见的口语连接词拆分
         const oralSeparators = /(?:然后|接着|再去|再|还要|还得|还有|以及|同时|之后|完了|完再)/g;
         const oralParts = text.split(oralSeparators).map(s => s.trim()).filter(s => s.length > 1);
         if (oralParts.length > 1) {
-            return oralParts;
+            // 对每个部分递归拆分
+            const allTasks = [];
+            oralParts.forEach(part => {
+                const subTasks = this.smartSplitText(part);
+                allTasks.push(...subTasks);
+            });
+            return allTasks;
         }
         
         // 无法拆分，返回原文
@@ -540,6 +552,12 @@ const BrainDump = {
                 ${summaryHtml}
                 <div class="arranged-tasks-container" id="arrangedTasksContainer">
                     ${tasksHtml}
+                </div>
+                <div class="add-task-row">
+                    <button class="add-arranged-task-btn" onclick="BrainDump.showAddTaskModal()">
+                        <span class="add-icon">+</span>
+                        <span>添加任务</span>
+                    </button>
                 </div>
             </div>
         `;
@@ -1103,6 +1121,145 @@ const BrainDump = {
         }
     },
     
+    // 显示添加任务弹窗
+    showAddTaskModal() {
+        // 计算默认时间（最后一个任务结束后10分钟）
+        let defaultStartTime = '09:00';
+        if (this.arrangedTasks.length > 0) {
+            const lastTask = this.arrangedTasks[this.arrangedTasks.length - 1];
+            const lastEndMinutes = this.timeToMinutes(lastTask.startTime) + lastTask.duration + 10;
+            defaultStartTime = this.minutesToTime(lastEndMinutes);
+        }
+        
+        const modal = document.createElement('div');
+        modal.className = 'brain-dump-modal-overlay';
+        modal.id = 'addTaskModal';
+        modal.innerHTML = `
+            <div class="brain-dump-modal">
+                <div class="modal-header">
+                    <span>➕ 添加新任务</span>
+                    <button class="modal-close" onclick="BrainDump.closeAddModal()">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>任务名称</label>
+                        <input type="text" id="newTaskTitle" placeholder="输入任务名称...">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>开始时间</label>
+                            <input type="time" id="newTaskTime" value="${defaultStartTime}">
+                        </div>
+                        <div class="form-group">
+                            <label>时长(分钟)</label>
+                            <input type="number" id="newTaskDuration" value="30" min="5" max="480">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>任务类型</label>
+                            <select id="newTaskType">
+                                <option value="standing">🧍 站立任务</option>
+                                <option value="sitting">🪑 坐姿任务</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>体力消耗</label>
+                            <select id="newTaskEnergy">
+                                <option value="1">💪</option>
+                                <option value="2" selected>💪💪</option>
+                                <option value="3">💪💪💪</option>
+                                <option value="4">💪💪💪💪</option>
+                                <option value="5">💪💪💪💪💪</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>位置</label>
+                        <select id="newTaskLocation">
+                            <option value="厕所">🚿 厕所</option>
+                            <option value="客厅">🛋️ 客厅</option>
+                            <option value="厨房">🍳 厨房</option>
+                            <option value="卧室">🛏️ 卧室</option>
+                            <option value="工作区">💻 工作区</option>
+                            <option value="拍摄间">📷 拍摄间</option>
+                            <option value="洗衣区">🧺 洗衣区</option>
+                            <option value="外出">🚶 外出</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-cancel" onclick="BrainDump.closeAddModal()">取消</button>
+                    <button class="btn-confirm" onclick="BrainDump.saveNewTask()">添加</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        setTimeout(() => {
+            modal.classList.add('show');
+            document.getElementById('newTaskTitle').focus();
+        }, 10);
+    },
+    
+    // 关闭添加任务弹窗
+    closeAddModal() {
+        const modal = document.getElementById('addTaskModal');
+        if (modal) {
+            modal.classList.remove('show');
+            setTimeout(() => modal.remove(), 300);
+        }
+    },
+    
+    // 保存新任务
+    saveNewTask() {
+        const title = document.getElementById('newTaskTitle').value.trim();
+        if (!title) {
+            alert('请输入任务名称');
+            return;
+        }
+        
+        const startTime = document.getElementById('newTaskTime').value || '09:00';
+        const duration = parseInt(document.getElementById('newTaskDuration').value) || 30;
+        const type = document.getElementById('newTaskType').value;
+        const energyCost = parseInt(document.getElementById('newTaskEnergy').value);
+        const location = document.getElementById('newTaskLocation').value;
+        const floor = ['卧室', '工作区', '拍摄间'].includes(location) ? '二楼' : '一楼';
+        
+        const newTask = {
+            title,
+            startTime,
+            duration,
+            type,
+            energyCost,
+            location,
+            floor,
+            verification: 'check',
+            coins: 0
+        };
+        newTask.coins = this.calculateCoins(newTask);
+        
+        // 添加到任务列表
+        this.arrangedTasks.push(newTask);
+        
+        // 按时间排序
+        this.arrangedTasks.sort((a, b) => a.startTime.localeCompare(b.startTime));
+        
+        // 更新统计
+        if (this.arrangeSummary) {
+            this.arrangeSummary.totalTasks = this.arrangedTasks.length;
+            this.arrangeSummary.totalDuration = this.arrangedTasks.reduce((sum, t) => sum + t.duration, 0);
+            this.arrangeSummary.floorChanges = this.calculateFloorChanges(this.arrangedTasks);
+        }
+        
+        this.closeAddModal();
+        this.refresh();
+        
+        // 播放音效
+        if (typeof UnifiedAudioSystem !== 'undefined') {
+            UnifiedAudioSystem.playSound('success');
+        }
+    },
+    
     // 移除安排后的任务
     removeArrangedTask(index) {
         this.arrangedTasks.splice(index, 1);
@@ -1187,11 +1344,8 @@ const BrainDump = {
         
         // 重新排序
         if (this.showArrangedView) {
-            const [removed] = this.arrangedTasks.splice(dragIndex, 1);
-            this.arrangedTasks.splice(dropIndex, 0, removed);
-            
-            // 重新计算时间
-            this.recalculateTimes();
+            // 交换两个任务的时间（而不是重新计算）
+            this.swapTaskTimes(dragIndex, dropIndex);
         } else {
             const [removed] = this.items.splice(dragIndex, 1);
             this.items.splice(dropIndex, 0, removed);
@@ -1206,7 +1360,39 @@ const BrainDump = {
         }
     },
     
-    // 重新计算任务时间
+    // 交换两个任务的时间段
+    swapTaskTimes(indexA, indexB) {
+        const taskA = this.arrangedTasks[indexA];
+        const taskB = this.arrangedTasks[indexB];
+        
+        if (!taskA || !taskB) return;
+        
+        // 保存A的时间信息
+        const tempStartTime = taskA.startTime;
+        const tempDuration = taskA.duration;
+        
+        // 把B的时间给A
+        taskA.startTime = taskB.startTime;
+        taskA.duration = taskB.duration;
+        
+        // 把A的时间给B
+        taskB.startTime = tempStartTime;
+        taskB.duration = tempDuration;
+        
+        // 重新计算金币（因为时长可能变了）
+        taskA.coins = this.calculateCoins(taskA);
+        taskB.coins = this.calculateCoins(taskB);
+        
+        // 按时间重新排序任务列表
+        this.arrangedTasks.sort((a, b) => a.startTime.localeCompare(b.startTime));
+        
+        // 更新统计
+        if (this.arrangeSummary) {
+            this.arrangeSummary.floorChanges = this.calculateFloorChanges(this.arrangedTasks);
+        }
+    },
+    
+    // 重新计算任务时间（保留备用）
     recalculateTimes() {
         if (this.arrangedTasks.length === 0) return;
         
