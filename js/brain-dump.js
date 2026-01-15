@@ -37,8 +37,38 @@ const BrainDump = {
             '晚饭': { start: '18:00', end: '19:00' },
             '吃早饭': { start: '08:00', end: '08:30' },
             '早饭': { start: '08:00', end: '08:30' }
+        },
+        // 猫咪相关 - 猫砂盆和猫碗都在厨房
+        petInfo: {
+            cat: {
+                location: '厨房',
+                items: ['猫砂盆', '猫碗', '猫粮', '猫水']
+            }
         }
     },
+    
+    // 任务关键词库 - 用于智能拆分
+    taskKeywords: [
+        // 个人卫生
+        '刷牙', '洗脸', '洗头', '洗澡', '上厕所', '护肤', '敷面膜', '化妆', '卸妆',
+        // 家务清洁
+        '打扫', '拖地', '扫地', '擦桌子', '擦地', '收拾', '整理', '清洁', '打扫卫生',
+        '洗衣服', '晾衣服', '叠衣服', '收衣服', '洗碗', '刷锅',
+        // 厨房相关
+        '做饭', '炒菜', '煮饭', '烧水', '泡茶', '冲咖啡',
+        '吃早饭', '吃午饭', '吃晚饭', '吃饭', '早饭', '午饭', '晚饭',
+        // 猫咪相关
+        '喂猫', '倒猫粮', '换猫粮', '加猫粮', '铲猫砂', '换猫砂', '清理猫砂', 
+        '换猫水', '加水', '洗猫碗', '清洗猫碗',
+        // 工作学习
+        '工作', '开会', '写代码', '修图', '剪辑', '拍摄', '学习', '看书', '写作',
+        // 外出
+        '拿快递', '取快递', '寄快递', '出门', '买东西', '购物', '逛街',
+        // 休息娱乐
+        '休息', '午睡', '睡觉', '看电视', '玩游戏', '刷手机',
+        // 其他
+        '换床单', '铺床', '浇花', '倒垃圾'
+    ],
     
     // AI安排提示词
     arrangePrompt: `请作为任务安排专家，分析我提供的任务列表，按照以下规则智能安排：
@@ -51,8 +81,13 @@ const BrainDump = {
 5. 高体力任务安排在上午或下午精力充沛时
 
 【动线规则】根据loft布局优化动线：
-一楼动线：进门客厅→左手厕所→直行厨房→洗衣区→楼梯
+一楼动线：进门客厅→左手厕所→直行厨房（猫砂盆和猫碗在这里）→洗衣区→楼梯
 二楼动线：楼梯→左卧室→右拍摄间/工作区
+
+【特殊说明】
+- 我有一只猫咪，猫砂盆和猫碗都放在厨房
+- 喂猫、倒猫粮、铲猫砂、换猫水等任务都在厨房完成
+- 可以把猫咪相关任务和厨房任务（如洗碗、做饭）安排在一起
 
 【优化原则】
 1. 同一楼层任务集中安排
@@ -61,6 +96,7 @@ const BrainDump = {
 4. 物品流转顺路：楼上脏衣服→楼下洗衣区
 5. 功能相似合并：清洁类任务集中处理
 6. 站立任务和坐姿任务交替，避免疲劳
+7. 猫咪任务可以和厨房任务顺便一起做
 
 【任务分析】
 请分析每个任务的：
@@ -130,25 +166,157 @@ const BrainDump = {
         localStorage.setItem('brain_dump_items', JSON.stringify(this.items));
     },
     
-    // 添加想法
+    // 添加想法（支持智能拆分）
     addItem(text) {
         if (!text || !text.trim()) return;
         
-        const item = {
-            id: Date.now().toString(),
-            text: text.trim(),
-            createdAt: new Date().toISOString(),
-            arranged: false
-        };
+        const trimmedText = text.trim();
         
-        this.items.push(item);
-        this.saveItems();
-        this.refresh();
+        // 尝试智能拆分
+        const splitTasks = this.smartSplitText(trimmedText);
         
-        // 播放添加音效
-        if (typeof UnifiedAudioSystem !== 'undefined') {
-            UnifiedAudioSystem.playSound('click');
+        if (splitTasks.length > 1) {
+            // 拆分成功，添加多个任务
+            splitTasks.forEach(taskText => {
+                if (taskText.trim()) {
+                    const item = {
+                        id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                        text: taskText.trim(),
+                        createdAt: new Date().toISOString(),
+                        arranged: false
+                    };
+                    this.items.push(item);
+                }
+            });
+            
+            this.saveItems();
+            this.refresh();
+            
+            // 播放添加音效
+            if (typeof UnifiedAudioSystem !== 'undefined') {
+                UnifiedAudioSystem.playSound('success');
+            }
+            
+            // 提示用户
+            if (typeof App !== 'undefined') {
+                App.addChatMessage('system', 
+                    `✨ 已智能拆分为 ${splitTasks.length} 个任务：\n${splitTasks.map((t, i) => `${i+1}. ${t}`).join('\n')}`, 
+                    '✨'
+                );
+            }
+        } else {
+            // 单个任务，直接添加
+            const item = {
+                id: Date.now().toString(),
+                text: trimmedText,
+                createdAt: new Date().toISOString(),
+                arranged: false
+            };
+            
+            this.items.push(item);
+            this.saveItems();
+            this.refresh();
+            
+            // 播放添加音效
+            if (typeof UnifiedAudioSystem !== 'undefined') {
+                UnifiedAudioSystem.playSound('click');
+            }
         }
+    },
+    
+    // 智能拆分文本为多个任务
+    smartSplitText(text) {
+        // 如果文本很短（少于10个字符），不拆分
+        if (text.length < 10) {
+            return [text];
+        }
+        
+        // 方法1：先尝试用明显的分隔符拆分
+        const explicitSeparators = /[,，、;；\n\r]+/;
+        if (explicitSeparators.test(text)) {
+            const parts = text.split(explicitSeparators).map(s => s.trim()).filter(s => s.length > 0);
+            if (parts.length > 1) {
+                return parts;
+            }
+        }
+        
+        // 方法2：基于关键词智能拆分
+        const tasks = [];
+        let remainingText = text;
+        
+        // 按关键词长度降序排序，优先匹配长关键词
+        const sortedKeywords = [...this.taskKeywords].sort((a, b) => b.length - a.length);
+        
+        // 查找所有匹配的关键词及其位置
+        const matches = [];
+        for (const keyword of sortedKeywords) {
+            let searchStart = 0;
+            while (true) {
+                const index = remainingText.indexOf(keyword, searchStart);
+                if (index === -1) break;
+                
+                // 检查是否已被其他更长的关键词覆盖
+                const isOverlapped = matches.some(m => 
+                    (index >= m.start && index < m.end) || 
+                    (index + keyword.length > m.start && index + keyword.length <= m.end)
+                );
+                
+                if (!isOverlapped) {
+                    matches.push({
+                        keyword,
+                        start: index,
+                        end: index + keyword.length
+                    });
+                }
+                searchStart = index + 1;
+            }
+        }
+        
+        // 如果找到多个关键词，按位置排序并提取任务
+        if (matches.length > 1) {
+            matches.sort((a, b) => a.start - b.start);
+            
+            // 提取每个关键词作为独立任务
+            // 同时尝试捕获关键词前后的修饰词
+            for (let i = 0; i < matches.length; i++) {
+                const match = matches[i];
+                const prevEnd = i > 0 ? matches[i - 1].end : 0;
+                const nextStart = i < matches.length - 1 ? matches[i + 1].start : text.length;
+                
+                // 获取关键词前的文本（可能是修饰词如"把"、"去"等）
+                let prefix = text.substring(prevEnd, match.start).trim();
+                // 获取关键词后的文本（可能是补充说明）
+                let suffix = text.substring(match.end, nextStart).trim();
+                
+                // 清理常见的连接词
+                prefix = prefix.replace(/^[把去要想得还有再和与及等等的了吧啊呢]+$/g, '').trim();
+                suffix = suffix.replace(/^[一下下儿]+/g, '').trim();
+                suffix = suffix.replace(/[等等的了吧啊呢]+$/g, '').trim();
+                
+                // 组合任务名称
+                let taskName = match.keyword;
+                if (prefix && prefix.length <= 4) {
+                    taskName = prefix + taskName;
+                }
+                if (suffix && suffix.length <= 6 && !sortedKeywords.some(k => suffix.includes(k))) {
+                    taskName = taskName + suffix;
+                }
+                
+                tasks.push(taskName);
+            }
+            
+            return tasks;
+        }
+        
+        // 方法3：尝试用常见的口语连接词拆分
+        const oralSeparators = /(?:然后|接着|再|还要|还有|以及|和|跟|同时|之后|完了)/g;
+        const oralParts = text.split(oralSeparators).map(s => s.trim()).filter(s => s.length > 1);
+        if (oralParts.length > 1) {
+            return oralParts;
+        }
+        
+        // 无法拆分，返回原文
+        return [text];
     },
     
     // 删除想法
@@ -208,7 +376,7 @@ const BrainDump = {
                     <input type="text" 
                            id="brainDumpInput" 
                            class="brain-dump-input" 
-                           placeholder="随便写点什么...待办、想法、灵感都可以"
+                           placeholder="随便写点什么...可以一口气说完，我会帮你拆分"
                            onkeypress="if(event.key==='Enter') BrainDump.handleInputSubmit()">
                     <button class="brain-dump-add-btn" onclick="BrainDump.handleInputSubmit()">
                         <span>+</span>
@@ -218,7 +386,8 @@ const BrainDump = {
                     <span class="quick-tag" onclick="BrainDump.addItem('洗衣服')">🧺 洗衣服</span>
                     <span class="quick-tag" onclick="BrainDump.addItem('打扫卫生')">🧹 打扫</span>
                     <span class="quick-tag" onclick="BrainDump.addItem('拿快递')">📦 快递</span>
-                    <span class="quick-tag" onclick="BrainDump.addItem('做饭')">🍳 做饭</span>
+                    <span class="quick-tag" onclick="BrainDump.addItem('倒猫粮')">🐱 喂猫</span>
+                    <span class="quick-tag" onclick="BrainDump.addItem('铲猫砂')">🐾 铲屎</span>
                 </div>
             </div>
         `;
@@ -607,6 +776,9 @@ const BrainDump = {
             location = '厕所'; floor = '一楼';
         } else if (/厨房|做饭|炒菜|煮|烧水|洗碗/.test(text)) {
             location = '厨房'; floor = '一楼';
+        } else if (/猫粮|猫砂|猫碗|喂猫|铲屎/.test(text)) {
+            // 猫咪相关任务在厨房
+            location = '厨房'; floor = '一楼';
         } else if (/卧室|床|睡|换床单|收拾卧室/.test(text)) {
             location = '卧室'; floor = '二楼';
         } else if (/拍摄|工作区|电脑|修图|剪辑/.test(text)) {
@@ -632,16 +804,35 @@ const BrainDump = {
             type = 'standing'; duration = 30; energyCost = 2;
         } else if (/洗头/.test(text)) {
             type = 'standing'; duration = 20; energyCost = 2;
+        } else if (/刷牙|洗脸/.test(text)) {
+            type = 'standing'; duration = 5; energyCost = 1;
+        } else if (/上厕所/.test(text)) {
+            type = 'sitting'; duration = 10; energyCost = 1;
         } else if (/快递/.test(text)) {
             type = 'standing'; duration = 15; energyCost = 2;
         } else if (/电脑|修图|剪辑|工作/.test(text)) {
             type = 'sitting'; duration = 60; energyCost = 2;
+        } else if (/猫粮|喂猫|倒猫粮|加猫粮/.test(text)) {
+            // 喂猫相关
+            type = 'standing'; duration = 5; energyCost = 1;
+        } else if (/猫砂|铲屎|铲猫砂|清理猫砂/.test(text)) {
+            // 铲猫砂
+            type = 'standing'; duration = 10; energyCost = 2;
+        } else if (/猫水|换水|加水/.test(text)) {
+            // 换猫水
+            type = 'standing'; duration = 3; energyCost = 1;
+        } else if (/洗猫碗|清洗猫碗/.test(text)) {
+            type = 'standing'; duration = 5; energyCost = 1;
+        } else if (/倒垃圾/.test(text)) {
+            type = 'standing'; duration = 5; energyCost = 1;
         }
         
         // 验证方式
         if (/打扫|清洁|收拾/.test(text)) {
             verification = 'photo';
         } else if (/洗衣|洗碗/.test(text)) {
+            verification = 'photo';
+        } else if (/猫砂|猫粮/.test(text)) {
             verification = 'photo';
         }
         
