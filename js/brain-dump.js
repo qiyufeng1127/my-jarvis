@@ -226,8 +226,8 @@ const BrainDump = {
     
     // 智能拆分文本为多个任务
     smartSplitText(text) {
-        // 如果文本很短（少于10个字符），不拆分
-        if (text.length < 10) {
+        // 如果文本很短（少于6个字符），不拆分
+        if (text.length < 6) {
             return [text];
         }
         
@@ -240,76 +240,117 @@ const BrainDump = {
             }
         }
         
-        // 方法2：基于关键词智能拆分
-        const tasks = [];
-        let remainingText = text;
+        // 方法2：基于任务短语模式智能拆分
+        // 定义完整的任务短语模式（包含动词+宾语的组合）
+        const taskPatterns = [
+            // 收拾/整理类 - 带位置
+            /(?:把)?(?:收拾|整理)(?:一下)?(?:卧室|客厅|厨房|厕所|工作区|房间|书桌|衣柜)/g,
+            /(?:把)?(?:卧室|客厅|厨房|厕所|工作区|房间|书桌|衣柜)(?:收拾|整理)(?:一下)?/g,
+            // 打扫类
+            /(?:打扫|清洁)(?:一下)?(?:卫生|卧室|客厅|厨房|厕所|房间)?/g,
+            /(?:拖|扫|擦)(?:一下)?(?:地|桌子|桌|窗户|玻璃)/g,
+            // 洗涤类
+            /洗(?:衣服|碗|澡|头|脸|手)/g,
+            /(?:晾|叠|收)衣服/g,
+            // 个人卫生
+            /刷牙/g,
+            /上厕所/g,
+            /(?:护肤|敷面膜|化妆|卸妆)/g,
+            // 厨房类
+            /(?:做饭|炒菜|煮饭|烧水|泡茶|冲咖啡)/g,
+            /(?:吃|做)?(?:早饭|午饭|晚饭|早餐|午餐|晚餐)/g,
+            // 猫咪类
+            /(?:喂猫|倒猫粮|换猫粮|加猫粮|铲猫砂|换猫砂|清理猫砂|换猫水|洗猫碗)/g,
+            // 工作学习
+            /(?:工作|开会|写代码|修图|剪辑|拍摄|学习|看书|写作)/g,
+            // 外出类
+            /(?:拿|取|寄)快递/g,
+            /(?:出门|买东西|购物|逛街)/g,
+            // 休息娱乐
+            /(?:休息|午睡|睡觉|看电视|玩游戏|刷手机)/g,
+            // 其他
+            /(?:换床单|铺床|浇花|倒垃圾)/g,
+        ];
         
-        // 按关键词长度降序排序，优先匹配长关键词
-        const sortedKeywords = [...this.taskKeywords].sort((a, b) => b.length - a.length);
+        // 收集所有匹配的任务
+        const foundTasks = [];
+        const usedRanges = []; // 记录已使用的文本范围，避免重复
         
-        // 查找所有匹配的关键词及其位置
-        const matches = [];
-        for (const keyword of sortedKeywords) {
-            let searchStart = 0;
-            while (true) {
-                const index = remainingText.indexOf(keyword, searchStart);
-                if (index === -1) break;
+        for (const pattern of taskPatterns) {
+            // 重置正则的lastIndex
+            pattern.lastIndex = 0;
+            let match;
+            while ((match = pattern.exec(text)) !== null) {
+                const start = match.index;
+                const end = start + match[0].length;
                 
-                // 检查是否已被其他更长的关键词覆盖
-                const isOverlapped = matches.some(m => 
-                    (index >= m.start && index < m.end) || 
-                    (index + keyword.length > m.start && index + keyword.length <= m.end)
+                // 检查是否与已有范围重叠
+                const isOverlapping = usedRanges.some(range => 
+                    (start < range.end && end > range.start)
                 );
                 
-                if (!isOverlapped) {
-                    matches.push({
-                        keyword,
-                        start: index,
-                        end: index + keyword.length
+                if (!isOverlapping) {
+                    foundTasks.push({
+                        text: match[0],
+                        start: start,
+                        end: end
                     });
+                    usedRanges.push({ start, end });
                 }
-                searchStart = index + 1;
             }
         }
         
-        // 如果找到多个关键词，按位置排序并提取任务
-        if (matches.length > 1) {
-            matches.sort((a, b) => a.start - b.start);
-            
-            // 提取每个关键词作为独立任务
-            // 同时尝试捕获关键词前后的修饰词
-            for (let i = 0; i < matches.length; i++) {
-                const match = matches[i];
-                const prevEnd = i > 0 ? matches[i - 1].end : 0;
-                const nextStart = i < matches.length - 1 ? matches[i + 1].start : text.length;
-                
-                // 获取关键词前的文本（可能是修饰词如"把"、"去"等）
-                let prefix = text.substring(prevEnd, match.start).trim();
-                // 获取关键词后的文本（可能是补充说明）
-                let suffix = text.substring(match.end, nextStart).trim();
-                
-                // 清理常见的连接词
-                prefix = prefix.replace(/^[把去要想得还有再和与及等等的了吧啊呢]+$/g, '').trim();
-                suffix = suffix.replace(/^[一下下儿]+/g, '').trim();
-                suffix = suffix.replace(/[等等的了吧啊呢]+$/g, '').trim();
-                
-                // 组合任务名称
-                let taskName = match.keyword;
-                if (prefix && prefix.length <= 4) {
-                    taskName = prefix + taskName;
-                }
-                if (suffix && suffix.length <= 6 && !sortedKeywords.some(k => suffix.includes(k))) {
-                    taskName = taskName + suffix;
-                }
-                
-                tasks.push(taskName);
-            }
-            
-            return tasks;
+        // 如果找到多个任务，按位置排序返回
+        if (foundTasks.length > 1) {
+            foundTasks.sort((a, b) => a.start - b.start);
+            return foundTasks.map(t => t.text);
         }
         
-        // 方法3：尝试用常见的口语连接词拆分
-        const oralSeparators = /(?:然后|接着|再|还要|还有|以及|和|跟|同时|之后|完了)/g;
+        // 方法3：基于关键词+位置词组合拆分
+        const locations = ['卧室', '客厅', '厨房', '厕所', '工作区', '拍摄间', '洗衣区', '房间'];
+        const actions = ['收拾', '整理', '打扫', '清洁'];
+        
+        const combinedTasks = [];
+        let remaining = text;
+        
+        // 查找 "动作+位置" 或 "把+位置+动作" 的组合
+        for (const loc of locations) {
+            for (const act of actions) {
+                // 模式1: 收拾客厅、整理卧室
+                const pattern1 = new RegExp(`${act}(?:一下)?${loc}`, 'g');
+                // 模式2: 把客厅收拾一下、把卧室整理
+                const pattern2 = new RegExp(`把${loc}${act}(?:一下)?`, 'g');
+                // 模式3: 客厅收拾一下
+                const pattern3 = new RegExp(`${loc}${act}(?:一下)?`, 'g');
+                
+                for (const p of [pattern1, pattern2, pattern3]) {
+                    const match = remaining.match(p);
+                    if (match) {
+                        combinedTasks.push(`${act}${loc}`);
+                        remaining = remaining.replace(p, '|||');
+                    }
+                }
+            }
+        }
+        
+        // 查找剩余的简单关键词任务
+        const simpleKeywords = ['刷牙', '洗脸', '洗澡', '洗头', '上厕所', '洗衣服', '洗碗', 
+            '做饭', '吃饭', '吃早饭', '吃午饭', '吃晚饭', '喂猫', '倒猫粮', '铲猫砂',
+            '拿快递', '取快递', '倒垃圾', '换床单', '工作', '休息', '午睡'];
+        
+        for (const kw of simpleKeywords) {
+            if (remaining.includes(kw)) {
+                combinedTasks.push(kw);
+                remaining = remaining.replace(kw, '|||');
+            }
+        }
+        
+        if (combinedTasks.length > 1) {
+            return combinedTasks;
+        }
+        
+        // 方法4：尝试用常见的口语连接词拆分
+        const oralSeparators = /(?:然后|接着|再去|再|还要|还得|还有|以及|同时|之后|完了|完再)/g;
         const oralParts = text.split(oralSeparators).map(s => s.trim()).filter(s => s.length > 1);
         if (oralParts.length > 1) {
             return oralParts;
