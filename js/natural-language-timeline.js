@@ -22,6 +22,13 @@ const NaturalLanguageTimeline = {
         { pattern: /删(除|掉)(\d+)[号日](的)?(所有|全部)?任务/i, action: 'clearDayTasks' },
         { pattern: /清空今天(的)?(所有)?任务/i, action: 'clearTodayTasks' },
         { pattern: /把今天(的)?任务(都|全部)?删(除|掉)/i, action: 'clearTodayTasks' },
+        { pattern: /今天(的)?(所有|全部)?任务(都)?删(除|掉)/i, action: 'clearTodayTasks' },
+        { pattern: /删(除|掉)今天(的)?(所有|全部)?任务/i, action: 'clearTodayTasks' },
+        { pattern: /把(昨天)?(和|跟)?今天(的)?(所有|全部)?任务(都)?删(除|掉)/i, action: 'clearTodayTasks' },
+        { pattern: /(昨天)?(和|跟)?今天(的)?(所有|全部)?任务(都|全部)?删(除|掉)/i, action: 'clearTodayTasks' },
+        { pattern: /把(所有|全部)任务(都)?删(除|掉)/i, action: 'clearTodayTasks' },
+        { pattern: /(所有|全部)任务(都)?删(除|掉)/i, action: 'clearTodayTasks' },
+        { pattern: /任务(都|全部)删(除|掉)/i, action: 'clearTodayTasks' },
         
         // ========== 移动任务 ==========
         // 移动任务到指定时间
@@ -176,21 +183,82 @@ const NaturalLanguageTimeline = {
     handleDeleteIntent(text) {
         console.log('🗑️ [handleDeleteIntent] 处理删除意图:', text);
         
-        // 尝试提取任务名称
-        const taskName = this.extractTaskName(text);
+        // 首先检查是否是清空所有任务的意图
+        const clearAllPatterns = [
+            /把?(昨天)?(和|跟)?今天?(的)?(所有|全部)?任务(都|全部)?删(除|掉)/,
+            /(所有|全部)任务(都)?删(除|掉)/,
+            /任务(都|全部)删(除|掉)/,
+            /清空(今天)?(的)?(所有|全部)?任务/,
+            /把?(所有|全部)?任务(都)?清空/,
+        ];
+        
+        for (const pattern of clearAllPatterns) {
+            if (pattern.test(text)) {
+                console.log('✅ [handleDeleteIntent] 识别为清空所有任务');
+                return this.clearTodayTasks();
+            }
+        }
+        
+        // 尝试提取时间（删除某时间之后的任务）
+        const timeInfo = this.extractTime(text);
+        if (timeInfo && (text.includes('之后') || text.includes('以后'))) {
+            console.log('✅ [handleDeleteIntent] 删除时间之后的任务:', timeInfo);
+            return this.deleteTasksAfterTime(timeInfo.hour, timeInfo.minute);
+        }
+        
+        // 尝试提取任务名称（删除特定任务）
+        const taskName = this.extractTaskNameForDelete(text);
         if (taskName) {
             console.log('✅ [handleDeleteIntent] 找到任务名:', taskName);
             return this.deleteTaskByNameDirect(taskName);
         }
         
-        // 尝试提取时间
-        const timeInfo = this.extractTime(text);
-        if (timeInfo && text.includes('之后')) {
-            console.log('✅ [handleDeleteIntent] 删除时间之后的任务:', timeInfo);
-            return this.deleteTasksAfterTime(timeInfo.hour, timeInfo.minute);
+        console.log('❌ [handleDeleteIntent] 无法提取任务名或时间');
+        return null;
+    },
+    
+    // 专门为删除操作提取任务名（更严格的过滤）
+    extractTaskNameForDelete(text) {
+        console.log('🔍 [extractTaskNameForDelete] 尝试提取删除目标:', text);
+        
+        // 尝试从引号中提取
+        const quotedMatch = text.match(/[「"'【](.+?)[」"'】]/);
+        if (quotedMatch) {
+            console.log('✅ [extractTaskNameForDelete] 从引号提取:', quotedMatch[1]);
+            return quotedMatch[1];
         }
         
-        console.log('❌ [handleDeleteIntent] 无法提取任务名或时间');
+        // 过滤掉"清空所有"类的指令，这些不是删除特定任务
+        const clearAllKeywords = ['所有', '全部', '今天', '昨天', '明天', '任务'];
+        const hasClearAllIntent = clearAllKeywords.filter(k => text.includes(k)).length >= 2;
+        if (hasClearAllIntent) {
+            console.log('❌ [extractTaskNameForDelete] 检测到清空所有意图，不提取任务名');
+            return null;
+        }
+        
+        // 尝试从"删除XXX"、"把XXX删掉"等模式提取
+        const patterns = [
+            { regex: /删(除|掉)「?([^」]+?)」?(任务)?$/, group: 2 },
+            { regex: /把「?([^」]+?)」?删(除|掉)/, group: 1 },
+            { regex: /取消「?([^」]+?)」?(任务)?$/, group: 1 },
+            { regex: /移除「?([^」]+?)」?(任务)?$/, group: 1 },
+        ];
+        
+        for (const p of patterns) {
+            const m = text.match(p.regex);
+            if (m) {
+                const name = m[p.group]?.trim();
+                // 严格过滤无意义词
+                const stopWords = ['把', '将', '帮我', '请', '今天', '昨天', '明天', '这个', '那个', 
+                                   '我要', '我想', '帮忙', '所有', '全部', '的', '任务', ''];
+                if (name && !stopWords.includes(name) && name.length > 1) {
+                    console.log('✅ [extractTaskNameForDelete] 从模式提取:', name);
+                    return name;
+                }
+            }
+        }
+        
+        console.log('❌ [extractTaskNameForDelete] 未能提取任务名');
         return null;
     },
     
