@@ -20,6 +20,7 @@
     <link rel="stylesheet" href="styles/mobile-input-fix.css">
     <link rel="stylesheet" href="styles/enhanced-features.css">
     <link rel="stylesheet" href="styles/voice-settings.css">
+    <link rel="stylesheet" href="styles/brain-dump.css">
     <style>
         /* 覆盖默认字体为更有特色的 Outfit */
         body {
@@ -200,6 +201,23 @@
             </div>
             <div class="resize-handle"></div>
         </div>
+
+        <!-- 清空你的脑子 - 头脑风暴中转站 -->
+        <div class="draggable-component" id="brainDump" data-component="brain-dump" style="left: 20px; top: 970px; width: 400px; height: 480px;">
+            <div class="component-header">
+                <span class="component-title">🧠 清空你的脑子</span>
+                <div class="component-controls">
+                    <button class="component-btn btn-minimize" title="最小化"></button>
+                    <button class="component-btn btn-maximize" title="最大化"></button>
+                    <button class="color-picker-btn" title="背景颜色">🎨</button>
+                    <input type="color" class="color-picker" value="#ffffff">
+                </div>
+            </div>
+            <div class="component-body" id="brainDumpBody">
+                <!-- 组件内容由JS加载 -->
+            </div>
+            <div class="resize-handle"></div>
+        </div>
     </div>
 
     <!-- API Key 弹窗 -->
@@ -343,6 +361,7 @@
     <script src="js/voice-settings-panel.js"></script>
     <script src="js/natural-language-timeline.js"></script>
     <script src="js/background-monitor.js"></script>
+    <script src="js/brain-dump.js"></script>
     <script src="js/app.js"></script>
     
     <!-- 移动端底部导航 -->

@@ -258,210 +258,97 @@ const ProcrastinationMonitor = {
         }
     },
     
-    // 播放提示音
+    // 播放提示音 - 使用统一音频系统
     playSound(type) {
         if (!this.settings.soundEnabled) {
             console.log('声音提醒已禁用');
             return;
         }
         
-        console.log('尝试播放声音:', type);
+        console.log('播放声音:', type);
         
-        // 确保音频上下文已创建
-        if (!this.audioContext && !this.useHTML5Audio) {
-            this.initAudio();
+        // 使用统一音频系统
+        if (typeof UnifiedAudioSystem !== 'undefined') {
+            UnifiedAudioSystem.setVolume(this.settings.soundVolume);
+            UnifiedAudioSystem.playSound(type);
+        } else {
+            // 降级方案：使用本地实现
+            this._playLocalSound(type);
         }
-        
-        // 如果音频上下文被暂停，尝试恢复
-        if (this.audioContext && this.audioContext.state === 'suspended') {
-            this.audioContext.resume().then(() => {
-                this._doPlaySound(type);
-            });
-            return;
-        }
-        
-        this._doPlaySound(type);
     },
     
-    // 实际播放声音
-    _doPlaySound(type) {
-        const volume = this.settings.soundVolume;
-        
-        // 如果 Web Audio API 不可用，使用降级方案
-        if (this.useHTML5Audio || !this.audioContext) {
-            this.playHTML5Sound(type, volume);
-            return;
-        }
-        
+    // 本地音效播放（降级方案）
+    _playLocalSound(type) {
         try {
-            switch (type) {
-                case 'chime':       // 任务开始 - 清脆的提示音
-                    this.playChime(volume);
-                    break;
-                case 'warning':     // 预警 - 警告音
-                    this.playWarning(volume);
-                    break;
-                case 'alarm':       // 超时警报 - 紧急警报音
-                    this.playAlarm(volume);
-                    break;
-                case 'success':     // 成功 - 欢快的成功音
-                    this.playSuccess(volume);
-                    break;
-                default:
-                    this.playChime(volume);
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const volume = this.settings.soundVolume;
+            const now = ctx.currentTime;
+            
+            if (type === 'chime' || type === 'taskStart') {
+                // 双音和弦
+                const osc1 = ctx.createOscillator();
+                const osc2 = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc1.type = 'sine';
+                osc2.type = 'sine';
+                osc1.frequency.setValueAtTime(523.25, now);
+                osc2.frequency.setValueAtTime(659.25, now);
+                gain.gain.setValueAtTime(volume * 0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+                osc1.connect(gain);
+                osc2.connect(gain);
+                gain.connect(ctx.destination);
+                osc1.start(now);
+                osc2.start(now);
+                osc1.stop(now + 0.5);
+                osc2.stop(now + 0.5);
+            } else if (type === 'alarm' || type === 'alert') {
+                // 紧急警报
+                for (let i = 0; i < 4; i++) {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(i % 2 === 0 ? 800 : 600, now + i * 0.15);
+                    gain.gain.setValueAtTime(volume * 0.35, now + i * 0.15);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.15 + 0.12);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(now + i * 0.15);
+                    osc.stop(now + i * 0.15 + 0.12);
+                }
+            } else if (type === 'success') {
+                // 成功音
+                const notes = [523.25, 659.25, 783.99];
+                notes.forEach((freq, i) => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now + i * 0.12);
+                    gain.gain.setValueAtTime(volume * 0.3, now + i * 0.12);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.12 + 0.3);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(now + i * 0.12);
+                    osc.stop(now + i * 0.12 + 0.3);
+                });
+            } else {
+                // 默认警告音
+                for (let i = 0; i < 2; i++) {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(880, now + i * 0.2);
+                    gain.gain.setValueAtTime(volume * 0.4, now + i * 0.2);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.2 + 0.15);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(now + i * 0.2);
+                    osc.stop(now + i * 0.2 + 0.15);
+                }
             }
-            console.log('声音播放成功:', type);
         } catch (e) {
-            console.error('声音播放失败:', e);
-            // 降级到 HTML5 Audio
-            this.playHTML5Sound(type, volume);
+            console.error('本地音效播放失败:', e);
         }
-    },
-    
-    // HTML5 Audio 降级方案（使用系统蜂鸣音）
-    playHTML5Sound(type, volume) {
-        try {
-            // 创建一个简单的蜂鸣音
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            
-            // 根据类型设置不同的频率
-            const freqMap = {
-                'chime': 800,
-                'warning': 600,
-                'alarm': 400,
-                'success': 1000
-            };
-            
-            oscillator.frequency.value = freqMap[type] || 800;
-            oscillator.type = 'sine';
-            gainNode.gain.value = volume * 0.3;
-            
-            oscillator.start();
-            oscillator.stop(audioCtx.currentTime + 0.3);
-            
-            console.log('HTML5 Audio 播放成功');
-        } catch (e) {
-            console.error('HTML5 Audio 也失败了:', e);
-        }
-    },
-    
-    // 清脆提示音（任务开始）
-    playChime(volume) {
-        if (!this.audioContext) return;
-        
-        const ctx = this.audioContext;
-        const now = ctx.currentTime;
-        
-        // 创建振荡器
-        const osc1 = ctx.createOscillator();
-        const osc2 = ctx.createOscillator();
-        const gain = ctx.createGain();
-        
-        osc1.type = 'sine';
-        osc2.type = 'sine';
-        
-        // 双音和弦
-        osc1.frequency.setValueAtTime(523.25, now); // C5
-        osc2.frequency.setValueAtTime(659.25, now); // E5
-        
-        gain.gain.setValueAtTime(volume * 0.3, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
-        
-        osc1.connect(gain);
-        osc2.connect(gain);
-        gain.connect(ctx.destination);
-        
-        osc1.start(now);
-        osc2.start(now);
-        osc1.stop(now + 0.5);
-        osc2.stop(now + 0.5);
-    },
-    
-    // 警告音（预警）
-    playWarning(volume) {
-        if (!this.audioContext) return;
-        
-        const ctx = this.audioContext;
-        const now = ctx.currentTime;
-        
-        // 播放两次短促的警告音
-        for (let i = 0; i < 2; i++) {
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(880, now + i * 0.2); // A5
-            
-            gain.gain.setValueAtTime(volume * 0.4, now + i * 0.2);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.2 + 0.15);
-            
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            
-            osc.start(now + i * 0.2);
-            osc.stop(now + i * 0.2 + 0.15);
-        }
-    },
-    
-    // 紧急警报音（超时）
-    playAlarm(volume) {
-        if (!this.audioContext) return;
-        
-        const ctx = this.audioContext;
-        const now = ctx.currentTime;
-        
-        // 播放紧急警报 - 交替高低音
-        for (let i = 0; i < 4; i++) {
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            
-            osc.type = 'square';
-            // 交替高低频率
-            const freq = i % 2 === 0 ? 800 : 600;
-            osc.frequency.setValueAtTime(freq, now + i * 0.15);
-            
-            gain.gain.setValueAtTime(volume * 0.35, now + i * 0.15);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.15 + 0.12);
-            
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            
-            osc.start(now + i * 0.15);
-            osc.stop(now + i * 0.15 + 0.12);
-        }
-    },
-    
-    // 成功音
-    playSuccess(volume) {
-        if (!this.audioContext) return;
-        
-        const ctx = this.audioContext;
-        const now = ctx.currentTime;
-        
-        // 上升的三音符
-        const notes = [523.25, 659.25, 783.99]; // C5, E5, G5
-        
-        notes.forEach((freq, i) => {
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(freq, now + i * 0.12);
-            
-            gain.gain.setValueAtTime(volume * 0.3, now + i * 0.12);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.12 + 0.3);
-            
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            
-            osc.start(now + i * 0.12);
-            osc.stop(now + i * 0.12 + 0.3);
-        });
     },
     
     // 测试声音
@@ -777,23 +664,26 @@ const ProcrastinationMonitor = {
     
     // ==================== 语音播报系统 ====================
     
-    // 播放语音文本
+    // 播放语音文本 - 使用统一语音系统
     speakText(text) {
-        if (!this.speechSynthesis || !this.settings.useVoiceAlert) {
-            console.log('语音播报未启用或不支持');
+        if (!this.settings.useVoiceAlert) {
+            console.log('语音播报未启用');
             return;
         }
         
-        // 停止当前播放
-        this.speechSynthesis.cancel();
-        
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'zh-CN';
-        utterance.rate = 1.0;
-        utterance.pitch = 1.0;
-        utterance.volume = this.settings.soundVolume;
-        
-        this.speechSynthesis.speak(utterance);
+        // 优先使用统一语音系统
+        if (typeof UnifiedSpeech !== 'undefined') {
+            UnifiedSpeech.speak(text, { volume: this.settings.soundVolume });
+        } else if (this.speechSynthesis) {
+            // 降级方案：使用本地实现
+            this.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'zh-CN';
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+            utterance.volume = this.settings.soundVolume;
+            this.speechSynthesis.speak(utterance);
+        }
         console.log('播放语音:', text);
     },
     

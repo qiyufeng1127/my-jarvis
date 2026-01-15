@@ -1,7 +1,10 @@
-// 统一语音系统 v1.0
-// 整合所有语音功能到一个模块，提供清晰的语音触发点和可视化设置
+// 统一语音系统 v2.0
+// 整合所有语音和音频功能到一个模块
+// 提供：语音播报、音效播放、语音识别、统一定时器调度
 
 const UnifiedVoiceSystem = {
+    // 版本
+    version: '2.0',
     // 状态
     isEnabled: false,
     isListening: false,
@@ -838,11 +841,585 @@ const UnifiedVoiceSystem = {
     }
 };
 
-// 导出
-window.UnifiedVoiceSystem = UnifiedVoiceSystem;
+// ==================== 统一音频系统 ====================
+// 提供所有模块共用的音频播放功能，避免重复代码
 
-// 页面加载后初始化
+const UnifiedAudioSystem = {
+    audioContext: null,
+    isInitialized: false,
+    volume: 0.7,
+    
+    // 初始化音频上下文
+    init() {
+        if (this.isInitialized) return;
+        
+        try {
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // 用户交互后解锁音频
+            const unlockAudio = () => {
+                if (this.audioContext && this.audioContext.state === 'suspended') {
+                    this.audioContext.resume();
+                }
+            };
+            
+            ['click', 'touchstart', 'keydown'].forEach(event => {
+                document.addEventListener(event, unlockAudio, { once: false, passive: true });
+            });
+            
+            // 30秒后移除监听器
+            setTimeout(() => {
+                ['click', 'touchstart', 'keydown'].forEach(event => {
+                    document.removeEventListener(event, unlockAudio);
+                });
+            }, 30000);
+            
+            this.isInitialized = true;
+            console.log('统一音频系统初始化完成');
+        } catch (e) {
+            console.error('音频系统初始化失败:', e);
+        }
+    },
+    
+    // 确保音频上下文可用
+    ensureContext() {
+        if (!this.audioContext) {
+            this.init();
+        }
+        if (this.audioContext && this.audioContext.state === 'suspended') {
+            this.audioContext.resume();
+        }
+        return this.audioContext;
+    },
+    
+    // 设置音量
+    setVolume(vol) {
+        this.volume = Math.max(0, Math.min(1, vol));
+    },
+    
+    // 播放音效（统一入口）
+    playSound(type, options = {}) {
+        const vol = options.volume || this.volume;
+        
+        switch (type) {
+            case 'chime':
+            case 'taskStart':
+                this.playChime(vol);
+                break;
+            case 'warning':
+            case 'preAlert':
+                this.playWarning(vol);
+                break;
+            case 'alarm':
+            case 'alert':
+                this.playAlarm(vol);
+                break;
+            case 'success':
+            case 'complete':
+                this.playSuccess(vol);
+                break;
+            case 'coin':
+                this.playCoin(vol);
+                break;
+            case 'click':
+                this.playClick(vol);
+                break;
+            case 'notification':
+                this.playNotification(vol);
+                break;
+            default:
+                this.playChime(vol);
+        }
+    },
+    
+    // 清脆提示音（任务开始）
+    playChime(volume) {
+        const ctx = this.ensureContext();
+        if (!ctx) return;
+        
+        const now = ctx.currentTime;
+        const vol = volume || this.volume;
+        
+        // 双音和弦
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const gain = ctx.createGain();
+        
+        osc1.type = 'sine';
+        osc2.type = 'sine';
+        osc1.frequency.setValueAtTime(523.25, now); // C5
+        osc2.frequency.setValueAtTime(659.25, now); // E5
+        
+        gain.gain.setValueAtTime(vol * 0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+        
+        osc1.connect(gain);
+        osc2.connect(gain);
+        gain.connect(ctx.destination);
+        
+        osc1.start(now);
+        osc2.start(now);
+        osc1.stop(now + 0.5);
+        osc2.stop(now + 0.5);
+    },
+    
+    // 警告音（预警）
+    playWarning(volume) {
+        const ctx = this.ensureContext();
+        if (!ctx) return;
+        
+        const now = ctx.currentTime;
+        const vol = volume || this.volume;
+        
+        // 播放两次短促的警告音
+        for (let i = 0; i < 2; i++) {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(880, now + i * 0.2); // A5
+            
+            gain.gain.setValueAtTime(vol * 0.4, now + i * 0.2);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.2 + 0.15);
+            
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            osc.start(now + i * 0.2);
+            osc.stop(now + i * 0.2 + 0.15);
+        }
+    },
+    
+    // 紧急警报音（超时）
+    playAlarm(volume) {
+        const ctx = this.ensureContext();
+        if (!ctx) return;
+        
+        const now = ctx.currentTime;
+        const vol = volume || this.volume;
+        
+        // 播放紧急警报 - 交替高低音
+        for (let i = 0; i < 4; i++) {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            
+            osc.type = 'square';
+            const freq = i % 2 === 0 ? 800 : 600;
+            osc.frequency.setValueAtTime(freq, now + i * 0.15);
+            
+            gain.gain.setValueAtTime(vol * 0.35, now + i * 0.15);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.15 + 0.12);
+            
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            osc.start(now + i * 0.15);
+            osc.stop(now + i * 0.15 + 0.12);
+        }
+    },
+    
+    // 成功音
+    playSuccess(volume) {
+        const ctx = this.ensureContext();
+        if (!ctx) return;
+        
+        const now = ctx.currentTime;
+        const vol = volume || this.volume;
+        
+        // 上升的三音符
+        const notes = [523.25, 659.25, 783.99]; // C5, E5, G5
+        
+        notes.forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now + i * 0.12);
+            
+            gain.gain.setValueAtTime(vol * 0.3, now + i * 0.12);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.12 + 0.3);
+            
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            osc.start(now + i * 0.12);
+            osc.stop(now + i * 0.12 + 0.3);
+        });
+    },
+    
+    // 金币音效
+    playCoin(volume) {
+        const ctx = this.ensureContext();
+        if (!ctx) return;
+        
+        const now = ctx.currentTime;
+        const vol = volume || this.volume;
+        
+        // 金币叮当声
+        const notes = [1318.51, 1567.98]; // E6, G6
+        
+        notes.forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now + i * 0.08);
+            
+            gain.gain.setValueAtTime(vol * 0.25, now + i * 0.08);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.08 + 0.2);
+            
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            osc.start(now + i * 0.08);
+            osc.stop(now + i * 0.08 + 0.2);
+        });
+    },
+    
+    // 点击音效
+    playClick(volume) {
+        const ctx = this.ensureContext();
+        if (!ctx) return;
+        
+        const now = ctx.currentTime;
+        const vol = volume || this.volume;
+        
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1000, now);
+        
+        gain.gain.setValueAtTime(vol * 0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+        
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        
+        osc.start(now);
+        osc.stop(now + 0.05);
+    },
+    
+    // 通知音效
+    playNotification(volume) {
+        const ctx = this.ensureContext();
+        if (!ctx) return;
+        
+        const now = ctx.currentTime;
+        const vol = volume || this.volume;
+        
+        // 两个上升音符
+        const notes = [440, 554.37]; // A4, C#5
+        
+        notes.forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now + i * 0.15);
+            
+            gain.gain.setValueAtTime(vol * 0.2, now + i * 0.15);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.15 + 0.25);
+            
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            osc.start(now + i * 0.15);
+            osc.stop(now + i * 0.15 + 0.25);
+        });
+    },
+    
+    // 测试音效
+    test(type) {
+        this.playSound(type || 'chime');
+    }
+};
+
+// ==================== 统一定时器调度系统 ====================
+// 集中管理所有定时器，减少系统开销
+
+const UnifiedScheduler = {
+    // 注册的回调函数
+    callbacks: {
+        everySecond: [],      // 每秒执行
+        everyMinute: [],      // 每分钟执行
+        everyHour: []         // 每小时执行
+    },
+    
+    // 定时器ID
+    timers: {
+        second: null,
+        minute: null,
+        hour: null
+    },
+    
+    // 是否已启动
+    isRunning: false,
+    
+    // 上次执行时间
+    lastRun: {
+        minute: 0,
+        hour: 0
+    },
+    
+    // 初始化并启动调度器
+    init() {
+        if (this.isRunning) return;
+        
+        this.isRunning = true;
+        this.startScheduler();
+        console.log('统一定时器调度系统已启动');
+    },
+    
+    // 启动调度器
+    startScheduler() {
+        const self = this;
+        
+        // 每秒执行一次的主循环
+        this.timers.second = setInterval(() => {
+            const now = new Date();
+            const currentMinute = now.getMinutes();
+            const currentHour = now.getHours();
+            
+            // 执行每秒回调
+            self.executeCallbacks('everySecond', now);
+            
+            // 检查是否需要执行每分钟回调
+            if (currentMinute !== self.lastRun.minute) {
+                self.lastRun.minute = currentMinute;
+                self.executeCallbacks('everyMinute', now);
+            }
+            
+            // 检查是否需要执行每小时回调
+            if (currentHour !== self.lastRun.hour) {
+                self.lastRun.hour = currentHour;
+                self.executeCallbacks('everyHour', now);
+            }
+        }, 1000);
+    },
+    
+    // 停止调度器
+    stop() {
+        if (this.timers.second) {
+            clearInterval(this.timers.second);
+            this.timers.second = null;
+        }
+        this.isRunning = false;
+        console.log('统一定时器调度系统已停止');
+    },
+    
+    // 执行回调函数
+    executeCallbacks(type, now) {
+        const callbacks = this.callbacks[type];
+        for (let i = 0; i < callbacks.length; i++) {
+            try {
+                callbacks[i].callback(now);
+            } catch (e) {
+                console.error(`调度器执行回调失败 [${callbacks[i].name}]:`, e);
+            }
+        }
+    },
+    
+    // 注册每秒回调
+    onEverySecond(name, callback) {
+        this.register('everySecond', name, callback);
+    },
+    
+    // 注册每分钟回调
+    onEveryMinute(name, callback) {
+        this.register('everyMinute', name, callback);
+    },
+    
+    // 注册每小时回调
+    onEveryHour(name, callback) {
+        this.register('everyHour', name, callback);
+    },
+    
+    // 注册回调
+    register(type, name, callback) {
+        // 检查是否已存在同名回调
+        const existing = this.callbacks[type].findIndex(c => c.name === name);
+        if (existing !== -1) {
+            this.callbacks[type][existing].callback = callback;
+        } else {
+            this.callbacks[type].push({ name, callback });
+        }
+        console.log(`调度器注册回调: ${name} -> ${type}`);
+    },
+    
+    // 注销回调
+    unregister(type, name) {
+        const index = this.callbacks[type].findIndex(c => c.name === name);
+        if (index !== -1) {
+            this.callbacks[type].splice(index, 1);
+            console.log(`调度器注销回调: ${name}`);
+        }
+    },
+    
+    // 注销所有指定名称的回调
+    unregisterAll(name) {
+        ['everySecond', 'everyMinute', 'everyHour'].forEach(type => {
+            this.unregister(type, name);
+        });
+    },
+    
+    // 获取已注册的回调列表
+    getRegisteredCallbacks() {
+        return {
+            everySecond: this.callbacks.everySecond.map(c => c.name),
+            everyMinute: this.callbacks.everyMinute.map(c => c.name),
+            everyHour: this.callbacks.everyHour.map(c => c.name)
+        };
+    }
+};
+
+// ==================== 统一语音播报系统 ====================
+// 提供所有模块共用的语音播报功能
+
+const UnifiedSpeech = {
+    synthesis: window.speechSynthesis,
+    availableVoices: [],
+    selectedVoice: null,
+    isInitialized: false,
+    
+    // 设置
+    settings: {
+        rate: 1.0,
+        pitch: 1.0,
+        volume: 1.0,
+        voiceName: ''
+    },
+    
+    // 初始化
+    init() {
+        if (this.isInitialized) return;
+        
+        if (!this.synthesis) {
+            console.warn('浏览器不支持语音合成');
+            return;
+        }
+        
+        // 加载语音列表
+        this.loadVoices();
+        this.synthesis.onvoiceschanged = () => this.loadVoices();
+        
+        // 加载设置
+        this.loadSettings();
+        
+        this.isInitialized = true;
+        console.log('统一语音播报系统初始化完成');
+    },
+    
+    // 加载可用语音
+    loadVoices() {
+        this.availableVoices = this.synthesis.getVoices();
+        
+        // 如果有保存的语音，尝试恢复
+        if (this.settings.voiceName) {
+            this.selectedVoice = this.availableVoices.find(v => v.name === this.settings.voiceName);
+        }
+        
+        // 如果没有选择语音，选择第一个中文语音
+        if (!this.selectedVoice) {
+            const chineseVoices = this.availableVoices.filter(v => 
+                v.lang.includes('zh') || v.lang.includes('CN') || v.lang.includes('TW')
+            );
+            if (chineseVoices.length > 0) {
+                this.selectedVoice = chineseVoices[0];
+            }
+        }
+    },
+    
+    // 加载设置
+    loadSettings() {
+        const saved = localStorage.getItem('unified_speech_settings');
+        if (saved) {
+            try {
+                Object.assign(this.settings, JSON.parse(saved));
+            } catch (e) {}
+        }
+    },
+    
+    // 保存设置
+    saveSettings() {
+        localStorage.setItem('unified_speech_settings', JSON.stringify(this.settings));
+    },
+    
+    // 获取中文语音列表
+    getChineseVoices() {
+        return this.availableVoices.filter(v => 
+            v.lang.includes('zh') || v.lang.includes('CN') || v.lang.includes('TW')
+        );
+    },
+    
+    // 播报文本（核心方法）
+    speak(text, options = {}) {
+        if (!this.synthesis) {
+            console.log('语音播报(不支持):', text);
+            return Promise.resolve();
+        }
+        
+        return new Promise((resolve) => {
+            // 如果需要打断之前的播报
+            if (options.interrupt !== false) {
+                this.synthesis.cancel();
+            }
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'zh-CN';
+            utterance.rate = options.rate || this.settings.rate;
+            utterance.pitch = options.pitch || this.settings.pitch;
+            utterance.volume = options.volume || this.settings.volume;
+            
+            if (this.selectedVoice) {
+                utterance.voice = this.selectedVoice;
+            }
+            
+            utterance.onend = () => resolve();
+            utterance.onerror = () => resolve();
+            
+            this.synthesis.speak(utterance);
+            console.log('语音播报:', text);
+        });
+    },
+    
+    // 停止播报
+    stop() {
+        if (this.synthesis) {
+            this.synthesis.cancel();
+        }
+    },
+    
+    // 更新设置
+    updateSetting(key, value) {
+        this.settings[key] = value;
+        
+        if (key === 'voiceName') {
+            this.selectedVoice = this.availableVoices.find(v => v.name === value);
+        }
+        
+        this.saveSettings();
+    },
+    
+    // 测试语音
+    test(text) {
+        this.speak(text || '这是一条测试语音，如果你能听到，说明语音系统工作正常');
+    }
+};
+
+// 导出所有模块
+window.UnifiedVoiceSystem = UnifiedVoiceSystem;
+window.UnifiedAudioSystem = UnifiedAudioSystem;
+window.UnifiedScheduler = UnifiedScheduler;
+window.UnifiedSpeech = UnifiedSpeech;
+
+// 页面加载后初始化所有系统
 document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => UnifiedVoiceSystem.init(), 1500);
+    setTimeout(() => {
+        UnifiedAudioSystem.init();
+        UnifiedSpeech.init();
+        UnifiedScheduler.init();
+        UnifiedVoiceSystem.init();
+    }, 1500);
 });
 

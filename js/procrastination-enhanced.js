@@ -511,8 +511,24 @@ const ProcrastinationEnhanced = {
         }, 500);
     },
     
-    // 播放警报声
+    // 播放警报声 - 使用统一音频系统
     playAlarmSound() {
+        // 优先使用统一音频系统
+        if (typeof UnifiedAudioSystem !== 'undefined') {
+            UnifiedAudioSystem.playSound('alarm');
+            
+            // 持续播放直到用户确认
+            if (this.fullscreenAlertActive) {
+                setTimeout(() => {
+                    if (this.fullscreenAlertActive) {
+                        this.playAlarmSound();
+                    }
+                }, 3000);
+            }
+            return;
+        }
+        
+        // 降级方案：使用本地实现
         if (!this.audioContext) return;
         
         const ctx = this.audioContext;
@@ -1042,8 +1058,15 @@ const ProcrastinationEnhanced = {
         }
     },
     
-    // 播放成功音
+    // 播放成功音 - 使用统一音频系统
     playSuccessSound() {
+        // 优先使用统一音频系统
+        if (typeof UnifiedAudioSystem !== 'undefined') {
+            UnifiedAudioSystem.playSound('success');
+            return;
+        }
+        
+        // 降级方案：使用本地实现
         if (!this.audioContext) return;
         
         const ctx = this.audioContext;
@@ -1072,8 +1095,15 @@ const ProcrastinationEnhanced = {
     
     // ==================== 工具方法 ====================
     
-    // 语音播报
+    // 语音播报 - 使用统一语音系统
     speak(text, rate = 1.0, interrupt = true) {
+        // 优先使用统一语音系统
+        if (typeof UnifiedSpeech !== 'undefined') {
+            UnifiedSpeech.speak(text, { rate: rate, interrupt: interrupt });
+            return;
+        }
+        
+        // 降级方案：使用本地实现
         if (!this.speechSynthesis) {
             console.log('语音播报（不支持）:', text);
             return;

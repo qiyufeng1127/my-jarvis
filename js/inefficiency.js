@@ -232,23 +232,26 @@ const InefficiencyMonitor = {
     
     // ==================== 语音播报系统 ====================
     
-    // 播放语音文本
+    // 播放语音文本 - 使用统一语音系统
     speakText(text) {
-        if (!this.speechSynthesis || !this.settings.useVoiceAlert) {
-            console.log('语音播报未启用或不支持');
+        if (!this.settings.useVoiceAlert) {
+            console.log('语音播报未启用');
             return;
         }
         
-        // 停止当前播放
-        this.speechSynthesis.cancel();
-        
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'zh-CN';
-        utterance.rate = 1.0;
-        utterance.pitch = 1.0;
-        utterance.volume = 0.7;
-        
-        this.speechSynthesis.speak(utterance);
+        // 优先使用统一语音系统
+        if (typeof UnifiedSpeech !== 'undefined') {
+            UnifiedSpeech.speak(text, { volume: 0.7 });
+        } else if (this.speechSynthesis) {
+            // 降级方案：使用本地实现
+            this.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'zh-CN';
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+            utterance.volume = 0.7;
+            this.speechSynthesis.speak(utterance);
+        }
         console.log('低效率监控播放语音:', text);
     },
     

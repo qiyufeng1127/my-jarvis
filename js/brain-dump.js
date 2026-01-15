@@ -1,0 +1,1075 @@
+// 清空你的脑子 - 头脑风暴中转站 v1.0
+// 收集未分类、未排序的零散想法和待办事项，经AI智能整理后推送到时间轴
+
+const BrainDump = {
+    // 暂存的想法列表
+    items: [],
+    
+    // AI安排后的任务列表
+    arrangedTasks: [],
+    
+    // 是否显示AI安排结果
+    showArrangedView: false,
+    
+    // 拖拽状态
+    dragState: {
+        dragging: false,
+        dragIndex: null,
+        dropIndex: null
+    },
+    
+    // Loft布局配置（可在设置中自定义）
+    layoutConfig: {
+        floors: {
+            '一楼': ['进门', '客厅', '厕所', '厨房', '楼梯', '洗衣区'],
+            '二楼': ['楼梯', '卧室', '拍摄间', '工作区']
+        },
+        // 动线顺序（数字越小越靠前）
+        locationOrder: {
+            '厕所': 1, '客厅': 2, '楼下': 3, '厨房': 4, '洗衣区': 5,
+            '卧室': 10, '拍摄间': 11, '工作区': 12
+        },
+        // 固定时间任务
+        fixedTimeTasks: {
+            '吃午饭': { start: '12:00', end: '13:00' },
+            '午饭': { start: '12:00', end: '13:00' },
+            '吃晚饭': { start: '18:00', end: '19:00' },
+            '晚饭': { start: '18:00', end: '19:00' },
+            '吃早饭': { start: '08:00', end: '08:30' },
+            '早饭': { start: '08:00', end: '08:30' }
+        }
+    },
+    
+    // AI安排提示词
+    arrangePrompt: `请作为任务安排专家，分析我提供的任务列表，按照以下规则智能安排：
+
+【时间规则】
+1. 默认安排今天的时间（从当前时间开始往后安排）
+2. 用餐时间固定：早饭08:00-08:30，午饭12:00-13:00，晚饭18:00-19:00
+3. 每项任务间留5-10分钟缓冲
+4. 避免任务过度密集，合理分配精力
+5. 高体力任务安排在上午或下午精力充沛时
+
+【动线规则】根据loft布局优化动线：
+一楼动线：进门客厅→左手厕所→直行厨房→洗衣区→楼梯
+二楼动线：楼梯→左卧室→右拍摄间/工作区
+
+【优化原则】
+1. 同一楼层任务集中安排
+2. 上下楼次数最少化
+3. 相关任务串联：如"收拾卧室"后接"换床单"，再下楼"洗衣服"
+4. 物品流转顺路：楼上脏衣服→楼下洗衣区
+5. 功能相似合并：清洁类任务集中处理
+6. 站立任务和坐姿任务交替，避免疲劳
+
+【任务分析】
+请分析每个任务的：
+- 任务类型（standing站立/sitting坐着）
+- 预计时长（分钟）
+- 体力消耗（1-5级，5为最高）
+- 位置（厕所/客厅/厨房/卧室/拍摄间/工作区/外出等）
+- 验证方式（photo拍照/check勾选/duration时长验证）
+
+【输出格式】
+请严格按照以下JSON格式输出，不要有其他文字：
+{
+  "tasks": [
+    {
+      "title": "任务名称",
+      "startTime": "HH:MM",
+      "duration": 30,
+      "type": "standing",
+      "energyCost": 3,
+      "location": "客厅",
+      "floor": "一楼",
+      "verification": "photo",
+      "coins": 50,
+      "reason": "安排理由简述"
+    }
+  ],
+  "summary": {
+    "totalTasks": 10,
+    "totalDuration": 300,
+    "floorChanges": 2,
+    "explanation": "动线优化说明"
+  }
+}
+
+【金币计算规则】
+- 站立任务：基础20金币 + 每分钟1金币
+- 坐姿任务：基础10金币 + 每分钟0.5金币
+- 高体力任务(4-5级)：额外+20%金币
+
+当前时间：{currentTime}
+今天日期：{today}
+
+请安排以下任务：
+{taskList}`,
+
+    // 初始化
+    init() {
+        this.loadItems();
+        this.refresh();
+        console.log('🧠 清空你的脑子组件初始化完成');
+    },
+    
+    // 加载暂存项目
+    loadItems() {
+        const saved = localStorage.getItem('brain_dump_items');
+        if (saved) {
+            try {
+                this.items = JSON.parse(saved);
+            } catch (e) {
+                this.items = [];
+            }
+        }
+    },
+    
+    // 保存暂存项目
+    saveItems() {
+        localStorage.setItem('brain_dump_items', JSON.stringify(this.items));
+    },
+    
+    // 添加想法
+    addItem(text) {
+        if (!text || !text.trim()) return;
+        
+        const item = {
+            id: Date.now().toString(),
+            text: text.trim(),
+            createdAt: new Date().toISOString(),
+            arranged: false
+        };
+        
+        this.items.push(item);
+        this.saveItems();
+        this.refresh();
+        
+        // 播放添加音效
+        if (typeof UnifiedAudioSystem !== 'undefined') {
+            UnifiedAudioSystem.playSound('click');
+        }
+    },
+    
+    // 删除想法
+    removeItem(id) {
+        this.items = this.items.filter(item => item.id !== id);
+        this.saveItems();
+        this.refresh();
+    },
+    
+    // 清空所有
+    clearAll() {
+        if (this.items.length === 0) return;
+        
+        if (confirm('确定要清空所有暂存的想法吗？')) {
+            this.items = [];
+            this.arrangedTasks = [];
+            this.showArrangedView = false;
+            this.saveItems();
+            this.refresh();
+            
+            if (typeof App !== 'undefined') {
+                App.addChatMessage('system', '已清空所有暂存想法', '🗑️');
+            }
+        }
+    },
+    
+    // 刷新显示
+    refresh() {
+        const container = document.getElementById('brainDumpBody');
+        if (container) {
+            container.innerHTML = this.render();
+            this.initDragAndDrop();
+        }
+    },
+    
+    // 渲染组件
+    render() {
+        const inputSection = this.renderInputSection();
+        const itemsSection = this.showArrangedView ? 
+            this.renderArrangedView() : this.renderItemsList();
+        const actionsSection = this.renderActions();
+        
+        return `
+            <div class="brain-dump-container">
+                ${inputSection}
+                ${itemsSection}
+                ${actionsSection}
+            </div>
+        `;
+    },
+    
+    // 渲染输入区
+    renderInputSection() {
+        return `
+            <div class="brain-dump-input-section">
+                <div class="brain-dump-input-wrapper">
+                    <input type="text" 
+                           id="brainDumpInput" 
+                           class="brain-dump-input" 
+                           placeholder="随便写点什么...待办、想法、灵感都可以"
+                           onkeypress="if(event.key==='Enter') BrainDump.handleInputSubmit()">
+                    <button class="brain-dump-add-btn" onclick="BrainDump.handleInputSubmit()">
+                        <span>+</span>
+                    </button>
+                </div>
+                <div class="brain-dump-quick-tags">
+                    <span class="quick-tag" onclick="BrainDump.addItem('洗衣服')">🧺 洗衣服</span>
+                    <span class="quick-tag" onclick="BrainDump.addItem('打扫卫生')">🧹 打扫</span>
+                    <span class="quick-tag" onclick="BrainDump.addItem('拿快递')">📦 快递</span>
+                    <span class="quick-tag" onclick="BrainDump.addItem('做饭')">🍳 做饭</span>
+                </div>
+            </div>
+        `;
+    },
+    
+    // 处理输入提交
+    handleInputSubmit() {
+        const input = document.getElementById('brainDumpInput');
+        if (input && input.value.trim()) {
+            this.addItem(input.value);
+            input.value = '';
+            input.focus();
+        }
+    },
+    
+    // 渲染项目列表
+    renderItemsList() {
+        if (this.items.length === 0) {
+            return `
+                <div class="brain-dump-empty">
+                    <div class="empty-icon">🧠</div>
+                    <div class="empty-text">脑子空空的~</div>
+                    <div class="empty-hint">把你的想法、待办都倒进来吧</div>
+                </div>
+            `;
+        }
+        
+        let itemsHtml = '';
+        this.items.forEach((item, index) => {
+            itemsHtml += `
+                <div class="brain-dump-item" 
+                     data-id="${item.id}" 
+                     data-index="${index}"
+                     draggable="true">
+                    <div class="item-drag-handle">⋮⋮</div>
+                    <div class="item-content">${this.escapeHtml(item.text)}</div>
+                    <button class="item-remove-btn" onclick="BrainDump.removeItem('${item.id}')">×</button>
+                </div>
+            `;
+        });
+        
+        return `
+            <div class="brain-dump-list" id="brainDumpList">
+                <div class="list-header">
+                    <span class="list-count">📝 ${this.items.length} 个想法待整理</span>
+                    <span class="list-hint">拖拽可调整顺序</span>
+                </div>
+                <div class="items-container" id="itemsContainer">
+                    ${itemsHtml}
+                </div>
+            </div>
+        `;
+    },
+    
+    // 渲染AI安排后的视图
+    renderArrangedView() {
+        if (this.arrangedTasks.length === 0) {
+            return this.renderItemsList();
+        }
+        
+        let tasksHtml = '';
+        this.arrangedTasks.forEach((task, index) => {
+            const typeIcon = task.type === 'standing' ? '🧍' : '🪑';
+            const energyDots = '💪'.repeat(Math.min(task.energyCost || 1, 5));
+            const endTime = this.addMinutesToTime(task.startTime, task.duration);
+            
+            tasksHtml += `
+                <div class="arranged-task-card" 
+                     data-index="${index}"
+                     draggable="true">
+                    <div class="task-drag-handle">⋮⋮</div>
+                    <div class="task-time-badge">${task.startTime}-${endTime}</div>
+                    <div class="task-main">
+                        <div class="task-title">${this.escapeHtml(task.title)}</div>
+                        <div class="task-meta">
+                            <span class="meta-item" title="任务类型">${typeIcon}</span>
+                            <span class="meta-item" title="位置">📍${task.location || '未知'}</span>
+                            <span class="meta-item" title="体力消耗">${energyDots}</span>
+                            <span class="meta-item coins" title="金币收益">🪙+${task.coins || 0}</span>
+                        </div>
+                    </div>
+                    <div class="task-actions">
+                        <button class="task-edit-btn" onclick="BrainDump.editArrangedTask(${index})" title="编辑">✏️</button>
+                        <button class="task-remove-btn" onclick="BrainDump.removeArrangedTask(${index})" title="移除">×</button>
+                    </div>
+                </div>
+            `;
+        });
+        
+        // 动线说明
+        const summaryHtml = this.arrangeSummary ? `
+            <div class="arrange-summary">
+                <div class="summary-title">📊 安排说明</div>
+                <div class="summary-content">${this.arrangeSummary.explanation || ''}</div>
+                <div class="summary-stats">
+                    <span>共 ${this.arrangeSummary.totalTasks || 0} 个任务</span>
+                    <span>约 ${Math.round((this.arrangeSummary.totalDuration || 0) / 60)} 小时</span>
+                    <span>上下楼 ${this.arrangeSummary.floorChanges || 0} 次</span>
+                </div>
+            </div>
+        ` : '';
+        
+        return `
+            <div class="brain-dump-arranged">
+                <div class="arranged-header">
+                    <span class="arranged-title">✨ AI智能安排结果</span>
+                    <button class="back-to-list-btn" onclick="BrainDump.backToList()">← 返回编辑</button>
+                </div>
+                ${summaryHtml}
+                <div class="arranged-tasks-container" id="arrangedTasksContainer">
+                    ${tasksHtml}
+                </div>
+            </div>
+        `;
+    },
+    
+    // 渲染操作按钮
+    renderActions() {
+        if (this.items.length === 0 && !this.showArrangedView) {
+            return '';
+        }
+        
+        if (this.showArrangedView && this.arrangedTasks.length > 0) {
+            return `
+                <div class="brain-dump-actions arranged-actions">
+                    <button class="action-btn secondary" onclick="BrainDump.reArrange()">
+                        🔄 重新安排
+                    </button>
+                    <button class="action-btn primary" onclick="BrainDump.pushToTimeline()">
+                        📅 推送到时间轴
+                    </button>
+                </div>
+            `;
+        }
+        
+        return `
+            <div class="brain-dump-actions">
+                <button class="action-btn danger" onclick="BrainDump.clearAll()">
+                    🗑️ 一键清空
+                </button>
+                <button class="action-btn primary" onclick="BrainDump.aiArrange()">
+                    🤖 AI智能安排
+                </button>
+            </div>
+        `;
+    },
+    
+    // ==================== AI智能安排 ====================
+    
+    // AI智能安排任务
+    async aiArrange() {
+        if (this.items.length === 0) {
+            if (typeof App !== 'undefined') {
+                App.addChatMessage('system', '没有待安排的任务哦，先添加一些想法吧~', '💭');
+            }
+            return;
+        }
+        
+        // 显示加载状态
+        this.showLoading('🤖 AI正在智能安排任务...');
+        
+        try {
+            const now = new Date();
+            const currentTime = now.getHours().toString().padStart(2, '0') + ':' + 
+                               now.getMinutes().toString().padStart(2, '0');
+            const today = now.getFullYear() + '-' + 
+                         (now.getMonth() + 1).toString().padStart(2, '0') + '-' + 
+                         now.getDate().toString().padStart(2, '0');
+            
+            // 构建任务列表
+            const taskList = this.items.map((item, i) => `${i + 1}. ${item.text}`).join('\n');
+            
+            // 替换提示词中的变量
+            const prompt = this.arrangePrompt
+                .replace('{currentTime}', currentTime)
+                .replace('{today}', today)
+                .replace('{taskList}', taskList);
+            
+            // 调用AI服务
+            const response = await this.callAI(prompt);
+            
+            // 解析AI响应
+            const result = this.parseAIResponse(response);
+            
+            if (result && result.tasks && result.tasks.length > 0) {
+                this.arrangedTasks = result.tasks;
+                this.arrangeSummary = result.summary;
+                this.showArrangedView = true;
+                this.hideLoading();
+                this.refresh();
+                
+                // 播放成功音效
+                if (typeof UnifiedAudioSystem !== 'undefined') {
+                    UnifiedAudioSystem.playSound('success');
+                }
+                
+                if (typeof App !== 'undefined') {
+                    App.addChatMessage('system', 
+                        `✨ AI已为你安排好 ${result.tasks.length} 个任务！\n` +
+                        `预计总时长：${Math.round((result.summary?.totalDuration || 0) / 60)} 小时\n` +
+                        `上下楼次数：${result.summary?.floorChanges || 0} 次\n` +
+                        `你可以拖拽调整顺序，确认后推送到时间轴~`, 
+                        '✨'
+                    );
+                }
+            } else {
+                throw new Error('AI返回的数据格式不正确');
+            }
+            
+        } catch (error) {
+            console.error('AI安排失败:', error);
+            this.hideLoading();
+            
+            // 使用本地智能安排作为降级方案
+            this.localSmartArrange();
+        }
+    },
+    
+    // 调用AI服务
+    async callAI(prompt) {
+        // 优先使用AIService
+        if (typeof AIService !== 'undefined' && AIService.chat) {
+            const response = await AIService.chat([
+                { role: 'system', content: '你是一个专业的任务安排助手，擅长优化日程和动线规划。请严格按照JSON格式输出。' },
+                { role: 'user', content: prompt }
+            ]);
+            return response;
+        }
+        
+        // 降级：直接调用API
+        const apiKey = typeof Storage !== 'undefined' ? Storage.getApiKey() : null;
+        if (!apiKey) {
+            throw new Error('未配置API Key');
+        }
+        
+        const response = await fetch('https://api.deepseek.com/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: 'deepseek-chat',
+                messages: [
+                    { role: 'system', content: '你是一个专业的任务安排助手，擅长优化日程和动线规划。请严格按照JSON格式输出，不要有其他文字。' },
+                    { role: 'user', content: prompt }
+                ],
+                max_tokens: 2000,
+                temperature: 0.7
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error('API请求失败');
+        }
+        
+        const data = await response.json();
+        return data.choices[0].message.content;
+    },
+    
+    // 解析AI响应
+    parseAIResponse(response) {
+        try {
+            // 尝试直接解析JSON
+            let jsonStr = response.trim();
+            
+            // 如果响应包含markdown代码块，提取JSON
+            const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+            if (jsonMatch) {
+                jsonStr = jsonMatch[1].trim();
+            }
+            
+            // 尝试找到JSON对象
+            const startIndex = jsonStr.indexOf('{');
+            const endIndex = jsonStr.lastIndexOf('}');
+            if (startIndex !== -1 && endIndex !== -1) {
+                jsonStr = jsonStr.substring(startIndex, endIndex + 1);
+            }
+            
+            const result = JSON.parse(jsonStr);
+            
+            // 验证并补充数据
+            if (result.tasks && Array.isArray(result.tasks)) {
+                result.tasks = result.tasks.map(task => ({
+                    title: task.title || '未命名任务',
+                    startTime: task.startTime || '09:00',
+                    duration: task.duration || 30,
+                    type: task.type || 'standing',
+                    energyCost: Math.min(5, Math.max(1, task.energyCost || 2)),
+                    location: task.location || '未知',
+                    floor: task.floor || '一楼',
+                    verification: task.verification || 'check',
+                    coins: task.coins || this.calculateCoins(task),
+                    reason: task.reason || ''
+                }));
+            }
+            
+            return result;
+        } catch (e) {
+            console.error('解析AI响应失败:', e);
+            return null;
+        }
+    },
+    
+    // 本地智能安排（降级方案）
+    localSmartArrange() {
+        const now = new Date();
+        let currentMinutes = now.getHours() * 60 + now.getMinutes();
+        
+        // 如果当前时间太晚，从明天早上开始
+        if (currentMinutes > 22 * 60) {
+            currentMinutes = 9 * 60; // 从9点开始
+        }
+        
+        // 向上取整到下一个5分钟
+        currentMinutes = Math.ceil(currentMinutes / 5) * 5;
+        
+        const arrangedTasks = [];
+        
+        this.items.forEach((item, index) => {
+            const text = item.text.toLowerCase();
+            
+            // 检查是否是固定时间任务
+            let fixedTime = null;
+            for (const [keyword, time] of Object.entries(this.layoutConfig.fixedTimeTasks)) {
+                if (text.includes(keyword)) {
+                    fixedTime = time;
+                    break;
+                }
+            }
+            
+            // 智能判断任务属性
+            const taskInfo = this.analyzeTask(item.text);
+            
+            if (fixedTime) {
+                const [h, m] = fixedTime.start.split(':').map(Number);
+                taskInfo.startTime = fixedTime.start;
+                taskInfo.duration = this.getMinutesDiff(fixedTime.start, fixedTime.end);
+            } else {
+                const hours = Math.floor(currentMinutes / 60);
+                const mins = currentMinutes % 60;
+                taskInfo.startTime = hours.toString().padStart(2, '0') + ':' + mins.toString().padStart(2, '0');
+                currentMinutes += taskInfo.duration + 10; // 加10分钟缓冲
+            }
+            
+            taskInfo.coins = this.calculateCoins(taskInfo);
+            arrangedTasks.push(taskInfo);
+        });
+        
+        // 按时间排序
+        arrangedTasks.sort((a, b) => a.startTime.localeCompare(b.startTime));
+        
+        this.arrangedTasks = arrangedTasks;
+        this.arrangeSummary = {
+            totalTasks: arrangedTasks.length,
+            totalDuration: arrangedTasks.reduce((sum, t) => sum + t.duration, 0),
+            floorChanges: this.calculateFloorChanges(arrangedTasks),
+            explanation: '本地智能安排（AI暂时不可用）'
+        };
+        this.showArrangedView = true;
+        this.refresh();
+        
+        if (typeof App !== 'undefined') {
+            App.addChatMessage('system', 
+                `📋 已使用本地智能安排 ${arrangedTasks.length} 个任务\n` +
+                `（AI暂时不可用，使用了简化的安排逻辑）`, 
+                '📋'
+            );
+        }
+    },
+    
+    // 分析任务属性
+    analyzeTask(text) {
+        const textLower = text.toLowerCase();
+        
+        // 默认值
+        let type = 'standing';
+        let duration = 30;
+        let energyCost = 2;
+        let location = '客厅';
+        let floor = '一楼';
+        let verification = 'check';
+        
+        // 位置判断
+        if (/厕所|洗澡|洗头|刷牙|上厕所/.test(text)) {
+            location = '厕所'; floor = '一楼';
+        } else if (/厨房|做饭|炒菜|煮|烧水|洗碗/.test(text)) {
+            location = '厨房'; floor = '一楼';
+        } else if (/卧室|床|睡|换床单|收拾卧室/.test(text)) {
+            location = '卧室'; floor = '二楼';
+        } else if (/拍摄|工作区|电脑|修图|剪辑/.test(text)) {
+            location = '工作区'; floor = '二楼'; type = 'sitting';
+        } else if (/客厅|沙发|看电视/.test(text)) {
+            location = '客厅'; floor = '一楼';
+        } else if (/洗衣|晾衣/.test(text)) {
+            location = '洗衣区'; floor = '一楼';
+        } else if (/快递|出门|外出|买/.test(text)) {
+            location = '外出'; floor = '一楼';
+        }
+        
+        // 任务类型和时长判断
+        if (/打扫|拖地|擦|清洁|收拾/.test(text)) {
+            type = 'standing'; duration = 40; energyCost = 4;
+        } else if (/洗衣|洗碗/.test(text)) {
+            type = 'standing'; duration = 20; energyCost = 2;
+        } else if (/做饭|炒菜/.test(text)) {
+            type = 'standing'; duration = 45; energyCost = 3;
+        } else if (/吃饭|午饭|晚饭|早饭/.test(text)) {
+            type = 'sitting'; duration = 30; energyCost = 1;
+        } else if (/洗澡/.test(text)) {
+            type = 'standing'; duration = 30; energyCost = 2;
+        } else if (/洗头/.test(text)) {
+            type = 'standing'; duration = 20; energyCost = 2;
+        } else if (/快递/.test(text)) {
+            type = 'standing'; duration = 15; energyCost = 2;
+        } else if (/电脑|修图|剪辑|工作/.test(text)) {
+            type = 'sitting'; duration = 60; energyCost = 2;
+        }
+        
+        // 验证方式
+        if (/打扫|清洁|收拾/.test(text)) {
+            verification = 'photo';
+        } else if (/洗衣|洗碗/.test(text)) {
+            verification = 'photo';
+        }
+        
+        return {
+            title: text,
+            startTime: '09:00',
+            duration,
+            type,
+            energyCost,
+            location,
+            floor,
+            verification,
+            coins: 0
+        };
+    },
+    
+    // 计算金币
+    calculateCoins(task) {
+        let coins = 0;
+        
+        if (task.type === 'standing') {
+            coins = 20 + task.duration; // 基础20 + 每分钟1金币
+        } else {
+            coins = 10 + Math.floor(task.duration * 0.5); // 基础10 + 每分钟0.5金币
+        }
+        
+        // 高体力任务额外奖励
+        if (task.energyCost >= 4) {
+            coins = Math.floor(coins * 1.2);
+        }
+        
+        return coins;
+    },
+    
+    // 计算上下楼次数
+    calculateFloorChanges(tasks) {
+        let changes = 0;
+        let currentFloor = '一楼';
+        
+        tasks.forEach(task => {
+            if (task.floor && task.floor !== currentFloor) {
+                changes++;
+                currentFloor = task.floor;
+            }
+        });
+        
+        return changes;
+    },
+    
+    // ==================== 推送到时间轴 ====================
+    
+    // 推送所有安排好的任务到时间轴
+    pushToTimeline() {
+        if (this.arrangedTasks.length === 0) {
+            if (typeof App !== 'undefined') {
+                App.addChatMessage('system', '没有可推送的任务', '⚠️');
+            }
+            return;
+        }
+        
+        const today = this.formatDate(new Date());
+        let successCount = 0;
+        
+        this.arrangedTasks.forEach(task => {
+            const timelineTask = {
+                title: task.title,
+                date: today,
+                startTime: task.startTime,
+                duration: task.duration,
+                endTime: this.addMinutesToTime(task.startTime, task.duration),
+                coins: task.coins,
+                energyCost: task.energyCost,
+                tags: [task.location, task.type === 'standing' ? '站立任务' : '坐姿任务'],
+                type: task.type,
+                location: task.location,
+                floor: task.floor,
+                verification: task.verification,
+                fromBrainDump: true
+            };
+            
+            if (typeof App !== 'undefined' && App.addTaskToTimeline) {
+                App.addTaskToTimeline(timelineTask);
+                successCount++;
+            } else if (typeof Storage !== 'undefined') {
+                Storage.addTask(timelineTask);
+                successCount++;
+            }
+        });
+        
+        // 清空已推送的任务
+        this.items = [];
+        this.arrangedTasks = [];
+        this.arrangeSummary = null;
+        this.showArrangedView = false;
+        this.saveItems();
+        this.refresh();
+        
+        // 刷新时间轴
+        if (typeof App !== 'undefined' && App.loadTimeline) {
+            App.loadTimeline();
+        }
+        
+        // 播放成功音效
+        if (typeof UnifiedAudioSystem !== 'undefined') {
+            UnifiedAudioSystem.playSound('success');
+        }
+        
+        if (typeof App !== 'undefined') {
+            App.addChatMessage('system', 
+                `🎉 已成功推送 ${successCount} 个任务到时间轴！\n` +
+                `快去时间轴查看吧~`, 
+                '🎉'
+            );
+        }
+    },
+    
+    // 返回列表视图
+    backToList() {
+        this.showArrangedView = false;
+        this.refresh();
+    },
+    
+    // 重新安排
+    reArrange() {
+        this.showArrangedView = false;
+        this.arrangedTasks = [];
+        this.arrangeSummary = null;
+        this.refresh();
+        
+        // 延迟调用AI安排
+        setTimeout(() => this.aiArrange(), 100);
+    },
+    
+    // 编辑安排后的任务
+    editArrangedTask(index) {
+        const task = this.arrangedTasks[index];
+        if (!task) return;
+        
+        // 创建编辑弹窗
+        const modal = document.createElement('div');
+        modal.className = 'brain-dump-modal-overlay';
+        modal.id = 'editTaskModal';
+        modal.innerHTML = `
+            <div class="brain-dump-modal">
+                <div class="modal-header">
+                    <span>✏️ 编辑任务</span>
+                    <button class="modal-close" onclick="BrainDump.closeEditModal()">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>任务名称</label>
+                        <input type="text" id="editTaskTitle" value="${this.escapeHtml(task.title)}">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>开始时间</label>
+                            <input type="time" id="editTaskTime" value="${task.startTime}">
+                        </div>
+                        <div class="form-group">
+                            <label>时长(分钟)</label>
+                            <input type="number" id="editTaskDuration" value="${task.duration}" min="5" max="480">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>任务类型</label>
+                            <select id="editTaskType">
+                                <option value="standing" ${task.type === 'standing' ? 'selected' : ''}>🧍 站立任务</option>
+                                <option value="sitting" ${task.type === 'sitting' ? 'selected' : ''}>🪑 坐姿任务</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>体力消耗</label>
+                            <select id="editTaskEnergy">
+                                ${[1,2,3,4,5].map(n => `<option value="${n}" ${task.energyCost === n ? 'selected' : ''}>${'💪'.repeat(n)}</option>`).join('')}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>位置</label>
+                        <select id="editTaskLocation">
+                            <option value="厕所" ${task.location === '厕所' ? 'selected' : ''}>🚿 厕所</option>
+                            <option value="客厅" ${task.location === '客厅' ? 'selected' : ''}>🛋️ 客厅</option>
+                            <option value="厨房" ${task.location === '厨房' ? 'selected' : ''}>🍳 厨房</option>
+                            <option value="卧室" ${task.location === '卧室' ? 'selected' : ''}>🛏️ 卧室</option>
+                            <option value="工作区" ${task.location === '工作区' ? 'selected' : ''}>💻 工作区</option>
+                            <option value="拍摄间" ${task.location === '拍摄间' ? 'selected' : ''}>📷 拍摄间</option>
+                            <option value="洗衣区" ${task.location === '洗衣区' ? 'selected' : ''}>🧺 洗衣区</option>
+                            <option value="外出" ${task.location === '外出' ? 'selected' : ''}>🚶 外出</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-cancel" onclick="BrainDump.closeEditModal()">取消</button>
+                    <button class="btn-confirm" onclick="BrainDump.saveEditedTask(${index})">保存</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        setTimeout(() => modal.classList.add('show'), 10);
+    },
+    
+    // 保存编辑后的任务
+    saveEditedTask(index) {
+        const task = this.arrangedTasks[index];
+        if (!task) return;
+        
+        task.title = document.getElementById('editTaskTitle').value.trim() || task.title;
+        task.startTime = document.getElementById('editTaskTime').value || task.startTime;
+        task.duration = parseInt(document.getElementById('editTaskDuration').value) || task.duration;
+        task.type = document.getElementById('editTaskType').value;
+        task.energyCost = parseInt(document.getElementById('editTaskEnergy').value);
+        task.location = document.getElementById('editTaskLocation').value;
+        task.floor = ['卧室', '工作区', '拍摄间'].includes(task.location) ? '二楼' : '一楼';
+        task.coins = this.calculateCoins(task);
+        
+        this.closeEditModal();
+        this.refresh();
+    },
+    
+    // 关闭编辑弹窗
+    closeEditModal() {
+        const modal = document.getElementById('editTaskModal');
+        if (modal) {
+            modal.classList.remove('show');
+            setTimeout(() => modal.remove(), 300);
+        }
+    },
+    
+    // 移除安排后的任务
+    removeArrangedTask(index) {
+        this.arrangedTasks.splice(index, 1);
+        
+        // 更新统计
+        if (this.arrangeSummary) {
+            this.arrangeSummary.totalTasks = this.arrangedTasks.length;
+            this.arrangeSummary.totalDuration = this.arrangedTasks.reduce((sum, t) => sum + t.duration, 0);
+            this.arrangeSummary.floorChanges = this.calculateFloorChanges(this.arrangedTasks);
+        }
+        
+        this.refresh();
+    },
+    
+    // ==================== 拖拽排序 ====================
+    
+    // 初始化拖拽功能
+    initDragAndDrop() {
+        const container = this.showArrangedView ? 
+            document.getElementById('arrangedTasksContainer') : 
+            document.getElementById('itemsContainer');
+        
+        if (!container) return;
+        
+        const items = container.querySelectorAll('[draggable="true"]');
+        
+        items.forEach(item => {
+            item.addEventListener('dragstart', (e) => this.handleDragStart(e));
+            item.addEventListener('dragend', (e) => this.handleDragEnd(e));
+            item.addEventListener('dragover', (e) => this.handleDragOver(e));
+            item.addEventListener('drop', (e) => this.handleDrop(e));
+            item.addEventListener('dragenter', (e) => this.handleDragEnter(e));
+            item.addEventListener('dragleave', (e) => this.handleDragLeave(e));
+        });
+    },
+    
+    handleDragStart(e) {
+        this.dragState.dragging = true;
+        this.dragState.dragIndex = parseInt(e.target.dataset.index);
+        e.target.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+    },
+    
+    handleDragEnd(e) {
+        this.dragState.dragging = false;
+        this.dragState.dragIndex = null;
+        e.target.classList.remove('dragging');
+        
+        // 移除所有拖拽样式
+        document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    },
+    
+    handleDragOver(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    },
+    
+    handleDragEnter(e) {
+        e.preventDefault();
+        const target = e.target.closest('[draggable="true"]');
+        if (target && !target.classList.contains('dragging')) {
+            target.classList.add('drag-over');
+        }
+    },
+    
+    handleDragLeave(e) {
+        const target = e.target.closest('[draggable="true"]');
+        if (target) {
+            target.classList.remove('drag-over');
+        }
+    },
+    
+    handleDrop(e) {
+        e.preventDefault();
+        const target = e.target.closest('[draggable="true"]');
+        if (!target) return;
+        
+        const dropIndex = parseInt(target.dataset.index);
+        const dragIndex = this.dragState.dragIndex;
+        
+        if (dragIndex === null || dragIndex === dropIndex) return;
+        
+        // 重新排序
+        if (this.showArrangedView) {
+            const [removed] = this.arrangedTasks.splice(dragIndex, 1);
+            this.arrangedTasks.splice(dropIndex, 0, removed);
+            
+            // 重新计算时间
+            this.recalculateTimes();
+        } else {
+            const [removed] = this.items.splice(dragIndex, 1);
+            this.items.splice(dropIndex, 0, removed);
+            this.saveItems();
+        }
+        
+        this.refresh();
+        
+        // 播放音效
+        if (typeof UnifiedAudioSystem !== 'undefined') {
+            UnifiedAudioSystem.playSound('click');
+        }
+    },
+    
+    // 重新计算任务时间
+    recalculateTimes() {
+        if (this.arrangedTasks.length === 0) return;
+        
+        // 获取第一个任务的开始时间作为基准
+        let currentMinutes = this.timeToMinutes(this.arrangedTasks[0].startTime);
+        
+        this.arrangedTasks.forEach((task, index) => {
+            // 检查是否是固定时间任务
+            let isFixed = false;
+            for (const [keyword, time] of Object.entries(this.layoutConfig.fixedTimeTasks)) {
+                if (task.title.includes(keyword)) {
+                    task.startTime = time.start;
+                    isFixed = true;
+                    break;
+                }
+            }
+            
+            if (!isFixed) {
+                const hours = Math.floor(currentMinutes / 60);
+                const mins = currentMinutes % 60;
+                task.startTime = hours.toString().padStart(2, '0') + ':' + mins.toString().padStart(2, '0');
+            }
+            
+            currentMinutes = this.timeToMinutes(task.startTime) + task.duration + 10;
+        });
+        
+        // 按时间重新排序
+        this.arrangedTasks.sort((a, b) => a.startTime.localeCompare(b.startTime));
+    },
+    
+    // ==================== 工具方法 ====================
+    
+    // 显示加载状态
+    showLoading(message) {
+        const container = document.getElementById('brainDumpBody');
+        if (container) {
+            const loadingHtml = `
+                <div class="brain-dump-loading">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">${message || '加载中...'}</div>
+                </div>
+            `;
+            container.innerHTML = loadingHtml;
+        }
+    },
+    
+    // 隐藏加载状态
+    hideLoading() {
+        // refresh会重新渲染，自动移除loading
+    },
+    
+    // HTML转义
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    },
+    
+    // 格式化日期
+    formatDate(date) {
+        const d = new Date(date);
+        return d.getFullYear() + '-' + 
+               (d.getMonth() + 1).toString().padStart(2, '0') + '-' + 
+               d.getDate().toString().padStart(2, '0');
+    },
+    
+    // 时间转分钟
+    timeToMinutes(timeStr) {
+        const [h, m] = timeStr.split(':').map(Number);
+        return h * 60 + m;
+    },
+    
+    // 分钟转时间
+    minutesToTime(minutes) {
+        const h = Math.floor(minutes / 60) % 24;
+        const m = minutes % 60;
+        return h.toString().padStart(2, '0') + ':' + m.toString().padStart(2, '0');
+    },
+    
+    // 给时间加分钟
+    addMinutesToTime(timeStr, minutes) {
+        const totalMinutes = this.timeToMinutes(timeStr) + minutes;
+        return this.minutesToTime(totalMinutes);
+    },
+    
+    // 计算两个时间的分钟差
+    getMinutesDiff(startTime, endTime) {
+        return this.timeToMinutes(endTime) - this.timeToMinutes(startTime);
+    }
+};
+
+// 导出
+window.BrainDump = BrainDump;
+
+// 页面加载后初始化
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => BrainDump.init(), 1000);
+});
