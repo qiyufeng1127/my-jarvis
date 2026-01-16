@@ -5553,9 +5553,17 @@ App.showMonitorSettingsModal = function() {
     modal.className = 'modal-overlay show';
     modal.id = 'monitorSettingsModal';
     
-    // 获取拖延监控和低效率监控的设置HTML
-    const procrastinationSettings = this.renderProcrastinationSettings();
-    const inefficiencySettings = this.renderInefficiencySettings();
+    // 获取拖延监控和低效率监控的设置HTML（带回退）
+    let procrastinationSettings = this.renderProcrastinationSettings();
+    let inefficiencySettings = this.renderInefficiencySettings();
+    
+    // 如果模块不存在，显示回退内容
+    if (!procrastinationSettings) {
+        procrastinationSettings = this.renderProcrastinationSettingsFallback();
+    }
+    if (!inefficiencySettings) {
+        inefficiencySettings = this.renderInefficiencySettingsFallback();
+    }
     
     modal.innerHTML = `
         <div class="modal-content monitor-settings-modal">
@@ -5597,6 +5605,168 @@ App.showMonitorSettingsModal = function() {
             e.stopPropagation();
         }, { passive: true });
     }
+};
+
+// 拖延监控设置回退版本
+App.renderProcrastinationSettingsFallback = function() {
+    // 从localStorage读取设置
+    const savedSettings = localStorage.getItem('monitor_settings_v4');
+    const settings = savedSettings ? JSON.parse(savedSettings) : {
+        enabled: true,
+        gracePeriod: 120,
+        preAlertTime: 20,
+        baseCost: 5,
+        costIncrement: 1.5,
+        maxCost: 50,
+        successReward: 3,
+        soundEnabled: true
+    };
+    
+    const soundEnabled = settings.soundEnabled !== false;
+    const soundVolume = settings.soundVolume || 0.7;
+    const volumePercent = Math.round(soundVolume * 100);
+    
+    return `
+        <div class="settings-section">
+            <div class="settings-title">🔊 声音提醒</div>
+            <div class="settings-content">
+                <div class="setting-row">
+                    <span class="setting-label">声音提醒</span>
+                    <span class="setting-value">${soundEnabled ? '🔊 已开启' : '🔇 已关闭'}</span>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label">音量大小</span>
+                    <span class="setting-value">${volumePercent}%</span>
+                </div>
+            </div>
+        </div>
+        <div class="settings-section">
+            <div class="settings-title">⚙️ 监控设置</div>
+            <div class="settings-content">
+                <div class="setting-row">
+                    <span class="setting-label">启动宽限期</span>
+                    <span class="setting-value">${settings.gracePeriod / 60} 分钟</span>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label">预警提前时间</span>
+                    <span class="setting-value">${settings.preAlertTime} 秒</span>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label">成功奖励</span>
+                    <span class="setting-value">🪙 ${settings.successReward} 金币</span>
+                </div>
+            </div>
+        </div>
+        <div class="settings-section">
+            <div class="settings-title">🪙 扣币规则</div>
+            <div class="settings-content">
+                <div class="setting-row">
+                    <span class="setting-label">首次扣除</span>
+                    <span class="setting-value">${settings.baseCost} 金币</span>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label">递增比率</span>
+                    <span class="setting-value">+${Math.round((settings.costIncrement - 1) * 100)}%/次</span>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label">最高上限</span>
+                    <span class="setting-value">${settings.maxCost} 金币</span>
+                </div>
+            </div>
+        </div>
+        <div class="settings-section">
+            <div class="settings-title">📊 功能说明</div>
+            <div class="settings-content">
+                <div style="padding:12px;background:rgba(102,126,234,0.05);border-radius:8px;font-size:13px;color:#666;line-height:1.6;">
+                    <p style="margin:0 0 8px 0;">⏰ <strong>拖延监控</strong>帮助你按时开始任务：</p>
+                    <ul style="margin:0;padding-left:20px;">
+                        <li>任务时间到达时自动提醒</li>
+                        <li>在宽限期内完成启动可获得金币奖励</li>
+                        <li>超时未启动会扣除金币</li>
+                        <li>支持声音和语音提醒</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    `;
+};
+
+// 低效率监控设置回退版本
+App.renderInefficiencySettingsFallback = function() {
+    // 从localStorage读取设置
+    const savedSettings = localStorage.getItem('inefficiency_settings');
+    const settings = savedSettings ? JSON.parse(savedSettings) : {
+        enabled: true,
+        thresholdMinutes: 60,
+        halfwayAlert: true,
+        baseCost: 5,
+        costIncrement: 1.5,
+        maxCost: 30
+    };
+    
+    return `
+        <div class="settings-section">
+            <div class="settings-title">⚙️ 效率设置</div>
+            <div class="settings-content">
+                <div class="setting-row">
+                    <span class="setting-label">判定时长</span>
+                    <span class="setting-value">${settings.thresholdMinutes} 分钟</span>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label">半程提醒</span>
+                    <span class="setting-value">${settings.halfwayAlert ? '✅ 开启' : '❌ 关闭'}</span>
+                </div>
+            </div>
+        </div>
+        <div class="settings-section">
+            <div class="settings-title">🪙 金币规则</div>
+            <div class="settings-content">
+                <div class="setting-row">
+                    <span class="setting-label">首次解除</span>
+                    <span class="setting-value">${settings.baseCost} 金币</span>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label">递增比率</span>
+                    <span class="setting-value">+${Math.round((settings.costIncrement - 1) * 100)}%/次</span>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label">最高上限</span>
+                    <span class="setting-value">${settings.maxCost} 金币</span>
+                </div>
+            </div>
+        </div>
+        <div class="settings-section">
+            <div class="settings-title">📈 效率分析</div>
+            <div class="settings-content">
+                <div class="setting-row">
+                    <span class="setting-label">本周卡顿</span>
+                    <span class="setting-value" style="color:#E74C3C;">0 次</span>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label">正常完成</span>
+                    <span class="setting-value" style="color:#27AE60;">0 次</span>
+                </div>
+                <div class="setting-row">
+                    <span class="setting-label">累计扣币</span>
+                    <span class="setting-value" style="color:#F39C12;">🪙 0</span>
+                </div>
+            </div>
+        </div>
+        <div class="settings-section">
+            <div class="settings-title">📊 功能说明</div>
+            <div class="settings-content">
+                <div style="padding:12px;background:rgba(102,126,234,0.05);border-radius:8px;font-size:13px;color:#666;line-height:1.6;">
+                    <p style="margin:0 0 8px 0;">📉 <strong>低效率监控</strong>帮助你避免在单个任务上花费过多时间：</p>
+                    <ul style="margin:0;padding-left:20px;">
+                        <li>当任务执行时间超过设定阈值时提醒</li>
+                        <li>半程提醒帮助你检查进度</li>
+                        <li>分析常见卡顿点和高效时间段</li>
+                        <li>帮助识别需要拆分的复杂任务</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    `;
 };
 
 // 关闭监控设置模态框
