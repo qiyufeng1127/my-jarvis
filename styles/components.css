@@ -1,0 +1,921 @@
+/* ============================================================
+   统一组件样式 v4.0
+   设计系统 + 组件库样式
+   ============================================================ */
+
+/* ==================== 设计变量 ==================== */
+:root {
+    /* 主色调 */
+    --primary: #667eea;
+    --primary-dark: #5a67d8;
+    --primary-light: #a3bffa;
+    
+    /* 功能色 */
+    --success: #27AE60;
+    --warning: #F1C40F;
+    --danger: #E74C3C;
+    --info: #3498DB;
+    
+    /* 金币/财务色 */
+    --coin-gold: #D4A017;
+    --money-green: #27AE60;
+    
+    /* 中性色 */
+    --text-primary: #2C3E50;
+    --text-secondary: #666666;
+    --text-muted: #999999;
+    --border-color: #E0E0E0;
+    --bg-light: #F5F5F5;
+    --bg-white: #FFFFFF;
+    
+    /* 阴影 */
+    --shadow-sm: 0 2px 4px rgba(0,0,0,0.08);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.12);
+    --shadow-lg: 0 8px 24px rgba(0,0,0,0.16);
+    
+    /* 圆角 */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+    --radius-full: 9999px;
+    
+    /* 过渡 */
+    --transition-fast: 0.15s ease;
+    --transition-normal: 0.3s ease;
+}
+
+/* 深色主题 */
+[data-theme="dark"] {
+    --text-primary: #E0E0E0;
+    --text-secondary: #AAAAAA;
+    --text-muted: #777777;
+    --border-color: #444444;
+    --bg-light: #2A2A2A;
+    --bg-white: #1E1E1E;
+}
+
+/* ==================== Toast通知 ==================== */
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+}
+
+.toast {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    background: var(--bg-white);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    transform: translateX(120%);
+    transition: transform var(--transition-normal);
+    pointer-events: auto;
+    max-width: 360px;
+}
+
+.toast.show {
+    transform: translateX(0);
+}
+
+.toast-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.toast-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.toast-title {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.toast-message {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.toast-close {
+    background: none;
+    border: none;
+    font-size: 18px;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0 4px;
+}
+
+.toast-success { border-left: 4px solid var(--success); }
+.toast-error { border-left: 4px solid var(--danger); }
+.toast-warning { border-left: 4px solid var(--warning); }
+.toast-info { border-left: 4px solid var(--info); }
+
+/* ==================== 模态框 ==================== */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    opacity: 0;
+    visibility: hidden;
+    transition: all var(--transition-normal);
+    padding: 20px;
+}
+
+.modal-overlay.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.modal-content {
+    background: var(--bg-white);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    width: 100%;
+    max-height: 90vh;
+    overflow: hidden;
+    transform: scale(0.9) translateY(20px);
+    transition: transform var(--transition-normal);
+}
+
+.modal-overlay.show .modal-content {
+    transform: scale(1) translateY(0);
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-icon {
+    font-size: 28px;
+}
+
+.modal-header h2 {
+    flex: 1;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.modal-close-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+
+.modal-body {
+    padding: 24px;
+    overflow-y: auto;
+    max-height: 60vh;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-light);
+}
+
+.modal-btn {
+    padding: 10px 24px;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    border: none;
+}
+
+.modal-btn.btn-cancel {
+    background: var(--bg-light);
+    color: var(--text-secondary);
+}
+
+.modal-btn.btn-cancel:hover {
+    background: var(--border-color);
+}
+
+.modal-btn.btn-confirm {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: white;
+}
+
+.modal-btn.btn-confirm:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+/* ==================== 加载状态 ==================== */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255,255,255,0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10001;
+    opacity: 0;
+    visibility: hidden;
+    transition: all var(--transition-normal);
+}
+
+.loading-overlay.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.loading-content {
+    text-align: center;
+}
+
+.loading-spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid var(--border-color);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.loading-text {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.btn-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+/* ==================== 表单组件 ==================== */
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    color: var(--text-primary);
+    background: var(--bg-white);
+    transition: all var(--transition-fast);
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+}
+
+.input-with-addon {
+    display: flex;
+    align-items: stretch;
+}
+
+.input-with-addon input {
+    border-radius: 0;
+    flex: 1;
+}
+
+.input-addon {
+    padding: 12px 14px;
+    background: var(--bg-light);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+}
+
+.input-addon.prefix {
+    border-right: none;
+    border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+
+.input-addon.suffix {
+    border-left: none;
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.input-with-prefix {
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.input-with-prefix .input-prefix {
+    padding: 12px 14px;
+    background: var(--bg-light);
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.input-with-prefix input {
+    border: none;
+    flex: 1;
+}
+
+/* 开关 */
+.toggle-group {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.toggle-switch {
+    width: 48px;
+    height: 26px;
+    background: var(--border-color);
+    border-radius: var(--radius-full);
+    position: relative;
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.toggle-switch::after {
+    content: '';
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    background: white;
+    border-radius: 50%;
+    top: 2px;
+    left: 2px;
+    transition: transform var(--transition-fast);
+    box-shadow: var(--shadow-sm);
+}
+
+.toggle-switch.active {
+    background: var(--primary);
+}
+
+.toggle-switch.active::after {
+    transform: translateX(22px);
+}
+
+/* ==================== 卡片组件 ==================== */
+.ui-card {
+    background: var(--bg-white);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+
+.ui-card .card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.ui-card .card-icon {
+    font-size: 20px;
+}
+
+.ui-card .card-title {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.ui-card .card-body {
+    padding: 20px;
+}
+
+.ui-card .card-actions {
+    display: flex;
+    gap: 10px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-light);
+}
+
+/* 统计卡片 */
+.stat-card {
+    background: var(--bg-white);
+    border-radius: var(--radius-md);
+    padding: 20px;
+    text-align: center;
+}
+
+.stat-card .stat-icon {
+    font-size: 28px;
+    margin-bottom: 8px;
+}
+
+.stat-card .stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.stat-card .stat-label {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+.stat-card .stat-trend {
+    font-size: 12px;
+    margin-top: 8px;
+}
+
+.stat-card .stat-trend.up { color: var(--success); }
+.stat-card .stat-trend.down { color: var(--danger); }
+
+/* ==================== 列表组件 ==================== */
+.ui-list {
+    background: var(--bg-white);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.list-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-color);
+    transition: background var(--transition-fast);
+}
+
+.list-item:last-child {
+    border-bottom: none;
+}
+
+.list-item:hover {
+    background: var(--bg-light);
+}
+
+.list-item .item-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.list-item .item-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.list-item .item-title {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.list-item .item-subtitle {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.list-item .item-badge {
+    background: var(--primary);
+    color: white;
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+}
+
+.list-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+/* ==================== 标签页 ==================== */
+.ui-tabs .tabs-header {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    overflow-x: auto;
+}
+
+.ui-tabs .tab-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 20px;
+    background: none;
+    border: none;
+    font-size: 14px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    position: relative;
+    white-space: nowrap;
+    transition: color var(--transition-fast);
+}
+
+.ui-tabs .tab-btn:hover {
+    color: var(--primary);
+}
+
+.ui-tabs .tab-btn.active {
+    color: var(--primary);
+    font-weight: 600;
+}
+
+.ui-tabs .tab-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--primary);
+}
+
+.ui-tabs .tab-badge {
+    background: var(--danger);
+    color: white;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: var(--radius-full);
+}
+
+.ui-tabs .tab-panel {
+    display: none;
+    padding: 20px;
+}
+
+.ui-tabs .tab-panel.active {
+    display: block;
+}
+
+/* ==================== 进度条 ==================== */
+.progress-wrapper {
+    margin: 10px 0;
+}
+
+.progress-bar {
+    background: var(--bg-light);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary), var(--primary-light));
+    border-radius: var(--radius-full);
+    transition: width var(--transition-normal);
+}
+
+.progress-fill.completed {
+    background: linear-gradient(90deg, var(--success), #2ECC71);
+}
+
+.progress-text {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: right;
+    margin-top: 4px;
+}
+
+/* ==================== 动画效果 ==================== */
+.coin-float-animation {
+    position: fixed;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--coin-gold);
+    animation: coinFloat 1.5s ease-out forwards;
+    pointer-events: none;
+    z-index: 10000;
+}
+
+@keyframes coinFloat {
+    0% { opacity: 1; transform: translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateY(-60px) scale(1.2); }
+}
+
+.income-animation,
+.exchange-animation {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10000;
+    animation: popIn 0.3s ease-out;
+}
+
+.income-popup,
+.exchange-popup {
+    background: white;
+    padding: 30px 40px;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    text-align: center;
+}
+
+.income-icon,
+.exchange-from,
+.exchange-to {
+    font-size: 48px;
+    margin-bottom: 10px;
+}
+
+.income-amount {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--money-green);
+}
+
+.exchange-arrow {
+    font-size: 24px;
+    color: var(--text-muted);
+    margin: 10px 0;
+}
+
+.exchange-text {
+    color: var(--success);
+    font-weight: 600;
+    margin-top: 10px;
+}
+
+@keyframes popIn {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+    100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+.shake {
+    animation: shake 0.5s ease-in-out;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+}
+
+.pulse {
+    animation: pulse 1s ease-in-out;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+/* ==================== 语音助手按钮 ==================== */
+.voice-assistant-btn {
+    position: fixed;
+    bottom: 100px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: white;
+    font-size: 24px;
+    border: none;
+    cursor: pointer;
+    box-shadow: var(--shadow-lg);
+    z-index: 1000;
+    transition: all var(--transition-normal);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ==================== 帮助按钮 ==================== */
+.help-toggle {
+    position: fixed;
+    top: 20px;
+    right: 70px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #27AE60, #2ECC71);
+    color: white;
+    font-size: 20px;
+    border: none;
+    cursor: pointer;
+    box-shadow: var(--shadow-md);
+    z-index: 1000;
+    transition: all var(--transition-normal);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.help-toggle:hover {
+    transform: scale(1.1);
+    box-shadow: var(--shadow-lg);
+}
+
+.voice-assistant-btn:hover {
+    transform: scale(1.1);
+}
+
+.voice-assistant-btn.active {
+    background: linear-gradient(135deg, var(--success), #27AE60);
+}
+
+.voice-assistant-btn.listening {
+    animation: listeningPulse 1.5s infinite;
+}
+
+.voice-assistant-btn.processing {
+    animation: processingRotate 1s linear infinite;
+}
+
+@keyframes listeningPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.4); }
+    50% { box-shadow: 0 0 0 15px rgba(102, 126, 234, 0); }
+}
+
+@keyframes processingRotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* ==================== 双账本样式 ==================== */
+.dual-balance-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.balance-card {
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.balance-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.balance-card.coins-card {
+    background: linear-gradient(135deg, #FFF8E1, #FFECB3);
+}
+
+.balance-card.money-card {
+    background: linear-gradient(135deg, #E8F5E9, #C8E6C9);
+}
+
+.balance-card .balance-icon {
+    font-size: 28px;
+}
+
+.balance-card .balance-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 8px;
+}
+
+.balance-card .balance-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.balance-card .balance-action {
+    font-size: 12px;
+    color: var(--primary);
+    margin-top: 8px;
+}
+
+/* 价值面板操作按钮 */
+.value-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.value-action-btn {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    background: var(--bg-light);
+    color: var(--text-secondary);
+}
+
+.value-action-btn:hover {
+    background: var(--border-color);
+}
+
+.value-action-btn.primary {
+    background: linear-gradient(135deg, var(--success), #27AE60);
+    color: white;
+}
+
+.value-action-btn.primary:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+/* ==================== 移动端适配 ==================== */
+@media screen and (max-width: 768px) {
+    .toast-container {
+        left: 10px;
+        right: 10px;
+        top: auto;
+        bottom: 80px;
+    }
+    
+    .toast {
+        transform: translateY(120%);
+    }
+    
+    .toast.show {
+        transform: translateY(0);
+    }
+    
+    .modal-content {
+        margin: 10px;
+        max-height: 85vh;
+    }
+    
+    .dual-balance-section {
+        grid-template-columns: 1fr;
+    }
+    
+    .voice-assistant-btn {
+        bottom: 80px;
+        right: 15px;
+        width: 50px;
+        height: 50px;
+        font-size: 20px;
+    }
+    
+    .help-toggle {
+        top: 15px;
+        right: 60px;
+        width: 38px;
+        height: 38px;
+        font-size: 16px;
+    }
+    
+    .value-actions {
+        flex-direction: column;
+    }
+}
+

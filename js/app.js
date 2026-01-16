@@ -4,30 +4,6 @@ const App = {
     currentDate: new Date(),
     chatMessages: [],
 
-    // 拖延监控相关
-    procrastination: {
-        monitorTimer: null,         // 任务监控定时器（每秒检查）
-        currentTask: null,          // 当前正在监控的任务
-        countdownTimer: null,       // 倒计时定时器
-        isAlertActive: false,       // 是否处于警报状态
-        currentCycle: 1,            // 当前循环次数
-        totalPaidCoins: 0,          // 本次任务累计支付金币
-        elapsedSeconds: 0,          // 已过去的秒数
-        preAlertShown: false,       // 是否已显示预警提示
-        // 设置项
-        settings: {
-            gracePeriod: 120,           // 宽限期（秒）
-            preAlertTime: 10,           // 预警时间（秒）
-            baseCost: 5,                // 基础金币成本
-            costIncrement: 1.5,         // 成本递增比率
-            maxCost: 50,                // 最高成本上限
-            preAlertMessage: "⏰ 还有{seconds}秒！准备开始【{task}】的启动步骤【{step}】！",
-            alertMessage: "🚨 时间到！请立即完成【{step}】！",
-            enabled: true               // 是否启用自动监控
-        },
-        history: []                 // 拖延历史记录
-    },
-
     async init() {
         console.log("ADHD Focus 初始化中...");
         
@@ -40,23 +16,8 @@ const App = {
         this.loadMemoryBank();
         this.loadPromptPanel();
         this.loadGameSystem();
-        this.loadMonitorPanel(); // 合并的监控面板
+        this.loadMonitorPanel();
         this.loadValuePanel();
-        
-        // 初始化拖延监控模块
-        if (typeof ProcrastinationMonitor !== 'undefined') {
-            ProcrastinationMonitor.init();
-        }
-        
-        // 初始化低效率监控模块
-        if (typeof InefficiencyMonitor !== 'undefined') {
-            InefficiencyMonitor.init();
-        }
-        
-        // 初始化价值显化器模块
-        if (typeof ValueVisualizer !== 'undefined') {
-            ValueVisualizer.init();
-        }
         
         // 初始化AI副驾驶模块
         if (typeof AICopilot !== 'undefined') {
@@ -66,11 +27,6 @@ const App = {
         // 初始化AI学习模块
         if (typeof AILearning !== 'undefined') {
             AILearning.init();
-        }
-        
-        // 初始化AI财务模块
-        if (typeof AIFinance !== 'undefined') {
-            AIFinance.init();
         }
         
         // 初始化AI预测模块
@@ -90,7 +46,6 @@ const App = {
         
         // 初始化AI报告模块
         if (typeof AIReport !== 'undefined') {
-            // 检查是否需要生成周报（每周一自动生成）
             this.checkWeeklyReport();
         }
         
@@ -102,11 +57,6 @@ const App = {
         // 初始化步数验证模块
         if (typeof StepVerification !== 'undefined') {
             StepVerification.init();
-        }
-        
-        // 初始化统一语音系统
-        if (typeof UnifiedVoiceSystem !== 'undefined') {
-            UnifiedVoiceSystem.init();
         }
         
         // 初始化庆祝效果模块
@@ -124,30 +74,17 @@ const App = {
             BackgroundMonitor.init();
         }
         
-        // 初始化快捷添加模块
-        if (typeof QuickAddTask !== 'undefined') {
-            QuickAddTask.init();
-        }
-        
         // 加载AI洞察面板
         this.loadAIInsightsPanel();
         
         // 加载KiiKii记忆面板
         this.loadAIMemoryPanel();
         
-        // 加载语音设置面板
-        this.loadVoiceSettingsPanel();
-        
         // 更新游戏状态显示
         this.updateGameStatus();
         
         // 检查API连接
         await this.checkApiConnection();
-        
-        // 禁用自动弹出API Key设置弹窗，用户可以在智能对话中手动设置
-        // if (!Storage.getApiKey()) {
-        //     this.showApiKeyModal();
-        // }
         
         console.log("ADHD Focus 初始化完成！");
     },
@@ -166,12 +103,9 @@ const App = {
         }
     },
     
-    // 加载语音设置面板
+    // 加载语音设置面板（已移至VoiceAssistant）
     loadVoiceSettingsPanel() {
-        const container = document.getElementById('voiceSettingsBody');
-        if (container && typeof VoiceSettingsPanel !== 'undefined') {
-            container.innerHTML = VoiceSettingsPanel.render();
-        }
+        // 由新的VoiceAssistant模块处理
     },
     
     // 检查是否需要生成周报
@@ -3350,18 +3284,140 @@ const App = {
     // 当前监控面板的活动标签
     monitorActiveTab: 'procrastination',
     
-    // 加载合并监控面板
+    // 加载合并监控面板（使用新的MonitorSystem）
     loadMonitorPanel() {
         const container = document.getElementById("monitorBody");
         if (!container) return;
         
-        const PM = typeof ProcrastinationMonitor !== 'undefined' ? ProcrastinationMonitor : null;
-        const IM = typeof InefficiencyMonitor !== 'undefined' ? InefficiencyMonitor : null;
+        // 使用新的MonitorSystem
+        const MS = typeof MonitorSystem !== 'undefined' ? MonitorSystem : null;
         
-        if (!PM && !IM) {
+        if (!MS) {
             container.innerHTML = '<div style="padding:20px;text-align:center;color:#999;">监控模块加载中...</div>';
             return;
         }
+        
+        const settings = MS.settings;
+        const stats = MS.getStats();
+        const currentTask = MS.currentTask;
+        
+        // 启用/禁用开关
+        const enabledToggle = `
+            <div class="monitor-toggle-row">
+                <span class="toggle-label">自动监控</span>
+                <div class="toggle-switch ${settings.enabled ? 'active' : ''}" 
+                     onclick="MonitorSystem.toggleEnabled()"></div>
+            </div>
+        `;
+        
+        let html = '';
+        
+        if (!currentTask) {
+            // 无任务监控中
+            const tasks = Storage.getTasks();
+            const today = this.formatDate(new Date());
+            const availableTasks = tasks.filter(t => t.date === today && !t.completed);
+            
+            let taskListHtml = '';
+            if (availableTasks.length > 0) {
+                taskListHtml = `
+                    <div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(0,0,0,0.08);">
+                        <div style="font-size:12px;color:#888;margin-bottom:8px;">📋 今日待完成任务：</div>
+                        ${availableTasks.slice(0, 5).map(task => `
+                            <div class="select-task-row">
+                                <span class="task-name">${task.title}</span>
+                                <span class="task-time">⏰ ${task.startTime}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+            
+            html = `
+                <div class="monitor-card">
+                    ${enabledToggle}
+                    <div class="monitor-empty">
+                        <div class="monitor-empty-icon">⏰</div>
+                        <div class="monitor-empty-text">
+                            ${settings.enabled ? '等待任务时间到达...<br>任务开始时自动监控' : '监控已暂停<br>开启后自动监控任务'}
+                        </div>
+                    </div>
+                    ${taskListHtml}
+                    <div class="monitor-stats" style="margin-top:16px;">
+                        <div class="stat-item">
+                            <span class="stat-label">本周成功</span>
+                            <span class="stat-value" style="color:#27AE60;">${stats.weeklySuccess}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">本周延迟</span>
+                            <span class="stat-value" style="color:#E74C3C;">${stats.weeklyDelays}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">累计扣币</span>
+                            <span class="stat-value" style="color:#F39C12;">🪙 ${stats.totalSpent}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            // 有任务正在监控
+            const remaining = Math.max(0, settings.gracePeriod - MS.elapsedSeconds);
+            const mins = Math.floor(remaining / 60);
+            const secs = remaining % 60;
+            const progress = Math.min(100, (MS.elapsedSeconds / settings.gracePeriod) * 100);
+            
+            let statusClass = 'good';
+            let statusText = '专注中';
+            if (MS.elapsedSeconds >= settings.gracePeriod) {
+                statusClass = 'danger';
+                statusText = '已超时';
+            } else if (progress >= 75) {
+                statusClass = 'warning';
+                statusText = '即将超时';
+            }
+            
+            const currentStep = currentTask.substeps?.[0]?.title || '开始执行';
+            
+            html = `
+                <div class="monitor-card ${MS.elapsedSeconds >= settings.gracePeriod ? 'alert-active' : ''}">
+                    ${enabledToggle}
+                    <div class="monitor-task-name">
+                        <span class="task-icon">📌</span>
+                        <span>${currentTask.title}</span>
+                    </div>
+                    <div class="monitor-current-step">
+                        当前步骤：<strong>【${currentStep}】</strong>
+                    </div>
+                    <div class="monitor-countdown" id="monitorCountdown" style="font-size:48px;font-weight:700;text-align:center;margin:20px 0;color:${statusClass === 'danger' ? '#E74C3C' : statusClass === 'warning' ? '#F39C12' : '#27AE60'};">
+                        ${mins}:${secs.toString().padStart(2, '0')}
+                    </div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar ${statusClass}" style="width:${progress}%"></div>
+                    </div>
+                    <div class="monitor-status-row" style="margin-top:12px;">
+                        <span class="status-tag ${statusClass}">${statusText}</span>
+                        <span>第 ${MS.currentCycle} 轮 | 已扣 🪙${MS.totalPaidCoins}</span>
+                    </div>
+                    <div class="monitor-actions" style="margin-top:16px;display:flex;gap:10px;">
+                        <button class="monitor-btn primary" onclick="MonitorSystem.completeStep()">
+                            ✅ 已完成启动
+                        </button>
+                        <button class="monitor-btn ghost" onclick="MonitorSystem.pauseWithCoins()">
+                            ⏸️ 暂停 (${settings.pauseCost}币)
+                        </button>
+                        <button class="monitor-btn ghost" onclick="MonitorSystem.skipTask()">
+                            ⏭️ 跳过
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        container.innerHTML = html;
+        
+        // 重新应用背景色
+        setTimeout(function() { Canvas.reapplyBackground('monitorPanel'); }, 10);
+    },
         
         // 判断哪个监控正在活跃
         const procrastinationActive = PM && PM.currentTask;
@@ -4827,38 +4883,17 @@ const App = {
 
     // ==================== 价值显化器功能 ====================
     
-    // 加载价值显化器面板
+    // 加载价值显化器面板（使用新的FinanceSystem）
     loadValuePanel() {
         const container = document.getElementById("valueBody");
         if (!container) return;
         
-        const VV = typeof ValueVisualizer !== 'undefined' ? ValueVisualizer : null;
-        if (!VV) {
+        // 使用新的FinanceSystem
+        if (typeof FinanceSystem !== 'undefined') {
+            container.innerHTML = FinanceSystem.renderValuePanel();
+        } else {
             container.innerHTML = '<div style="padding:20px;text-align:center;color:#999;">价值显化器加载中...</div>';
-            return;
         }
-        
-        // 生成财务看板HTML
-        var dashboardHtml = this.renderFinanceDashboard();
-        
-        // 生成今日收入HTML
-        var todayHtml = this.renderTodayEarnings();
-        
-        // 生成AI赚钱排行榜HTML
-        var rankingHtml = this.renderEarningRanking();
-        
-        container.innerHTML = 
-            '<div class="value-container">' +
-                '<div class="value-dashboard">' +
-                    dashboardHtml +
-                '</div>' +
-                '<div class="value-today">' +
-                    todayHtml +
-                '</div>' +
-                '<div class="value-ranking">' +
-                    rankingHtml +
-                '</div>' +
-            '</div>';
         
         // 重新应用背景色
         setTimeout(function() { Canvas.reapplyBackground('valuePanel'); }, 10);

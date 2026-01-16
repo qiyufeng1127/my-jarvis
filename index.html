@@ -15,11 +15,9 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap">
     <link rel="stylesheet" href="styles/main.css">
     <link rel="stylesheet" href="styles/mobile.css">
-    <link rel="stylesheet" href="styles/procrastination-enhanced.css">
-    <link rel="stylesheet" href="styles/unified-monitor.css">
+    <link rel="stylesheet" href="styles/components.css">
     <link rel="stylesheet" href="styles/mobile-input-fix.css">
     <link rel="stylesheet" href="styles/enhanced-features.css">
-    <link rel="stylesheet" href="styles/voice-settings.css">
     <link rel="stylesheet" href="styles/brain-dump.css">
     <style>
         /* 覆盖默认字体为更有特色的 Outfit */
@@ -254,6 +252,9 @@
     <!-- 设置按钮 -->
     <button class="settings-toggle" id="settingsToggle" onclick="toggleSettingsPanel()" title="设置">⚙️</button>
     
+    <!-- 帮助按钮 -->
+    <button class="help-toggle" id="helpToggle" onclick="window.open('tutorial.html', '_blank')" title="使用教程">❓</button>
+    
     <!-- 云同步/登录按钮 - 移动端隐藏，已移至更多菜单 -->
     <!-- <button class="cloud-toggle" id="cloudToggle" onclick="CloudSync.showConfigModal()" title="云同步">☁️</button> -->
 
@@ -306,6 +307,12 @@
                 <button class="backup-btn" style="background: linear-gradient(135deg, #E74C3C, #C0392B);" onclick="showApiKeyModal()">🔑 配置</button>
             </div>
         </div>
+        <div class="settings-option">
+            <span class="settings-option-label">使用教程</span>
+            <div class="settings-option-action">
+                <button class="backup-btn" style="background: linear-gradient(135deg, #27AE60, #2ECC71);" onclick="window.open('tutorial.html', '_blank')">📖 查看</button>
+            </div>
+        </div>
     </div>
 
     <!-- 键盘快捷键提示 -->
@@ -329,19 +336,29 @@
         </div>
     </div>
 
-    <!-- 加载脚本 -->
+    <!-- ========== 核心模块 v4.0 ========== -->
+    <script src="js/core/state.js"></script>
+    <script src="js/core/api.js"></script>
+    
+    <!-- ========== 功能模块 v4.0 ========== -->
+    <script src="js/modules/finance.js"></script>
+    <script src="js/modules/monitor.js"></script>
+    
+    <!-- ========== 语音助手 v4.0 ========== -->
+    <script src="js/assistant/voice-assistant.js"></script>
+    <script src="js/assistant/command-mapper.js"></script>
+    
+    <!-- ========== UI组件 v4.0 ========== -->
+    <script src="js/ui/components.js"></script>
+    <script src="js/ui/universal-input.js"></script>
+    
+    <!-- ========== 保留的旧模块 ========== -->
     <script src="js/storage.js"></script>
     <script src="js/settings.js"></script>
     <script src="js/ai-service.js"></script>
     <script src="js/canvas.js"></script>
-    <script src="js/procrastination.js"></script>
-    <script src="js/inefficiency.js"></script>
-    <script src="js/procrastination-enhanced.js"></script>
-    <script src="js/unified-monitor.js"></script>
-    <script src="js/value-visualizer.js"></script>
     <script src="js/ai-copilot.js"></script>
     <script src="js/ai-learning.js"></script>
-    <script src="js/ai-finance.js"></script>
     <script src="js/ai-prediction.js"></script>
     <script src="js/ai-memory.js"></script>
     <script src="js/ai-memory-panel.js"></script>
@@ -357,12 +374,13 @@
     <script src="js/ui-enhancements.js"></script>
     <script src="js/task-form-enhanced.js"></script>
     <script src="js/celebration-effects.js"></script>
-    <script src="js/unified-voice-system.js"></script>
-    <script src="js/voice-settings-panel.js"></script>
     <script src="js/natural-language-timeline.js"></script>
     <script src="js/background-monitor.js"></script>
     <script src="js/brain-dump.js"></script>
     <script src="js/app.js"></script>
+    
+    <!-- ========== 主入口 v4.0 ========== -->
+    <script src="js/app-main.js"></script>
     
     <!-- 移动端底部导航 -->
     <nav class="mobile-nav" id="mobileNav">
