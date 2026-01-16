@@ -3418,59 +3418,6 @@ const App = {
         // 重新应用背景色
         setTimeout(function() { Canvas.reapplyBackground('monitorPanel'); }, 10);
     },
-        
-        // 判断哪个监控正在活跃
-        const procrastinationActive = PM && PM.currentTask;
-        const inefficiencyActive = IM && IM.currentTask;
-        
-        // 如果有活跃的监控，自动切换到对应标签
-        if (procrastinationActive && !inefficiencyActive) {
-            this.monitorActiveTab = 'procrastination';
-        } else if (inefficiencyActive && !procrastinationActive) {
-            this.monitorActiveTab = 'inefficiency';
-        }
-        
-        // 生成标签页HTML
-        var tabsHtml = '<div class="monitor-tabs">' +
-            '<button class="monitor-tab ' + (this.monitorActiveTab === 'procrastination' ? 'active' : '') + 
-                (procrastinationActive ? ' has-activity' : '') + '" onclick="App.switchMonitorTab(\'procrastination\')">' +
-                '<span class="tab-icon">⏰</span>' +
-                '<span class="tab-label">拖延监控</span>' +
-                (procrastinationActive ? '<span class="tab-badge">●</span>' : '') +
-            '</button>' +
-            '<button class="monitor-tab ' + (this.monitorActiveTab === 'inefficiency' ? 'active' : '') + 
-                (inefficiencyActive ? ' has-activity' : '') + '" onclick="App.switchMonitorTab(\'inefficiency\')">' +
-                '<span class="tab-icon">📉</span>' +
-                '<span class="tab-label">低效监控</span>' +
-                (inefficiencyActive ? '<span class="tab-badge">●</span>' : '') +
-            '</button>' +
-        '</div>';
-        
-        // 生成内容HTML
-        var contentHtml = '';
-        if (this.monitorActiveTab === 'procrastination') {
-            contentHtml = this.renderProcrastinationContent();
-        } else {
-            contentHtml = this.renderInefficiencyContent();
-        }
-        
-        container.innerHTML = 
-            '<div class="monitor-panel-container">' +
-                tabsHtml +
-                '<div class="monitor-content">' +
-                    contentHtml +
-                '</div>' +
-            '</div>';
-        
-        // 重新应用背景色
-        setTimeout(function() { Canvas.reapplyBackground('monitorPanel'); }, 10);
-    },
-    
-    // 切换监控标签
-    switchMonitorTab(tab) {
-        this.monitorActiveTab = tab;
-        this.loadMonitorPanel();
-    },
     
     // 渲染拖延监控内容
     renderProcrastinationContent() {
