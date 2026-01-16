@@ -919,3 +919,47 @@
     }
 }
 
+/* ==================== 设置面板版本号 ==================== */
+.settings-version {
+    padding: 16px;
+    margin: -16px -16px 16px -16px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+}
+
+.settings-version:hover {
+    filter: brightness(1.1);
+}
+
+.settings-version:active {
+    filter: brightness(0.95);
+}
+
+.version-label {
+    font-size: 12px;
+    opacity: 0.9;
+    display: block;
+}
+
+.version-number {
+    font-size: 24px;
+    font-weight: 700;
+    display: block;
+    margin: 6px 0;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.version-hint {
+    font-size: 11px;
+    opacity: 0.8;
+    display: block;
+}
+
+/* 深色模式下的版本号 */
+[data-theme="dark"] .settings-version {
+    background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+}
+
