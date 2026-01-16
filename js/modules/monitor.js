@@ -609,7 +609,7 @@ const MonitorSystem = {
 // 导出
 window.MonitorSystem = MonitorSystem;
 
-// 兼容旧版
+// 兼容旧版 - 拖延监控
 window.ProcrastinationMonitor = {
     init: () => MonitorSystem.init(),
     settings: MonitorSystem.settings,
@@ -623,9 +623,114 @@ window.ProcrastinationMonitor = {
     skipCurrentTask: () => MonitorSystem.skipTask(),
     toggleEnabled: () => MonitorSystem.toggleEnabled(),
     toggleSound: () => { MonitorSystem.settings.soundEnabled = !MonitorSystem.settings.soundEnabled; MonitorSystem.saveSettings(); },
+    setVolume: (v) => { MonitorSystem.settings.soundVolume = v; MonitorSystem.saveSettings(); },
     pauseWithCoins: () => MonitorSystem.pauseWithCoins(),
     getStats: () => MonitorSystem.getStats(),
     updateSetting: (k, v) => { MonitorSystem.settings[k] = v; MonitorSystem.saveSettings(); },
     testSound: (t) => MonitorSystem.playSound(t || 'chime')
+};
+
+// 兼容旧版 - 低效率监控
+window.InefficiencyMonitor = {
+    // 设置
+    settings: {
+        enabled: true,
+        thresholdMinutes: 60,      // 判定时长（分钟）
+        halfwayAlert: true,        // 半程提醒
+        baseCost: 5,               // 基础扣币
+        costIncrement: 1.5,        // 递增系数
+        maxCost: 30,               // 最大扣币
+        halfwayMessage: '你已经在{task}上花费了{minutes}分钟，检查一下进度吧！',
+        alertMessage: '任务{task}已超过{minutes}分钟，效率可能较低！',
+        customAlertText: '你已经在{task}上花费了{minutes}分钟，效率可能较低，请检查是否需要调整方向！'
+    },
+    
+    // 历史记录
+    history: [],
+    
+    init() {
+        this.loadSettings();
+        this.loadHistory();
+    },
+    
+    loadSettings() {
+        const saved = localStorage.getItem('inefficiency_settings');
+        if (saved) {
+            Object.assign(this.settings, JSON.parse(saved));
+        }
+    },
+    
+    saveSettings() {
+        localStorage.setItem('inefficiency_settings', JSON.stringify(this.settings));
+    },
+    
+    loadHistory() {
+        this.history = JSON.parse(localStorage.getItem('inefficiency_history') || '[]');
+    },
+    
+    saveHistory() {
+        localStorage.setItem('inefficiency_history', JSON.stringify(this.history.slice(-50)));
+    },
+    
+    updateSetting(key, value) {
+        this.settings[key] = value;
+        this.saveSettings();
+    },
+    
+    getStats() {
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        
+        let weeklyStuck = 0;
+        let completedCount = 0;
+        let totalSpent = 0;
+        const stuckTasks = {};
+        const hourCounts = {};
+        
+        this.history.forEach(h => {
+            if (new Date(h.timestamp) > weekAgo) {
+                if (h.status === 'stuck') {
+                    weeklyStuck++;
+                    stuckTasks[h.taskTitle] = (stuckTasks[h.taskTitle] || 0) + 1;
+                } else {
+                    completedCount++;
+                }
+                
+                const hour = new Date(h.timestamp).getHours();
+                if (h.status !== 'stuck') {
+                    hourCounts[hour] = (hourCounts[hour] || 0) + 1;
+                }
+            }
+            if (h.cost > 0) totalSpent += h.cost;
+        });
+        
+        // 找出常见卡顿点
+        let commonStuck = '暂无数据';
+        let maxStuck = 0;
+        for (const task in stuckTasks) {
+            if (stuckTasks[task] > maxStuck) {
+                maxStuck = stuckTasks[task];
+                commonStuck = task.length > 10 ? task.substring(0, 10) + '...' : task;
+            }
+        }
+        
+        // 找出高效时间段
+        let bestHour = '暂无数据';
+        let maxCount = 0;
+        for (const hour in hourCounts) {
+            if (hourCounts[hour] > maxCount) {
+                maxCount = hourCounts[hour];
+                bestHour = hour + ':00-' + (parseInt(hour) + 1) + ':00';
+            }
+        }
+        
+        return {
+            weeklyStuck,
+            completedCount,
+            totalSpent,
+            commonStuck,
+            bestHour
+        };
+    }
 };
 
