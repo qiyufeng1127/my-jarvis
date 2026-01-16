@@ -18,6 +18,7 @@ const App = {
         this.loadGameSystem();
         this.loadMonitorPanel();
         this.loadValuePanel();
+        this.loadVoiceSettingsPanel();
         
         // 初始化AI副驾驶模块
         if (typeof AICopilot !== 'undefined') {
@@ -103,9 +104,140 @@ const App = {
         }
     },
     
-    // 加载语音设置面板（已移至VoiceAssistant）
+    // 加载语音设置面板（已移至VoiceAssistant或使用回退版本）
     loadVoiceSettingsPanel() {
-        // 由新的VoiceAssistant模块处理
+        const container = document.getElementById("voiceSettingsBody");
+        if (!container) return;
+        
+        // 如果有VoiceAssistant模块，由它处理
+        if (typeof VoiceAssistant !== 'undefined' && VoiceAssistant.renderPanel) {
+            container.innerHTML = VoiceAssistant.renderPanel();
+            return;
+        }
+        
+        // 回退版本
+        const html = `
+            <div style="padding:16px;">
+                <!-- 语音状态 -->
+                <div style="background:linear-gradient(135deg,#667eea,#764ba2);border-radius:12px;padding:20px;color:white;margin-bottom:16px;">
+                    <div style="display:flex;align-items:center;gap:12px;">
+                        <span style="font-size:36px;">🎤</span>
+                        <div>
+                            <div style="font-size:14px;opacity:0.9;">语音助手</div>
+                            <div style="font-size:18px;font-weight:600;">准备就绪</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- TTS设置 -->
+                <div style="background:#F8F9FA;border-radius:12px;padding:16px;margin-bottom:16px;">
+                    <div style="font-size:14px;font-weight:600;color:#2C3E50;margin-bottom:12px;">🔊 语音播报设置</div>
+                    
+                    <div style="margin-bottom:12px;">
+                        <label style="font-size:12px;color:#666;display:block;margin-bottom:6px;">语音引擎</label>
+                        <select id="voiceSelect" style="width:100%;padding:10px;border:1px solid #E0E0E0;border-radius:8px;font-size:14px;" onchange="App.updateVoiceSettings()">
+                            <option value="browser">浏览器内置语音</option>
+                        </select>
+                    </div>
+                    
+                    <div style="margin-bottom:12px;">
+                        <label style="font-size:12px;color:#666;display:block;margin-bottom:6px;">语速</label>
+                        <input type="range" id="voiceRate" min="0.5" max="2" step="0.1" value="1" 
+                               style="width:100%;" onchange="App.updateVoiceSettings()">
+                        <div style="display:flex;justify-content:space-between;font-size:11px;color:#999;">
+                            <span>慢</span><span>正常</span><span>快</span>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom:12px;">
+                        <label style="font-size:12px;color:#666;display:block;margin-bottom:6px;">音调</label>
+                        <input type="range" id="voicePitch" min="0.5" max="2" step="0.1" value="1" 
+                               style="width:100%;" onchange="App.updateVoiceSettings()">
+                        <div style="display:flex;justify-content:space-between;font-size:11px;color:#999;">
+                            <span>低</span><span>正常</span><span>高</span>
+                        </div>
+                    </div>
+                    
+                    <button onclick="App.testVoice()" style="width:100%;padding:10px;background:#667eea;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;">
+                        🔊 测试语音
+                    </button>
+                </div>
+                
+                <!-- 通知设置 -->
+                <div style="background:#F8F9FA;border-radius:12px;padding:16px;">
+                    <div style="font-size:14px;font-weight:600;color:#2C3E50;margin-bottom:12px;">🔔 通知设置</div>
+                    
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #E0E0E0;">
+                        <span style="font-size:13px;color:#666;">任务提醒语音</span>
+                        <div class="toggle-switch active" onclick="this.classList.toggle('active')"></div>
+                    </div>
+                    
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #E0E0E0;">
+                        <span style="font-size:13px;color:#666;">完成任务播报</span>
+                        <div class="toggle-switch active" onclick="this.classList.toggle('active')"></div>
+                    </div>
+                    
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;">
+                        <span style="font-size:13px;color:#666;">监控超时警告</span>
+                        <div class="toggle-switch active" onclick="this.classList.toggle('active')"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        container.innerHTML = html;
+        
+        // 加载浏览器语音列表
+        this.loadBrowserVoices();
+        
+        setTimeout(function() { Canvas.reapplyBackground('voiceSettings'); }, 10);
+    },
+    
+    // 加载浏览器语音列表
+    loadBrowserVoices() {
+        if ('speechSynthesis' in window) {
+            const loadVoices = () => {
+                const voices = speechSynthesis.getVoices();
+                const select = document.getElementById('voiceSelect');
+                if (select && voices.length > 0) {
+                    select.innerHTML = voices.map((voice, i) => 
+                        `<option value="${i}" ${voice.lang.includes('zh') ? 'selected' : ''}>${voice.name} (${voice.lang})</option>`
+                    ).join('');
+                }
+            };
+            
+            loadVoices();
+            speechSynthesis.onvoiceschanged = loadVoices;
+        }
+    },
+    
+    // 更新语音设置
+    updateVoiceSettings() {
+        const rate = document.getElementById('voiceRate')?.value || 1;
+        const pitch = document.getElementById('voicePitch')?.value || 1;
+        Storage.save('voice_settings', { rate, pitch });
+    },
+    
+    // 测试语音
+    testVoice() {
+        if ('speechSynthesis' in window) {
+            const utterance = new SpeechSynthesisUtterance('你好！我是你的语音助手，很高兴为你服务。');
+            const rate = document.getElementById('voiceRate')?.value || 1;
+            const pitch = document.getElementById('voicePitch')?.value || 1;
+            const voiceIndex = document.getElementById('voiceSelect')?.value || 0;
+            
+            utterance.rate = parseFloat(rate);
+            utterance.pitch = parseFloat(pitch);
+            
+            const voices = speechSynthesis.getVoices();
+            if (voices[voiceIndex]) {
+                utterance.voice = voices[voiceIndex];
+            }
+            
+            speechSynthesis.speak(utterance);
+        } else {
+            this.addChatMessage('system', '抱歉，您的浏览器不支持语音合成功能。', '⚠️');
+        }
     },
     
     // 检查是否需要生成周报
@@ -3284,7 +3416,7 @@ const App = {
     // 当前监控面板的活动标签
     monitorActiveTab: 'procrastination',
     
-    // 加载合并监控面板（使用新的MonitorSystem）
+    // 加载合并监控面板（使用新的MonitorSystem或回退到旧版）
     loadMonitorPanel() {
         const container = document.getElementById("monitorBody");
         if (!container) return;
@@ -3293,7 +3425,8 @@ const App = {
         const MS = typeof MonitorSystem !== 'undefined' ? MonitorSystem : null;
         
         if (!MS) {
-            container.innerHTML = '<div style="padding:20px;text-align:center;color:#999;">监控模块加载中...</div>';
+            // 回退到旧版拖延监控
+            this.loadMonitorPanelFallback();
             return;
         }
         
@@ -3416,6 +3549,69 @@ const App = {
         container.innerHTML = html;
         
         // 重新应用背景色
+        setTimeout(function() { Canvas.reapplyBackground('monitorPanel'); }, 10);
+    },
+    
+    // 监控面板回退版本（不依赖MonitorSystem）
+    loadMonitorPanelFallback() {
+        const container = document.getElementById("monitorBody");
+        if (!container) return;
+        
+        const PM = typeof ProcrastinationMonitor !== 'undefined' ? ProcrastinationMonitor : null;
+        
+        // 获取今日任务
+        const tasks = Storage.getTasks();
+        const today = this.formatDate(new Date());
+        const todayTasks = tasks.filter(t => t.date === today);
+        const completedTasks = todayTasks.filter(t => t.completed);
+        const pendingTasks = todayTasks.filter(t => !t.completed);
+        
+        let taskListHtml = '';
+        if (pendingTasks.length > 0) {
+            taskListHtml = pendingTasks.slice(0, 5).map(task => `
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:rgba(102,126,234,0.05);border-radius:8px;margin-bottom:8px;">
+                    <span style="font-size:14px;color:#2C3E50;">${task.title}</span>
+                    <span style="font-size:12px;color:#667eea;">⏰ ${task.startTime}</span>
+                </div>
+            `).join('');
+        } else {
+            taskListHtml = '<div style="text-align:center;color:#999;padding:20px;">今日暂无待办任务</div>';
+        }
+        
+        const html = `
+            <div style="padding:16px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                    <span style="font-size:14px;color:#666;">📊 今日任务监控</span>
+                    <span style="font-size:12px;color:#27AE60;">✅ ${completedTasks.length}/${todayTasks.length} 已完成</span>
+                </div>
+                
+                <div style="background:linear-gradient(135deg,#667eea,#764ba2);border-radius:12px;padding:20px;color:white;margin-bottom:16px;">
+                    <div style="font-size:12px;opacity:0.9;margin-bottom:8px;">今日完成率</div>
+                    <div style="font-size:36px;font-weight:700;">${todayTasks.length > 0 ? Math.round(completedTasks.length / todayTasks.length * 100) : 0}%</div>
+                    <div style="height:6px;background:rgba(255,255,255,0.3);border-radius:3px;margin-top:12px;overflow:hidden;">
+                        <div style="height:100%;background:white;border-radius:3px;width:${todayTasks.length > 0 ? (completedTasks.length / todayTasks.length * 100) : 0}%;"></div>
+                    </div>
+                </div>
+                
+                <div style="margin-bottom:12px;">
+                    <div style="font-size:13px;color:#888;margin-bottom:10px;">📋 待完成任务</div>
+                    ${taskListHtml}
+                </div>
+                
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px;">
+                    <div style="background:#E8F5E9;border-radius:10px;padding:14px;text-align:center;">
+                        <div style="font-size:24px;font-weight:700;color:#27AE60;">${completedTasks.length}</div>
+                        <div style="font-size:12px;color:#666;margin-top:4px;">已完成</div>
+                    </div>
+                    <div style="background:#FFF3E0;border-radius:10px;padding:14px;text-align:center;">
+                        <div style="font-size:24px;font-weight:700;color:#F39C12;">${pendingTasks.length}</div>
+                        <div style="font-size:12px;color:#666;margin-top:4px;">待完成</div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        container.innerHTML = html;
         setTimeout(function() { Canvas.reapplyBackground('monitorPanel'); }, 10);
     },
     
@@ -4830,7 +5026,7 @@ const App = {
 
     // ==================== 价值显化器功能 ====================
     
-    // 加载价值显化器面板（使用新的FinanceSystem）
+    // 加载价值显化器面板（使用新的FinanceSystem或回退到旧版）
     loadValuePanel() {
         const container = document.getElementById("valueBody");
         if (!container) return;
@@ -4839,11 +5035,99 @@ const App = {
         if (typeof FinanceSystem !== 'undefined') {
             container.innerHTML = FinanceSystem.renderValuePanel();
         } else {
-            container.innerHTML = '<div style="padding:20px;text-align:center;color:#999;">价值显化器加载中...</div>';
+            // 回退到旧版价值显化器
+            this.loadValuePanelFallback();
+            return;
         }
         
         // 重新应用背景色
         setTimeout(function() { Canvas.reapplyBackground('valuePanel'); }, 10);
+    },
+    
+    // 价值显化器回退版本（不依赖FinanceSystem）
+    loadValuePanelFallback() {
+        const container = document.getElementById("valueBody");
+        if (!container) return;
+        
+        // 从本地存储获取游戏状态
+        const gameState = Storage.getGameState();
+        const coins = gameState.coins || 0;
+        
+        // 获取今日完成的任务
+        const tasks = Storage.getTasks();
+        const today = this.formatDate(new Date());
+        const completedToday = tasks.filter(t => t.date === today && t.completed);
+        
+        // 计算今日获得的金币（估算）
+        const todayCoins = completedToday.length * 5;
+        
+        const html = `
+            <div style="padding:16px;">
+                <!-- 金币余额卡片 -->
+                <div style="background:linear-gradient(135deg,#FFF8E1,#FFECB3);border-radius:12px;padding:20px;margin-bottom:16px;">
+                    <div style="display:flex;align-items:center;gap:12px;">
+                        <span style="font-size:40px;">🪙</span>
+                        <div>
+                            <div style="font-size:12px;color:#888;">金币余额</div>
+                            <div style="font-size:32px;font-weight:700;color:#D4A017;">${coins}</div>
+                        </div>
+                    </div>
+                    <div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(0,0,0,0.1);">
+                        <span style="font-size:12px;color:#666;">今日获得: <strong style="color:#27AE60;">+${todayCoins}</strong></span>
+                    </div>
+                </div>
+                
+                <!-- 今日成就 -->
+                <div style="background:#F8F9FA;border-radius:12px;padding:16px;margin-bottom:16px;">
+                    <div style="font-size:13px;color:#888;margin-bottom:12px;">📊 今日成就</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                        <div style="background:white;border-radius:8px;padding:12px;text-align:center;">
+                            <div style="font-size:24px;font-weight:700;color:#667eea;">${completedToday.length}</div>
+                            <div style="font-size:11px;color:#999;">完成任务</div>
+                        </div>
+                        <div style="background:white;border-radius:8px;padding:12px;text-align:center;">
+                            <div style="font-size:24px;font-weight:700;color:#27AE60;">+${todayCoins}</div>
+                            <div style="font-size:11px;color:#999;">获得金币</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 快捷操作 -->
+                <div style="display:flex;gap:10px;">
+                    <button onclick="App.showRewardsPanel()" style="flex:1;padding:12px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;">
+                        🎁 兑换奖励
+                    </button>
+                    <button onclick="App.showGameStatus()" style="flex:1;padding:12px;background:#F5F5F5;color:#666;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;">
+                        📈 查看统计
+                    </button>
+                </div>
+                
+                <!-- 提示 -->
+                <div style="margin-top:16px;padding:12px;background:linear-gradient(135deg,#E8F5E9,#C8E6C9);border-radius:10px;">
+                    <div style="font-size:12px;color:#2E7D32;">
+                        💡 <strong>获得金币的方式：</strong><br>
+                        • 按时完成任务 +5金币<br>
+                        • 快速启动任务 +2金币<br>
+                        • 连续完成任务 额外奖励
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        container.innerHTML = html;
+        setTimeout(function() { Canvas.reapplyBackground('valuePanel'); }, 10);
+    },
+    
+    // 显示游戏状态
+    showGameStatus() {
+        const gameState = Storage.getGameState();
+        const msg = `📊 **游戏状态**\n\n` +
+            `🪙 金币: ${gameState.coins || 0}\n` +
+            `⚡ 能量: ${gameState.energy || 100}/${gameState.maxEnergy || 100}\n` +
+            `🔥 连击: ${gameState.streak || 0}\n` +
+            `⭐ 等级: ${gameState.level || 1}\n` +
+            `📈 经验: ${gameState.exp || 0}/${(gameState.level || 1) * 100}`;
+        this.addChatMessage('system', msg, '📊');
     },
     
     // 渲染财务紧急看板
