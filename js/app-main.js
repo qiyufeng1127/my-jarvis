@@ -100,7 +100,7 @@ const AppMain = {
             
             // 加载价值面板
             loadValuePanel: () => {
-                const panel = document.getElementById('valuePanel');
+                const panel = document.getElementById('valueBody');
                 if (panel && typeof FinanceSystem !== 'undefined') {
                     panel.innerHTML = FinanceSystem.renderValuePanel();
                 }

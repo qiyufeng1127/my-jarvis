@@ -23,8 +23,11 @@ const UniversalInput = {
     
     init() {
         this.loadHistory();
-        this.render();
-        this.bindEvents();
+        // 延迟渲染，等待DOM加载完成
+        setTimeout(() => {
+            this.render();
+            this.bindEvents();
+        }, 500);
         console.log('UniversalInput 初始化完成');
     },
     
@@ -39,20 +42,25 @@ const UniversalInput = {
     // ==================== 渲染 ====================
     
     render() {
+        // 查找聊天输入区域
+        const chatInputArea = document.querySelector('.chat-input-area');
+        
+        if (!chatInputArea) {
+            console.log('UniversalInput: 等待聊天输入区域加载...');
+            setTimeout(() => this.render(), 500);
+            return;
+        }
+        
+        // 隐藏原有的输入区域
+        chatInputArea.style.display = 'none';
+        
         // 查找或创建容器
         let container = document.getElementById('universalInputContainer');
         if (!container) {
             container = document.createElement('div');
             container.id = 'universalInputContainer';
-            
-            // 插入到合适位置
-            const chatInput = document.querySelector('.chat-input-container');
-            if (chatInput) {
-                chatInput.parentNode.insertBefore(container, chatInput);
-                chatInput.style.display = 'none';
-            } else {
-                document.body.appendChild(container);
-            }
+            // 插入到原输入区域后面
+            chatInputArea.parentNode.insertBefore(container, chatInputArea.nextSibling);
         }
         
         const mode = this.modes[this.currentMode];
