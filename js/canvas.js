@@ -10,6 +10,8 @@ const Canvas = {
     startTop: 0,
     startWidth: 0,
     startHeight: 0,
+    // 当前最高的z-index，用于点击置顶
+    topZIndex: 100,
 
     init() {
         this.loadPositions();
@@ -20,6 +22,8 @@ const Canvas = {
     loadPositions() {
         const positions = Storage.getComponentPositions();
         const self = this;
+        let maxZIndex = 100;
+        
         document.querySelectorAll('.draggable-component').forEach(function(comp) {
             const id = comp.id;
             if (positions[id]) {
@@ -27,6 +31,15 @@ const Canvas = {
                 comp.style.top = positions[id].top + 'px';
                 comp.style.width = positions[id].width + 'px';
                 comp.style.height = positions[id].height + 'px';
+                
+                // 加载z-index
+                if (positions[id].zIndex) {
+                    comp.style.zIndex = positions[id].zIndex;
+                    if (positions[id].zIndex > maxZIndex) {
+                        maxZIndex = positions[id].zIndex;
+                    }
+                }
+                
                 if (positions[id].bgColor && positions[id].bgColor !== '#ffffff') {
                     // 延迟应用背景色，等待组件内容加载完成
                     setTimeout(function() {
@@ -36,6 +49,9 @@ const Canvas = {
             }
             self.components[id] = comp;
         });
+        
+        // 设置当前最高z-index
+        this.topZIndex = maxZIndex;
     },
 
     bindEvents() {
@@ -43,6 +59,11 @@ const Canvas = {
         document.querySelectorAll('.draggable-component').forEach(function(comp) {
             const header = comp.querySelector('.component-header');
             const resizeHandle = comp.querySelector('.resize-handle');
+
+            // 点击组件任意位置，将其置于最前面
+            comp.addEventListener('mousedown', function(e) {
+                self.bringToFront(comp);
+            });
 
             // 拖拽开始
             header.addEventListener('mousedown', function(e) {
@@ -79,6 +100,16 @@ const Canvas = {
         document.addEventListener('mouseup', function() {
             self.onMouseUp();
         });
+    },
+    
+    // 将组件置于最前面
+    bringToFront(comp) {
+        // 增加最高z-index
+        this.topZIndex++;
+        comp.style.zIndex = this.topZIndex;
+        
+        // 保存z-index到位置信息
+        this.savePosition(comp);
     },
 
     initColorPickers() {
@@ -458,7 +489,8 @@ const Canvas = {
         this.startLeft = comp.offsetLeft;
         this.startTop = comp.offsetTop;
         comp.classList.add('dragging');
-        comp.style.zIndex = 100;
+        // 拖拽时也置顶
+        this.bringToFront(comp);
     },
 
     startResize(e, comp) {
@@ -494,7 +526,7 @@ const Canvas = {
     onMouseUp() {
         if (this.activeComponent) {
             this.activeComponent.classList.remove('dragging');
-            this.activeComponent.style.zIndex = '';
+            // 不再清除z-index，保持组件的层级
             this.savePosition(this.activeComponent);
         }
         this.isDragging = false;
@@ -509,7 +541,8 @@ const Canvas = {
             top: comp.offsetTop,
             width: comp.offsetWidth,
             height: comp.offsetHeight,
-            bgColor: picker ? picker.value : '#ffffff'
+            bgColor: picker ? picker.value : '#ffffff',
+            zIndex: parseInt(comp.style.zIndex) || 1
         };
         Storage.saveComponentPosition(comp.id, position);
     },
