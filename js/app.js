@@ -104,139 +104,247 @@ const App = {
         }
     },
     
-    // 加载语音设置面板（已移至VoiceAssistant或使用回退版本）
+    // 加载语音设置面板（增强版 - 支持高质量TTS）
     loadVoiceSettingsPanel() {
         const container = document.getElementById("voiceSettingsBody");
         if (!container) return;
         
-        // 如果有VoiceAssistant模块，由它处理
-        if (typeof VoiceAssistant !== 'undefined' && VoiceAssistant.renderPanel) {
-            container.innerHTML = VoiceAssistant.renderPanel();
-            return;
-        }
+        // 获取当前设置
+        const TTS = typeof EnhancedTTS !== 'undefined' ? EnhancedTTS : null;
+        const settings = TTS ? TTS.settings : {
+            engine: 'browser',
+            voice: 'zh-CN-XiaoxiaoNeural',
+            rate: 1.0,
+            pitch: 1.0,
+            volume: 1.0,
+            emotion: 'friendly'
+        };
         
-        // 回退版本
+        // 语音选项（高质量神经网络语音）
+        const voiceOptions = [
+            { id: 'zh-CN-XiaoxiaoNeural', name: '晓晓 (女声-活泼自然)' },
+            { id: 'zh-CN-XiaoyiNeural', name: '晓伊 (女声-温柔甜美)' },
+            { id: 'zh-CN-YunjianNeural', name: '云健 (男声-阳光开朗)' },
+            { id: 'zh-CN-YunxiNeural', name: '云希 (男声-少年清澈)' },
+            { id: 'zh-CN-YunyangNeural', name: '云扬 (男声-专业播音)' },
+            { id: 'zh-CN-liaoning-XiaobeiNeural', name: '晓北 (东北话-亲切)' },
+            { id: 'zh-TW-HsiaoChenNeural', name: '曉臻 (台湾女声-软萌)' }
+        ].map(v => `<option value="${v.id}" ${settings.voice === v.id ? 'selected' : ''}>${v.name}</option>`).join('');
+        
+        // 情感选项
+        const emotionOptions = [
+            { id: 'friendly', name: '😊 友好亲切' },
+            { id: 'happy', name: '😄 开心愉快' },
+            { id: 'excited', name: '🎉 兴奋激动' },
+            { id: 'calm', name: '😌 平静舒缓' },
+            { id: 'serious', name: '😐 严肃认真' },
+            { id: 'encouraging', name: '💪 鼓励加油' },
+            { id: 'gentle', name: '🌸 温柔轻声' }
+        ].map(e => `<option value="${e.id}" ${settings.emotion === e.id ? 'selected' : ''}>${e.name}</option>`).join('');
+        
         const html = `
             <div style="padding:16px;">
-                <!-- 语音状态 -->
+                <!-- 语音状态卡片 -->
                 <div style="background:linear-gradient(135deg,#667eea,#764ba2);border-radius:12px;padding:20px;color:white;margin-bottom:16px;">
                     <div style="display:flex;align-items:center;gap:12px;">
-                        <span style="font-size:36px;">🎤</span>
+                        <span style="font-size:36px;">🎙️</span>
                         <div>
-                            <div style="font-size:14px;opacity:0.9;">语音助手</div>
-                            <div style="font-size:18px;font-weight:600;">准备就绪</div>
+                            <div style="font-size:14px;opacity:0.9;">增强语音引擎</div>
+                            <div style="font-size:18px;font-weight:600;">自然真人语音</div>
                         </div>
+                    </div>
+                    <div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.2);font-size:12px;opacity:0.9;">
+                        ✨ 支持情感表达 · 自动语速调节 · 多种音色选择
                     </div>
                 </div>
                 
-                <!-- TTS设置 -->
+                <!-- 语音选择 -->
                 <div style="background:#F8F9FA;border-radius:12px;padding:16px;margin-bottom:16px;">
-                    <div style="font-size:14px;font-weight:600;color:#2C3E50;margin-bottom:12px;">🔊 语音播报设置</div>
+                    <div style="font-size:14px;font-weight:600;color:#2C3E50;margin-bottom:12px;">🎤 语音音色</div>
                     
                     <div style="margin-bottom:12px;">
-                        <label style="font-size:12px;color:#666;display:block;margin-bottom:6px;">语音引擎</label>
-                        <select id="voiceSelect" style="width:100%;padding:10px;border:1px solid #E0E0E0;border-radius:8px;font-size:14px;" onchange="App.updateVoiceSettings()">
-                            <option value="browser">浏览器内置语音</option>
+                        <label style="font-size:12px;color:#666;display:block;margin-bottom:6px;">选择语音角色</label>
+                        <select id="enhancedVoiceSelect" style="width:100%;padding:10px;border:1px solid #E0E0E0;border-radius:8px;font-size:14px;" onchange="App.updateEnhancedVoiceSettings()">
+                            ${voiceOptions}
                         </select>
                     </div>
                     
                     <div style="margin-bottom:12px;">
-                        <label style="font-size:12px;color:#666;display:block;margin-bottom:6px;">语速</label>
-                        <input type="range" id="voiceRate" min="0.5" max="2" step="0.1" value="1" 
-                               style="width:100%;" onchange="App.updateVoiceSettings()">
-                        <div style="display:flex;justify-content:space-between;font-size:11px;color:#999;">
-                            <span>慢</span><span>正常</span><span>快</span>
+                        <label style="font-size:12px;color:#666;display:block;margin-bottom:6px;">情感风格</label>
+                        <select id="enhancedEmotionSelect" style="width:100%;padding:10px;border:1px solid #E0E0E0;border-radius:8px;font-size:14px;" onchange="App.updateEnhancedVoiceSettings()">
+                            ${emotionOptions}
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- 语音参数 -->
+                <div style="background:#F8F9FA;border-radius:12px;padding:16px;margin-bottom:16px;">
+                    <div style="font-size:14px;font-weight:600;color:#2C3E50;margin-bottom:12px;">⚙️ 语音参数</div>
+                    
+                    <div style="margin-bottom:16px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                            <label style="font-size:12px;color:#666;">语速</label>
+                            <span id="rateValue" style="font-size:12px;color:#667eea;font-weight:600;">${settings.rate.toFixed(1)}x</span>
+                        </div>
+                        <input type="range" id="enhancedVoiceRate" min="0.5" max="1.5" step="0.1" value="${settings.rate}" 
+                               style="width:100%;accent-color:#667eea;" onchange="App.updateEnhancedVoiceSettings()">
+                        <div style="display:flex;justify-content:space-between;font-size:10px;color:#999;margin-top:2px;">
+                            <span>慢速 0.5x</span><span>正常 1.0x</span><span>快速 1.5x</span>
                         </div>
                     </div>
                     
-                    <div style="margin-bottom:12px;">
-                        <label style="font-size:12px;color:#666;display:block;margin-bottom:6px;">音调</label>
-                        <input type="range" id="voicePitch" min="0.5" max="2" step="0.1" value="1" 
-                               style="width:100%;" onchange="App.updateVoiceSettings()">
-                        <div style="display:flex;justify-content:space-between;font-size:11px;color:#999;">
-                            <span>低</span><span>正常</span><span>高</span>
+                    <div style="margin-bottom:16px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                            <label style="font-size:12px;color:#666;">音调</label>
+                            <span id="pitchValue" style="font-size:12px;color:#667eea;font-weight:600;">${settings.pitch.toFixed(1)}</span>
+                        </div>
+                        <input type="range" id="enhancedVoicePitch" min="0.7" max="1.3" step="0.1" value="${settings.pitch}" 
+                               style="width:100%;accent-color:#667eea;" onchange="App.updateEnhancedVoiceSettings()">
+                        <div style="display:flex;justify-content:space-between;font-size:10px;color:#999;margin-top:2px;">
+                            <span>低沉</span><span>正常</span><span>清亮</span>
                         </div>
                     </div>
                     
-                    <button onclick="App.testVoice()" style="width:100%;padding:10px;background:#667eea;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;">
-                        🔊 测试语音
+                    <div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                            <label style="font-size:12px;color:#666;">音量</label>
+                            <span id="volumeValue" style="font-size:12px;color:#667eea;font-weight:600;">${Math.round(settings.volume * 100)}%</span>
+                        </div>
+                        <input type="range" id="enhancedVoiceVolume" min="0" max="1" step="0.1" value="${settings.volume}" 
+                               style="width:100%;accent-color:#667eea;" onchange="App.updateEnhancedVoiceSettings()">
+                    </div>
+                </div>
+                
+                <!-- 测试按钮 -->
+                <div style="background:#F8F9FA;border-radius:12px;padding:16px;margin-bottom:16px;">
+                    <div style="font-size:14px;font-weight:600;color:#2C3E50;margin-bottom:12px;">🔊 语音测试</div>
+                    
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+                        <button onclick="App.testEnhancedVoice('friendly')" style="padding:10px;background:#E8F5E9;color:#27AE60;border:none;border-radius:8px;font-size:13px;cursor:pointer;">
+                            😊 友好问候
+                        </button>
+                        <button onclick="App.testEnhancedVoice('happy')" style="padding:10px;background:#FFF3E0;color:#F39C12;border:none;border-radius:8px;font-size:13px;cursor:pointer;">
+                            🎉 任务完成
+                        </button>
+                        <button onclick="App.testEnhancedVoice('encouraging')" style="padding:10px;background:#E3F2FD;color:#2196F3;border:none;border-radius:8px;font-size:13px;cursor:pointer;">
+                            💪 鼓励加油
+                        </button>
+                        <button onclick="App.testEnhancedVoice('angry')" style="padding:10px;background:#FFEBEE;color:#E74C3C;border:none;border-radius:8px;font-size:13px;cursor:pointer;">
+                            ⚠️ 超时警告
+                        </button>
+                    </div>
+                    
+                    <button onclick="App.testEnhancedVoice()" style="width:100%;padding:12px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:600;">
+                        🎙️ 测试当前设置
                     </button>
                 </div>
                 
-                <!-- 通知设置 -->
+                <!-- 高级设置 -->
                 <div style="background:#F8F9FA;border-radius:12px;padding:16px;">
-                    <div style="font-size:14px;font-weight:600;color:#2C3E50;margin-bottom:12px;">🔔 通知设置</div>
+                    <div style="font-size:14px;font-weight:600;color:#2C3E50;margin-bottom:12px;">🔧 高级设置</div>
                     
                     <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #E0E0E0;">
-                        <span style="font-size:13px;color:#666;">任务提醒语音</span>
-                        <div class="toggle-switch active" onclick="this.classList.toggle('active')"></div>
+                        <div>
+                            <span style="font-size:13px;color:#2C3E50;">智能情感识别</span>
+                            <div style="font-size:11px;color:#999;">根据内容自动调整语气</div>
+                        </div>
+                        <div class="toggle-switch active" id="autoEmotionToggle" onclick="App.toggleAutoEmotion(this)"></div>
                     </div>
                     
                     <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #E0E0E0;">
-                        <span style="font-size:13px;color:#666;">完成任务播报</span>
-                        <div class="toggle-switch active" onclick="this.classList.toggle('active')"></div>
+                        <div>
+                            <span style="font-size:13px;color:#2C3E50;">自动语速调节</span>
+                            <div style="font-size:11px;color:#999;">长文本加速，短文本放慢</div>
+                        </div>
+                        <div class="toggle-switch active" id="autoSpeedToggle" onclick="App.toggleAutoSpeed(this)"></div>
                     </div>
                     
                     <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;">
-                        <span style="font-size:13px;color:#666;">监控超时警告</span>
-                        <div class="toggle-switch active" onclick="this.classList.toggle('active')"></div>
+                        <div>
+                            <span style="font-size:13px;color:#2C3E50;">任务完成播报</span>
+                            <div style="font-size:11px;color:#999;">完成任务时语音提示</div>
+                        </div>
+                        <div class="toggle-switch active" id="taskCompleteToggle" onclick="this.classList.toggle('active')"></div>
                     </div>
                 </div>
             </div>
         `;
         
         container.innerHTML = html;
-        
-        // 加载浏览器语音列表
-        this.loadBrowserVoices();
-        
         setTimeout(function() { Canvas.reapplyBackground('voiceSettings'); }, 10);
     },
     
-    // 加载浏览器语音列表
-    loadBrowserVoices() {
-        if ('speechSynthesis' in window) {
-            const loadVoices = () => {
-                const voices = speechSynthesis.getVoices();
-                const select = document.getElementById('voiceSelect');
-                if (select && voices.length > 0) {
-                    select.innerHTML = voices.map((voice, i) => 
-                        `<option value="${i}" ${voice.lang.includes('zh') ? 'selected' : ''}>${voice.name} (${voice.lang})</option>`
-                    ).join('');
-                }
-            };
-            
-            loadVoices();
-            speechSynthesis.onvoiceschanged = loadVoices;
+    // 更新增强语音设置
+    updateEnhancedVoiceSettings() {
+        const voice = document.getElementById('enhancedVoiceSelect')?.value;
+        const emotion = document.getElementById('enhancedEmotionSelect')?.value;
+        const rate = parseFloat(document.getElementById('enhancedVoiceRate')?.value || 1);
+        const pitch = parseFloat(document.getElementById('enhancedVoicePitch')?.value || 1);
+        const volume = parseFloat(document.getElementById('enhancedVoiceVolume')?.value || 1);
+        
+        // 更新显示值
+        const rateDisplay = document.getElementById('rateValue');
+        const pitchDisplay = document.getElementById('pitchValue');
+        const volumeDisplay = document.getElementById('volumeValue');
+        if (rateDisplay) rateDisplay.textContent = rate.toFixed(1) + 'x';
+        if (pitchDisplay) pitchDisplay.textContent = pitch.toFixed(1);
+        if (volumeDisplay) volumeDisplay.textContent = Math.round(volume * 100) + '%';
+        
+        // 保存到EnhancedTTS
+        if (typeof EnhancedTTS !== 'undefined') {
+            if (voice) EnhancedTTS.setVoice(voice);
+            if (emotion) EnhancedTTS.setEmotion(emotion);
+            EnhancedTTS.setRate(rate);
+            EnhancedTTS.setPitch(pitch);
+            EnhancedTTS.setVolume(volume);
+        }
+        
+        // 同时保存到localStorage作为备份
+        Storage.save('enhanced_voice_settings', { voice, emotion, rate, pitch, volume });
+    },
+    
+    // 测试增强语音
+    testEnhancedVoice(emotion) {
+        const testTexts = {
+            friendly: '你好！我是你的智能助手，很高兴为你服务。有什么我可以帮助你的吗？',
+            happy: '太棒了！你完成了今天的任务，获得了10个金币奖励！继续保持！',
+            encouraging: '加油！你可以的，相信自己！每一步都是进步，坚持就是胜利！',
+            angry: '警告！任务已经严重拖延，请立即开始执行！再不行动就要扣金币了！',
+            calm: '温馨提醒：现在是休息时间，记得放松一下，喝杯水，活动活动身体。',
+            sad: '很遗憾，这次任务没能按时完成。不过没关系，下次一定可以做得更好！',
+            excited: '哇！太厉害了！你今天的效率超级高，已经完成了5个任务！'
+        };
+        
+        const text = emotion ? testTexts[emotion] : testTexts.friendly;
+        const finalEmotion = emotion || document.getElementById('enhancedEmotionSelect')?.value || 'friendly';
+        
+        if (typeof EnhancedTTS !== 'undefined') {
+            EnhancedTTS.speak(text, { emotion: finalEmotion });
+        } else {
+            // 回退到浏览器TTS
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'zh-CN';
+                utterance.rate = parseFloat(document.getElementById('enhancedVoiceRate')?.value || 1);
+                utterance.pitch = parseFloat(document.getElementById('enhancedVoicePitch')?.value || 1);
+                speechSynthesis.speak(utterance);
+            }
         }
     },
     
-    // 更新语音设置
-    updateVoiceSettings() {
-        const rate = document.getElementById('voiceRate')?.value || 1;
-        const pitch = document.getElementById('voicePitch')?.value || 1;
-        Storage.save('voice_settings', { rate, pitch });
+    // 切换自动情感识别
+    toggleAutoEmotion(el) {
+        el.classList.toggle('active');
+        Storage.save('voice_auto_emotion', el.classList.contains('active'));
     },
     
-    // 测试语音
-    testVoice() {
-        if ('speechSynthesis' in window) {
-            const utterance = new SpeechSynthesisUtterance('你好！我是你的语音助手，很高兴为你服务。');
-            const rate = document.getElementById('voiceRate')?.value || 1;
-            const pitch = document.getElementById('voicePitch')?.value || 1;
-            const voiceIndex = document.getElementById('voiceSelect')?.value || 0;
-            
-            utterance.rate = parseFloat(rate);
-            utterance.pitch = parseFloat(pitch);
-            
-            const voices = speechSynthesis.getVoices();
-            if (voices[voiceIndex]) {
-                utterance.voice = voices[voiceIndex];
-            }
-            
-            speechSynthesis.speak(utterance);
-        } else {
-            this.addChatMessage('system', '抱歉，您的浏览器不支持语音合成功能。', '⚠️');
+    // 切换自动语速调节
+    toggleAutoSpeed(el) {
+        el.classList.toggle('active');
+        const enabled = el.classList.contains('active');
+        if (typeof EnhancedTTS !== 'undefined') {
+            EnhancedTTS.settings.autoAdjustSpeed = enabled;
+            EnhancedTTS.saveSettings();
         }
     },
     
