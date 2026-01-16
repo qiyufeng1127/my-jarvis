@@ -426,11 +426,12 @@ const BrainDump = {
         return `
             <div class="brain-dump-input-section">
                 <div class="brain-dump-input-wrapper">
-                    <input type="text" 
-                           id="brainDumpInput" 
+                    <textarea id="brainDumpInput" 
                            class="brain-dump-input" 
                            placeholder="随便写点什么...可以一口气说完，我会帮你拆分"
-                           onkeypress="if(event.key==='Enter') BrainDump.handleInputSubmit()">
+                           rows="1"
+                           oninput="BrainDump.autoResizeInput(this)"
+                           onkeydown="BrainDump.handleInputKeydown(event)"></textarea>
                     <button class="brain-dump-add-btn" onclick="BrainDump.handleInputSubmit()">
                         <span>+</span>
                     </button>
@@ -444,6 +445,29 @@ const BrainDump = {
                 </div>
             </div>
         `;
+    },
+    
+    // 自动调整输入框高度
+    autoResizeInput(textarea) {
+        // 重置高度以获取正确的scrollHeight
+        textarea.style.height = 'auto';
+        // 设置新高度，最小44px，最大200px
+        const newHeight = Math.min(Math.max(textarea.scrollHeight, 44), 200);
+        textarea.style.height = newHeight + 'px';
+    },
+    
+    // 处理输入框键盘事件
+    handleInputKeydown(event) {
+        // Ctrl+Enter 或 Cmd+Enter 提交
+        if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+            event.preventDefault();
+            this.handleInputSubmit();
+        }
+        // 单独按Enter不换行时也提交（如果没有Shift）
+        else if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            this.handleInputSubmit();
+        }
     },
     
     // 处理输入提交

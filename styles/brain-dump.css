@@ -17,6 +17,7 @@
     display: flex;
     gap: 8px;
     margin-bottom: 8px;
+    align-items: flex-end;
 }
 
 .brain-dump-input {
@@ -27,6 +28,12 @@
     font-size: 14px;
     transition: all 0.2s ease;
     background: #FAFAFA;
+    min-height: 44px;
+    max-height: 200px;
+    resize: none;
+    overflow-y: auto;
+    line-height: 1.5;
+    font-family: inherit;
 }
 
 .brain-dump-input:focus {

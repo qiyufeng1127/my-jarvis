@@ -282,55 +282,55 @@ const ProcrastinationMonitor = {
         try {
             const ctx = new (window.AudioContext || window.webkitAudioContext)();
             const volume = this.settings.soundVolume;
-            const now = ctx.currentTime;
-            
+        const now = ctx.currentTime;
+        
             if (type === 'chime' || type === 'taskStart') {
                 // 双音和弦
-                const osc1 = ctx.createOscillator();
-                const osc2 = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc1.type = 'sine';
-                osc2.type = 'sine';
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc1.type = 'sine';
+        osc2.type = 'sine';
                 osc1.frequency.setValueAtTime(523.25, now);
                 osc2.frequency.setValueAtTime(659.25, now);
-                gain.gain.setValueAtTime(volume * 0.3, now);
-                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
-                osc1.connect(gain);
-                osc2.connect(gain);
-                gain.connect(ctx.destination);
-                osc1.start(now);
-                osc2.start(now);
-                osc1.stop(now + 0.5);
-                osc2.stop(now + 0.5);
+        gain.gain.setValueAtTime(volume * 0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+        osc1.connect(gain);
+        osc2.connect(gain);
+        gain.connect(ctx.destination);
+        osc1.start(now);
+        osc2.start(now);
+        osc1.stop(now + 0.5);
+        osc2.stop(now + 0.5);
             } else if (type === 'alarm' || type === 'alert') {
                 // 紧急警报
-                for (let i = 0; i < 4; i++) {
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-                    osc.type = 'square';
+        for (let i = 0; i < 4; i++) {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'square';
                     osc.frequency.setValueAtTime(i % 2 === 0 ? 800 : 600, now + i * 0.15);
-                    gain.gain.setValueAtTime(volume * 0.35, now + i * 0.15);
-                    gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.15 + 0.12);
-                    osc.connect(gain);
-                    gain.connect(ctx.destination);
-                    osc.start(now + i * 0.15);
-                    osc.stop(now + i * 0.15 + 0.12);
-                }
+            gain.gain.setValueAtTime(volume * 0.35, now + i * 0.15);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.15 + 0.12);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now + i * 0.15);
+            osc.stop(now + i * 0.15 + 0.12);
+        }
             } else if (type === 'success') {
-                // 成功音
+    // 成功音
                 const notes = [523.25, 659.25, 783.99];
-                notes.forEach((freq, i) => {
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(freq, now + i * 0.12);
-                    gain.gain.setValueAtTime(volume * 0.3, now + i * 0.12);
-                    gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.12 + 0.3);
-                    osc.connect(gain);
-                    gain.connect(ctx.destination);
-                    osc.start(now + i * 0.12);
-                    osc.stop(now + i * 0.12 + 0.3);
-                });
+        notes.forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now + i * 0.12);
+            gain.gain.setValueAtTime(volume * 0.3, now + i * 0.12);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.12 + 0.3);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now + i * 0.12);
+            osc.stop(now + i * 0.12 + 0.3);
+        });
             } else {
                 // 默认警告音
                 for (let i = 0; i < 2; i++) {
@@ -676,13 +676,13 @@ const ProcrastinationMonitor = {
             UnifiedSpeech.speak(text, { volume: this.settings.soundVolume });
         } else if (this.speechSynthesis) {
             // 降级方案：使用本地实现
-            this.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'zh-CN';
-            utterance.rate = 1.0;
-            utterance.pitch = 1.0;
-            utterance.volume = this.settings.soundVolume;
-            this.speechSynthesis.speak(utterance);
+        this.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'zh-CN';
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        utterance.volume = this.settings.soundVolume;
+        this.speechSynthesis.speak(utterance);
         }
         console.log('播放语音:', text);
     },

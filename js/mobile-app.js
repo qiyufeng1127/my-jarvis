@@ -647,13 +647,13 @@ const MobileApp = {
             QuickAddTask.openPopup();
         } else {
             // 备用方案：切换到对话视图并聚焦输入框
-            this.switchView('smartInput');
-            setTimeout(() => {
-                const input = document.querySelector('.chat-input');
-                if (input) {
-                    input.focus();
-                }
-            }, 300);
+        this.switchView('smartInput');
+        setTimeout(() => {
+            const input = document.querySelector('.chat-input');
+            if (input) {
+                input.focus();
+            }
+        }, 300);
         }
     },
     
