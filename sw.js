@@ -1,7 +1,7 @@
-// Service Worker - ADHD Focus PWA v2.2
-const CACHE_NAME = 'adhd-focus-v2.2';
-const STATIC_CACHE = 'adhd-focus-static-v2.2';
-const DYNAMIC_CACHE = 'adhd-focus-dynamic-v2.2';
+// Service Worker - ADHD Focus PWA v4.1
+const CACHE_NAME = 'adhd-focus-v4.1';
+const STATIC_CACHE = 'adhd-focus-static-v4.1';
+const DYNAMIC_CACHE = 'adhd-focus-dynamic-v4.1';
 
 // 需要缓存的静态资源
 const STATIC_ASSETS = [
@@ -9,16 +9,13 @@ const STATIC_ASSETS = [
     './index.html',
     './styles/main.css',
     './styles/mobile.css',
+    './styles/components.css',
     './js/storage.js',
     './js/settings.js',
     './js/ai-service.js',
     './js/canvas.js',
-    './js/procrastination.js',
-    './js/inefficiency.js',
-    './js/value-visualizer.js',
     './js/ai-copilot.js',
     './js/ai-learning.js',
-    './js/ai-finance.js',
     './js/ai-prediction.js',
     './js/ai-memory.js',
     './js/ai-memory-panel.js',
@@ -30,20 +27,15 @@ const STATIC_ASSETS = [
     './js/chart-system.js',
     './js/cloud-sync.js',
     './js/mobile-app.js',
+    './js/brain-dump.js',
     './js/app.js',
-    './components/smart-input.html',
-    './components/timeline.html',
-    './components/memory-bank.html',
-    './components/prompt-panel.html',
-    './components/game-system.html',
-    './components/review-panel.html',
     './manifest.json',
     './icons/tomato.png'
 ];
 
 // 安装事件 - 缓存静态资源
 self.addEventListener('install', event => {
-    console.log('[SW] Installing Service Worker v2.2...');
+    console.log('[SW] Installing Service Worker v4.1...');
     event.waitUntil(
         caches.open(STATIC_CACHE)
             .then(cache => {
@@ -69,7 +61,7 @@ self.addEventListener('install', event => {
 
 // 激活事件 - 清理旧缓存
 self.addEventListener('activate', event => {
-    console.log('[SW] Activating Service Worker v2.2...');
+    console.log('[SW] Activating Service Worker v4.1...');
     event.waitUntil(
         caches.keys()
             .then(keys => {
