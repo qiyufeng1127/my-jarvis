@@ -342,22 +342,6 @@
         </div>
     </div>
 
-    <!-- ========== 核心模块 v4.0 ========== -->
-    <script src="js/core/state.js"></script>
-    <script src="js/core/api.js"></script>
-    
-    <!-- ========== 功能模块 v4.0 ========== -->
-    <script src="js/modules/finance.js"></script>
-    <script src="js/modules/monitor.js"></script>
-    
-    <!-- ========== 语音助手 v4.0 ========== -->
-    <script src="js/assistant/voice-assistant.js"></script>
-    <script src="js/assistant/command-mapper.js"></script>
-    
-    <!-- ========== UI组件 v4.0 ========== -->
-    <script src="js/ui/components.js"></script>
-    <script src="js/ui/input-enhancer.js"></script>
-    
     <!-- ========== 保留的旧模块 ========== -->
     <script src="js/storage.js"></script>
     <script src="js/settings.js"></script>
@@ -385,8 +369,18 @@
     <script src="js/brain-dump.js"></script>
     <script src="js/app.js"></script>
     
-    <!-- ========== 主入口 v4.0 ========== -->
+    <!-- ========== v4.0 增强模块（在旧模块之后加载）========== -->
+    <!-- 暂时注释掉，等稳定后再启用
+    <script src="js/core/state.js"></script>
+    <script src="js/core/api.js"></script>
+    <script src="js/modules/finance.js"></script>
+    <script src="js/modules/monitor.js"></script>
+    <script src="js/assistant/voice-assistant.js"></script>
+    <script src="js/assistant/command-mapper.js"></script>
+    <script src="js/ui/components.js"></script>
+    <script src="js/ui/input-enhancer.js"></script>
     <script src="js/app-main.js"></script>
+    -->
     
     <!-- 移动端底部导航 -->
     <nav class="mobile-nav" id="mobileNav">
