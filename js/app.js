@@ -996,6 +996,29 @@ const App = {
         // 广播用户消息事件
         document.dispatchEvent(new CustomEvent('userMessage', { detail: { message: text } }));
         
+        // 尝试解析收入/支出记录（价值显化系统）
+        if (typeof FinanceSystem !== 'undefined') {
+            const financeResult = FinanceSystem.parseAndRecord(text);
+            if (financeResult) {
+                // 已识别为收入或支出，显示确认消息
+                if (financeResult.type === 'income') {
+                    const project = FinanceSystem.projects.find(p => p.id === financeResult.project);
+                    this.addChatMessage('system', 
+                        `💰 已记录收入 ¥${financeResult.amount}${project ? '（' + project.name + '）' : ''}\n` +
+                        `📊 今日收入：¥${FinanceSystem.formatMoney(FinanceSystem.getTodayIncome())} | 本月：¥${FinanceSystem.formatMoney(FinanceSystem.getMonthIncome())}`,
+                        '💰'
+                    );
+                } else if (financeResult.type === 'expense') {
+                    this.addChatMessage('system', 
+                        `💸 已记录支出 ¥${financeResult.amount}\n` +
+                        `📊 本月支出：¥${FinanceSystem.formatMoney(FinanceSystem.getMonthExpense())}`,
+                        '💸'
+                    );
+                }
+                // 不return，继续处理其他逻辑（用户可能还想说别的）
+            }
+        }
+        
         // 先尝试自然语言时间轴控制
         if (typeof NaturalLanguageTimeline !== 'undefined') {
             const nlResult = await NaturalLanguageTimeline.parseAndExecute(text);
@@ -5134,22 +5157,302 @@ const App = {
 
     // ==================== 价值显化器功能 ====================
     
-    // 加载价值显化器面板（使用新的FinanceSystem或回退到旧版）
+    // 加载价值显化器面板（真实收入记录系统）
     loadValuePanel() {
         const container = document.getElementById("valueBody");
         if (!container) return;
         
-        // 使用新的FinanceSystem
-        if (typeof FinanceSystem !== 'undefined') {
-            container.innerHTML = FinanceSystem.renderValuePanel();
-        } else {
-            // 回退到旧版价值显化器
+        // 获取财务数据
+        const FS = typeof FinanceSystem !== 'undefined' ? FinanceSystem : null;
+        
+        if (!FS) {
             this.loadValuePanelFallback();
             return;
         }
         
+        // 获取统计数据
+        const todayIncome = FS.getTodayIncome();
+        const monthIncome = FS.getMonthIncome();
+        const monthExpense = FS.getMonthExpense();
+        const balance = FS.state.balance;
+        const goalProgress = FS.getGoalProgress();
+        const projectRanking = FS.getProjectRanking();
+        const incomeDistribution = FS.getIncomeDistribution();
+        const recentIncomes = FS.getRecentIncomes(5);
+        const incomeTrend = FS.getIncomeTrend();
+        
+        // 余额显示（正数绿色，负数红色）
+        const balanceColor = balance >= 0 ? '#27AE60' : '#E74C3C';
+        const balanceText = balance >= 0 ? `¥${FS.formatMoney(balance)}` : `-¥${FS.formatMoney(Math.abs(balance))}`;
+        const balanceLabel = balance >= 0 ? '当前余额' : '当前负债';
+        
+        // 生成趋势图SVG
+        const trendSvg = this.generateTrendSvg(incomeTrend);
+        
+        // 生成效率排行HTML
+        let rankingHtml = '';
+        if (projectRanking.length > 0) {
+            const maxRate = projectRanking[0].hourlyRate || 1;
+            rankingHtml = projectRanking.slice(0, 4).map((p, i) => {
+                const medals = ['🥇', '🥈', '🥉', '4'];
+                const barWidth = Math.round((p.hourlyRate / maxRate) * 100);
+                return `
+                    <div style="margin-bottom:12px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                            <span style="font-size:13px;">${medals[i]} ${p.icon} ${p.name}</span>
+                            <span style="font-size:13px;font-weight:600;color:#667eea;">¥${p.hourlyRate}/h</span>
+                        </div>
+                        <div style="height:8px;background:#E0E0E0;border-radius:4px;overflow:hidden;">
+                            <div style="height:100%;width:${barWidth}%;background:linear-gradient(90deg,${p.color},${p.color}88);border-radius:4px;transition:width 0.5s;"></div>
+                        </div>
+                        <div style="font-size:11px;color:#999;margin-top:2px;">累计 ¥${FS.formatMoney(p.totalIncome)} · ${p.totalHours.toFixed(1)}小时</div>
+                    </div>
+                `;
+            }).join('');
+        } else {
+            rankingHtml = '<div style="text-align:center;color:#999;padding:20px;font-size:13px;">暂无数据，记录收入后显示</div>';
+        }
+        
+        // 生成收入分布饼图
+        const pieChart = this.generatePieChart(incomeDistribution, monthIncome);
+        
+        // 生成最近流水
+        let recentHtml = '';
+        if (recentIncomes.length > 0) {
+            recentHtml = recentIncomes.map(inc => {
+                const date = new Date(inc.date);
+                const timeStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours().toString().padStart(2,'0')}:${date.getMinutes().toString().padStart(2,'0')}`;
+                return `
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #F0F0F0;">
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <span style="font-size:20px;">${inc.projectIcon}</span>
+                            <div>
+                                <div style="font-size:13px;color:#2C3E50;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${inc.description || inc.projectName}</div>
+                                <div style="font-size:11px;color:#999;">${timeStr} · ${inc.hours}h · ¥${inc.hourlyRate}/h</div>
+                            </div>
+                        </div>
+                        <span style="font-size:15px;font-weight:600;color:#27AE60;">+¥${FS.formatMoney(inc.amount)}</span>
+                    </div>
+                `;
+            }).join('');
+        } else {
+            recentHtml = '<div style="text-align:center;color:#999;padding:20px;font-size:13px;">暂无收入记录<br>在智能对话中说"赚了xxx元"即可记录</div>';
+        }
+        
+        const html = `
+            <div style="padding:12px;max-height:100%;overflow-y:auto;">
+                <!-- 财富仪表盘 -->
+                <div style="background:linear-gradient(135deg,${balance >= 0 ? '#27AE60' : '#E74C3C'},${balance >= 0 ? '#2ECC71' : '#E57373'});border-radius:16px;padding:20px;color:white;margin-bottom:12px;position:relative;overflow:hidden;">
+                    <div style="position:absolute;right:-20px;top:-20px;font-size:100px;opacity:0.1;">💰</div>
+                    <div style="font-size:12px;opacity:0.9;">${balanceLabel}</div>
+                    <div style="font-size:36px;font-weight:700;margin:8px 0;" id="balanceDisplay">${balanceText}</div>
+                    <div style="display:flex;gap:20px;margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.2);">
+                        <div>
+                            <div style="font-size:11px;opacity:0.8;">今日收入</div>
+                            <div style="font-size:18px;font-weight:600;">+¥${FS.formatMoney(todayIncome)}</div>
+                        </div>
+                        <div>
+                            <div style="font-size:11px;opacity:0.8;">本月收入</div>
+                            <div style="font-size:18px;font-weight:600;">¥${FS.formatMoney(monthIncome)}</div>
+                        </div>
+                        <div>
+                            <div style="font-size:11px;opacity:0.8;">本月支出</div>
+                            <div style="font-size:18px;font-weight:600;">¥${FS.formatMoney(monthExpense)}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 目标进度 -->
+                <div style="background:#F8F9FA;border-radius:12px;padding:14px;margin-bottom:12px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <span style="font-size:13px;font-weight:600;color:#2C3E50;">🎯 本月目标</span>
+                        <span style="font-size:12px;color:#667eea;cursor:pointer;" onclick="App.showSetGoalModal()">¥${FS.formatMoney(goalProgress.goal)} ✏️</span>
+                    </div>
+                    <div style="height:12px;background:#E0E0E0;border-radius:6px;overflow:hidden;margin-bottom:8px;">
+                        <div style="height:100%;width:${goalProgress.progress}%;background:linear-gradient(90deg,#667eea,#764ba2);border-radius:6px;transition:width 0.5s;"></div>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;font-size:11px;color:#666;">
+                        <span>${goalProgress.progress}% · ¥${FS.formatMoney(goalProgress.current)}</span>
+                        <span>${goalProgress.progress >= 100 ? '🎉 已达成！' : `还差 ¥${FS.formatMoney(goalProgress.remaining)}`}</span>
+                    </div>
+                    ${goalProgress.progress < 100 ? `<div style="font-size:11px;color:#999;margin-top:6px;">📊 日均 ¥${goalProgress.dailyAverage}，预计 ${goalProgress.daysToGoal} 天达成</div>` : ''}
+                </div>
+                
+                <!-- 收入趋势图 -->
+                <div style="background:#F8F9FA;border-radius:12px;padding:14px;margin-bottom:12px;">
+                    <div style="font-size:13px;font-weight:600;color:#2C3E50;margin-bottom:10px;">📈 收入趋势</div>
+                    ${trendSvg}
+                </div>
+                
+                <!-- 赚钱效率排行 -->
+                <div style="background:#F8F9FA;border-radius:12px;padding:14px;margin-bottom:12px;">
+                    <div style="font-size:13px;font-weight:600;color:#2C3E50;margin-bottom:12px;">🏆 赚钱效率排行 (时薪)</div>
+                    ${rankingHtml}
+                </div>
+                
+                <!-- 收入来源分布 -->
+                <div style="background:#F8F9FA;border-radius:12px;padding:14px;margin-bottom:12px;">
+                    <div style="font-size:13px;font-weight:600;color:#2C3E50;margin-bottom:10px;">📊 本月收入来源</div>
+                    ${pieChart}
+                </div>
+                
+                <!-- 最近收入流水 -->
+                <div style="background:#F8F9FA;border-radius:12px;padding:14px;margin-bottom:12px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <span style="font-size:13px;font-weight:600;color:#2C3E50;">📝 最近收入</span>
+                        <span style="font-size:11px;color:#667eea;cursor:pointer;" onclick="App.showAllIncomes()">查看全部 →</span>
+                    </div>
+                    ${recentHtml}
+                </div>
+                
+                <!-- 快捷操作 -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+                    <button onclick="App.showAddIncomeModal()" style="padding:12px;background:linear-gradient(135deg,#27AE60,#2ECC71);color:white;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">
+                        💰 记录收入
+                    </button>
+                    <button onclick="App.showAddExpenseModal()" style="padding:12px;background:linear-gradient(135deg,#E74C3C,#E57373);color:white;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">
+                        💸 记录支出
+                    </button>
+                </div>
+                
+                <!-- 固定支出提醒 -->
+                <div style="background:linear-gradient(135deg,#FFF3E0,#FFE0B2);border-radius:12px;padding:14px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <span style="font-size:13px;font-weight:600;color:#E65100;">📅 每月固定支出</span>
+                        <span style="font-size:12px;color:#F57C00;">¥${FS.formatMoney(FS.getTotalFixedExpenses())}</span>
+                    </div>
+                    <div style="font-size:12px;color:#666;">
+                        ${FS.fixedExpenses.length > 0 ? 
+                            FS.fixedExpenses.slice(0,3).map(f => `${f.icon} ${f.name} ¥${f.amount}`).join(' · ') :
+                            '点击添加固定支出项目'
+                        }
+                    </div>
+                    <button onclick="App.showFixedExpenseModal()" style="margin-top:10px;width:100%;padding:8px;background:rgba(230,81,0,0.1);color:#E65100;border:1px dashed #E65100;border-radius:8px;font-size:12px;cursor:pointer;">
+                        ⚙️ 管理固定支出
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        container.innerHTML = html;
+        
         // 重新应用背景色
         setTimeout(function() { Canvas.reapplyBackground('valuePanel'); }, 10);
+    },
+    
+    // 生成趋势图SVG
+    generateTrendSvg(data) {
+        if (!data || data.length === 0) {
+            return '<div style="text-align:center;color:#999;padding:20px;">暂无数据</div>';
+        }
+        
+        const width = 280;
+        const height = 100;
+        const padding = 20;
+        const maxValue = Math.max(...data.map(d => d.value), 1);
+        
+        // 生成路径点
+        const points = data.map((d, i) => {
+            const x = padding + (i / (data.length - 1)) * (width - padding * 2);
+            const y = height - padding - (d.value / maxValue) * (height - padding * 2);
+            return `${x},${y}`;
+        });
+        
+        // 生成填充区域
+        const areaPoints = [
+            `${padding},${height - padding}`,
+            ...points,
+            `${width - padding},${height - padding}`
+        ].join(' ');
+        
+        // 生成标签
+        const labels = data.map((d, i) => {
+            const x = padding + (i / (data.length - 1)) * (width - padding * 2);
+            return `<text x="${x}" y="${height - 5}" text-anchor="middle" style="font-size:10px;fill:#999;">${d.label}</text>`;
+        }).join('');
+        
+        // 生成数据点
+        const dots = data.map((d, i) => {
+            const x = padding + (i / (data.length - 1)) * (width - padding * 2);
+            const y = height - padding - (d.value / maxValue) * (height - padding * 2);
+            return `<circle cx="${x}" cy="${y}" r="4" fill="#667eea" stroke="white" stroke-width="2"/>`;
+        }).join('');
+        
+        return `
+            <svg width="100%" height="${height}" viewBox="0 0 ${width} ${height}" style="overflow:visible;">
+                <defs>
+                    <linearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" style="stop-color:#667eea;stop-opacity:0.3"/>
+                        <stop offset="100%" style="stop-color:#667eea;stop-opacity:0.05"/>
+                    </linearGradient>
+                </defs>
+                <polygon points="${areaPoints}" fill="url(#areaGradient)"/>
+                <polyline points="${points.join(' ')}" fill="none" stroke="#667eea" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                ${dots}
+                ${labels}
+            </svg>
+        `;
+    },
+    
+    // 生成饼图
+    generatePieChart(distribution, total) {
+        if (!distribution || distribution.length === 0 || total === 0) {
+            return '<div style="text-align:center;color:#999;padding:20px;">暂无数据</div>';
+        }
+        
+        const size = 120;
+        const center = size / 2;
+        const radius = 45;
+        
+        let currentAngle = -90;
+        const slices = distribution.map(d => {
+            const percentage = d.amount / total;
+            const angle = percentage * 360;
+            const startAngle = currentAngle;
+            currentAngle += angle;
+            
+            // 计算弧线路径
+            const startRad = (startAngle * Math.PI) / 180;
+            const endRad = ((startAngle + angle) * Math.PI) / 180;
+            const x1 = center + radius * Math.cos(startRad);
+            const y1 = center + radius * Math.sin(startRad);
+            const x2 = center + radius * Math.cos(endRad);
+            const y2 = center + radius * Math.sin(endRad);
+            const largeArc = angle > 180 ? 1 : 0;
+            
+            return {
+                ...d,
+                percentage: Math.round(percentage * 100),
+                path: `M ${center} ${center} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z`
+            };
+        });
+        
+        const svgSlices = slices.map(s => 
+            `<path d="${s.path}" fill="${s.color}" stroke="white" stroke-width="2"/>`
+        ).join('');
+        
+        const legend = slices.slice(0, 4).map(s => `
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+                <div style="width:10px;height:10px;border-radius:2px;background:${s.color};"></div>
+                <span style="font-size:11px;color:#666;">${s.icon} ${s.name}</span>
+                <span style="font-size:11px;color:#2C3E50;font-weight:600;margin-left:auto;">¥${FinanceSystem.formatMoney(s.amount)}</span>
+                <span style="font-size:10px;color:#999;">${s.percentage}%</span>
+            </div>
+        `).join('');
+        
+        return `
+            <div style="display:flex;align-items:center;gap:16px;">
+                <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+                    ${svgSlices}
+                    <circle cx="${center}" cy="${center}" r="25" fill="white"/>
+                    <text x="${center}" y="${center - 5}" text-anchor="middle" style="font-size:10px;fill:#999;">本月</text>
+                    <text x="${center}" y="${center + 10}" text-anchor="middle" style="font-size:12px;fill:#2C3E50;font-weight:600;">¥${FinanceSystem.formatMoney(total)}</text>
+                </svg>
+                <div style="flex:1;">
+                    ${legend}
+                </div>
+            </div>
+        `;
     },
     
     // 价值显化器回退版本（不依赖FinanceSystem）
@@ -5654,6 +5957,372 @@ function saveApiKey() {
         });
     }
 }
+
+// ==================== 价值显化器弹窗函数 ====================
+
+// 显示添加收入弹窗
+App.showAddIncomeModal = function() {
+    const FS = typeof FinanceSystem !== 'undefined' ? FinanceSystem : null;
+    if (!FS) {
+        this.addChatMessage('system', '财务系统未加载', '⚠️');
+        return;
+    }
+    
+    const projectOptions = FS.projects.map(p => 
+        `<option value="${p.id}">${p.icon} ${p.name}</option>`
+    ).join('');
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay show';
+    modal.id = 'addIncomeModal';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width:400px;">
+            <div class="modal-header">
+                <span class="modal-icon">💰</span>
+                <h2>记录收入</h2>
+                <button class="modal-close-btn" onclick="document.getElementById('addIncomeModal').remove()">×</button>
+            </div>
+            <div class="modal-body" style="padding:20px;">
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;font-size:13px;color:#666;margin-bottom:6px;">金额 (元)</label>
+                    <input type="number" id="incomeAmount" placeholder="输入金额" style="width:100%;padding:12px;border:1px solid #E0E0E0;border-radius:8px;font-size:16px;box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;font-size:13px;color:#666;margin-bottom:6px;">项目类型</label>
+                    <select id="incomeProject" style="width:100%;padding:12px;border:1px solid #E0E0E0;border-radius:8px;font-size:14px;box-sizing:border-box;">
+                        ${projectOptions}
+                    </select>
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;font-size:13px;color:#666;margin-bottom:6px;">耗时 (小时)</label>
+                    <input type="number" id="incomeHours" placeholder="投入时间" value="1" step="0.5" style="width:100%;padding:12px;border:1px solid #E0E0E0;border-radius:8px;font-size:14px;box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;font-size:13px;color:#666;margin-bottom:6px;">备注说明</label>
+                    <input type="text" id="incomeDesc" placeholder="例如：完成XX项目" style="width:100%;padding:12px;border:1px solid #E0E0E0;border-radius:8px;font-size:14px;box-sizing:border-box;">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn btn-cancel" onclick="document.getElementById('addIncomeModal').remove()">取消</button>
+                <button class="modal-btn btn-confirm" onclick="App.confirmAddIncome()">确认记录</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    document.getElementById('incomeAmount').focus();
+};
+
+// 确认添加收入
+App.confirmAddIncome = function() {
+    const FS = typeof FinanceSystem !== 'undefined' ? FinanceSystem : null;
+    if (!FS) return;
+    
+    const amount = parseFloat(document.getElementById('incomeAmount').value);
+    const project = document.getElementById('incomeProject').value;
+    const hours = parseFloat(document.getElementById('incomeHours').value) || 1;
+    const desc = document.getElementById('incomeDesc').value;
+    
+    if (!amount || amount <= 0) {
+        alert('请输入有效金额');
+        return;
+    }
+    
+    FS.addIncome({
+        amount,
+        project,
+        hours,
+        description: desc
+    });
+    
+    document.getElementById('addIncomeModal').remove();
+    this.addChatMessage('system', `💰 已记录收入 ¥${amount}，项目：${FS.projects.find(p=>p.id===project)?.name || '其他'}`, '💰');
+};
+
+// 显示添加支出弹窗
+App.showAddExpenseModal = function() {
+    const categories = [
+        { id: 'rent', name: '🏠 房租' },
+        { id: 'food', name: '🍜 餐饮' },
+        { id: 'transport', name: '🚗 交通' },
+        { id: 'subscription', name: '📱 订阅' },
+        { id: 'utilities', name: '💡 水电' },
+        { id: 'phone', name: '📞 话费' },
+        { id: 'shopping', name: '🛒 购物' },
+        { id: 'entertainment', name: '🎮 娱乐' },
+        { id: 'other', name: '📦 其他' }
+    ];
+    
+    const categoryOptions = categories.map(c => 
+        `<option value="${c.id}">${c.name}</option>`
+    ).join('');
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay show';
+    modal.id = 'addExpenseModal';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width:400px;">
+            <div class="modal-header">
+                <span class="modal-icon">💸</span>
+                <h2>记录支出</h2>
+                <button class="modal-close-btn" onclick="document.getElementById('addExpenseModal').remove()">×</button>
+            </div>
+            <div class="modal-body" style="padding:20px;">
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;font-size:13px;color:#666;margin-bottom:6px;">金额 (元)</label>
+                    <input type="number" id="expenseAmount" placeholder="输入金额" style="width:100%;padding:12px;border:1px solid #E0E0E0;border-radius:8px;font-size:16px;box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;font-size:13px;color:#666;margin-bottom:6px;">支出类别</label>
+                    <select id="expenseCategory" style="width:100%;padding:12px;border:1px solid #E0E0E0;border-radius:8px;font-size:14px;box-sizing:border-box;">
+                        ${categoryOptions}
+                    </select>
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;font-size:13px;color:#666;margin-bottom:6px;">备注说明</label>
+                    <input type="text" id="expenseDesc" placeholder="例如：买了XX" style="width:100%;padding:12px;border:1px solid #E0E0E0;border-radius:8px;font-size:14px;box-sizing:border-box;">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn btn-cancel" onclick="document.getElementById('addExpenseModal').remove()">取消</button>
+                <button class="modal-btn btn-confirm" style="background:#E74C3C;" onclick="App.confirmAddExpense()">确认记录</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    document.getElementById('expenseAmount').focus();
+};
+
+// 确认添加支出
+App.confirmAddExpense = function() {
+    const FS = typeof FinanceSystem !== 'undefined' ? FinanceSystem : null;
+    if (!FS) return;
+    
+    const amount = parseFloat(document.getElementById('expenseAmount').value);
+    const category = document.getElementById('expenseCategory').value;
+    const desc = document.getElementById('expenseDesc').value;
+    
+    if (!amount || amount <= 0) {
+        alert('请输入有效金额');
+        return;
+    }
+    
+    FS.addExpense({
+        amount,
+        category,
+        description: desc
+    });
+    
+    document.getElementById('addExpenseModal').remove();
+    this.addChatMessage('system', `💸 已记录支出 ¥${amount}`, '💸');
+};
+
+// 显示设置目标弹窗
+App.showSetGoalModal = function() {
+    const FS = typeof FinanceSystem !== 'undefined' ? FinanceSystem : null;
+    const currentGoal = FS ? FS.state.monthlyGoal : 10000;
+    const currentBalance = FS ? FS.state.balance : 0;
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay show';
+    modal.id = 'setGoalModal';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width:400px;">
+            <div class="modal-header">
+                <span class="modal-icon">🎯</span>
+                <h2>财务设置</h2>
+                <button class="modal-close-btn" onclick="document.getElementById('setGoalModal').remove()">×</button>
+            </div>
+            <div class="modal-body" style="padding:20px;">
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;font-size:13px;color:#666;margin-bottom:6px;">本月收入目标 (元)</label>
+                    <input type="number" id="monthlyGoal" value="${currentGoal}" style="width:100%;padding:12px;border:1px solid #E0E0E0;border-radius:8px;font-size:16px;box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;font-size:13px;color:#666;margin-bottom:6px;">当前余额 (元，负数表示负债)</label>
+                    <input type="number" id="currentBalance" value="${currentBalance}" style="width:100%;padding:12px;border:1px solid #E0E0E0;border-radius:8px;font-size:16px;box-sizing:border-box;">
+                </div>
+                <div style="padding:12px;background:#F0F4FF;border-radius:8px;font-size:12px;color:#666;">
+                    💡 提示：余额会根据你记录的收入和支出自动更新。你也可以在这里手动调整初始余额。
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn btn-cancel" onclick="document.getElementById('setGoalModal').remove()">取消</button>
+                <button class="modal-btn btn-confirm" onclick="App.confirmSetGoal()">保存设置</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+};
+
+// 确认设置目标
+App.confirmSetGoal = function() {
+    const FS = typeof FinanceSystem !== 'undefined' ? FinanceSystem : null;
+    if (!FS) return;
+    
+    const goal = parseFloat(document.getElementById('monthlyGoal').value) || 10000;
+    const balance = parseFloat(document.getElementById('currentBalance').value) || 0;
+    
+    FS.setMonthlyGoal(goal);
+    FS.setBalance(balance);
+    
+    document.getElementById('setGoalModal').remove();
+    this.addChatMessage('system', `🎯 已设置本月目标 ¥${goal}，当前余额 ¥${balance}`, '🎯');
+};
+
+// 显示固定支出管理弹窗
+App.showFixedExpenseModal = function() {
+    const FS = typeof FinanceSystem !== 'undefined' ? FinanceSystem : null;
+    if (!FS) return;
+    
+    const fixedList = FS.fixedExpenses.map(f => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#F8F9FA;border-radius:8px;margin-bottom:8px;">
+            <div>
+                <span style="font-size:16px;">${f.icon}</span>
+                <span style="font-size:14px;margin-left:8px;">${f.name}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:14px;font-weight:600;color:#E74C3C;">¥${f.amount}</span>
+                <span style="font-size:11px;color:#999;">每月${f.dayOfMonth}号</span>
+                <button onclick="App.removeFixedExpense('${f.id}')" style="background:none;border:none;color:#999;cursor:pointer;font-size:16px;">×</button>
+            </div>
+        </div>
+    `).join('') || '<div style="text-align:center;color:#999;padding:20px;">暂无固定支出</div>';
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay show';
+    modal.id = 'fixedExpenseModal';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width:450px;">
+            <div class="modal-header">
+                <span class="modal-icon">📅</span>
+                <h2>固定支出管理</h2>
+                <button class="modal-close-btn" onclick="document.getElementById('fixedExpenseModal').remove()">×</button>
+            </div>
+            <div class="modal-body" style="padding:20px;max-height:400px;overflow-y:auto;">
+                <div style="margin-bottom:16px;">
+                    <div style="font-size:13px;color:#666;margin-bottom:8px;">已添加的固定支出</div>
+                    <div id="fixedExpenseList">
+                        ${fixedList}
+                    </div>
+                </div>
+                <div style="border-top:1px solid #E0E0E0;padding-top:16px;">
+                    <div style="font-size:13px;color:#666;margin-bottom:8px;">添加新的固定支出</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                        <input type="text" id="fixedName" placeholder="名称（如：房租）" style="padding:10px;border:1px solid #E0E0E0;border-radius:8px;font-size:13px;">
+                        <input type="number" id="fixedAmount" placeholder="金额" style="padding:10px;border:1px solid #E0E0E0;border-radius:8px;font-size:13px;">
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                        <select id="fixedIcon" style="padding:10px;border:1px solid #E0E0E0;border-radius:8px;font-size:13px;">
+                            <option value="🏠">🏠 房租</option>
+                            <option value="💡">💡 水电</option>
+                            <option value="📱">📱 话费</option>
+                            <option value="🎵">🎵 订阅</option>
+                            <option value="🍜">🍜 伙食</option>
+                            <option value="🚗">🚗 交通</option>
+                            <option value="📦">📦 其他</option>
+                        </select>
+                        <input type="number" id="fixedDay" placeholder="扣款日（1-31）" min="1" max="31" value="1" style="padding:10px;border:1px solid #E0E0E0;border-radius:8px;font-size:13px;">
+                    </div>
+                    <button onclick="App.addFixedExpenseItem()" style="width:100%;padding:10px;background:#667eea;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;">
+                        + 添加固定支出
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn btn-confirm" onclick="document.getElementById('fixedExpenseModal').remove()">完成</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+};
+
+// 添加固定支出项
+App.addFixedExpenseItem = function() {
+    const FS = typeof FinanceSystem !== 'undefined' ? FinanceSystem : null;
+    if (!FS) return;
+    
+    const name = document.getElementById('fixedName').value;
+    const amount = parseFloat(document.getElementById('fixedAmount').value);
+    const icon = document.getElementById('fixedIcon').value;
+    const day = parseInt(document.getElementById('fixedDay').value) || 1;
+    
+    if (!name || !amount) {
+        alert('请填写名称和金额');
+        return;
+    }
+    
+    FS.addFixedExpense({
+        name,
+        amount,
+        icon,
+        dayOfMonth: day
+    });
+    
+    // 刷新弹窗
+    document.getElementById('fixedExpenseModal').remove();
+    this.showFixedExpenseModal();
+    this.loadValuePanel();
+};
+
+// 删除固定支出
+App.removeFixedExpense = function(id) {
+    const FS = typeof FinanceSystem !== 'undefined' ? FinanceSystem : null;
+    if (!FS) return;
+    
+    FS.fixedExpenses = FS.fixedExpenses.filter(f => f.id !== id);
+    FS.saveFixedExpenses();
+    
+    // 刷新弹窗
+    document.getElementById('fixedExpenseModal').remove();
+    this.showFixedExpenseModal();
+    this.loadValuePanel();
+};
+
+// 显示所有收入记录
+App.showAllIncomes = function() {
+    const FS = typeof FinanceSystem !== 'undefined' ? FinanceSystem : null;
+    if (!FS) return;
+    
+    const incomes = FS.incomes.slice(0, 50);
+    
+    const listHtml = incomes.map(inc => {
+        const project = FS.projects.find(p => p.id === inc.project) || { name: '其他', icon: '📦' };
+        const date = new Date(inc.date);
+        const dateStr = `${date.getMonth()+1}/${date.getDate()}`;
+        return `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;border-bottom:1px solid #F0F0F0;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="font-size:20px;">${project.icon}</span>
+                    <div>
+                        <div style="font-size:13px;color:#2C3E50;">${inc.description || project.name}</div>
+                        <div style="font-size:11px;color:#999;">${dateStr} · ${inc.hours}h</div>
+                    </div>
+                </div>
+                <span style="font-size:15px;font-weight:600;color:#27AE60;">+¥${FS.formatMoney(inc.amount)}</span>
+            </div>
+        `;
+    }).join('') || '<div style="text-align:center;color:#999;padding:40px;">暂无收入记录</div>';
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay show';
+    modal.id = 'allIncomesModal';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width:450px;">
+            <div class="modal-header">
+                <span class="modal-icon">📝</span>
+                <h2>收入记录</h2>
+                <button class="modal-close-btn" onclick="document.getElementById('allIncomesModal').remove()">×</button>
+            </div>
+            <div class="modal-body" style="padding:0;max-height:500px;overflow-y:auto;">
+                ${listHtml}
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn btn-confirm" onclick="document.getElementById('allIncomesModal').remove()">关闭</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+};
 
 // 显示监控设置模态框（统一的设置界面）
 App.showMonitorSettingsModal = function() {
