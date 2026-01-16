@@ -625,9 +625,6 @@ const CoinEngine = {
 window.GlobalState = GlobalState;
 window.CoinEngine = CoinEngine;
 
-// 页面加载后初始化
-document.addEventListener('DOMContentLoaded', () => {
-    CoinEngine.loadConfig();
-    GlobalState.init();
-});
+// 注意：不自动初始化，由 app-main.js 统一管理
+// 如果需要手动初始化，调用 GlobalState.init()
 

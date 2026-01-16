@@ -290,9 +290,26 @@ const AppMain = {
 };
 
 // 页面加载完成后初始化
+// 注意：暂时禁用自动初始化，避免与旧版app.js冲突
+// 新模块会在旧版App初始化完成后，作为增强功能加载
 document.addEventListener('DOMContentLoaded', () => {
-    // 延迟初始化，确保所有脚本加载完成
-    setTimeout(() => AppMain.init(), 100);
+    // 等待旧版App初始化完成后再加载增强功能
+    setTimeout(() => {
+        // 只初始化不会冲突的模块
+        try {
+            if (typeof CoinEngine !== 'undefined') {
+                CoinEngine.loadConfig();
+                console.log('✓ CoinEngine 配置已加载');
+            }
+            // InputEnhancer 会在 App.loadSmartInput 之后自动增强
+            if (typeof InputEnhancer !== 'undefined') {
+                InputEnhancer.init();
+                console.log('✓ InputEnhancer 已初始化');
+            }
+        } catch (e) {
+            console.warn('增强模块加载失败:', e);
+        }
+    }, 2000); // 等待2秒确保旧版App完全加载
 });
 
 // 导出

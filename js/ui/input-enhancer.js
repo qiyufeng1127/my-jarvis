@@ -442,8 +442,6 @@ const InputEnhancer = {
 // 导出
 window.InputEnhancer = InputEnhancer;
 
-// 自动初始化
-document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => InputEnhancer.init(), 1000);
-});
+// 注意：不自动初始化，由 app-main.js 统一管理
+// 如果需要手动初始化，调用 InputEnhancer.init()
 
