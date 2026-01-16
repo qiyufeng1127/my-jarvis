@@ -311,6 +311,63 @@
                 padding: 10px;
             }
         }
+        
+        /* 跳转按钮样式 */
+        .try-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            text-decoration: none;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            border: none;
+            cursor: pointer;
+            margin-left: 8px;
+        }
+        
+        .try-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .try-btn.success {
+            background: linear-gradient(135deg, var(--success), #219a52);
+        }
+        
+        .try-btn.warning {
+            background: linear-gradient(135deg, var(--warning), #d4a90a);
+        }
+        
+        .feature-card .try-btn {
+            margin-top: 10px;
+            margin-left: 0;
+        }
+        
+        .command-table .try-btn {
+            padding: 4px 10px;
+            font-size: 0.8rem;
+        }
+        
+        .steps li .try-btn {
+            margin-top: 8px;
+            display: inline-flex;
+        }
+        
+        /* 功能卡片增强 */
+        .feature-card {
+            position: relative;
+        }
+        
+        .feature-card .card-actions {
+            margin-top: 12px;
+            display: flex;
+            gap: 8px;
+        }
     </style>
 </head>
 <body>
@@ -346,8 +403,12 @@
                 
                 <h3>设置API Key</h3>
                 <ol class="steps">
-                    <li>点击右上角 <strong>⚙️ 设置</strong> 按钮</li>
-                    <li>点击 <strong>🔑 配置</strong> 按钮</li>
+                    <li>点击右上角 <strong>⚙️ 设置</strong> 按钮
+                        <a href="index.html?action=open-settings" class="try-btn">👉 打开设置</a>
+                    </li>
+                    <li>点击 <strong>🔑 配置</strong> 按钮
+                        <a href="index.html?action=open-api-key" class="try-btn">👉 配置API Key</a>
+                    </li>
                     <li>输入你的 DeepSeek API Key</li>
                     <li>点击保存，开始使用！</li>
                 </ol>
@@ -359,7 +420,7 @@
             
             <!-- 全能输入框 -->
             <div class="section" id="universal-input">
-                <h2>💬 全能输入框</h2>
+                <h2>💬 全能输入框 <a href="index.html?highlight=smart-input" class="try-btn success">👉 立即体验</a></h2>
                 <p>新版最强大的功能！一个输入框搞定所有操作。</p>
                 
                 <h3>智能识别</h3>
@@ -370,32 +431,39 @@
                         <tr>
                             <th>输入示例</th>
                             <th>自动识别为</th>
+                            <th>试一试</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
                             <td><code>3点开会</code></td>
                             <td>📋 任务</td>
+                            <td><a href="index.html?highlight=smart-input&action=add-task" class="try-btn">试试</a></td>
                         </tr>
                         <tr>
                             <td><code>写周报30分钟</code></td>
                             <td>📋 任务</td>
+                            <td><a href="index.html?highlight=smart-input&action=add-task" class="try-btn">试试</a></td>
                         </tr>
                         <tr>
                             <td><code>卖出插画收入1500</code></td>
                             <td>💵 收入</td>
+                            <td><a href="index.html?highlight=smart-input&action=add-income" class="try-btn">试试</a></td>
                         </tr>
                         <tr>
                             <td><code>开始专注25分钟</code></td>
                             <td>⚡ 指令</td>
+                            <td><a href="index.html?highlight=smart-input&action=start-timer" class="try-btn">试试</a></td>
                         </tr>
                         <tr>
                             <td><code>我有多少金币</code></td>
                             <td>⚡ 指令</td>
+                            <td><a href="index.html?highlight=smart-input" class="try-btn">试试</a></td>
                         </tr>
                         <tr>
                             <td><code>今天好累啊</code></td>
                             <td>💬 聊天</td>
+                            <td><a href="index.html?highlight=smart-input" class="try-btn">试试</a></td>
                         </tr>
                     </tbody>
                 </table>
@@ -406,28 +474,32 @@
                         <div class="icon">✨</div>
                         <h4>智能识别</h4>
                         <p>自动判断内容类型</p>
+                        <a href="index.html?highlight=smart-input" class="try-btn">打开</a>
                     </div>
                     <div class="feature-card">
                         <div class="icon">📋</div>
                         <h4>添加任务</h4>
                         <p>专门添加任务</p>
+                        <a href="index.html?highlight=smart-input&action=add-task" class="try-btn">打开</a>
                     </div>
                     <div class="feature-card">
                         <div class="icon">💵</div>
                         <h4>记录收入</h4>
                         <p>专门记录收入</p>
+                        <a href="index.html?highlight=smart-input&action=add-income" class="try-btn">打开</a>
                     </div>
                     <div class="feature-card">
                         <div class="icon">⚡</div>
                         <h4>指令</h4>
                         <p>执行快捷指令</p>
+                        <a href="index.html?highlight=smart-input" class="try-btn">打开</a>
                     </div>
                 </div>
             </div>
             
             <!-- 语音助手 -->
             <div class="section" id="voice-assistant">
-                <h2>🎤 语音助手</h2>
+                <h2>🎤 语音助手 <a href="index.html?highlight=voice-settings" class="try-btn success">👉 语音设置</a></h2>
                 
                 <h3>唤醒方式</h3>
                 <div class="feature-grid">
@@ -440,6 +512,7 @@
                         <div class="icon">👆</div>
                         <h4>点击按钮</h4>
                         <p>点击右下角的 🎤 按钮</p>
+                        <a href="index.html?highlight=voice-settings" class="try-btn">打开语音设置</a>
                     </div>
                 </div>
                 
@@ -449,28 +522,34 @@
                         <tr>
                             <th>类型</th>
                             <th>示例指令</th>
+                            <th>试一试</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
                             <td>计时器</td>
                             <td><code>开始25分钟专注</code> <code>番茄钟</code></td>
+                            <td><a href="index.html?highlight=smart-input&action=start-timer" class="try-btn">试试</a></td>
                         </tr>
                         <tr>
                             <td>任务</td>
                             <td><code>3点开会</code> <code>完成写周报</code></td>
+                            <td><a href="index.html?highlight=timeline&action=add-task" class="try-btn">试试</a></td>
                         </tr>
                         <tr>
                             <td>收入</td>
                             <td><code>收入1500元</code> <code>卖出插画收入2000</code></td>
+                            <td><a href="index.html?highlight=value-panel&action=add-income" class="try-btn">试试</a></td>
                         </tr>
                         <tr>
                             <td>查询</td>
                             <td><code>我有多少金币</code> <code>今天任务情况</code></td>
+                            <td><a href="index.html?highlight=game-system" class="try-btn">查看</a></td>
                         </tr>
                         <tr>
                             <td>监控</td>
                             <td><code>开启监控</code> <code>我已经开始了</code></td>
+                            <td><a href="index.html?highlight=monitor" class="try-btn">查看</a></td>
                         </tr>
                     </tbody>
                 </table>
@@ -486,16 +565,19 @@
                         <div class="icon">💰</div>
                         <h4>金币系统</h4>
                         <p>虚拟激励积分，完成任务获得，可兑换奖励</p>
+                        <a href="index.html?highlight=game-system" class="try-btn">查看金币</a>
                     </div>
                     <div class="feature-card">
                         <div class="icon">💴</div>
                         <h4>人民币系统</h4>
                         <p>真实财务记录，追踪收入，设定目标</p>
+                        <a href="index.html?highlight=value-panel" class="try-btn">查看财务</a>
                     </div>
                     <div class="feature-card">
                         <div class="icon">🏦</div>
                         <h4>货币兑换所</h4>
                         <p>人民币可兑换金币，默认1:1</p>
+                        <a href="index.html?highlight=value-panel" class="try-btn">去兑换</a>
                     </div>
                 </div>
                 
@@ -508,12 +590,13 @@
                 
                 <div class="tip-box">
                     <strong>💡 提示：</strong> 设置合理的财务目标，系统会自动计算每日需要赚多少钱！
+                    <a href="index.html?highlight=value-panel" class="try-btn" style="margin-left:10px;">设置目标</a>
                 </div>
             </div>
             
             <!-- 智能监控 -->
             <div class="section" id="monitor">
-                <h2>⏰ 智能监控系统</h2>
+                <h2>⏰ 智能监控系统 <a href="index.html?highlight=monitor" class="try-btn success">👉 查看监控</a></h2>
                 
                 <h3>工作原理</h3>
                 <ol class="steps">
@@ -530,30 +613,37 @@
                         <div class="icon">✅</div>
                         <h4>已完成启动</h4>
                         <p>完成启动步骤，获得奖励</p>
+                        <a href="index.html?highlight=monitor" class="try-btn">查看</a>
                     </div>
                     <div class="feature-card">
                         <div class="icon">⏸️</div>
                         <h4>暂停</h4>
                         <p>花费10金币暂停30分钟</p>
+                        <a href="index.html?highlight=monitor" class="try-btn">查看</a>
                     </div>
                     <div class="feature-card">
                         <div class="icon">⏭️</div>
                         <h4>跳过</h4>
                         <p>跳过当前任务监控</p>
+                        <a href="index.html?highlight=monitor" class="try-btn">查看</a>
                     </div>
                 </div>
             </div>
             
             <!-- 时间轴 -->
             <div class="section" id="timeline">
-                <h2>📅 时间轴</h2>
+                <h2>📅 时间轴 <a href="index.html?highlight=timeline" class="try-btn success">👉 查看时间轴</a></h2>
                 
                 <h3>添加任务</h3>
                 <p><strong>方式一：全能输入框</strong></p>
-                <p>直接输入：<code>3点开会</code>、<code>写周报30分钟</code>、<code>下午2点半见客户</code></p>
+                <p>直接输入：<code>3点开会</code>、<code>写周报30分钟</code>、<code>下午2点半见客户</code>
+                    <a href="index.html?highlight=smart-input&action=add-task" class="try-btn">试试</a>
+                </p>
                 
                 <p><strong>方式二：点击时间轴</strong></p>
-                <p>直接点击时间轴上的时间段，弹出添加任务表单。</p>
+                <p>直接点击时间轴上的时间段，弹出添加任务表单。
+                    <a href="index.html?highlight=timeline" class="try-btn">打开时间轴</a>
+                </p>
                 
                 <h3>任务操作</h3>
                 <ul>
@@ -566,17 +656,20 @@
             
             <!-- 游戏化系统 -->
             <div class="section" id="game">
-                <h2>🎮 游戏化系统</h2>
+                <h2>🎮 游戏化系统 <a href="index.html?highlight=game-system" class="try-btn success">👉 查看游戏</a></h2>
                 
                 <h3>奖励兑换</h3>
                 <ol class="steps">
-                    <li>点击 <strong>🎁 奖励兑换</strong> 按钮</li>
+                    <li>点击 <strong>🎁 奖励兑换</strong> 按钮
+                        <a href="index.html?highlight=game-system&action=open-rewards" class="try-btn">打开奖励商店</a>
+                    </li>
                     <li>选择想要的奖励</li>
                     <li>确认兑换</li>
                 </ol>
                 
                 <div class="tip-box">
                     <strong>💡 自定义奖励：</strong> 点击 "➕ 添加自定义奖励"，设置你真正想要的奖励！
+                    <a href="index.html?highlight=game-system&action=open-rewards" class="try-btn" style="margin-left:10px;">去设置</a>
                 </div>
             </div>
             
@@ -646,19 +739,19 @@
                 <ul>
                     <li>检查浏览器是否允许麦克风权限</li>
                     <li>确保使用Chrome或Edge浏览器</li>
-                    <li>尝试点击🎤按钮手动开启</li>
+                    <li>尝试点击🎤按钮手动开启 <a href="index.html?highlight=voice-settings" class="try-btn">语音设置</a></li>
                 </ul>
                 
                 <h3>Q: 金币不够用怎么办？</h3>
                 <ul>
-                    <li>按时完成任务获得奖励</li>
-                    <li>用人民币兑换金币</li>
+                    <li>按时完成任务获得奖励 <a href="index.html?highlight=timeline" class="try-btn">查看任务</a></li>
+                    <li>用人民币兑换金币 <a href="index.html?highlight=value-panel" class="try-btn">去兑换</a></li>
                     <li>减少暂停监控的次数</li>
                 </ul>
                 
                 <h3>Q: 如何备份/恢复数据？</h3>
-                <p>点击 ⚙️ 设置 → 📤 导出 保存数据<br>
-                点击 ⚙️ 设置 → 📥 导入 恢复数据</p>
+                <p>点击 ⚙️ 设置 → 📤 导出 保存数据 <a href="index.html?action=export-data" class="try-btn">导出数据</a><br>
+                点击 ⚙️ 设置 → 📥 导入 恢复数据 <a href="index.html?action=import-data" class="try-btn">导入数据</a></p>
             </div>
         </div>
         

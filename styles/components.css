@@ -963,3 +963,81 @@
     background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
 }
 
+/* ==================== 教程链接高亮效果 ==================== */
+.tutorial-highlight {
+    animation: tutorialPulse 0.6s ease-in-out 3;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.6), 0 0 30px rgba(102, 126, 234, 0.4) !important;
+    z-index: 100 !important;
+}
+
+@keyframes tutorialPulse {
+    0%, 100% {
+        box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.6), 0 0 30px rgba(102, 126, 234, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 0 8px rgba(102, 126, 234, 0.3), 0 0 50px rgba(102, 126, 234, 0.6);
+    }
+}
+
+/* 教程提示气泡 */
+.tutorial-tooltip {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: white;
+    padding: 12px 18px;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    animation: tooltipFadeIn 0.3s ease-out;
+}
+
+.tutorial-tooltip .tooltip-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tutorial-tooltip .tooltip-icon {
+    font-size: 18px;
+}
+
+.tutorial-tooltip .tooltip-text {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.tutorial-tooltip .tooltip-arrow {
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 8px solid var(--primary-dark);
+}
+
+@keyframes tooltipFadeIn {
+    0% {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-10px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+/* 设置面板高亮 */
+.settings-panel.tutorial-highlight {
+    animation: settingsPulse 0.6s ease-in-out 3;
+}
+
+@keyframes settingsPulse {
+    0%, 100% {
+        box-shadow: -5px 0 30px rgba(0,0,0,0.15), 0 0 0 4px rgba(102, 126, 234, 0.6);
+    }
+    50% {
+        box-shadow: -5px 0 30px rgba(0,0,0,0.15), 0 0 0 8px rgba(102, 126, 234, 0.3);
+    }
+}
+
