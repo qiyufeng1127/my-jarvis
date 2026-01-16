@@ -14,7 +14,7 @@ const AppMain = {
         { name: 'FinanceSystem', init: () => FinanceSystem?.init?.() },
         { name: 'MonitorSystem', init: () => MonitorSystem?.init?.() },
         { name: 'VoiceAssistant', init: () => VoiceAssistant?.init?.() },
-        { name: 'UniversalInput', init: () => UniversalInput?.init?.() }
+        { name: 'InputEnhancer', init: () => InputEnhancer?.init?.() }
     ],
     
     // ==================== 初始化 ====================
