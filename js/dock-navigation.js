@@ -40,9 +40,14 @@ const DockNavigation = {
     // 初始化
     init() {
         console.log('🚀 Dock Navigation 初始化...');
+        console.log('是否移动端:', this.isMobile());
+        console.log('窗口宽度:', window.innerWidth);
         
         // 加载保存的状态
         this.loadState();
+        
+        console.log('加载的位置:', this.position);
+        console.log('展开的组件:', Array.from(this.expandedComponents));
         
         // 创建 Dock
         this.createDock();
@@ -50,8 +55,14 @@ const DockNavigation = {
         // 隐藏所有组件
         this.hideAllComponents();
         
-        // 恢复上次展开的组件
-        this.restoreExpandedComponents();
+        // 移动端默认不展开任何组件
+        if (this.isMobile()) {
+            this.expandedComponents.clear();
+            console.log('移动端：清空展开组件列表');
+        } else {
+            // 桌面端恢复上次展开的组件
+            this.restoreExpandedComponents();
+        }
         
         // 绑定事件
         this.bindEvents();
@@ -131,6 +142,11 @@ const DockNavigation = {
         const oldDock = document.getElementById('dockNavigation');
         if (oldDock) oldDock.remove();
         
+        // 移动端强制底部
+        if (this.isMobile()) {
+            this.position = 'bottom';
+        }
+        
         // 创建新的 Dock
         const dock = document.createElement('div');
         dock.id = 'dockNavigation';
@@ -160,6 +176,8 @@ const DockNavigation = {
         
         dock.appendChild(dockContainer);
         document.body.appendChild(dock);
+        
+        console.log('Dock 创建完成，位置:', this.position, '移动端:', this.isMobile());
     },
     
     // 创建 Dock 项目
@@ -363,10 +381,19 @@ const DockNavigation = {
     
     // 切换组件展开/收起
     toggleComponent(componentId) {
+        console.log('切换组件:', componentId);
+        
         const element = document.getElementById(componentId);
-        if (!element) return;
+        if (!element) {
+            console.error('组件元素未找到:', componentId);
+            alert('组件未找到: ' + componentId);
+            return;
+        }
+        
+        console.log('组件元素:', element);
         
         const isExpanded = this.expandedComponents.has(componentId);
+        console.log('当前状态:', isExpanded ? '已展开' : '已收起');
         
         if (isExpanded) {
             this.collapseComponent(componentId);
@@ -385,7 +412,22 @@ const DockNavigation = {
     // 展开组件
     expandComponent(componentId) {
         const element = document.getElementById(componentId);
-        if (!element) return;
+        if (!element) {
+            console.warn('组件未找到:', componentId);
+            return;
+        }
+        
+        // 移动端全屏显示
+        if (this.isMobile()) {
+            element.style.position = 'fixed';
+            element.style.top = '10px';
+            element.style.left = '10px';
+            element.style.right = '10px';
+            element.style.bottom = '80px';
+            element.style.width = 'calc(100% - 20px)';
+            element.style.height = 'calc(100% - 90px)';
+            element.style.zIndex = '1000';
+        }
         
         element.classList.remove('dock-hidden');
         element.classList.add('dock-expanding');
@@ -396,12 +438,34 @@ const DockNavigation = {
         }, 300);
         
         this.expandedComponents.add(componentId);
+        
+        // 移动端只允许展开一个组件
+        if (this.isMobile()) {
+            // 关闭其他组件
+            this.expandedComponents.forEach(id => {
+                if (id !== componentId) {
+                    this.collapseComponent(id);
+                }
+            });
+        }
     },
     
     // 收起组件
     collapseComponent(componentId) {
         const element = document.getElementById(componentId);
         if (!element) return;
+        
+        // 清除移动端样式
+        if (this.isMobile()) {
+            element.style.position = '';
+            element.style.top = '';
+            element.style.left = '';
+            element.style.right = '';
+            element.style.bottom = '';
+            element.style.width = '';
+            element.style.height = '';
+            element.style.zIndex = '';
+        }
         
         element.classList.add('dock-collapsing');
         element.classList.remove('dock-expanded');

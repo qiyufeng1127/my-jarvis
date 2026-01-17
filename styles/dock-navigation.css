@@ -622,21 +622,47 @@
 
 /* 移动端适配 */
 @media (max-width: 768px) {
+    /* 移动端强制底部 */
     .dock-navigation {
-        padding: 6px 10px;
+        top: auto !important;
+        left: 10px !important;
+        right: 10px !important;
+        bottom: 10px !important;
+        transform: none !important;
+        width: calc(100% - 20px);
+        padding: 8px 10px;
+    }
+    
+    .dock-navigation.dock-top,
+    .dock-navigation.dock-left,
+    .dock-navigation.dock-right,
+    .dock-navigation.dock-bottom {
+        top: auto !important;
+        left: 10px !important;
+        right: 10px !important;
+        bottom: 10px !important;
+        transform: none !important;
+    }
+    
+    .dock-container {
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scroll-behavior: smooth;
+        padding: 0 4px;
     }
     
     .dock-item-icon {
-        width: 42px;
-        height: 42px;
+        width: 50px;
+        height: 50px;
     }
     
     .dock-emoji {
-        font-size: 24px;
+        font-size: 28px;
     }
     
     .dock-item-hover .dock-item-icon {
-        transform: scale(1.2) translateY(-6px);
+        transform: scale(1.15) translateY(-4px);
     }
     
     .dock-settings-content {
@@ -646,6 +672,28 @@
     
     .dock-position-options {
         grid-template-columns: repeat(2, 1fr);
+    }
+    
+    /* 移动端组件全屏显示 */
+    .draggable-component.dock-expanded {
+        position: fixed !important;
+        top: 10px !important;
+        left: 10px !important;
+        right: 10px !important;
+        bottom: 80px !important; /* 为 Dock 留出空间 */
+        width: calc(100% - 20px) !important;
+        height: calc(100% - 90px) !important;
+        z-index: 1000;
+        max-width: none !important;
+        max-height: none !important;
+    }
+    
+    /* 移动端组件头部添加关闭按钮 */
+    .draggable-component.dock-expanded .component-header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: inherit;
     }
 }
 
