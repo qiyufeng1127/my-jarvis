@@ -74,6 +74,7 @@
 
 .brain-dump-ai-btn {
     background: linear-gradient(135deg, #9B59B6, #8E44AD);
+    position: relative;
 }
 
 .brain-dump-ai-btn:hover {
@@ -86,13 +87,100 @@
 }
 
 .brain-dump-ai-btn.active {
-    background: linear-gradient(135deg, #27AE60, #2ECC71);
+    background: linear-gradient(135deg, #27AE60, #2ECC71) !important;
     animation: pulse 2s ease-in-out infinite;
+    box-shadow: 0 0 0 4px rgba(46, 204, 113, 0.2) !important;
+}
+
+.brain-dump-ai-btn.active::before {
+    content: 'AI';
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #27AE60;
+    color: white;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 @keyframes pulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.4); }
+    0%, 100% { box-shadow: 0 0 0 4px rgba(46, 204, 113, 0.2); }
     50% { box-shadow: 0 0 0 8px rgba(46, 204, 113, 0); }
+}
+
+/* AI 聊天消息区域 */
+.brain-dump-chat-messages {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-bottom: 12px;
+    padding: 12px;
+    background: #F8F9FA;
+    border-radius: 12px;
+    display: none;
+}
+
+.brain-dump-chat-messages.show {
+    display: block;
+}
+
+.chat-message {
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+    animation: messageSlideIn 0.3s ease;
+}
+
+@keyframes messageSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.chat-message.user {
+    background: linear-gradient(135deg, #E74C3C, #C0392B);
+    color: white;
+    margin-left: 20px;
+    border-bottom-right-radius: 4px;
+}
+
+.chat-message.assistant {
+    background: white;
+    border: 1px solid #E0E0E0;
+    margin-right: 20px;
+    border-bottom-left-radius: 4px;
+}
+
+.chat-message.system {
+    background: linear-gradient(135deg, #3498DB, #2980B9);
+    color: white;
+    text-align: center;
+    font-size: 12px;
+}
+
+.chat-message-icon {
+    display: inline-block;
+    margin-right: 6px;
+}
+
+/* 深色模式 - 聊天消息 */
+[data-theme="dark"] .brain-dump-chat-messages {
+    background: #2A2A2A;
+}
+
+[data-theme="dark"] .chat-message.assistant {
+    background: #333;
+    border-color: #444;
+    color: #E0E0E0;
 }
 
 /* 旧的添加按钮样式保留用于兼容 */

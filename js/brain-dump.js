@@ -11,6 +11,9 @@ const BrainDump = {
     // 是否显示AI安排结果
     showArrangedView: false,
     
+    // 聊天消息列表
+    chatMessages: [],
+    
     // 拖拽状态
     dragState: {
         dragging: false,
@@ -432,19 +435,26 @@ const BrainDump = {
         // 获取当前时间段的智能推荐任务
         const smartSuggestions = this.getSmartSuggestions();
         
+        // 获取 AI 模式状态
+        const isAIMode = localStorage.getItem('brain_dump_ai_mode') === 'true';
+        
+        // 渲染聊天消息
+        const chatMessages = this.renderChatMessages();
+        
         return `
             <div class="brain-dump-input-section">
+                ${chatMessages}
                 <div class="brain-dump-input-wrapper">
                     <textarea id="brainDumpInput" 
                            class="brain-dump-input" 
-                           placeholder="💬 跟我说点什么...可以聊天、添加任务、问问题"
+                           placeholder="${isAIMode ? '🤖 AI模式：问我任何问题，我会智能回答...' : '💬 跟我说点什么...可以聊天、添加任务、问问题'}"
                            rows="1"
                            oninput="BrainDump.autoResizeInput(this)"
                            onkeydown="BrainDump.handleInputKeydown(event)"></textarea>
                     <button class="brain-dump-send-btn" onclick="BrainDump.handleInputSubmit()" title="发送 (Enter)">
                         <span>📤</span>
                     </button>
-                    <button class="brain-dump-ai-btn" onclick="BrainDump.toggleAIMode(this)" title="AI智能模式">
+                    <button class="brain-dump-ai-btn ${isAIMode ? 'active' : ''}" onclick="BrainDump.toggleAIMode(this)" title="AI智能模式 (点击切换)">
                         <span>🤖</span>
                     </button>
                 </div>
@@ -464,6 +474,62 @@ const BrainDump = {
                 </div>
             </div>
         `;
+    },
+    
+    // 渲染聊天消息
+    renderChatMessages() {
+        if (!this.chatMessages || this.chatMessages.length === 0) {
+            return '';
+        }
+        
+        const messagesHtml = this.chatMessages.map(msg => `
+            <div class="chat-message ${msg.type}">
+                <span class="chat-message-icon">${msg.icon}</span>
+                <span>${this.escapeHtml(msg.text).replace(/\n/g, '<br>')}</span>
+            </div>
+        `).join('');
+        
+        return `
+            <div class="brain-dump-chat-messages show" id="brainDumpChatMessages">
+                ${messagesHtml}
+            </div>
+        `;
+    },
+    
+    // 添加聊天消息
+    addChatMessage(type, text, icon) {
+        if (!this.chatMessages) {
+            this.chatMessages = [];
+        }
+        
+        this.chatMessages.push({
+            type: type, // 'user', 'assistant', 'system'
+            text: text,
+            icon: icon || '💬',
+            timestamp: new Date().toISOString()
+        });
+        
+        // 只保留最近10条消息
+        if (this.chatMessages.length > 10) {
+            this.chatMessages = this.chatMessages.slice(-10);
+        }
+        
+        // 刷新显示
+        this.refresh();
+        
+        // 滚动到最新消息
+        setTimeout(() => {
+            const chatContainer = document.getElementById('brainDumpChatMessages');
+            if (chatContainer) {
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+        }, 100);
+    },
+    
+    // 清空聊天消息
+    clearChatMessages() {
+        this.chatMessages = [];
+        this.refresh();
     },
     
     // 获取当前时间标签
@@ -827,17 +893,15 @@ const BrainDump = {
     // 处理AI对话（支持指令、对话、任务分解）
     async handleAIChat(userMessage) {
         // 添加用户消息到聊天记录
-        if (typeof App !== 'undefined' && App.addChatMessage) {
-            App.addChatMessage('user', userMessage, '👤');
-        }
+        this.addChatMessage('user', userMessage, '👤');
         
         try {
             // 1. 先检查是否是系统指令
             const commandResult = await this.handleCommand(userMessage);
             if (commandResult.handled) {
                 // 指令已处理，显示结果
-                if (commandResult.message && typeof App !== 'undefined' && App.addChatMessage) {
-                    App.addChatMessage('assistant', commandResult.message, '🤖');
+                if (commandResult.message) {
+                    this.addChatMessage('assistant', commandResult.message, '🤖');
                 }
                 
                 // 播放音效
@@ -857,9 +921,7 @@ const BrainDump = {
                 const response = await this.callAI(prompt);
                 
                 // 显示AI回复
-                if (typeof App !== 'undefined' && App.addChatMessage) {
-                    App.addChatMessage('assistant', response, '🤖');
-                }
+                this.addChatMessage('assistant', response, '🤖');
                 
                 // 尝试从回复中提取任务
                 const tasks = this.extractTasksFromAIResponse(response);
@@ -874,9 +936,7 @@ const BrainDump = {
                         { role: 'user', content: userMessage }
                     ]);
                     
-                    if (typeof App !== 'undefined' && App.addChatMessage) {
-                        App.addChatMessage('assistant', response, '🤖');
-                    }
+                    this.addChatMessage('assistant', response, '🤖');
                 } else {
                     throw new Error('AI服务不可用');
                 }
@@ -890,9 +950,7 @@ const BrainDump = {
         } catch (error) {
             console.error('AI对话失败:', error);
             
-            if (typeof App !== 'undefined' && App.addChatMessage) {
-                App.addChatMessage('system', '抱歉，AI暂时无法回复。你可以关闭AI模式直接添加任务哦~', '⚠️');
-            }
+            this.addChatMessage('system', '抱歉，AI暂时无法回复。你可以关闭AI模式直接添加任务哦~', '⚠️');
         }
     },
     
