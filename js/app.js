@@ -110,7 +110,7 @@ const App = {
         if (!container) return;
         
         // 获取当前设置
-        const TTS = typeof EnhancedTTS !== 'undefined' ? EnhancedTTS : null;
+        const TTS = typeof window.EnhancedTTS !== 'undefined' ? window.EnhancedTTS : null;
         const settings = TTS ? TTS.settings : {
             engine: 'browser',
             voice: 'zh-CN-XiaoxiaoNeural',
@@ -291,12 +291,12 @@ const App = {
         if (volumeDisplay) volumeDisplay.textContent = Math.round(volume * 100) + '%';
         
         // 保存到EnhancedTTS
-        if (typeof EnhancedTTS !== 'undefined') {
-            if (voice) EnhancedTTS.setVoice(voice);
-            if (emotion) EnhancedTTS.setEmotion(emotion);
-            EnhancedTTS.setRate(rate);
-            EnhancedTTS.setPitch(pitch);
-            EnhancedTTS.setVolume(volume);
+        if (typeof window.EnhancedTTS !== 'undefined') {
+            if (voice) window.EnhancedTTS.setVoice(voice);
+            if (emotion) window.EnhancedTTS.setEmotion(emotion);
+            window.EnhancedTTS.setRate(rate);
+            window.EnhancedTTS.setPitch(pitch);
+            window.EnhancedTTS.setVolume(volume);
         }
         
         // 同时保存到localStorage作为备份
@@ -318,16 +318,34 @@ const App = {
         const text = emotion ? testTexts[emotion] : testTexts.friendly;
         const finalEmotion = emotion || document.getElementById('enhancedEmotionSelect')?.value || 'friendly';
         
-        if (typeof EnhancedTTS !== 'undefined') {
-            EnhancedTTS.speak(text, { emotion: finalEmotion });
+        // 获取当前设置
+        const voice = document.getElementById('enhancedVoiceSelect')?.value;
+        const rate = parseFloat(document.getElementById('enhancedVoiceRate')?.value || 1);
+        const pitch = parseFloat(document.getElementById('enhancedVoicePitch')?.value || 1);
+        const volume = parseFloat(document.getElementById('enhancedVoiceVolume')?.value || 1);
+        
+        console.log('测试语音，参数:', { voice, emotion: finalEmotion, rate, pitch, volume });
+        
+        // 使用 window.EnhancedTTS 确保访问全局对象
+        if (typeof window.EnhancedTTS !== 'undefined') {
+            window.EnhancedTTS.speak(text, { 
+                voice,
+                emotion: finalEmotion,
+                rate,
+                pitch,
+                volume
+            });
         } else {
+            console.warn('EnhancedTTS 未加载，使用浏览器TTS');
             // 回退到浏览器TTS
             if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
                 const utterance = new SpeechSynthesisUtterance(text);
                 utterance.lang = 'zh-CN';
-                utterance.rate = parseFloat(document.getElementById('enhancedVoiceRate')?.value || 1);
-                utterance.pitch = parseFloat(document.getElementById('enhancedVoicePitch')?.value || 1);
-                speechSynthesis.speak(utterance);
+                utterance.rate = rate;
+                utterance.pitch = pitch;
+                utterance.volume = volume;
+                window.speechSynthesis.speak(utterance);
             }
         }
     },
