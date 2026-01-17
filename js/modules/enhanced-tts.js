@@ -309,85 +309,115 @@ const EnhancedTTS = {
             // 取消之前的播报
             window.speechSynthesis.cancel();
             
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'zh-CN';
-            
-            // 应用语速、音调、音量设置
-            utterance.rate = Math.max(0.5, Math.min(2, options.rate || 1.0));
-            utterance.pitch = Math.max(0.5, Math.min(2, options.pitch || 1.0));
-            utterance.volume = Math.max(0, Math.min(1, options.volume || 1.0));
-            
-            console.log('实际应用的参数:', {
-                rate: utterance.rate,
-                pitch: utterance.pitch,
-                volume: utterance.volume
-            });
-            
-            // 选择最佳中文语音
-            const voices = window.speechSynthesis.getVoices();
-            console.log('可用语音列表:', voices.map(v => v.name));
-            
-            const preferredVoices = [
-                'Microsoft Xiaoxiao Online',
-                'Microsoft Yunxi Online',
-                'Microsoft Yaoyao Online',
-                'Google 普通话（中国大陆）',
-                'Google 國語（臺灣）',
-                'Ting-Ting',
-                'Sin-Ji'
-            ];
-            
-            let selectedVoice = null;
-            for (const preferred of preferredVoices) {
-                selectedVoice = voices.find(v => v.name.includes(preferred));
-                if (selectedVoice) {
-                    console.log('选择语音:', selectedVoice.name);
-                    break;
-                }
-            }
-            
-            if (!selectedVoice) {
-                selectedVoice = voices.find(v => v.lang.includes('zh'));
-                if (selectedVoice) {
-                    console.log('使用备选中文语音:', selectedVoice.name);
-                }
-            }
-            
-            if (selectedVoice) {
-                utterance.voice = selectedVoice;
-            } else {
-                console.warn('未找到中文语音，使用默认语音');
-            }
-            
-            utterance.onstart = () => {
-                console.log('浏览器 TTS 开始播放');
-            };
-            
-            utterance.onend = () => {
-                this.isPlaying = false;
-                console.log('浏览器 TTS 播放完成');
-                resolve();
-            };
-            
-            utterance.onerror = (e) => {
-                this.isPlaying = false;
-                console.error('浏览器 TTS 错误:', e);
-                resolve();
-            };
-            
-            this.isPlaying = true;
-            
-            // 确保语音列表已加载
-            if (voices.length === 0) {
-                console.log('等待语音列表加载...');
-                window.speechSynthesis.onvoiceschanged = () => {
-                    console.log('语音列表已加载');
-                    window.speechSynthesis.speak(utterance);
-                };
-            } else {
-                window.speechSynthesis.speak(utterance);
-            }
+            // 等待一小段时间，确保之前的语音已停止
+            setTimeout(() => {
+                this._speakWithBrowserInternal(text, options, resolve);
+            }, 100);
         });
+    },
+    
+    /**
+     * 浏览器 TTS 内部实现
+     */
+    _speakWithBrowserInternal(text, options, resolve) {
+        if (!window.speechSynthesis) {
+            resolve();
+            return;
+        }
+    /**
+     * 浏览器 TTS 内部实现
+     */
+    _speakWithBrowserInternal(text, options, resolve) {
+        if (!window.speechSynthesis) {
+            resolve();
+            return;
+        }
+        
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'zh-CN';
+        
+        // 应用语速、音调、音量设置
+        utterance.rate = Math.max(0.5, Math.min(2, options.rate || 1.0));
+        utterance.pitch = Math.max(0.5, Math.min(2, options.pitch || 1.0));
+        utterance.volume = Math.max(0, Math.min(1, options.volume || 1.0));
+        
+        console.log('实际应用的参数:', {
+            rate: utterance.rate,
+            pitch: utterance.pitch,
+            volume: utterance.volume
+        });
+        
+        // 选择最佳中文语音
+        const voices = window.speechSynthesis.getVoices();
+        console.log('可用语音数量:', voices.length);
+        
+        const preferredVoices = [
+            'Microsoft Xiaoxiao Online',
+            'Microsoft Yunxi Online',
+            'Microsoft Yaoyao Online',
+            'Google 普通话（中国大陆）',
+            'Google 國語（臺灣）',
+            'Ting-Ting',
+            'Sin-Ji'
+        ];
+        
+        let selectedVoice = null;
+        for (const preferred of preferredVoices) {
+            selectedVoice = voices.find(v => v.name.includes(preferred));
+            if (selectedVoice) {
+                console.log('选择语音:', selectedVoice.name);
+                break;
+            }
+        }
+        
+        if (!selectedVoice) {
+            selectedVoice = voices.find(v => v.lang.includes('zh'));
+            if (selectedVoice) {
+                console.log('使用备选中文语音:', selectedVoice.name);
+            }
+        }
+        
+        if (selectedVoice) {
+            utterance.voice = selectedVoice;
+        } else {
+            console.warn('未找到中文语音，使用默认语音');
+        }
+        
+        utterance.onstart = () => {
+            console.log('浏览器 TTS 开始播放');
+            this.isPlaying = true;
+        };
+        
+        utterance.onend = () => {
+            this.isPlaying = false;
+            console.log('浏览器 TTS 播放完成');
+            resolve();
+        };
+        
+        utterance.onerror = (e) => {
+            this.isPlaying = false;
+            console.error('浏览器 TTS 错误:', e.error, e);
+            // 即使出错也 resolve，避免卡住
+            resolve();
+        };
+        
+        // 确保语音列表已加载
+        if (voices.length === 0) {
+            console.log('等待语音列表加载...');
+            window.speechSynthesis.onvoiceschanged = () => {
+                console.log('语音列表已加载，重新尝试');
+                this._speakWithBrowserInternal(text, options, resolve);
+            };
+        } else {
+            try {
+                window.speechSynthesis.speak(utterance);
+                console.log('已调用 speechSynthesis.speak()');
+            } catch (e) {
+                console.error('调用 speak() 失败:', e);
+                this.isPlaying = false;
+                resolve();
+            }
+        }
     },
     
     // ==================== 控制方法 ====================
