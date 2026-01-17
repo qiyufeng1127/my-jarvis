@@ -18,7 +18,7 @@ const App = {
         this.loadGameSystem();
         this.loadMonitorPanel();
         this.loadValuePanel();
-        this.loadVoiceSettingsPanel();
+        // this.loadVoiceSettingsPanel(); // 已移至 voice-settings.js，会自动加载
         
         // 初始化AI副驾驶模块
         if (typeof AICopilot !== 'undefined') {
