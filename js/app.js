@@ -110,14 +110,12 @@ const App = {
         if (!container) return;
         
         // 获取当前设置
-        const TTS = typeof window.EnhancedTTS !== 'undefined' ? window.EnhancedTTS : null;
+        const TTS = typeof window.SimpleVoice !== 'undefined' ? window.SimpleVoice : null;
         const settings = TTS ? TTS.settings : {
-            engine: 'browser',
-            voice: 'zh-CN-XiaoxiaoNeural',
             rate: 1.0,
             pitch: 1.0,
             volume: 1.0,
-            emotion: 'friendly'
+            voice: null
         };
         
         // 语音选项（高质量神经网络语音）
