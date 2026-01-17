@@ -480,43 +480,91 @@ const DockNavigation = {
     reloadComponentContent(componentId) {
         console.log('🔄 重新加载组件内容:', componentId);
         
-        // 调用 App 的加载函数
+        // 强制调用 App 的加载函数
         if (typeof App !== 'undefined') {
-            switch(componentId) {
-                case 'brainDump':
-                    if (typeof BrainDump !== 'undefined' && BrainDump.refresh) {
-                        BrainDump.refresh();
+            try {
+                switch(componentId) {
+                    case 'brainDump':
+                        console.log('加载 BrainDump...');
+                        if (typeof BrainDump !== 'undefined') {
+                            if (BrainDump.refresh) {
+                                BrainDump.refresh();
+                            } else if (BrainDump.init) {
+                                BrainDump.init();
+                            }
+                        }
+                        break;
+                    case 'timeline':
+                        console.log('加载 Timeline...');
+                        if (App.loadTimeline) {
+                            App.loadTimeline();
+                        }
+                        break;
+                    case 'memoryBank':
+                        console.log('加载 MemoryBank...');
+                        if (App.loadMemoryBank) {
+                            App.loadMemoryBank();
+                        }
+                        break;
+                    case 'promptPanel':
+                        console.log('加载 PromptPanel...');
+                        if (App.loadPromptPanel) {
+                            App.loadPromptPanel();
+                        }
+                        break;
+                    case 'gameSystem':
+                        console.log('加载 GameSystem...');
+                        if (App.loadGameSystem) {
+                            App.loadGameSystem();
+                        }
+                        break;
+                    case 'monitorPanel':
+                        console.log('加载 MonitorPanel...');
+                        if (App.loadMonitorPanel) {
+                            App.loadMonitorPanel();
+                        }
+                        break;
+                    case 'valuePanel':
+                        console.log('加载 ValuePanel...');
+                        if (App.loadValuePanel) {
+                            App.loadValuePanel();
+                        }
+                        break;
+                    case 'aiInsights':
+                        console.log('加载 AIInsights...');
+                        if (App.loadAIInsightsPanel) {
+                            App.loadAIInsightsPanel();
+                        }
+                        break;
+                    case 'aiMemory':
+                        console.log('加载 AIMemory...');
+                        if (App.loadAIMemoryPanel) {
+                            App.loadAIMemoryPanel();
+                        }
+                        break;
+                    case 'voiceSettings':
+                        console.log('加载 VoiceSettings...');
+                        if (typeof VoiceSettings !== 'undefined') {
+                            if (VoiceSettings.init) {
+                                VoiceSettings.init();
+                            } else if (VoiceSettings.refresh) {
+                                VoiceSettings.refresh();
+                            }
+                        }
+                        break;
+                }
+                
+                // 再次检查内容
+                setTimeout(() => {
+                    const element = document.getElementById(componentId);
+                    const body = element ? element.querySelector('.component-body') : null;
+                    if (body) {
+                        console.log('✅ 重新加载后内容长度:', body.innerHTML.length);
                     }
-                    break;
-                case 'timeline':
-                    if (App.loadTimeline) App.loadTimeline();
-                    break;
-                case 'memoryBank':
-                    if (App.loadMemoryBank) App.loadMemoryBank();
-                    break;
-                case 'promptPanel':
-                    if (App.loadPromptPanel) App.loadPromptPanel();
-                    break;
-                case 'gameSystem':
-                    if (App.loadGameSystem) App.loadGameSystem();
-                    break;
-                case 'monitorPanel':
-                    if (App.loadMonitorPanel) App.loadMonitorPanel();
-                    break;
-                case 'valuePanel':
-                    if (App.loadValuePanel) App.loadValuePanel();
-                    break;
-                case 'aiInsights':
-                    if (App.loadAIInsightsPanel) App.loadAIInsightsPanel();
-                    break;
-                case 'aiMemory':
-                    if (App.loadAIMemoryPanel) App.loadAIMemoryPanel();
-                    break;
-                case 'voiceSettings':
-                    if (typeof VoiceSettings !== 'undefined' && VoiceSettings.init) {
-                        VoiceSettings.init();
-                    }
-                    break;
+                }, 100);
+                
+            } catch (error) {
+                console.error('❌ 加载组件失败:', error);
             }
         }
     },
@@ -859,17 +907,36 @@ window.DockNavigation = DockNavigation;
 
 // 页面加载后初始化
 document.addEventListener('DOMContentLoaded', () => {
-    // 延迟初始化，确保其他组件已加载
-    setTimeout(() => {
-        console.log('⏰ 开始初始化 Dock Navigation...');
-        
-        // 确保 App 已经初始化
-        if (typeof App !== 'undefined' && App.init) {
-            console.log('✅ App 已加载');
-        } else {
-            console.warn('⚠️ App 未加载，可能影响组件内容');
+    console.log('📄 DOM 加载完成');
+    
+    // 等待 App 初始化完成
+    const waitForApp = setInterval(() => {
+        if (typeof App !== 'undefined' && document.getElementById('timeline')) {
+            clearInterval(waitForApp);
+            
+            console.log('✅ App 已加载，开始初始化 Dock');
+            
+            // 检查组件是否有内容
+            const timeline = document.getElementById('timeline');
+            const timelineBody = timeline ? timeline.querySelector('.component-body') : null;
+            
+            if (timelineBody) {
+                console.log('📅 Timeline body 内容长度:', timelineBody.innerHTML.length);
+            }
+            
+            // 延迟一点再初始化 Dock，确保所有组件都渲染完成
+            setTimeout(() => {
+                DockNavigation.init();
+            }, 500);
         }
-        
-        DockNavigation.init();
-    }, 1000); // 增加延迟到 1 秒，确保所有组件都已加载
+    }, 100);
+    
+    // 超时保护
+    setTimeout(() => {
+        clearInterval(waitForApp);
+        if (typeof DockNavigation !== 'undefined' && !document.getElementById('dockNavigation')) {
+            console.warn('⚠️ 超时，强制初始化 Dock');
+            DockNavigation.init();
+        }
+    }, 5000);
 });
