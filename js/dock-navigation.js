@@ -2,16 +2,16 @@
 // iOS 风格设计，支持展开/收起组件
 
 const DockNavigation = {
-    // 组件配置
+    // 组件配置（emoji 不重复）
     components: [
         { id: 'brainDump', emoji: '💬', name: '智能对话', color: '#FF6B9D' },
         { id: 'timeline', emoji: '📅', name: '时间轴', color: '#4A90E2' },
-        { id: 'memoryBank', emoji: '🧠', name: '记忆库', color: '#9B59B6' },
+        { id: 'memoryBank', emoji: '🗂️', name: '记忆库', color: '#9B59B6' },
         { id: 'promptPanel', emoji: '📝', name: '提示词', color: '#F39C12' },
         { id: 'gameSystem', emoji: '🎮', name: '游戏化', color: '#E74C3C' },
         { id: 'monitorPanel', emoji: '📊', name: '监控', color: '#3498DB' },
         { id: 'valuePanel', emoji: '💰', name: '价值显化', color: '#27AE60' },
-        { id: 'aiInsights', emoji: '🧠', name: 'AI洞察', color: '#8E44AD' },
+        { id: 'aiInsights', emoji: '🔮', name: 'AI洞察', color: '#8E44AD' },
         { id: 'aiMemory', emoji: '💖', name: 'KiiKii', color: '#E91E63' },
         { id: 'voiceSettings', emoji: '🔊', name: '语音', color: '#FF9800' }
     ],
@@ -19,8 +19,23 @@ const DockNavigation = {
     // 当前展开的组件
     expandedComponents: new Set(),
     
-    // Dock 位置 ('top', 'left', 'bottom', 'right')
+    // Dock 位置
     position: 'top',
+    
+    // 拖拽状态
+    dragState: {
+        dragging: false,
+        draggedIndex: null,
+        draggedElement: null,
+        startX: 0,
+        startY: 0,
+        longPressTimer: null
+    },
+    
+    // 判断是否为移动端
+    isMobile() {
+        return window.innerWidth <= 768;
+    },
     
     // 初始化
     init() {
@@ -41,7 +56,29 @@ const DockNavigation = {
         // 绑定事件
         this.bindEvents();
         
+        // 隐藏旧的UI元素
+        this.hideOldUIElements();
+        
         console.log('✅ Dock Navigation 初始化完成');
+    },
+    
+    // 隐藏旧的UI元素
+    hideOldUIElements() {
+        // 隐藏右下角的加号按钮
+        const fab = document.getElementById('mobileFab');
+        if (fab) fab.style.display = 'none';
+        
+        // 隐藏右上角的帮助按钮
+        const helpBtn = document.getElementById('helpToggle');
+        if (helpBtn) helpBtn.style.display = 'none';
+        
+        // 隐藏旧的设置按钮
+        const settingsBtn = document.getElementById('settingsToggle');
+        if (settingsBtn) settingsBtn.style.display = 'none';
+        
+        // 隐藏移动端底部导航
+        const mobileNav = document.getElementById('mobileNav');
+        if (mobileNav) mobileNav.style.display = 'none';
     },
     
     // 加载保存的状态
@@ -50,11 +87,31 @@ const DockNavigation = {
         if (saved) {
             try {
                 const state = JSON.parse(saved);
-                this.position = state.position || 'top';
+                // 移动端默认底部，桌面端默认顶部
+                this.position = state.position || (this.isMobile() ? 'bottom' : 'top');
                 this.expandedComponents = new Set(state.expanded || []);
+                // 加载组件顺序
+                if (state.componentOrder && state.componentOrder.length > 0) {
+                    const orderedComponents = [];
+                    state.componentOrder.forEach(id => {
+                        const comp = this.components.find(c => c.id === id);
+                        if (comp) orderedComponents.push(comp);
+                    });
+                    // 添加新组件（如果有）
+                    this.components.forEach(comp => {
+                        if (!orderedComponents.find(c => c.id === comp.id)) {
+                            orderedComponents.push(comp);
+                        }
+                    });
+                    this.components = orderedComponents;
+                }
             } catch (e) {
                 console.error('加载 Dock 状态失败:', e);
+                this.position = this.isMobile() ? 'bottom' : 'top';
             }
+        } else {
+            // 首次加载，移动端默认底部
+            this.position = this.isMobile() ? 'bottom' : 'top';
         }
     },
     
@@ -62,7 +119,8 @@ const DockNavigation = {
     saveState() {
         const state = {
             position: this.position,
-            expanded: Array.from(this.expandedComponents)
+            expanded: Array.from(this.expandedComponents),
+            componentOrder: this.components.map(c => c.id)
         };
         localStorage.setItem('dock_state', JSON.stringify(state));
     },
@@ -83,27 +141,8 @@ const DockNavigation = {
         dockContainer.className = 'dock-container';
         
         // 添加组件图标
-        this.components.forEach(comp => {
-            const item = document.createElement('div');
-            item.className = 'dock-item';
-            item.dataset.componentId = comp.id;
-            item.style.setProperty('--item-color', comp.color);
-            
-            item.innerHTML = `
-                <div class="dock-item-icon">
-                    <span class="dock-emoji">${comp.emoji}</span>
-                    <div class="dock-indicator ${this.expandedComponents.has(comp.id) ? 'active' : ''}"></div>
-                </div>
-                <div class="dock-item-label">${comp.name}</div>
-            `;
-            
-            // 点击切换展开/收起
-            item.addEventListener('click', () => this.toggleComponent(comp.id));
-            
-            // 悬停效果
-            item.addEventListener('mouseenter', (e) => this.onItemHover(e, item));
-            item.addEventListener('mouseleave', (e) => this.onItemLeave(e, item));
-            
+        this.components.forEach((comp, index) => {
+            const item = this.createDockItem(comp, index);
             dockContainer.appendChild(item);
         });
         
@@ -121,6 +160,184 @@ const DockNavigation = {
         
         dock.appendChild(dockContainer);
         document.body.appendChild(dock);
+    },
+    
+    // 创建 Dock 项目
+    createDockItem(comp, index) {
+        const item = document.createElement('div');
+        item.className = 'dock-item';
+        item.dataset.componentId = comp.id;
+        item.dataset.index = index;
+        item.style.setProperty('--item-color', comp.color);
+        
+        item.innerHTML = `
+            <div class="dock-item-icon">
+                <span class="dock-emoji">${comp.emoji}</span>
+                <div class="dock-indicator ${this.expandedComponents.has(comp.id) ? 'active' : ''}"></div>
+            </div>
+            <div class="dock-item-label">${comp.name}</div>
+        `;
+        
+        // 点击切换展开/收起
+        item.addEventListener('click', (e) => {
+            if (!this.dragState.dragging) {
+                this.toggleComponent(comp.id);
+            }
+        });
+        
+        // 桌面端悬停效果
+        if (!this.isMobile()) {
+            item.addEventListener('mouseenter', (e) => this.onItemHover(e, item));
+            item.addEventListener('mouseleave', (e) => this.onItemLeave(e, item));
+        }
+        
+        // 长按拖拽（移动端和桌面端都支持）
+        this.addDragListeners(item, index);
+        
+        return item;
+    },
+    
+    // 添加拖拽监听器
+    addDragListeners(item, index) {
+        let longPressTimer = null;
+        let startX = 0;
+        let startY = 0;
+        
+        // 触摸开始 / 鼠标按下
+        const startDrag = (e) => {
+            const touch = e.touches ? e.touches[0] : e;
+            startX = touch.clientX;
+            startY = touch.clientY;
+            
+            // 长按500ms开始拖拽
+            longPressTimer = setTimeout(() => {
+                this.startDragging(item, index);
+                // 震动反馈（移动端）
+                if (navigator.vibrate) {
+                    navigator.vibrate(50);
+                }
+            }, 500);
+        };
+        
+        // 移动
+        const moveDrag = (e) => {
+            if (longPressTimer) {
+                const touch = e.touches ? e.touches[0] : e;
+                const moveX = Math.abs(touch.clientX - startX);
+                const moveY = Math.abs(touch.clientY - startY);
+                
+                // 如果移动超过10px，取消长按
+                if (moveX > 10 || moveY > 10) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+            }
+            
+            if (this.dragState.dragging && this.dragState.draggedIndex === index) {
+                this.onDragMove(e);
+            }
+        };
+        
+        // 结束
+        const endDrag = (e) => {
+            if (longPressTimer) {
+                clearTimeout(longPressTimer);
+                longPressTimer = null;
+            }
+            
+            if (this.dragState.dragging && this.dragState.draggedIndex === index) {
+                this.endDragging();
+            }
+        };
+        
+        // 绑定事件
+        item.addEventListener('touchstart', startDrag, { passive: true });
+        item.addEventListener('touchmove', moveDrag, { passive: false });
+        item.addEventListener('touchend', endDrag);
+        item.addEventListener('touchcancel', endDrag);
+        
+        item.addEventListener('mousedown', startDrag);
+        item.addEventListener('mousemove', moveDrag);
+        item.addEventListener('mouseup', endDrag);
+    },
+    
+    // 开始拖拽
+    startDragging(item, index) {
+        this.dragState.dragging = true;
+        this.dragState.draggedIndex = index;
+        this.dragState.draggedElement = item;
+        
+        item.classList.add('dock-item-dragging');
+        
+        // 添加拖拽提示
+        const container = document.querySelector('.dock-container');
+        if (container) {
+            container.classList.add('dock-dragging-active');
+        }
+    },
+    
+    // 拖拽移动
+    onDragMove(e) {
+        e.preventDefault();
+        
+        const touch = e.touches ? e.touches[0] : e;
+        const container = document.querySelector('.dock-container');
+        if (!container) return;
+        
+        // 获取所有 dock-item（不包括设置按钮）
+        const items = Array.from(container.querySelectorAll('.dock-item:not(.dock-settings)'));
+        
+        // 找到鼠标/触摸位置下的项目
+        let targetIndex = -1;
+        items.forEach((item, idx) => {
+            const rect = item.getBoundingClientRect();
+            const isHorizontal = this.position === 'top' || this.position === 'bottom';
+            
+            if (isHorizontal) {
+                if (touch.clientX >= rect.left && touch.clientX <= rect.right) {
+                    targetIndex = idx;
+                }
+            } else {
+                if (touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+                    targetIndex = idx;
+                }
+            }
+        });
+        
+        // 如果找到目标位置且不是当前位置
+        if (targetIndex !== -1 && targetIndex !== this.dragState.draggedIndex) {
+            // 交换组件顺序
+            const temp = this.components[this.dragState.draggedIndex];
+            this.components[this.dragState.draggedIndex] = this.components[targetIndex];
+            this.components[targetIndex] = temp;
+            
+            // 更新拖拽索引
+            this.dragState.draggedIndex = targetIndex;
+            
+            // 重新渲染 Dock
+            this.createDock();
+        }
+    },
+    
+    // 结束拖拽
+    endDragging() {
+        this.dragState.dragging = false;
+        this.dragState.draggedIndex = null;
+        this.dragState.draggedElement = null;
+        
+        // 移除拖拽样式
+        const container = document.querySelector('.dock-container');
+        if (container) {
+            container.classList.remove('dock-dragging-active');
+        }
+        
+        // 保存新顺序
+        this.saveState();
+        
+        // 播放音效
+        if (typeof UnifiedAudioSystem !== 'undefined') {
+            UnifiedAudioSystem.playSound('success');
+        }
     },
     
     // 隐藏所有组件
@@ -152,20 +369,14 @@ const DockNavigation = {
         const isExpanded = this.expandedComponents.has(componentId);
         
         if (isExpanded) {
-            // 收起
             this.collapseComponent(componentId);
         } else {
-            // 展开
             this.expandComponent(componentId);
         }
         
-        // 更新指示器
         this.updateIndicator(componentId);
-        
-        // 保存状态
         this.saveState();
         
-        // 播放音效
         if (typeof UnifiedAudioSystem !== 'undefined') {
             UnifiedAudioSystem.playSound('click');
         }
@@ -176,7 +387,6 @@ const DockNavigation = {
         const element = document.getElementById(componentId);
         if (!element) return;
         
-        // 添加展开动画
         element.classList.remove('dock-hidden');
         element.classList.add('dock-expanding');
         
@@ -186,9 +396,6 @@ const DockNavigation = {
         }, 300);
         
         this.expandedComponents.add(componentId);
-        
-        // 调整组件位置（避免重叠）
-        this.adjustComponentPosition(componentId);
     },
     
     // 收起组件
@@ -196,7 +403,6 @@ const DockNavigation = {
         const element = document.getElementById(componentId);
         if (!element) return;
         
-        // 添加收起动画
         element.classList.add('dock-collapsing');
         element.classList.remove('dock-expanded');
         
@@ -223,33 +429,10 @@ const DockNavigation = {
         }
     },
     
-    // 调整组件位置（智能布局）
-    adjustComponentPosition(componentId) {
-        const element = document.getElementById(componentId);
-        if (!element) return;
-        
-        // 获取所有已展开的组件
-        const expanded = Array.from(this.expandedComponents);
-        const index = expanded.indexOf(componentId);
-        
-        // 根据 Dock 位置调整组件布局
-        if (this.position === 'top') {
-            // 顶部 Dock：组件从上往下排列
-            const topOffset = 80 + (index * 20); // 80px 是 Dock 高度
-            element.style.top = topOffset + 'px';
-        } else if (this.position === 'left') {
-            // 左侧 Dock：组件从左往右排列
-            const leftOffset = 80 + (index * 20);
-            element.style.left = leftOffset + 'px';
-        }
-    },
-    
     // 鼠标悬停效果
     onItemHover(e, item) {
-        // macOS Dock 放大效果
         item.classList.add('dock-item-hover');
         
-        // 相邻项目也有轻微放大
         const prev = item.previousElementSibling;
         const next = item.nextElementSibling;
         
@@ -265,7 +448,6 @@ const DockNavigation = {
     onItemLeave(e, item) {
         item.classList.remove('dock-item-hover');
         
-        // 移除相邻项目的效果
         const prev = item.previousElementSibling;
         const next = item.nextElementSibling;
         
@@ -275,12 +457,15 @@ const DockNavigation = {
     
     // 显示 Dock 设置
     showDockSettings() {
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+        const apiKey = typeof Storage !== 'undefined' ? Storage.getApiKey() : '';
+        
         const modal = document.createElement('div');
         modal.className = 'dock-settings-modal';
         modal.innerHTML = `
             <div class="dock-settings-content">
                 <div class="dock-settings-header">
-                    <span class="dock-settings-title">⚙️ Dock 设置</span>
+                    <span class="dock-settings-title">⚙️ 设置</span>
                     <button class="dock-settings-close" onclick="DockNavigation.closeDockSettings()">×</button>
                 </div>
                 <div class="dock-settings-body">
@@ -305,6 +490,52 @@ const DockNavigation = {
                             </button>
                         </div>
                     </div>
+                    
+                    <div class="dock-setting-item">
+                        <span class="dock-setting-label">🌓 主题模式</span>
+                        <div class="dock-theme-options">
+                            <button class="dock-theme-btn ${currentTheme === 'light' ? 'active' : ''}" data-theme="light">
+                                <span>☀️</span>
+                                <span>浅色</span>
+                            </button>
+                            <button class="dock-theme-btn ${currentTheme === 'dark' ? 'active' : ''}" data-theme="dark">
+                                <span>🌙</span>
+                                <span>深色</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="dock-setting-item">
+                        <span class="dock-setting-label">🔑 API Key</span>
+                        <div class="dock-api-input-wrapper">
+                            <input type="password" class="dock-api-input" id="dockApiKeyInput" 
+                                   placeholder="输入 DeepSeek API Key" value="${apiKey || ''}">
+                            <button class="dock-api-save-btn" onclick="DockNavigation.saveApiKey()">保存</button>
+                        </div>
+                    </div>
+                    
+                    <div class="dock-setting-item">
+                        <span class="dock-setting-label">☁️ 云同步</span>
+                        <button class="dock-full-btn" onclick="DockNavigation.openCloudSync()">
+                            <span>☁️</span>
+                            <span>配置云同步</span>
+                        </button>
+                    </div>
+                    
+                    <div class="dock-setting-item">
+                        <span class="dock-setting-label">📚 数据管理</span>
+                        <div class="dock-data-actions">
+                            <button class="dock-data-btn" onclick="DockNavigation.exportData()">
+                                <span>📤</span>
+                                <span>导出数据</span>
+                            </button>
+                            <button class="dock-data-btn" onclick="DockNavigation.importData()">
+                                <span>📥</span>
+                                <span>导入数据</span>
+                            </button>
+                        </div>
+                    </div>
+                    
                     <div class="dock-setting-item">
                         <span class="dock-setting-label">🎨 快捷操作</span>
                         <div class="dock-quick-actions">
@@ -333,6 +564,17 @@ const DockNavigation = {
             });
         });
         
+        // 绑定主题切换事件
+        modal.querySelectorAll('.dock-theme-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const theme = btn.dataset.theme;
+                this.changeTheme(theme);
+                // 更新按钮状态
+                modal.querySelectorAll('.dock-theme-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+        
         // 点击背景关闭
         modal.addEventListener('click', (e) => {
             if (e.target === modal) {
@@ -340,11 +582,10 @@ const DockNavigation = {
             }
         });
         
-        // 添加显示动画
         setTimeout(() => modal.classList.add('show'), 10);
     },
     
-    // 关闭 Dock 设置
+    // 关闭设置
     closeDockSettings() {
         const modal = document.querySelector('.dock-settings-modal');
         if (modal) {
@@ -353,16 +594,76 @@ const DockNavigation = {
         }
     },
     
-    // 改变 Dock 位置
+    // 改变位置
     changePosition(newPosition) {
         this.position = newPosition;
         this.saveState();
         this.createDock();
         this.restoreExpandedComponents();
         
-        // 播放音效
         if (typeof UnifiedAudioSystem !== 'undefined') {
             UnifiedAudioSystem.playSound('success');
+        }
+    },
+    
+    // 切换主题
+    changeTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('theme', theme);
+        
+        if (typeof UnifiedAudioSystem !== 'undefined') {
+            UnifiedAudioSystem.playSound('click');
+        }
+    },
+    
+    // 保存 API Key
+    saveApiKey() {
+        const input = document.getElementById('dockApiKeyInput');
+        if (!input) return;
+        
+        const key = input.value.trim();
+        if (key) {
+            if (typeof Storage !== 'undefined') {
+                Storage.setApiKey(key);
+            } else {
+                localStorage.setItem('deepseek_api_key', key);
+            }
+            
+            alert('✅ API Key 已保存');
+            
+            if (typeof UnifiedAudioSystem !== 'undefined') {
+                UnifiedAudioSystem.playSound('success');
+            }
+        }
+    },
+    
+    // 打开云同步
+    openCloudSync() {
+        this.closeDockSettings();
+        if (typeof CloudSync !== 'undefined' && CloudSync.showConfigModal) {
+            CloudSync.showConfigModal();
+        } else {
+            alert('云同步功能暂未加载');
+        }
+    },
+    
+    // 导出数据
+    exportData() {
+        this.closeDockSettings();
+        if (typeof window.exportData === 'function') {
+            window.exportData();
+        } else {
+            alert('导出功能暂未加载');
+        }
+    },
+    
+    // 导入数据
+    importData() {
+        this.closeDockSettings();
+        if (typeof window.importData === 'function') {
+            window.importData();
+        } else {
+            alert('导入功能暂未加载');
         }
     },
     
@@ -423,7 +724,5 @@ window.DockNavigation = DockNavigation;
 
 // 页面加载后初始化
 document.addEventListener('DOMContentLoaded', () => {
-    // 延迟初始化，确保其他组件已加载
     setTimeout(() => DockNavigation.init(), 500);
 });
-

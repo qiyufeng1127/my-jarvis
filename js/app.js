@@ -5047,12 +5047,12 @@ const App = {
             this.showToast('🔊 正在播放 (' + emotion + '): ' + text.substring(0, 30) + (text.length > 30 ? '...' : ''));
         } else {
             // 回退到浏览器语音合成
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-                
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            
                 setTimeout(() => {
-                    const utterance = new SpeechSynthesisUtterance(text);
-                    utterance.lang = 'zh-CN';
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'zh-CN';
                     
                     // 根据情感调整参数
                     if (emotion === 'angry') {
@@ -5062,23 +5062,23 @@ const App = {
                         utterance.rate = 0.9;
                         utterance.pitch = 0.95;
                     } else {
-                        utterance.rate = 1.0;
-                        utterance.pitch = 1.0;
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
                     }
-                    utterance.volume = 1.0;
-                    
-                    const voices = window.speechSynthesis.getVoices();
-                    const chineseVoice = voices.find(v => v.lang.includes('zh'));
-                    if (chineseVoice) {
-                        utterance.voice = chineseVoice;
-                    }
-                    
-                    window.speechSynthesis.speak(utterance);
+            utterance.volume = 1.0;
+            
+            const voices = window.speechSynthesis.getVoices();
+            const chineseVoice = voices.find(v => v.lang.includes('zh'));
+            if (chineseVoice) {
+                utterance.voice = chineseVoice;
+            }
+            
+            window.speechSynthesis.speak(utterance);
                 }, 100);
-                
-                this.showToast('🔊 正在播放: ' + text.substring(0, 30) + (text.length > 30 ? '...' : ''));
-            } else {
-                this.showToast('❌ 您的浏览器不支持语音合成');
+            
+            this.showToast('🔊 正在播放: ' + text.substring(0, 30) + (text.length > 30 ? '...' : ''));
+        } else {
+            this.showToast('❌ 您的浏览器不支持语音合成');
             }
         }
     },

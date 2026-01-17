@@ -53,11 +53,33 @@
     display: flex;
     gap: 8px;
     align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+}
+
+.dock-container::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
 }
 
 .dock-left .dock-container,
 .dock-right .dock-container {
     flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+/* 拖拽状态 */
+.dock-dragging-active {
+    user-select: none;
+}
+
+.dock-item-dragging {
+    opacity: 0.6;
+    transform: scale(1.1);
+    z-index: 1000;
 }
 
 /* Dock 项目 */
@@ -346,6 +368,146 @@
     box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
 }
 
+/* 主题选项 */
+.dock-theme-options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.dock-theme-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 16px;
+    border: 2px solid rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 13px;
+    font-weight: 500;
+    color: #666;
+}
+
+.dock-theme-btn span:first-child {
+    font-size: 24px;
+}
+
+.dock-theme-btn:hover {
+    border-color: #9B59B6;
+    background: rgba(155, 89, 182, 0.1);
+    transform: translateY(-2px);
+}
+
+.dock-theme-btn.active {
+    border-color: #9B59B6;
+    background: linear-gradient(135deg, #9B59B6, #8E44AD);
+    color: white;
+    box-shadow: 0 4px 12px rgba(155, 89, 182, 0.3);
+}
+
+/* API 输入 */
+.dock-api-input-wrapper {
+    display: flex;
+    gap: 8px;
+}
+
+.dock-api-input {
+    flex: 1;
+    padding: 12px 16px;
+    border: 2px solid rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+    font-size: 14px;
+    background: rgba(255, 255, 255, 0.5);
+    transition: all 0.2s ease;
+}
+
+.dock-api-input:focus {
+    outline: none;
+    border-color: #E74C3C;
+    background: white;
+}
+
+.dock-api-save-btn {
+    padding: 12px 20px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #E74C3C, #C0392B);
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.dock-api-save-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+}
+
+/* 完整按钮 */
+.dock-full-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px;
+    border: 2px solid rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 14px;
+    font-weight: 500;
+    color: #666;
+}
+
+.dock-full-btn span:first-child {
+    font-size: 20px;
+}
+
+.dock-full-btn:hover {
+    border-color: #3498DB;
+    background: rgba(52, 152, 219, 0.1);
+    transform: translateY(-2px);
+}
+
+/* 数据操作按钮 */
+.dock-data-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.dock-data-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px;
+    border: 2px solid rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 12px;
+    font-weight: 500;
+    color: #666;
+}
+
+.dock-data-btn span:first-child {
+    font-size: 20px;
+}
+
+.dock-data-btn:hover {
+    border-color: #27AE60;
+    background: rgba(39, 174, 96, 0.1);
+    transform: translateY(-2px);
+}
+
 /* 快捷操作 */
 .dock-quick-actions {
     display: flex;
@@ -419,14 +581,20 @@
 }
 
 [data-theme="dark"] .dock-position-btn,
-[data-theme="dark"] .dock-action-btn {
+[data-theme="dark"] .dock-theme-btn,
+[data-theme="dark"] .dock-action-btn,
+[data-theme="dark"] .dock-data-btn,
+[data-theme="dark"] .dock-full-btn {
     background: rgba(50, 50, 50, 0.5);
     border-color: rgba(255, 255, 255, 0.1);
     color: #AAA;
 }
 
 [data-theme="dark"] .dock-position-btn:hover,
-[data-theme="dark"] .dock-action-btn:hover {
+[data-theme="dark"] .dock-theme-btn:hover,
+[data-theme="dark"] .dock-action-btn:hover,
+[data-theme="dark"] .dock-data-btn:hover,
+[data-theme="dark"] .dock-full-btn:hover {
     background: rgba(74, 144, 226, 0.2);
     border-color: #4A90E2;
 }
@@ -434,6 +602,22 @@
 [data-theme="dark"] .dock-position-btn.active {
     background: linear-gradient(135deg, #4A90E2, #357ABD);
     color: white;
+}
+
+[data-theme="dark"] .dock-theme-btn.active {
+    background: linear-gradient(135deg, #9B59B6, #8E44AD);
+    color: white;
+}
+
+[data-theme="dark"] .dock-api-input {
+    background: rgba(50, 50, 50, 0.5);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #E0E0E0;
+}
+
+[data-theme="dark"] .dock-api-input:focus {
+    background: rgba(50, 50, 50, 0.8);
+    border-color: #E74C3C;
 }
 
 /* 移动端适配 */
