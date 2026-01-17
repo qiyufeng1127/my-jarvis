@@ -6917,9 +6917,16 @@ App.addTaskToTimeline = function(task) {
 
 // 删除特定日期的任务
 App.deleteTasksByDate = function(dateStr) {
+    console.log('🗑️ 删除任务 - 目标日期:', dateStr);
+    
     const allTasks = Storage.getTasks();
+    console.log('📋 所有任务:', allTasks.length, '个');
+    console.log('📅 任务日期列表:', allTasks.map(t => t.date).filter((v, i, a) => a.indexOf(v) === i));
+    
     const tasksToKeep = allTasks.filter(task => task.date !== dateStr);
     const deletedCount = allTasks.length - tasksToKeep.length;
+    
+    console.log('✅ 删除了', deletedCount, '个任务');
     
     localStorage.setItem('tasks', JSON.stringify(tasksToKeep));
     this.loadTimeline();
