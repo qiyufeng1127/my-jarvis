@@ -366,7 +366,16 @@ const DockNavigation = {
             if (element) {
                 console.log('隐藏组件:', comp.id, '内容长度:', element.innerHTML.length);
                 element.classList.add('dock-hidden');
-                // 不要修改 display 属性，只用 class 控制
+                // 移动端：移到屏幕外
+                if (this.isMobile()) {
+                    element.style.cssText = `
+                        position: fixed !important;
+                        left: -9999px !important;
+                        top: -9999px !important;
+                        opacity: 0 !important;
+                        pointer-events: none !important;
+                    `;
+                }
             } else {
                 console.warn('⚠️ 组件元素不存在:', comp.id);
             }
@@ -419,57 +428,79 @@ const DockNavigation = {
         const element = document.getElementById(componentId);
         if (!element) {
             console.error('❌ 组件未找到:', componentId);
-            alert('组件未找到: ' + componentId);
             return;
         }
         
         console.log('📂 展开组件:', componentId);
-        console.log('组件元素:', element);
-        console.log('组件内容:', element.innerHTML.substring(0, 200));
         
-        // 确保组件有内容
-        const body = element.querySelector('.component-body');
-        if (body) {
-            console.log('组件 body 内容长度:', body.innerHTML.length);
-            if (body.innerHTML.length < 50) {
-                console.warn('⚠️ 组件内容可能为空，尝试重新加载...');
-                // 尝试重新加载组件内容
-                this.reloadComponentContent(componentId);
-            }
-        }
+        // 先强制重新加载组件内容
+        this.reloadComponentContent(componentId);
+        
+        // 移除所有隐藏类和样式
+        element.classList.remove('dock-hidden', 'dock-collapsing');
+        element.classList.add('dock-expanding');
+        
+        // 强制显示
+        element.style.display = 'block';
+        element.style.visibility = 'visible';
+        element.style.opacity = '1';
         
         // 移动端全屏显示
         if (this.isMobile()) {
             console.log('📱 移动端全屏模式');
-            element.style.position = 'fixed';
-            element.style.top = '10px';
-            element.style.left = '10px';
-            element.style.right = '10px';
-            element.style.bottom = '80px';
-            element.style.width = 'calc(100% - 20px)';
-            element.style.height = 'calc(100% - 90px)';
-            element.style.zIndex = '1000';
-            element.style.margin = '0';
-            element.style.transform = 'none';
+            element.style.cssText = `
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                position: fixed !important;
+                top: 10px !important;
+                left: 10px !important;
+                right: 10px !important;
+                bottom: 80px !important;
+                width: calc(100% - 20px) !important;
+                height: calc(100% - 90px) !important;
+                z-index: 9999 !important;
+                margin: 0 !important;
+                transform: none !important;
+                overflow: visible !important;
+            `;
+            
+            // 确保内容区域可滚动
+            const body = element.querySelector('.component-body');
+            if (body) {
+                body.style.cssText = `
+                    display: block !important;
+                    visibility: visible !important;
+                    height: calc(100% - 60px) !important;
+                    overflow-y: auto !important;
+                    -webkit-overflow-scrolling: touch !important;
+                `;
+            }
         }
-        
-        element.classList.remove('dock-hidden');
-        element.classList.add('dock-expanding');
         
         setTimeout(() => {
             element.classList.remove('dock-expanding');
             element.classList.add('dock-expanded');
             console.log('✅ 组件展开完成');
+            
+            // 再次检查内容
+            const body = element.querySelector('.component-body');
+            if (body) {
+                console.log('📊 最终内容长度:', body.innerHTML.length);
+                if (body.innerHTML.length < 50) {
+                    console.error('❌ 组件内容仍然为空！');
+                    // 再试一次
+                    setTimeout(() => this.reloadComponentContent(componentId), 100);
+                }
+            }
         }, 300);
         
         this.expandedComponents.add(componentId);
         
         // 移动端只允许展开一个组件
         if (this.isMobile()) {
-            // 关闭其他组件
             this.expandedComponents.forEach(id => {
                 if (id !== componentId) {
-                    console.log('关闭其他组件:', id);
                     this.collapseComponent(id);
                 }
             });
@@ -479,6 +510,16 @@ const DockNavigation = {
     // 重新加载组件内容
     reloadComponentContent(componentId) {
         console.log('🔄 重新加载组件内容:', componentId);
+        
+        const element = document.getElementById(componentId);
+        if (!element) {
+            console.error('❌ 组件元素不存在');
+            return;
+        }
+        
+        // 先确保组件可见，否则某些组件可能不会渲染
+        element.style.display = 'block';
+        element.style.visibility = 'visible';
         
         // 强制调用 App 的加载函数
         if (typeof App !== 'undefined') {
@@ -493,6 +534,14 @@ const DockNavigation = {
                                 BrainDump.init();
                             }
                         }
+                        // 如果还是没内容，手动触发渲染
+                        setTimeout(() => {
+                            const body = element.querySelector('.component-body');
+                            if (body && body.innerHTML.length < 50) {
+                                console.log('🔧 手动触发 BrainDump 渲染');
+                                if (BrainDump.render) BrainDump.render();
+                            }
+                        }, 200);
                         break;
                     case 'timeline':
                         console.log('加载 Timeline...');
@@ -556,16 +605,21 @@ const DockNavigation = {
                 
                 // 再次检查内容
                 setTimeout(() => {
-                    const element = document.getElementById(componentId);
-                    const body = element ? element.querySelector('.component-body') : null;
+                    const body = element.querySelector('.component-body');
                     if (body) {
                         console.log('✅ 重新加载后内容长度:', body.innerHTML.length);
+                        if (body.innerHTML.length < 50) {
+                            console.error('❌ 组件内容仍然为空！组件ID:', componentId);
+                            console.log('组件HTML:', element.innerHTML.substring(0, 500));
+                        }
                     }
-                }, 100);
+                }, 200);
                 
             } catch (error) {
                 console.error('❌ 加载组件失败:', error);
             }
+        } else {
+            console.error('❌ App 对象不存在');
         }
     },
     
@@ -574,17 +628,7 @@ const DockNavigation = {
         const element = document.getElementById(componentId);
         if (!element) return;
         
-        // 清除移动端样式
-        if (this.isMobile()) {
-            element.style.position = '';
-            element.style.top = '';
-            element.style.left = '';
-            element.style.right = '';
-            element.style.bottom = '';
-            element.style.width = '';
-            element.style.height = '';
-            element.style.zIndex = '';
-        }
+        console.log('📁 收起组件:', componentId);
         
         element.classList.add('dock-collapsing');
         element.classList.remove('dock-expanded');
@@ -592,6 +636,17 @@ const DockNavigation = {
         setTimeout(() => {
             element.classList.remove('dock-collapsing');
             element.classList.add('dock-hidden');
+            
+            // 移动端：移到屏幕外
+            if (this.isMobile()) {
+                element.style.cssText = `
+                    position: fixed !important;
+                    left: -9999px !important;
+                    top: -9999px !important;
+                    opacity: 0 !important;
+                    pointer-events: none !important;
+                `;
+            }
         }, 300);
         
         this.expandedComponents.delete(componentId);

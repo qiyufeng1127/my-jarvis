@@ -194,16 +194,16 @@
 
 /* 组件隐藏/展开动画 */
 .draggable-component.dock-hidden {
+    /* 移动端：移到屏幕外而不是隐藏 */
+    position: fixed !important;
+    left: -9999px !important;
+    top: -9999px !important;
     opacity: 0 !important;
-    visibility: hidden !important;
     pointer-events: none !important;
-    transform: scale(0.8) !important;
-    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .draggable-component.dock-expanding {
     opacity: 1 !important;
-    visibility: visible !important;
     pointer-events: all !important;
     animation: dockExpand 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -213,10 +213,51 @@
 }
 
 .draggable-component.dock-expanded {
-    opacity: 1 !important;
+    display: block !important;
     visibility: visible !important;
+    opacity: 1 !important;
     pointer-events: all !important;
-    transform: scale(1) !important;
+    transform: none !important;
+}
+
+/* 移动端强制全屏 */
+@media (max-width: 768px) {
+    .draggable-component.dock-expanded {
+        position: fixed !important;
+        top: 10px !important;
+        left: 10px !important;
+        right: 10px !important;
+        bottom: 80px !important;
+        width: calc(100% - 20px) !important;
+        height: calc(100% - 90px) !important;
+        max-width: none !important;
+        max-height: none !important;
+        margin: 0 !important;
+        transform: none !important;
+        z-index: 9999 !important;
+        display: block !important;
+        visibility: visible !important;
+        overflow: visible !important;
+    }
+    
+    .draggable-component.dock-expanded .component-body {
+        display: block !important;
+        visibility: visible !important;
+        height: calc(100% - 60px) !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+    
+    /* 确保组件内的所有内容都可见 */
+    .draggable-component.dock-expanded * {
+        visibility: visible !important;
+    }
+    
+    /* 确保组件头部可见 */
+    .draggable-component.dock-expanded .component-header {
+        display: flex !important;
+        visibility: visible !important;
+    }
 }
 
 @keyframes dockExpand {
