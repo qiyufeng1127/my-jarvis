@@ -960,24 +960,57 @@ const BrainDump = {
         
         // ==================== 时间轴操作指令 ====================
         
-        // 删除特定日期的任务（如：删除14号的任务、删除1月15日的任务）
+        // 删除特定日期的任务（如：删除14号的任务、删除十四号的任务、删除1月15日的任务）
         if (/删除|清空|移除/.test(msg) && /任务/.test(msg)) {
-            // 尝试提取日期
-            const dateMatch = msg.match(/(\d{1,2})号|(\d{1,2})日|(\d{1,2})月(\d{1,2})[号日]/);
-            if (dateMatch) {
-                const now = new Date();
-                let targetDate;
+            // 中文数字转阿拉伯数字
+            const chineseToNumber = (str) => {
+                const map = {
+                    '零': 0, '一': 1, '二': 2, '三': 3, '四': 4,
+                    '五': 5, '六': 6, '七': 7, '八': 8, '九': 9,
+                    '十': 10, '十一': 11, '十二': 12, '十三': 13, '十四': 14,
+                    '十五': 15, '十六': 16, '十七': 17, '十八': 18, '十九': 19,
+                    '二十': 20, '廿': 20, '三十': 30, '卅': 30
+                };
                 
-                if (dateMatch[3] && dateMatch[4]) {
-                    // 匹配到 "X月X号" 格式
-                    const month = parseInt(dateMatch[3]);
-                    const day = parseInt(dateMatch[4]);
-                    targetDate = new Date(now.getFullYear(), month - 1, day);
-                } else {
-                    // 匹配到 "X号" 或 "X日" 格式
-                    const day = parseInt(dateMatch[1] || dateMatch[2]);
-                    targetDate = new Date(now.getFullYear(), now.getMonth(), day);
+                // 直接匹配
+                if (map[str] !== undefined) return map[str];
+                
+                // 处理 "二十一" 这种格式
+                const match = str.match(/([二三])十([一二三四五六七八九])?/);
+                if (match) {
+                    const tens = map[match[1] + '十'];
+                    const ones = match[2] ? map[match[2]] : 0;
+                    return tens + ones;
                 }
+                
+                return null;
+            };
+            
+            // 尝试提取日期（支持阿拉伯数字和中文数字）
+            let dateMatch = msg.match(/(\d{1,2})[号日]|(\d{1,2})月(\d{1,2})[号日]/);
+            let day = null, month = null;
+            
+            if (dateMatch) {
+                // 阿拉伯数字格式
+                if (dateMatch[2] && dateMatch[3]) {
+                    month = parseInt(dateMatch[2]);
+                    day = parseInt(dateMatch[3]);
+                } else {
+                    day = parseInt(dateMatch[1]);
+                }
+            } else {
+                // 尝试匹配中文数字
+                const chMatch = msg.match(/(十[一二三四五六七八九]?|二十[一二三四五六七八九]?|三十[一]?|[一二三四五六七八九])[号日]/);
+                if (chMatch) {
+                    day = chineseToNumber(chMatch[1]);
+                }
+            }
+            
+            if (day !== null) {
+                const now = new Date();
+                const targetDate = month !== null ? 
+                    new Date(now.getFullYear(), month - 1, day) :
+                    new Date(now.getFullYear(), now.getMonth(), day);
                 
                 const dateStr = this.formatDate(targetDate);
                 
