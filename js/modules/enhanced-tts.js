@@ -169,8 +169,7 @@ const EnhancedTTS = {
      */
     async speakWithEdge(text, options) {
         try {
-            // 构建SSML
-            const ssml = this.buildSSML(text, options);
+            console.log('尝试使用 Edge TTS，语音:', options.voice, '情感:', options.emotion);
             
             // 使用免费的Edge TTS API
             const voice = options.voice || this.settings.voice;
@@ -187,28 +186,49 @@ const EnhancedTTS = {
             
             // 使用公共Edge TTS服务
             const apiUrl = `https://api.tts.quest/v1/tts?${params.toString()}`;
+            console.log('Edge TTS API URL:', apiUrl);
             
             // 创建音频并播放
             return new Promise((resolve, reject) => {
                 const audio = new Audio();
                 audio.volume = options.volume || this.settings.volume;
                 
+                // 设置超时（5秒）
+                const timeout = setTimeout(() => {
+                    console.warn('Edge TTS 超时，回退到浏览器TTS');
+                    audio.src = '';
+                    this.speakWithBrowser(text, options).then(resolve).catch(reject);
+                }, 5000);
+                
                 audio.onended = () => {
+                    clearTimeout(timeout);
                     this.isPlaying = false;
                     this.currentAudio = null;
+                    console.log('Edge TTS 播放完成');
                     resolve();
                 };
                 
                 audio.onerror = (e) => {
+                    clearTimeout(timeout);
                     console.warn('Edge TTS失败，回退到浏览器TTS:', e);
                     this.speakWithBrowser(text, options).then(resolve).catch(reject);
+                };
+                
+                audio.onloadstart = () => {
+                    console.log('Edge TTS 开始加载音频');
+                };
+                
+                audio.oncanplay = () => {
+                    clearTimeout(timeout);
+                    console.log('Edge TTS 音频可以播放');
                 };
                 
                 audio.src = apiUrl;
                 this.currentAudio = audio;
                 this.isPlaying = true;
                 audio.play().catch(e => {
-                    console.warn('播放失败，回退到浏览器TTS');
+                    clearTimeout(timeout);
+                    console.warn('播放失败，回退到浏览器TTS:', e);
                     this.speakWithBrowser(text, options).then(resolve).catch(reject);
                 });
             });
@@ -279,49 +299,94 @@ const EnhancedTTS = {
                 return;
             }
             
+            console.log('使用浏览器 TTS，参数:', {
+                rate: options.rate,
+                pitch: options.pitch,
+                volume: options.volume,
+                emotion: options.emotion
+            });
+            
             // 取消之前的播报
             window.speechSynthesis.cancel();
             
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.lang = 'zh-CN';
+            
+            // 应用语速、音调、音量设置
             utterance.rate = Math.max(0.5, Math.min(2, options.rate || 1.0));
             utterance.pitch = Math.max(0.5, Math.min(2, options.pitch || 1.0));
-            utterance.volume = options.volume || 1.0;
+            utterance.volume = Math.max(0, Math.min(1, options.volume || 1.0));
+            
+            console.log('实际应用的参数:', {
+                rate: utterance.rate,
+                pitch: utterance.pitch,
+                volume: utterance.volume
+            });
             
             // 选择最佳中文语音
             const voices = window.speechSynthesis.getVoices();
+            console.log('可用语音列表:', voices.map(v => v.name));
+            
             const preferredVoices = [
                 'Microsoft Xiaoxiao Online',
-                'Microsoft Yunxi Online', 
-                'Google 普通话',
-                'Ting-Ting'
+                'Microsoft Yunxi Online',
+                'Microsoft Yaoyao Online',
+                'Google 普通话（中国大陆）',
+                'Google 國語（臺灣）',
+                'Ting-Ting',
+                'Sin-Ji'
             ];
             
             let selectedVoice = null;
             for (const preferred of preferredVoices) {
                 selectedVoice = voices.find(v => v.name.includes(preferred));
-                if (selectedVoice) break;
+                if (selectedVoice) {
+                    console.log('选择语音:', selectedVoice.name);
+                    break;
+                }
             }
             
             if (!selectedVoice) {
                 selectedVoice = voices.find(v => v.lang.includes('zh'));
+                if (selectedVoice) {
+                    console.log('使用备选中文语音:', selectedVoice.name);
+                }
             }
             
             if (selectedVoice) {
                 utterance.voice = selectedVoice;
+            } else {
+                console.warn('未找到中文语音，使用默认语音');
             }
+            
+            utterance.onstart = () => {
+                console.log('浏览器 TTS 开始播放');
+            };
             
             utterance.onend = () => {
                 this.isPlaying = false;
+                console.log('浏览器 TTS 播放完成');
                 resolve();
             };
-            utterance.onerror = () => {
+            
+            utterance.onerror = (e) => {
                 this.isPlaying = false;
+                console.error('浏览器 TTS 错误:', e);
                 resolve();
             };
             
             this.isPlaying = true;
-            window.speechSynthesis.speak(utterance);
+            
+            // 确保语音列表已加载
+            if (voices.length === 0) {
+                console.log('等待语音列表加载...');
+                window.speechSynthesis.onvoiceschanged = () => {
+                    console.log('语音列表已加载');
+                    window.speechSynthesis.speak(utterance);
+                };
+            } else {
+                window.speechSynthesis.speak(utterance);
+            }
         });
     },
     
