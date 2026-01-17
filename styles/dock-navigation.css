@@ -1,0 +1,486 @@
+/* macOS 风格 Dock 导航栏 - iOS 设计风格 */
+
+/* Dock 容器 */
+.dock-navigation {
+    position: fixed;
+    z-index: 9999;
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 顶部 Dock */
+.dock-navigation.dock-top {
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: 20px;
+    padding: 8px 12px;
+}
+
+/* 左侧 Dock */
+.dock-navigation.dock-left {
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    border-radius: 20px;
+    padding: 12px 8px;
+}
+
+/* 底部 Dock */
+.dock-navigation.dock-bottom {
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: 20px;
+    padding: 8px 12px;
+}
+
+/* 右侧 Dock */
+.dock-navigation.dock-right {
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    border-radius: 20px;
+    padding: 12px 8px;
+}
+
+/* Dock 容器 */
+.dock-container {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.dock-left .dock-container,
+.dock-right .dock-container {
+    flex-direction: column;
+}
+
+/* Dock 项目 */
+.dock-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    user-select: none;
+}
+
+.dock-item-icon {
+    position: relative;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, 
+        var(--item-color, #4A90E2) 0%, 
+        color-mix(in srgb, var(--item-color, #4A90E2) 80%, black) 100%);
+    border-radius: 14px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dock-emoji {
+    font-size: 28px;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* 指示器（显示组件是否展开） */
+.dock-indicator {
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%) scale(0);
+    width: 4px;
+    height: 4px;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 50%;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dock-indicator.active {
+    transform: translateX(-50%) scale(1);
+}
+
+/* 标签 */
+.dock-item-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(0, 0, 0, 0.7);
+    white-space: nowrap;
+    opacity: 0;
+    transform: translateY(-5px);
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: none;
+}
+
+/* 悬停效果 - macOS Dock 放大 */
+.dock-item-hover .dock-item-icon {
+    transform: scale(1.4) translateY(-8px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.dock-item-hover .dock-emoji {
+    transform: scale(1.1);
+}
+
+.dock-item-hover .dock-item-label {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* 相邻项目的轻微放大 */
+.dock-item-neighbor .dock-item-icon {
+    transform: scale(1.15) translateY(-4px);
+}
+
+/* 设置按钮特殊样式 */
+.dock-settings .dock-item-icon {
+    background: linear-gradient(135deg, #95A5A6, #7F8C8D);
+}
+
+/* 左右侧 Dock 的指示器位置 */
+.dock-left .dock-indicator {
+    bottom: auto;
+    left: -6px;
+    top: 50%;
+    transform: translateY(-50%) scale(0);
+}
+
+.dock-left .dock-indicator.active {
+    transform: translateY(-50%) scale(1);
+}
+
+.dock-right .dock-indicator {
+    bottom: auto;
+    left: auto;
+    right: -6px;
+    top: 50%;
+    transform: translateY(-50%) scale(0);
+}
+
+.dock-right .dock-indicator.active {
+    transform: translateY(-50%) scale(1);
+}
+
+/* 组件隐藏/展开动画 */
+.draggable-component.dock-hidden {
+    opacity: 0;
+    transform: scale(0.8);
+    pointer-events: none;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.draggable-component.dock-expanding {
+    animation: dockExpand 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.draggable-component.dock-collapsing {
+    animation: dockCollapse 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.draggable-component.dock-expanded {
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: all;
+}
+
+@keyframes dockExpand {
+    0% {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes dockCollapse {
+    0% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+}
+
+/* Dock 设置弹窗 */
+.dock-settings-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.dock-settings-modal.show {
+    opacity: 1;
+}
+
+.dock-settings-content {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-radius: 20px;
+    width: 90%;
+    max-width: 400px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+    transform: scale(0.9);
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dock-settings-modal.show .dock-settings-content {
+    transform: scale(1);
+}
+
+.dock-settings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.dock-settings-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+}
+
+.dock-settings-close {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.05);
+    color: #666;
+    font-size: 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.dock-settings-close:hover {
+    background: rgba(0, 0, 0, 0.1);
+    transform: scale(1.1);
+}
+
+.dock-settings-body {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.dock-setting-item {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.dock-setting-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #555;
+}
+
+/* 位置选项 */
+.dock-position-options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.dock-position-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 16px;
+    border: 2px solid rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 13px;
+    font-weight: 500;
+    color: #666;
+}
+
+.dock-position-btn span:first-child {
+    font-size: 24px;
+}
+
+.dock-position-btn:hover {
+    border-color: #4A90E2;
+    background: rgba(74, 144, 226, 0.1);
+    transform: translateY(-2px);
+}
+
+.dock-position-btn.active {
+    border-color: #4A90E2;
+    background: linear-gradient(135deg, #4A90E2, #357ABD);
+    color: white;
+    box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+}
+
+/* 快捷操作 */
+.dock-quick-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.dock-action-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px;
+    border: 2px solid rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 12px;
+    font-weight: 500;
+    color: #666;
+}
+
+.dock-action-btn span:first-child {
+    font-size: 20px;
+}
+
+.dock-action-btn:hover {
+    border-color: #27AE60;
+    background: rgba(39, 174, 96, 0.1);
+    transform: translateY(-2px);
+}
+
+.dock-action-btn:active {
+    transform: translateY(0);
+}
+
+/* 深色模式 */
+[data-theme="dark"] .dock-navigation {
+    background: rgba(30, 30, 30, 0.85);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .dock-item-label {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+[data-theme="dark"] .dock-indicator {
+    background: rgba(255, 255, 255, 0.6);
+}
+
+[data-theme="dark"] .dock-settings-content {
+    background: rgba(30, 30, 30, 0.95);
+}
+
+[data-theme="dark"] .dock-settings-title {
+    color: #E0E0E0;
+}
+
+[data-theme="dark"] .dock-settings-close {
+    background: rgba(255, 255, 255, 0.1);
+    color: #AAA;
+}
+
+[data-theme="dark"] .dock-settings-close:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+[data-theme="dark"] .dock-setting-label {
+    color: #AAA;
+}
+
+[data-theme="dark"] .dock-position-btn,
+[data-theme="dark"] .dock-action-btn {
+    background: rgba(50, 50, 50, 0.5);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #AAA;
+}
+
+[data-theme="dark"] .dock-position-btn:hover,
+[data-theme="dark"] .dock-action-btn:hover {
+    background: rgba(74, 144, 226, 0.2);
+    border-color: #4A90E2;
+}
+
+[data-theme="dark"] .dock-position-btn.active {
+    background: linear-gradient(135deg, #4A90E2, #357ABD);
+    color: white;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+    .dock-navigation {
+        padding: 6px 10px;
+    }
+    
+    .dock-item-icon {
+        width: 42px;
+        height: 42px;
+    }
+    
+    .dock-emoji {
+        font-size: 24px;
+    }
+    
+    .dock-item-hover .dock-item-icon {
+        transform: scale(1.2) translateY(-6px);
+    }
+    
+    .dock-settings-content {
+        width: 95%;
+        max-width: none;
+    }
+    
+    .dock-position-options {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* 临时隐藏 Dock */
+.dock-navigation.dock-hidden-temp {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-50%) translateY(-20px);
+}
+
+.dock-navigation.dock-left.dock-hidden-temp {
+    transform: translateY(-50%) translateX(-20px);
+}
+
+.dock-navigation.dock-right.dock-hidden-temp {
+    transform: translateY(-50%) translateX(20px);
+}
+
+.dock-navigation.dock-bottom.dock-hidden-temp {
+    transform: translateX(-50%) translateY(20px);
+}
+
