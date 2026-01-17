@@ -288,13 +288,12 @@ const App = {
         if (pitchDisplay) pitchDisplay.textContent = pitch.toFixed(1);
         if (volumeDisplay) volumeDisplay.textContent = Math.round(volume * 100) + '%';
         
-        // 保存到EnhancedTTS
-        if (typeof window.EnhancedTTS !== 'undefined') {
-            if (voice) window.EnhancedTTS.setVoice(voice);
-            if (emotion) window.EnhancedTTS.setEmotion(emotion);
-            window.EnhancedTTS.setRate(rate);
-            window.EnhancedTTS.setPitch(pitch);
-            window.EnhancedTTS.setVolume(volume);
+        // 保存到EmotionalVoice
+        if (typeof window.EmotionalVoice !== 'undefined') {
+            if (emotion) window.EmotionalVoice.setEmotion(emotion);
+            window.EmotionalVoice.setRate(rate);
+            window.EmotionalVoice.setPitch(pitch);
+            window.EmotionalVoice.setVolume(volume);
         }
         
         // 同时保存到localStorage作为备份
@@ -314,7 +313,7 @@ const App = {
         };
         
         const text = emotion ? testTexts[emotion] : testTexts.friendly;
-        const finalEmotion = emotion || document.getElementById('enhancedEmotionSelect')?.value || 'friendly';
+        const finalEmotion = emotion || document.getElementById('enhancedEmotionSelect')?.value || 'neutral';
         
         // 获取当前设置
         const voice = document.getElementById('enhancedVoiceSelect')?.value;
@@ -322,19 +321,18 @@ const App = {
         const pitch = parseFloat(document.getElementById('enhancedVoicePitch')?.value || 1);
         const volume = parseFloat(document.getElementById('enhancedVoiceVolume')?.value || 1);
         
-        console.log('测试语音，参数:', { voice, emotion: finalEmotion, rate, pitch, volume });
+        console.log('测试语音，参数:', { emotion: finalEmotion, rate, pitch, volume });
         
-        // 使用 window.EnhancedTTS 确保访问全局对象
-        if (typeof window.EnhancedTTS !== 'undefined') {
-            window.EnhancedTTS.speak(text, { 
-                voice,
+        // 使用 EmotionalVoice
+        if (typeof window.EmotionalVoice !== 'undefined') {
+            window.EmotionalVoice.speak(text, { 
                 emotion: finalEmotion,
                 rate,
                 pitch,
                 volume
             });
         } else {
-            console.warn('EnhancedTTS 未加载，使用浏览器TTS');
+            console.warn('EmotionalVoice 未加载，使用浏览器TTS');
             // 回退到浏览器TTS
             if ('speechSynthesis' in window) {
                 window.speechSynthesis.cancel();
