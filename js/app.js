@@ -6928,7 +6928,7 @@ App.deleteTasksByDate = function(dateStr) {
     
     console.log('✅ 删除了', deletedCount, '个任务');
     
-    localStorage.setItem('tasks', JSON.stringify(tasksToKeep));
+    Storage.saveTasks(tasksToKeep);  // 使用 Storage.saveTasks 而不是直接操作 localStorage
     this.loadTimeline();
     
     return deletedCount;
@@ -6945,15 +6945,7 @@ App.deleteTomorrowTasks = function() {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = this.formatDate(tomorrow);
-    
-    const allTasks = Storage.getTasks();
-    const tasksToKeep = allTasks.filter(task => task.date !== tomorrowStr);
-    const deletedCount = allTasks.length - tasksToKeep.length;
-    
-    localStorage.setItem('tasks', JSON.stringify(tasksToKeep));
-    this.loadTimeline();
-    
-    return deletedCount;
+    return this.deleteTasksByDate(tomorrowStr);
 };
 
 // 删除今天和明天的任务
@@ -6968,7 +6960,7 @@ App.deleteTodayAndTomorrowTasks = function() {
     const tomorrowCount = allTasks.filter(task => task.date === tomorrowStr).length;
     const tasksToKeep = allTasks.filter(task => task.date !== today && task.date !== tomorrowStr);
     
-    localStorage.setItem('tasks', JSON.stringify(tasksToKeep));
+    Storage.saveTasks(tasksToKeep);
     this.loadTimeline();
     
     return {
@@ -6993,7 +6985,7 @@ App.deleteThisWeekTasks = function() {
     });
     const deletedCount = allTasks.length - tasksToKeep.length;
     
-    localStorage.setItem('tasks', JSON.stringify(tasksToKeep));
+    Storage.saveTasks(tasksToKeep);
     this.loadTimeline();
     
     return deletedCount;
@@ -7005,7 +6997,7 @@ App.deleteIncompleteTasks = function() {
     const tasksToKeep = allTasks.filter(task => task.completed);
     const deletedCount = allTasks.length - tasksToKeep.length;
     
-    localStorage.setItem('tasks', JSON.stringify(tasksToKeep));
+    Storage.saveTasks(tasksToKeep);
     this.loadTimeline();
     
     return deletedCount;
@@ -7017,7 +7009,7 @@ App.deleteCompletedTasks = function() {
     const tasksToKeep = allTasks.filter(task => !task.completed);
     const deletedCount = allTasks.length - tasksToKeep.length;
     
-    localStorage.setItem('tasks', JSON.stringify(tasksToKeep));
+    Storage.saveTasks(tasksToKeep);
     this.loadTimeline();
     
     return deletedCount;
@@ -7029,7 +7021,7 @@ App.deleteTasksByKeyword = function(keyword) {
     const tasksToKeep = allTasks.filter(task => !task.title.toLowerCase().includes(keyword.toLowerCase()));
     const deletedCount = allTasks.length - tasksToKeep.length;
     
-    localStorage.setItem('tasks', JSON.stringify(tasksToKeep));
+    Storage.saveTasks(tasksToKeep);
     this.loadTimeline();
     
     return deletedCount;
@@ -7060,7 +7052,7 @@ App.completeAllTodayTasks = function() {
         }
     });
     
-    localStorage.setItem('tasks', JSON.stringify(allTasks));
+    Storage.saveTasks(allTasks);
     this.loadTimeline();
     
     return count;
@@ -7080,7 +7072,7 @@ App.uncompleteAllTodayTasks = function() {
         }
     });
     
-    localStorage.setItem('tasks', JSON.stringify(allTasks));
+    Storage.saveTasks(allTasks);
     this.loadTimeline();
     
     return count;
