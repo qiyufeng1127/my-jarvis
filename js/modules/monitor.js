@@ -262,8 +262,14 @@ const MonitorSystem = {
         
         this.playSound('warning');
         
-        if (this.settings.voiceEnabled && typeof VoiceAssistant !== 'undefined') {
-            VoiceAssistant.speak(`还有${remaining}秒，准备开始${task.title}`);
+        // 使用 EmotionalVoice 播放预警语音（平静的语气）
+        if (this.settings.voiceEnabled) {
+            const text = `还有${remaining}秒，准备开始${task.title}`;
+            if (typeof window.EmotionalVoice !== 'undefined') {
+                window.EmotionalVoice.speak(text, { emotion: 'calm' });
+            } else if (typeof VoiceAssistant !== 'undefined') {
+                VoiceAssistant.speak(text);
+            }
         }
         
         this.sendNotification('⚠️ 预警提醒', `还有${remaining}秒！准备开始【${task.title}】`);
@@ -291,8 +297,14 @@ const MonitorSystem = {
         // 播放警报
         this.playSound('alarm');
         
-        if (this.settings.voiceEnabled && typeof VoiceAssistant !== 'undefined') {
-            VoiceAssistant.speak(`任务${task.title}已超时，请立即开始`);
+        // 使用 EmotionalVoice 播放超时警告（生气的语气）
+        if (this.settings.voiceEnabled) {
+            const text = `任务${task.title}已超时，请立即开始`;
+            if (typeof window.EmotionalVoice !== 'undefined') {
+                window.EmotionalVoice.speak(text, { emotion: 'angry' });
+            } else if (typeof VoiceAssistant !== 'undefined') {
+                VoiceAssistant.speak(text);
+            }
         }
         
         this.sendNotification('🚨 启动超时！', `已扣除${actualCost}金币！请立即开始【${task.title}】`);

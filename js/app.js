@@ -5004,6 +5004,7 @@ const App = {
     // 试听语音警告
     testVoiceAlert(type, alertType) {
         let text = '';
+        let emotion = 'neutral';
         const testTask = '示例任务';
         const testStep = '当前步骤';
         
@@ -5016,11 +5017,13 @@ const App = {
                 const input = document.getElementById('procrastinationPreAlertText');
                 text = input ? input.value : (PM.settings.customPreAlertText || '注意！{task}的{step}还有{seconds}秒就要超时了！');
                 text = text.replace('{task}', testTask).replace('{step}', testStep).replace('{seconds}', '30');
+                emotion = 'calm'; // 预警用平静的语气
             } else {
                 // 超时语音
                 const input = document.getElementById('procrastinationAlertText');
                 text = input ? input.value : (PM.settings.customAlertText || '{task}的{step}已严重拖延，请立即处理！');
                 text = text.replace('{task}', testTask).replace('{step}', testStep);
+                emotion = 'angry'; // 超时用生气的语气
             }
         } else if (type === 'inefficiency') {
             const IM = typeof InefficiencyMonitor !== 'undefined' ? InefficiencyMonitor : null;
@@ -5029,36 +5032,54 @@ const App = {
             // 超时语音
             text = IM.settings.customAlertText || '你已经在{task}上花费了{minutes}分钟，效率可能较低，请检查是否需要调整方向！';
             text = text.replace('{task}', testTask).replace('{minutes}', '60');
+            emotion = 'calm'; // 效率警告用平静的语气
         }
         
         if (!text) {
             text = '这是一条测试语音警告';
         }
         
-        // 使用浏览器语音合成
-        if ('speechSynthesis' in window) {
-            // 停止之前的语音
-            window.speechSynthesis.cancel();
-            
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'zh-CN';
-            utterance.rate = 1.0;
-            utterance.pitch = 1.0;
-            utterance.volume = 1.0;
-            
-            // 尝试使用中文语音
-            const voices = window.speechSynthesis.getVoices();
-            const chineseVoice = voices.find(v => v.lang.includes('zh'));
-            if (chineseVoice) {
-                utterance.voice = chineseVoice;
-            }
-            
-            window.speechSynthesis.speak(utterance);
-            
-            // 显示提示
-            this.showToast('🔊 正在播放: ' + text.substring(0, 30) + (text.length > 30 ? '...' : ''));
+        console.log('🔊 测试语音警告:', { type, alertType, emotion, text: text.substring(0, 30) + '...' });
+        
+        // 使用 EmotionalVoice（优先）
+        if (typeof window.EmotionalVoice !== 'undefined') {
+            window.EmotionalVoice.speak(text, { emotion });
+            this.showToast('🔊 正在播放 (' + emotion + '): ' + text.substring(0, 30) + (text.length > 30 ? '...' : ''));
         } else {
-            this.showToast('❌ 您的浏览器不支持语音合成');
+            // 回退到浏览器语音合成
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                
+                setTimeout(() => {
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = 'zh-CN';
+                    
+                    // 根据情感调整参数
+                    if (emotion === 'angry') {
+                        utterance.rate = 1.1;
+                        utterance.pitch = 1.05;
+                    } else if (emotion === 'calm') {
+                        utterance.rate = 0.9;
+                        utterance.pitch = 0.95;
+                    } else {
+                        utterance.rate = 1.0;
+                        utterance.pitch = 1.0;
+                    }
+                    utterance.volume = 1.0;
+                    
+                    const voices = window.speechSynthesis.getVoices();
+                    const chineseVoice = voices.find(v => v.lang.includes('zh'));
+                    if (chineseVoice) {
+                        utterance.voice = chineseVoice;
+                    }
+                    
+                    window.speechSynthesis.speak(utterance);
+                }, 100);
+                
+                this.showToast('🔊 正在播放: ' + text.substring(0, 30) + (text.length > 30 ? '...' : ''));
+            } else {
+                this.showToast('❌ 您的浏览器不支持语音合成');
+            }
         }
     },
     
