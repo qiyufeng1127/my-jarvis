@@ -11,7 +11,7 @@ const App = {
         Canvas.init();
         
         // 加载组件内容
-        this.loadSmartInput();
+        // this.loadSmartInput(); // 已合并到 BrainDump 组件
         this.loadTimeline();
         this.loadMemoryBank();
         this.loadPromptPanel();
@@ -1302,7 +1302,7 @@ const App = {
                     const profile = Storage.getUserProfile();
                     profile.avatar = ev.target.result;
                     Storage.saveUserProfile(profile);
-                    App.loadSmartInput();
+                    // App.loadSmartInput(); // 已合并到 BrainDump 组件
                 };
                 reader.readAsDataURL(file);
             }
@@ -2733,7 +2733,7 @@ const App = {
         this.updateGameStatus();
         this.loadTimeline();
         this.loadGameSystem();
-        this.loadSmartInput(); // 刷新头部显示
+        // this.loadSmartInput(); // 刷新头部显示 - 已合并到 BrainDump 组件
         this.closeAllMenus();
         
         this.addChatMessage("system", "太棒了！「" + task.title + "」完成！获得 " + coinsEarned + " 金币 🎉\n精力 -" + energyCost, "🏆");
@@ -3404,7 +3404,7 @@ const App = {
         document.getElementById('energySettingsModal').remove();
         this.updateGameStatus();
         this.loadGameSystem();
-        this.loadSmartInput();
+        // this.loadSmartInput(); // 已合并到 BrainDump 组件
         
         if (typeof Settings !== 'undefined') {
             Settings.showToast('success', '精力设置已保存', '每日最大精力：' + state.maxEnergy);
@@ -6041,7 +6041,7 @@ function saveApiKey() {
         Storage.setApiKey(key);
         closeApiKeyModal();
         App.checkApiConnection().then(function() {
-            App.loadSmartInput();
+            // App.loadSmartInput(); // 已合并到 BrainDump 组件
             if (App.isConnected) {
                 App.addChatMessage("system", "API连接成功！现在可以开始使用AI功能了~", "🎉");
             } else {
