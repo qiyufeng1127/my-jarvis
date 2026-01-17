@@ -7042,6 +7042,9 @@ App.completeAllTodayTasks = function() {
             task.completed = true;
             task.completedAt = new Date().toISOString();
             count++;
+            
+            // 记录习惯
+            this.recordTaskHabit(task.title);
         }
     });
     
@@ -7069,6 +7072,46 @@ App.uncompleteAllTodayTasks = function() {
     this.loadTimeline();
     
     return count;
+};
+
+// 记录任务完成习惯
+App.recordTaskHabit = function(taskTitle) {
+    if (typeof BrainDump !== 'undefined' && BrainDump.recordTaskHabit) {
+        BrainDump.recordTaskHabit(taskTitle);
+    }
+};
+
+// 查看习惯统计
+App.getHabitStats = function() {
+    if (typeof BrainDump !== 'undefined' && BrainDump.loadHabits) {
+        const habits = BrainDump.loadHabits();
+        
+        // 统计最常做的任务
+        const taskFrequency = {};
+        habits.forEach(h => {
+            const key = h.task.toLowerCase();
+            taskFrequency[key] = (taskFrequency[key] || 0) + 1;
+        });
+        
+        // 排序
+        const topTasks = Object.entries(taskFrequency)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10);
+        
+        // 统计每个时间段的活跃度
+        const hourActivity = new Array(24).fill(0);
+        habits.forEach(h => {
+            hourActivity[h.hour]++;
+        });
+        
+        return {
+            totalRecords: habits.length,
+            topTasks: topTasks,
+            hourActivity: hourActivity,
+            mostActiveHour: hourActivity.indexOf(Math.max(...hourActivity))
+        };
+    }
+    return null;
 };
 
 // 页面加载完成后初始化

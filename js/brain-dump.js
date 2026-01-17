@@ -172,6 +172,9 @@ const BrainDump = {
         
         const trimmedText = text.trim();
         
+        // 记录添加任务的习惯
+        this.recordTaskHabit(trimmedText);
+        
         // 尝试智能拆分
         const splitTasks = this.smartSplitText(trimmedText);
         
@@ -186,6 +189,9 @@ const BrainDump = {
                         arranged: false
                     };
                     this.items.push(item);
+                    
+                    // 为每个拆分的任务也记录习惯
+                    this.recordTaskHabit(taskText.trim());
                 }
             });
             
@@ -471,12 +477,148 @@ const BrainDump = {
         return '深夜 22:00-6:00';
     },
     
-    // 获取智能推荐任务（基于时间和习惯）
+    // 获取智能推荐任务（基于习惯学习）
     getSmartSuggestions() {
         const hour = new Date().getHours();
-        const minute = new Date().getMinutes();
-        const day = new Date().getDay(); // 0=周日, 1=周一...
         
+        // 1. 先尝试从习惯数据中获取推荐
+        const habitSuggestions = this.getHabitBasedSuggestions(hour);
+        
+        // 2. 如果习惯数据不足，使用默认推荐
+        if (habitSuggestions.length >= 6) {
+            return habitSuggestions.slice(0, 8);
+        }
+        
+        // 3. 混合习惯推荐和默认推荐
+        const defaultSuggestions = this.getDefaultSuggestions(hour);
+        const combined = [...habitSuggestions, ...defaultSuggestions];
+        
+        // 去重
+        const unique = [];
+        const seen = new Set();
+        for (const item of combined) {
+            if (!seen.has(item.text)) {
+                seen.add(item.text);
+                unique.push(item);
+            }
+        }
+        
+        return unique.slice(0, 8);
+    },
+    
+    // 基于习惯学习的推荐
+    getHabitBasedSuggestions(currentHour) {
+        const habits = this.loadHabits();
+        const suggestions = [];
+        
+        // 获取当前时间段（2小时为一个时间段）
+        const timeSlot = Math.floor(currentHour / 2);
+        
+        // 分析该时间段的常见任务
+        const timeSlotHabits = habits.filter(h => {
+            const habitSlot = Math.floor(h.hour / 2);
+            return habitSlot === timeSlot;
+        });
+        
+        // 按频率排序
+        const taskFrequency = {};
+        timeSlotHabits.forEach(h => {
+            const key = h.task.toLowerCase();
+            taskFrequency[key] = (taskFrequency[key] || 0) + 1;
+        });
+        
+        // 转换为数组并排序
+        const sortedTasks = Object.entries(taskFrequency)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 8);
+        
+        // 生成推荐
+        sortedTasks.forEach(([task, frequency]) => {
+            const icon = this.getTaskIcon(task);
+            const reason = `你在这个时间段完成过 ${frequency} 次`;
+            suggestions.push({ icon, text: task, reason });
+        });
+        
+        // 如果习惯数据不足，添加相邻时间段的推荐
+        if (suggestions.length < 6) {
+            const adjacentHabits = habits.filter(h => {
+                const habitSlot = Math.floor(h.hour / 2);
+                return Math.abs(habitSlot - timeSlot) === 1;
+            });
+            
+            const adjacentFrequency = {};
+            adjacentHabits.forEach(h => {
+                const key = h.task.toLowerCase();
+                adjacentFrequency[key] = (adjacentFrequency[key] || 0) + 1;
+            });
+            
+            const adjacentSorted = Object.entries(adjacentFrequency)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 4);
+            
+            adjacentSorted.forEach(([task, frequency]) => {
+                if (!suggestions.find(s => s.text === task)) {
+                    const icon = this.getTaskIcon(task);
+                    const reason = `你经常在相近时间完成`;
+                    suggestions.push({ icon, text: task, reason });
+                }
+            });
+        }
+        
+        return suggestions;
+    },
+    
+    // 获取任务对应的图标
+    getTaskIcon(task) {
+        const taskLower = task.toLowerCase();
+        
+        // 个人卫生
+        if (/刷牙|洗脸/.test(taskLower)) return '🪥';
+        if (/洗澡|洗头/.test(taskLower)) return '🚿';
+        if (/上厕所/.test(taskLower)) return '🚽';
+        
+        // 清洁打扫
+        if (/打扫|清洁|拖地|扫地/.test(taskLower)) return '🧹';
+        if (/收拾|整理/.test(taskLower)) return '📦';
+        
+        // 洗涤
+        if (/洗衣|晾衣|叠衣/.test(taskLower)) return '🧺';
+        if (/洗碗|刷锅/.test(taskLower)) return '🧼';
+        
+        // 厨房
+        if (/做饭|炒菜|煮/.test(taskLower)) return '🍳';
+        if (/吃饭|早饭|午饭|晚饭/.test(taskLower)) return '🍽️';
+        if (/烧水|泡茶|咖啡/.test(taskLower)) return '☕';
+        
+        // 猫咪
+        if (/喂猫|猫粮/.test(taskLower)) return '🐱';
+        if (/猫砂|铲/.test(taskLower)) return '🐾';
+        if (/猫水|猫碗/.test(taskLower)) return '💧';
+        
+        // 工作学习
+        if (/工作|训练|lora|模型/.test(taskLower)) return '💻';
+        if (/修图|剪辑/.test(taskLower)) return '🎬';
+        if (/拍摄/.test(taskLower)) return '📷';
+        if (/学习|看书/.test(taskLower)) return '📚';
+        
+        // 外出
+        if (/快递/.test(taskLower)) return '📦';
+        if (/买|购物/.test(taskLower)) return '🛒';
+        if (/出门/.test(taskLower)) return '🚶';
+        
+        // 休息
+        if (/休息|午睡|睡觉/.test(taskLower)) return '😴';
+        
+        // 其他
+        if (/垃圾/.test(taskLower)) return '🗑️';
+        if (/床单|铺床/.test(taskLower)) return '🛏️';
+        
+        // 默认
+        return '✨';
+    },
+    
+    // 默认推荐（作为补充）
+    getDefaultSuggestions(hour) {
         const suggestions = [];
         
         // 早晨 (6:00-9:00)
@@ -493,7 +635,7 @@ const BrainDump = {
         // 上午 (9:00-12:00)
         else if (hour >= 9 && hour < 12) {
             suggestions.push(
-                { icon: '💻', text: '开始工作训练lora', reason: '上午精力充沛，适合工作' },
+                { icon: '💻', text: '开始工作训练lora', reason: '上午精力充沛' },
                 { icon: '📦', text: '下楼拿快递', reason: '快递通常上午到' },
                 { icon: '🧺', text: '洗衣服晾衣服', reason: '上午洗衣服下午能干' },
                 { icon: '🧹', text: '打扫客厅和厨房', reason: '上午做家务效率高' },
@@ -503,21 +645,12 @@ const BrainDump = {
         }
         // 午间 (12:00-14:00)
         else if (hour >= 12 && hour < 14) {
-            if (hour === 12 && minute < 30) {
-                suggestions.push(
-                    { icon: '🍳', text: '准备午饭', reason: '午餐时间到了' },
-                    { icon: '🥗', text: '决定午饭菜单', reason: '想想吃什么' }
-                );
-            } else {
-                suggestions.push(
-                    { icon: '🍽️', text: '吃午饭', reason: '午餐时间' },
-                    { icon: '🧼', text: '洗碗刷锅', reason: '饭后清洁' }
-                );
-            }
             suggestions.push(
+                { icon: '🍳', text: '准备午饭', reason: '午餐时间' },
+                { icon: '🍽️', text: '吃午饭', reason: '午餐时间' },
                 { icon: '🐱', text: '喂猫加猫粮', reason: '猫咪午餐时间' },
-                { icon: '😴', text: '午休20分钟', reason: '午后小憩恢复精力' },
-                { icon: '🚶', text: '饭后散步', reason: '帮助消化' }
+                { icon: '🧼', text: '洗碗刷锅', reason: '饭后清洁' },
+                { icon: '😴', text: '午休20分钟', reason: '午后小憩恢复精力' }
             );
         }
         // 下午 (14:00-18:00)
@@ -533,23 +666,14 @@ const BrainDump = {
         }
         // 晚上 (18:00-22:00)
         else if (hour >= 18 && hour < 22) {
-            if (hour === 18 && minute < 30) {
-                suggestions.push(
-                    { icon: '🍳', text: '准备晚饭', reason: '晚餐时间到了' },
-                    { icon: '🥘', text: '决定晚饭菜单', reason: '想想吃什么' }
-                );
-            } else if (hour < 19) {
-                suggestions.push(
-                    { icon: '🍽️', text: '吃晚饭', reason: '晚餐时间' },
-                    { icon: '🧼', text: '洗碗刷锅', reason: '饭后清洁' }
-                );
-            }
             suggestions.push(
+                { icon: '🍳', text: '准备晚饭', reason: '晚餐时间' },
+                { icon: '🍽️', text: '吃晚饭', reason: '晚餐时间' },
                 { icon: '🐱', text: '喂猫倒猫粮', reason: '猫咪晚餐时间' },
+                { icon: '🧼', text: '洗碗刷锅', reason: '饭后清洁' },
                 { icon: '🧹', text: '打扫厨房', reason: '晚饭后清洁' },
                 { icon: '🚿', text: '洗澡洗头', reason: '晚上洗澡放松' },
                 { icon: '🗑️', text: '倒垃圾', reason: '晚上倒垃圾' },
-                { icon: '🛏️', text: '整理卧室准备睡觉', reason: '睡前整理' },
                 { icon: '📱', text: '总结今日完成情况', reason: '回顾一天' }
             );
         }
@@ -565,17 +689,51 @@ const BrainDump = {
             );
         }
         
-        // 周末特殊推荐
-        if (day === 0 || day === 6) {
-            suggestions.push(
-                { icon: '🧹', text: '大扫除全屋清洁', reason: '周末深度清洁' },
-                { icon: '🧺', text: '洗床单被套', reason: '周末洗大件' },
-                { icon: '🛒', text: '采购一周食材', reason: '周末囤货' }
-            );
+        return suggestions;
+    },
+    
+    // 加载习惯数据
+    loadHabits() {
+        const saved = localStorage.getItem('task_habits');
+        if (saved) {
+            try {
+                return JSON.parse(saved);
+            } catch (e) {
+                return [];
+            }
         }
+        return [];
+    },
+    
+    // 保存习惯数据
+    saveHabit(task, hour) {
+        const habits = this.loadHabits();
         
-        // 限制显示数量，优先显示前8个
-        return suggestions.slice(0, 8);
+        // 添加新的习惯记录
+        habits.push({
+            task: task,
+            hour: hour,
+            timestamp: new Date().toISOString(),
+            date: new Date().toDateString()
+        });
+        
+        // 只保留最近90天的数据
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        
+        const recentHabits = habits.filter(h => {
+            const habitDate = new Date(h.timestamp);
+            return habitDate >= ninetyDaysAgo;
+        });
+        
+        localStorage.setItem('task_habits', JSON.stringify(recentHabits));
+    },
+    
+    // 记录任务完成习惯（在任务完成时调用）
+    recordTaskHabit(taskTitle) {
+        const hour = new Date().getHours();
+        this.saveHabit(taskTitle, hour);
+        console.log('📊 记录习惯:', taskTitle, '时间:', hour + ':00');
     },
     
     // 填充输入框
@@ -1006,6 +1164,44 @@ const BrainDump = {
             }
         }
         
+        // 查看习惯统计
+        if (/习惯|统计|分析|我的习惯/.test(msg)) {
+            if (typeof App !== 'undefined' && App.getHabitStats) {
+                const stats = App.getHabitStats();
+                if (stats && stats.totalRecords > 0) {
+                    const topTasksList = stats.topTasks.slice(0, 5).map((t, i) => 
+                        `${i + 1}. ${t[0]} (${t[1]}次)`
+                    ).join('\n');
+                    
+                    const mostActiveTime = stats.mostActiveHour;
+                    const timeLabel = mostActiveTime + ':00-' + (mostActiveTime + 1) + ':00';
+                    
+                    return {
+                        handled: true,
+                        message: `📊 你的任务习惯分析：\n\n` +
+                                `📝 总记录数：${stats.totalRecords} 条\n` +
+                                `⏰ 最活跃时段：${timeLabel}\n\n` +
+                                `🔥 最常做的任务：\n${topTasksList}\n\n` +
+                                `💡 系统会根据这些习惯为你智能推荐任务哦~`
+                    };
+                } else {
+                    return {
+                        handled: true,
+                        message: `📊 还没有足够的习惯数据\n\n继续使用系统，我会学习你的习惯并提供更智能的推荐！`
+                    };
+                }
+            }
+        }
+        
+        // 清除习惯数据
+        if (/清除|删除|重置/.test(msg) && /习惯|数据/.test(msg)) {
+            localStorage.removeItem('task_habits');
+            return {
+                handled: true,
+                message: `🗑️ 已清除所有习惯数据\n\n系统将重新学习你的习惯`
+            };
+        }
+        
         // 设置提醒
         if (/提醒|闹钟|定时/.test(msg)) {
             return {
@@ -1045,6 +1241,12 @@ const BrainDump = {
 • "今天完成了多少"
 • "我的金币"
 • "我的等级"
+
+🧠 习惯学习
+• "我的习惯" - 查看习惯统计
+• "清除习惯数据" - 重置学习
+• 系统会自动学习你的任务习惯
+• 智能推荐会根据你的习惯调整
 
 💬 智能对话
 • 问我任何问题
