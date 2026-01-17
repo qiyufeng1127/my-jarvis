@@ -666,7 +666,7 @@ const BrainDump = {
         }
     },
     
-    // 处理AI对话
+    // 处理AI对话（支持指令、对话、任务分解）
     async handleAIChat(userMessage) {
         // 添加用户消息到聊天记录
         if (typeof App !== 'undefined' && App.addChatMessage) {
@@ -674,8 +674,23 @@ const BrainDump = {
         }
         
         try {
-            // 判断是否是任务相关的请求
-            const isTaskRequest = /添加|安排|帮我|任务|待办|要做|计划/.test(userMessage);
+            // 1. 先检查是否是系统指令
+            const commandResult = await this.handleCommand(userMessage);
+            if (commandResult.handled) {
+                // 指令已处理，显示结果
+                if (commandResult.message && typeof App !== 'undefined' && App.addChatMessage) {
+                    App.addChatMessage('assistant', commandResult.message, '🤖');
+                }
+                
+                // 播放音效
+                if (typeof UnifiedAudioSystem !== 'undefined') {
+                    UnifiedAudioSystem.playSound('success');
+                }
+                return;
+            }
+            
+            // 2. 判断是否是任务相关的请求
+            const isTaskRequest = /添加|安排|帮我|任务|待办|要做|计划|提醒|记得/.test(userMessage);
             
             if (isTaskRequest) {
                 // 任务相关请求，使用任务安排AI
@@ -694,10 +709,10 @@ const BrainDump = {
                     tasks.forEach(task => this.addItem(task));
                 }
             } else {
-                // 普通对话，调用AI聊天
+                // 3. 普通对话，调用AI聊天
                 if (typeof AIService !== 'undefined' && AIService.chat) {
                     const response = await AIService.chat([
-                        { role: 'system', content: '你是KiiKii，一个温暖、有趣、善解人意的AI助手。用简短、亲切的语气回复用户。' },
+                        { role: 'system', content: '你是KiiKii，一个温暖、有趣、善解人意的AI助手。你可以帮助用户管理任务、查看日程、回答问题。用简短、亲切的语气回复用户。' },
                         { role: 'user', content: userMessage }
                     ]);
                     
@@ -721,6 +736,137 @@ const BrainDump = {
                 App.addChatMessage('system', '抱歉，AI暂时无法回复。你可以关闭AI模式直接添加任务哦~', '⚠️');
             }
         }
+    },
+    
+    // 处理系统指令
+    async handleCommand(message) {
+        const msg = message.toLowerCase().trim();
+        
+        // 查看今日任务
+        if (/今天|今日|今天的任务|今日任务|今天有什么/.test(msg)) {
+            if (typeof App !== 'undefined' && App.getTodayTasks) {
+                const tasks = App.getTodayTasks();
+                if (tasks && tasks.length > 0) {
+                    const taskList = tasks.map((t, i) => 
+                        `${i + 1}. ${t.startTime || ''} ${t.title} ${t.completed ? '✅' : '⏳'}`
+                    ).join('\n');
+                    return {
+                        handled: true,
+                        message: `📅 今天你有 ${tasks.length} 个任务：\n\n${taskList}`
+                    };
+                } else {
+                    return {
+                        handled: true,
+                        message: '📅 今天还没有安排任务哦~'
+                    };
+                }
+            }
+        }
+        
+        // 查看进度/完成情况
+        if (/进度|完成|完成了多少|做了多少/.test(msg)) {
+            if (typeof App !== 'undefined' && App.getTodayProgress) {
+                const progress = App.getTodayProgress();
+                return {
+                    handled: true,
+                    message: `📊 今日进度：\n已完成 ${progress.completed} / ${progress.total} 个任务\n完成率：${progress.percentage}%\n获得金币：🪙 ${progress.coins}`
+                };
+            }
+        }
+        
+        // 查看金币
+        if (/金币|余额|有多少金币/.test(msg)) {
+            if (typeof GameSystem !== 'undefined' && GameSystem.getCoins) {
+                const coins = GameSystem.getCoins();
+                return {
+                    handled: true,
+                    message: `🪙 你当前有 ${coins} 金币！\n继续加油完成任务赚取更多金币吧~`
+                };
+            }
+        }
+        
+        // 查看等级
+        if (/等级|级别|多少级|level/.test(msg)) {
+            if (typeof GameSystem !== 'undefined' && GameSystem.getLevel) {
+                const level = GameSystem.getLevel();
+                return {
+                    handled: true,
+                    message: `⭐ 你当前是 ${level.level} 级！\n经验值：${level.exp} / ${level.nextLevelExp}\n距离下一级还需要 ${level.nextLevelExp - level.exp} 经验~`
+                };
+            }
+        }
+        
+        // 清空任务列表
+        if (/清空|删除所有|全部删除/.test(msg) && /任务|想法|脑子/.test(msg)) {
+            this.clearAll();
+            return {
+                handled: true,
+                message: '🗑️ 已清空所有暂存的想法'
+            };
+        }
+        
+        // AI安排任务
+        if (/安排|规划|帮我安排/.test(msg) && this.items.length > 0) {
+            await this.aiArrange();
+            return {
+                handled: true,
+                message: null // aiArrange 会自己显示消息
+            };
+        }
+        
+        // 查看记忆库
+        if (/记忆|回忆|之前|以前/.test(msg)) {
+            if (typeof MemoryBank !== 'undefined' && MemoryBank.search) {
+                const keyword = msg.replace(/记忆|回忆|之前|以前|查看|搜索/g, '').trim();
+                if (keyword) {
+                    const results = MemoryBank.search(keyword);
+                    if (results.length > 0) {
+                        const list = results.slice(0, 5).map((r, i) => 
+                            `${i + 1}. ${r.title} (${r.date})`
+                        ).join('\n');
+                        return {
+                            handled: true,
+                            message: `🗂️ 找到 ${results.length} 条相关记忆：\n\n${list}`
+                        };
+                    }
+                }
+            }
+        }
+        
+        // 设置提醒
+        if (/提醒|闹钟|定时/.test(msg)) {
+            return {
+                handled: true,
+                message: '⏰ 提醒功能正在开发中，敬请期待！\n你可以先在时间轴中添加任务，到时间会自动提醒哦~'
+            };
+        }
+        
+        // 帮助信息
+        if (/帮助|help|怎么用|功能/.test(msg)) {
+            return {
+                handled: true,
+                message: `🤖 我可以帮你：
+
+📝 任务管理
+• "添加任务：洗衣服"
+• "今天有什么任务"
+• "帮我安排任务"
+
+📊 进度查询
+• "今天完成了多少"
+• "我的金币"
+• "我的等级"
+
+💬 智能对话
+• 问我任何问题
+• 闲聊、建议、提醒
+
+直接说出你的需求，我会智能理解并帮助你！`
+            };
+        }
+        
+        // 未匹配到指令
+        return { handled: false };
     },
     
     // 从AI回复中提取任务

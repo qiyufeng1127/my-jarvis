@@ -6850,6 +6850,47 @@ App.switchMonitorTab = function(tabName) {
     });
 };
 
+// ==================== 辅助方法（供智能对话使用） ====================
+
+// 获取今日任务列表
+App.getTodayTasks = function() {
+    const today = this.formatDate(new Date());
+    const allTasks = Storage.getTasks();
+    return allTasks.filter(task => task.date === today);
+};
+
+// 获取今日进度
+App.getTodayProgress = function() {
+    const tasks = this.getTodayTasks();
+    const completed = tasks.filter(t => t.completed).length;
+    const total = tasks.length;
+    const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+    const coins = tasks.filter(t => t.completed).reduce((sum, t) => sum + (t.coins || 0), 0);
+    
+    return {
+        completed,
+        total,
+        percentage,
+        coins
+    };
+};
+
+// 添加任务到时间轴
+App.addTaskToTimeline = function(task) {
+    // 确保任务有必要的字段
+    if (!task.date) {
+        task.date = this.formatDate(new Date());
+    }
+    if (!task.id) {
+        task.id = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    }
+    
+    Storage.addTask(task);
+    this.loadTimeline();
+    
+    return task;
+};
+
 // 页面加载完成后初始化
 document.addEventListener("DOMContentLoaded", function() {
     App.init();
