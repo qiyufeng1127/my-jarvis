@@ -6859,6 +6859,30 @@ App.getTodayTasks = function() {
     return allTasks.filter(task => task.date === today);
 };
 
+// 获取明天任务列表
+App.getTomorrowTasks = function() {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = this.formatDate(tomorrow);
+    const allTasks = Storage.getTasks();
+    return allTasks.filter(task => task.date === tomorrowStr);
+};
+
+// 获取本周任务列表
+App.getThisWeekTasks = function() {
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay()); // 周日
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6); // 周六
+    
+    const allTasks = Storage.getTasks();
+    return allTasks.filter(task => {
+        const taskDate = new Date(task.date);
+        return taskDate >= startOfWeek && taskDate <= endOfWeek;
+    });
+};
+
 // 获取今日进度
 App.getTodayProgress = function() {
     const tasks = this.getTodayTasks();
@@ -6889,6 +6913,162 @@ App.addTaskToTimeline = function(task) {
     this.loadTimeline();
     
     return task;
+};
+
+// 删除今天的任务
+App.deleteTodayTasks = function() {
+    const today = this.formatDate(new Date());
+    const allTasks = Storage.getTasks();
+    const tasksToKeep = allTasks.filter(task => task.date !== today);
+    const deletedCount = allTasks.length - tasksToKeep.length;
+    
+    localStorage.setItem('tasks', JSON.stringify(tasksToKeep));
+    this.loadTimeline();
+    
+    return deletedCount;
+};
+
+// 删除明天的任务
+App.deleteTomorrowTasks = function() {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = this.formatDate(tomorrow);
+    
+    const allTasks = Storage.getTasks();
+    const tasksToKeep = allTasks.filter(task => task.date !== tomorrowStr);
+    const deletedCount = allTasks.length - tasksToKeep.length;
+    
+    localStorage.setItem('tasks', JSON.stringify(tasksToKeep));
+    this.loadTimeline();
+    
+    return deletedCount;
+};
+
+// 删除今天和明天的任务
+App.deleteTodayAndTomorrowTasks = function() {
+    const today = this.formatDate(new Date());
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = this.formatDate(tomorrow);
+    
+    const allTasks = Storage.getTasks();
+    const todayCount = allTasks.filter(task => task.date === today).length;
+    const tomorrowCount = allTasks.filter(task => task.date === tomorrowStr).length;
+    const tasksToKeep = allTasks.filter(task => task.date !== today && task.date !== tomorrowStr);
+    
+    localStorage.setItem('tasks', JSON.stringify(tasksToKeep));
+    this.loadTimeline();
+    
+    return {
+        today: todayCount,
+        tomorrow: tomorrowCount,
+        total: todayCount + tomorrowCount
+    };
+};
+
+// 删除本周的任务
+App.deleteThisWeekTasks = function() {
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    
+    const allTasks = Storage.getTasks();
+    const tasksToKeep = allTasks.filter(task => {
+        const taskDate = new Date(task.date);
+        return taskDate < startOfWeek || taskDate > endOfWeek;
+    });
+    const deletedCount = allTasks.length - tasksToKeep.length;
+    
+    localStorage.setItem('tasks', JSON.stringify(tasksToKeep));
+    this.loadTimeline();
+    
+    return deletedCount;
+};
+
+// 删除未完成的任务
+App.deleteIncompleteTasks = function() {
+    const allTasks = Storage.getTasks();
+    const tasksToKeep = allTasks.filter(task => task.completed);
+    const deletedCount = allTasks.length - tasksToKeep.length;
+    
+    localStorage.setItem('tasks', JSON.stringify(tasksToKeep));
+    this.loadTimeline();
+    
+    return deletedCount;
+};
+
+// 删除已完成的任务
+App.deleteCompletedTasks = function() {
+    const allTasks = Storage.getTasks();
+    const tasksToKeep = allTasks.filter(task => !task.completed);
+    const deletedCount = allTasks.length - tasksToKeep.length;
+    
+    localStorage.setItem('tasks', JSON.stringify(tasksToKeep));
+    this.loadTimeline();
+    
+    return deletedCount;
+};
+
+// 根据关键词删除任务
+App.deleteTasksByKeyword = function(keyword) {
+    const allTasks = Storage.getTasks();
+    const tasksToKeep = allTasks.filter(task => !task.title.toLowerCase().includes(keyword.toLowerCase()));
+    const deletedCount = allTasks.length - tasksToKeep.length;
+    
+    localStorage.setItem('tasks', JSON.stringify(tasksToKeep));
+    this.loadTimeline();
+    
+    return deletedCount;
+};
+
+// 搜索任务
+App.searchTasks = function(keyword) {
+    const allTasks = Storage.getTasks();
+    return allTasks.filter(task => 
+        task.title.toLowerCase().includes(keyword.toLowerCase())
+    );
+};
+
+// 完成所有今天的任务
+App.completeAllTodayTasks = function() {
+    const today = this.formatDate(new Date());
+    const allTasks = Storage.getTasks();
+    let count = 0;
+    
+    allTasks.forEach(task => {
+        if (task.date === today && !task.completed) {
+            task.completed = true;
+            task.completedAt = new Date().toISOString();
+            count++;
+        }
+    });
+    
+    localStorage.setItem('tasks', JSON.stringify(allTasks));
+    this.loadTimeline();
+    
+    return count;
+};
+
+// 取消完成所有今天的任务
+App.uncompleteAllTodayTasks = function() {
+    const today = this.formatDate(new Date());
+    const allTasks = Storage.getTasks();
+    let count = 0;
+    
+    allTasks.forEach(task => {
+        if (task.date === today && task.completed) {
+            task.completed = false;
+            delete task.completedAt;
+            count++;
+        }
+    });
+    
+    localStorage.setItem('tasks', JSON.stringify(allTasks));
+    this.loadTimeline();
+    
+    return count;
 };
 
 // 页面加载完成后初始化

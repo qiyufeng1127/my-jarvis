@@ -742,6 +742,179 @@ const BrainDump = {
     async handleCommand(message) {
         const msg = message.toLowerCase().trim();
         
+        // ==================== 时间轴操作指令 ====================
+        
+        // 删除今天的任务
+        if (/删除|清空|移除/.test(msg) && /今天|今日/.test(msg) && /任务/.test(msg)) {
+            if (typeof App !== 'undefined' && App.deleteTodayTasks) {
+                const count = App.deleteTodayTasks();
+                return {
+                    handled: true,
+                    message: `🗑️ 已删除今天的 ${count} 个任务`
+                };
+            }
+        }
+        
+        // 删除明天的任务
+        if (/删除|清空|移除/.test(msg) && /明天|明日/.test(msg) && /任务/.test(msg)) {
+            if (typeof App !== 'undefined' && App.deleteTomorrowTasks) {
+                const count = App.deleteTomorrowTasks();
+                return {
+                    handled: true,
+                    message: `🗑️ 已删除明天的 ${count} 个任务`
+                };
+            }
+        }
+        
+        // 删除今天和明天的任务
+        if (/删除|清空|移除/.test(msg) && /今天.*明天|明天.*今天|今明两天/.test(msg)) {
+            if (typeof App !== 'undefined' && App.deleteTodayAndTomorrowTasks) {
+                const result = App.deleteTodayAndTomorrowTasks();
+                return {
+                    handled: true,
+                    message: `🗑️ 已删除任务：\n今天：${result.today} 个\n明天：${result.tomorrow} 个\n总计：${result.total} 个`
+                };
+            }
+        }
+        
+        // 删除本周的任务
+        if (/删除|清空|移除/.test(msg) && /本周|这周|这一周/.test(msg) && /任务/.test(msg)) {
+            if (typeof App !== 'undefined' && App.deleteThisWeekTasks) {
+                const count = App.deleteThisWeekTasks();
+                return {
+                    handled: true,
+                    message: `🗑️ 已删除本周的 ${count} 个任务`
+                };
+            }
+        }
+        
+        // 删除所有未完成的任务
+        if (/删除|清空|移除/.test(msg) && /未完成|没完成|未做/.test(msg) && /任务/.test(msg)) {
+            if (typeof App !== 'undefined' && App.deleteIncompleteTasks) {
+                const count = App.deleteIncompleteTasks();
+                return {
+                    handled: true,
+                    message: `🗑️ 已删除 ${count} 个未完成的任务`
+                };
+            }
+        }
+        
+        // 删除所有已完成的任务
+        if (/删除|清空|移除/.test(msg) && /已完成|完成了|做完/.test(msg) && /任务/.test(msg)) {
+            if (typeof App !== 'undefined' && App.deleteCompletedTasks) {
+                const count = App.deleteCompletedTasks();
+                return {
+                    handled: true,
+                    message: `🗑️ 已删除 ${count} 个已完成的任务`
+                };
+            }
+        }
+        
+        // 删除特定任务（通过关键词）
+        if (/删除|移除/.test(msg) && /任务/.test(msg) && !/今天|明天|本周|所有|全部/.test(msg)) {
+            // 提取关键词
+            const keyword = msg.replace(/删除|移除|任务|的|把|帮我|请/g, '').trim();
+            if (keyword && typeof App !== 'undefined' && App.deleteTasksByKeyword) {
+                const count = App.deleteTasksByKeyword(keyword);
+                if (count > 0) {
+                    return {
+                        handled: true,
+                        message: `🗑️ 已删除包含"${keyword}"的 ${count} 个任务`
+                    };
+                } else {
+                    return {
+                        handled: true,
+                        message: `❌ 没有找到包含"${keyword}"的任务`
+                    };
+                }
+            }
+        }
+        
+        // 查看明天的任务
+        if (/明天|明日/.test(msg) && /任务|有什么|要做/.test(msg)) {
+            if (typeof App !== 'undefined' && App.getTomorrowTasks) {
+                const tasks = App.getTomorrowTasks();
+                if (tasks && tasks.length > 0) {
+                    const taskList = tasks.map((t, i) => 
+                        `${i + 1}. ${t.startTime || ''} ${t.title} ${t.completed ? '✅' : '⏳'}`
+                    ).join('\n');
+                    return {
+                        handled: true,
+                        message: `📅 明天你有 ${tasks.length} 个任务：\n\n${taskList}`
+                    };
+                } else {
+                    return {
+                        handled: true,
+                        message: '📅 明天还没有安排任务哦~'
+                    };
+                }
+            }
+        }
+        
+        // 查看本周任务
+        if (/本周|这周|这一周/.test(msg) && /任务|有什么/.test(msg)) {
+            if (typeof App !== 'undefined' && App.getThisWeekTasks) {
+                const tasks = App.getThisWeekTasks();
+                if (tasks && tasks.length > 0) {
+                    return {
+                        handled: true,
+                        message: `📅 本周你有 ${tasks.length} 个任务\n已完成：${tasks.filter(t => t.completed).length} 个\n未完成：${tasks.filter(t => !t.completed).length} 个`
+                    };
+                } else {
+                    return {
+                        handled: true,
+                        message: '📅 本周还没有安排任务哦~'
+                    };
+                }
+            }
+        }
+        
+        // 完成所有今天的任务
+        if (/完成|标记完成/.test(msg) && /今天|今日|所有/.test(msg) && /任务/.test(msg)) {
+            if (typeof App !== 'undefined' && App.completeAllTodayTasks) {
+                const count = App.completeAllTodayTasks();
+                return {
+                    handled: true,
+                    message: `✅ 已标记今天的 ${count} 个任务为完成！\n太棒了，继续保持！🎉`
+                };
+            }
+        }
+        
+        // 取消完成所有今天的任务
+        if (/取消完成|标记未完成|重置/.test(msg) && /今天|今日/.test(msg) && /任务/.test(msg)) {
+            if (typeof App !== 'undefined' && App.uncompleteAllTodayTasks) {
+                const count = App.uncompleteAllTodayTasks();
+                return {
+                    handled: true,
+                    message: `⏳ 已将今天的 ${count} 个任务标记为未完成`
+                };
+            }
+        }
+        
+        // 搜索任务
+        if (/搜索|查找|找/.test(msg) && /任务/.test(msg)) {
+            const keyword = msg.replace(/搜索|查找|找|任务|的|把|帮我|请/g, '').trim();
+            if (keyword && typeof App !== 'undefined' && App.searchTasks) {
+                const results = App.searchTasks(keyword);
+                if (results.length > 0) {
+                    const taskList = results.slice(0, 10).map((t, i) => 
+                        `${i + 1}. ${t.date} ${t.startTime || ''} ${t.title} ${t.completed ? '✅' : '⏳'}`
+                    ).join('\n');
+                    return {
+                        handled: true,
+                        message: `🔍 找到 ${results.length} 个包含"${keyword}"的任务：\n\n${taskList}${results.length > 10 ? '\n\n（仅显示前10个）' : ''}`
+                    };
+                } else {
+                    return {
+                        handled: true,
+                        message: `❌ 没有找到包含"${keyword}"的任务`
+                    };
+                }
+            }
+        }
+        
+        // ==================== 基础查询指令 ====================
+        
         // 查看今日任务
         if (/今天|今日|今天的任务|今日任务|今天有什么/.test(msg)) {
             if (typeof App !== 'undefined' && App.getTodayTasks) {
@@ -850,7 +1023,23 @@ const BrainDump = {
 📝 任务管理
 • "添加任务：洗衣服"
 • "今天有什么任务"
+• "明天有什么任务"
 • "帮我安排任务"
+
+🗑️ 删除任务
+• "删除今天的任务"
+• "删除明天的任务"
+• "删除今天和明天的任务"
+• "删除包含洗衣服的任务"
+• "删除所有未完成的任务"
+
+✅ 完成任务
+• "完成所有今天的任务"
+• "标记今天的任务为完成"
+
+🔍 搜索任务
+• "搜索洗衣服任务"
+• "查找打扫的任务"
 
 📊 进度查询
 • "今天完成了多少"
