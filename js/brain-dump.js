@@ -960,6 +960,38 @@ const BrainDump = {
         
         // ==================== 时间轴操作指令 ====================
         
+        // 删除特定日期的任务（如：删除14号的任务、删除1月15日的任务）
+        if (/删除|清空|移除/.test(msg) && /任务/.test(msg)) {
+            // 尝试提取日期
+            const dateMatch = msg.match(/(\d{1,2})号|(\d{1,2})日|(\d{1,2})月(\d{1,2})[号日]/);
+            if (dateMatch) {
+                const now = new Date();
+                let targetDate;
+                
+                if (dateMatch[3] && dateMatch[4]) {
+                    // 匹配到 "X月X号" 格式
+                    const month = parseInt(dateMatch[3]);
+                    const day = parseInt(dateMatch[4]);
+                    targetDate = new Date(now.getFullYear(), month - 1, day);
+                } else {
+                    // 匹配到 "X号" 或 "X日" 格式
+                    const day = parseInt(dateMatch[1] || dateMatch[2]);
+                    targetDate = new Date(now.getFullYear(), now.getMonth(), day);
+                }
+                
+                const dateStr = this.formatDate(targetDate);
+                
+                if (typeof App !== 'undefined' && App.deleteTasksByDate) {
+                    const count = App.deleteTasksByDate(dateStr);
+                    const displayDate = `${targetDate.getMonth() + 1}月${targetDate.getDate()}日`;
+                    return {
+                        handled: true,
+                        message: `🗑️ 已删除 ${displayDate} 的 ${count} 个任务`
+                    };
+                }
+            }
+        }
+        
         // 删除今天的任务
         if (/删除|清空|移除/.test(msg) && /今天|今日/.test(msg) && /任务/.test(msg)) {
             if (typeof App !== 'undefined' && App.deleteTodayTasks) {
@@ -1043,6 +1075,66 @@ const BrainDump = {
                         message: `❌ 没有找到包含"${keyword}"的任务`
                     };
                 }
+            }
+        }
+        
+        // 添加任务到特定日期（如：明天添加任务洗衣服、14号添加任务打扫卫生）
+        if (/添加|加上|新增/.test(msg) && /任务/.test(msg)) {
+            // 提取日期和任务内容
+            let targetDate = new Date();
+            let taskTitle = '';
+            
+            // 匹配 "明天添加任务XXX" 或 "添加任务XXX到明天"
+            if (/明天|明日/.test(msg)) {
+                targetDate.setDate(targetDate.getDate() + 1);
+                taskTitle = msg.replace(/添加|加上|新增|任务|明天|明日|到|给|帮我|请/g, '').trim();
+            }
+            // 匹配 "后天添加任务XXX"
+            else if (/后天/.test(msg)) {
+                targetDate.setDate(targetDate.getDate() + 2);
+                taskTitle = msg.replace(/添加|加上|新增|任务|后天|到|给|帮我|请/g, '').trim();
+            }
+            // 匹配 "14号添加任务XXX" 或 "1月15日添加任务XXX"
+            else {
+                const dateMatch = msg.match(/(\d{1,2})号|(\d{1,2})日|(\d{1,2})月(\d{1,2})[号日]/);
+                if (dateMatch) {
+                    if (dateMatch[3] && dateMatch[4]) {
+                        // X月X号格式
+                        const month = parseInt(dateMatch[3]);
+                        const day = parseInt(dateMatch[4]);
+                        targetDate = new Date(targetDate.getFullYear(), month - 1, day);
+                    } else {
+                        // X号格式
+                        const day = parseInt(dateMatch[1] || dateMatch[2]);
+                        targetDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), day);
+                    }
+                    taskTitle = msg.replace(/添加|加上|新增|任务|\d{1,2}[号日月]|到|给|帮我|请/g, '').trim();
+                } else {
+                    // 今天
+                    taskTitle = msg.replace(/添加|加上|新增|任务|今天|今日|到|给|帮我|请/g, '').trim();
+                }
+            }
+            
+            if (taskTitle && typeof App !== 'undefined' && App.addTaskToTimeline) {
+                const dateStr = this.formatDate(targetDate);
+                const displayDate = `${targetDate.getMonth() + 1}月${targetDate.getDate()}日`;
+                
+                const task = {
+                    title: taskTitle,
+                    date: dateStr,
+                    startTime: '09:00',
+                    duration: 30,
+                    coins: 50,
+                    type: 'standing',
+                    verification: 'check'
+                };
+                
+                App.addTaskToTimeline(task);
+                
+                return {
+                    handled: true,
+                    message: `✅ 已添加任务"${taskTitle}"到 ${displayDate}`
+                };
             }
         }
         

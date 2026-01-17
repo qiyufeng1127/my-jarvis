@@ -6915,17 +6915,22 @@ App.addTaskToTimeline = function(task) {
     return task;
 };
 
-// 删除今天的任务
-App.deleteTodayTasks = function() {
-    const today = this.formatDate(new Date());
+// 删除特定日期的任务
+App.deleteTasksByDate = function(dateStr) {
     const allTasks = Storage.getTasks();
-    const tasksToKeep = allTasks.filter(task => task.date !== today);
+    const tasksToKeep = allTasks.filter(task => task.date !== dateStr);
     const deletedCount = allTasks.length - tasksToKeep.length;
     
     localStorage.setItem('tasks', JSON.stringify(tasksToKeep));
     this.loadTimeline();
     
     return deletedCount;
+};
+
+// 删除今天的任务
+App.deleteTodayTasks = function() {
+    const today = this.formatDate(new Date());
+    return this.deleteTasksByDate(today);
 };
 
 // 删除明天的任务
