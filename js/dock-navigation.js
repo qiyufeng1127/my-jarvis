@@ -360,10 +360,15 @@ const DockNavigation = {
     
     // 隐藏所有组件
     hideAllComponents() {
+        console.log('🙈 隐藏所有组件');
         this.components.forEach(comp => {
             const element = document.getElementById(comp.id);
             if (element) {
+                console.log('隐藏组件:', comp.id, '内容长度:', element.innerHTML.length);
                 element.classList.add('dock-hidden');
+                // 不要修改 display 属性，只用 class 控制
+            } else {
+                console.warn('⚠️ 组件元素不存在:', comp.id);
             }
         });
     },
@@ -413,12 +418,29 @@ const DockNavigation = {
     expandComponent(componentId) {
         const element = document.getElementById(componentId);
         if (!element) {
-            console.warn('组件未找到:', componentId);
+            console.error('❌ 组件未找到:', componentId);
+            alert('组件未找到: ' + componentId);
             return;
+        }
+        
+        console.log('📂 展开组件:', componentId);
+        console.log('组件元素:', element);
+        console.log('组件内容:', element.innerHTML.substring(0, 200));
+        
+        // 确保组件有内容
+        const body = element.querySelector('.component-body');
+        if (body) {
+            console.log('组件 body 内容长度:', body.innerHTML.length);
+            if (body.innerHTML.length < 50) {
+                console.warn('⚠️ 组件内容可能为空，尝试重新加载...');
+                // 尝试重新加载组件内容
+                this.reloadComponentContent(componentId);
+            }
         }
         
         // 移动端全屏显示
         if (this.isMobile()) {
+            console.log('📱 移动端全屏模式');
             element.style.position = 'fixed';
             element.style.top = '10px';
             element.style.left = '10px';
@@ -427,6 +449,8 @@ const DockNavigation = {
             element.style.width = 'calc(100% - 20px)';
             element.style.height = 'calc(100% - 90px)';
             element.style.zIndex = '1000';
+            element.style.margin = '0';
+            element.style.transform = 'none';
         }
         
         element.classList.remove('dock-hidden');
@@ -435,6 +459,7 @@ const DockNavigation = {
         setTimeout(() => {
             element.classList.remove('dock-expanding');
             element.classList.add('dock-expanded');
+            console.log('✅ 组件展开完成');
         }, 300);
         
         this.expandedComponents.add(componentId);
@@ -444,9 +469,55 @@ const DockNavigation = {
             // 关闭其他组件
             this.expandedComponents.forEach(id => {
                 if (id !== componentId) {
+                    console.log('关闭其他组件:', id);
                     this.collapseComponent(id);
                 }
             });
+        }
+    },
+    
+    // 重新加载组件内容
+    reloadComponentContent(componentId) {
+        console.log('🔄 重新加载组件内容:', componentId);
+        
+        // 调用 App 的加载函数
+        if (typeof App !== 'undefined') {
+            switch(componentId) {
+                case 'brainDump':
+                    if (typeof BrainDump !== 'undefined' && BrainDump.refresh) {
+                        BrainDump.refresh();
+                    }
+                    break;
+                case 'timeline':
+                    if (App.loadTimeline) App.loadTimeline();
+                    break;
+                case 'memoryBank':
+                    if (App.loadMemoryBank) App.loadMemoryBank();
+                    break;
+                case 'promptPanel':
+                    if (App.loadPromptPanel) App.loadPromptPanel();
+                    break;
+                case 'gameSystem':
+                    if (App.loadGameSystem) App.loadGameSystem();
+                    break;
+                case 'monitorPanel':
+                    if (App.loadMonitorPanel) App.loadMonitorPanel();
+                    break;
+                case 'valuePanel':
+                    if (App.loadValuePanel) App.loadValuePanel();
+                    break;
+                case 'aiInsights':
+                    if (App.loadAIInsightsPanel) App.loadAIInsightsPanel();
+                    break;
+                case 'aiMemory':
+                    if (App.loadAIMemoryPanel) App.loadAIMemoryPanel();
+                    break;
+                case 'voiceSettings':
+                    if (typeof VoiceSettings !== 'undefined' && VoiceSettings.init) {
+                        VoiceSettings.init();
+                    }
+                    break;
+            }
         }
     },
     
@@ -788,5 +859,17 @@ window.DockNavigation = DockNavigation;
 
 // 页面加载后初始化
 document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => DockNavigation.init(), 500);
+    // 延迟初始化，确保其他组件已加载
+    setTimeout(() => {
+        console.log('⏰ 开始初始化 Dock Navigation...');
+        
+        // 确保 App 已经初始化
+        if (typeof App !== 'undefined' && App.init) {
+            console.log('✅ App 已加载');
+        } else {
+            console.warn('⚠️ App 未加载，可能影响组件内容');
+        }
+        
+        DockNavigation.init();
+    }, 1000); // 增加延迟到 1 秒，确保所有组件都已加载
 });
