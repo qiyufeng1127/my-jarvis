@@ -29,8 +29,9 @@
 <body>
     <!-- 主画布 -->
     <div id="canvas">
-        <!-- 智能输入框组件 -->
-        <div class="draggable-component" id="smartInput" data-component="smart-input" style="left: 20px; top: 70px; width: 400px; height: 520px;">
+        <!-- 智能对话组件（已合并到清空脑子组件） -->
+        <!-- 保留此div用于兼容性，但隐藏 -->
+        <div class="draggable-component" id="smartInput" data-component="smart-input" style="left: 20px; top: 70px; width: 400px; height: 520px; display: none;">
             <div class="component-header">
                 <span class="component-title">💬 智能对话</span>
                 <div class="component-controls">
@@ -200,10 +201,10 @@
             <div class="resize-handle"></div>
         </div>
 
-        <!-- 清空你的脑子 - 头脑风暴中转站 -->
-        <div class="draggable-component" id="brainDump" data-component="brain-dump" style="left: 20px; top: 970px; width: 400px; height: 480px;">
+        <!-- 智能对话 & 清空脑子 - 合并组件 -->
+        <div class="draggable-component" id="brainDump" data-component="brain-dump" style="left: 20px; top: 70px; width: 420px; height: 600px;">
             <div class="component-header">
-                <span class="component-title">🧠 清空你的脑子</span>
+                <span class="component-title">💬 智能对话 & 清空脑子</span>
                 <div class="component-controls">
                     <button class="component-btn btn-minimize" title="最小化"></button>
                     <button class="component-btn btn-maximize" title="最大化"></button>

@@ -421,30 +421,204 @@ const BrainDump = {
         `;
     },
     
-    // 渲染输入区
+    // 渲染输入区（合并智能对话功能）
     renderInputSection() {
+        // 获取当前时间段的智能推荐任务
+        const smartSuggestions = this.getSmartSuggestions();
+        
         return `
             <div class="brain-dump-input-section">
                 <div class="brain-dump-input-wrapper">
                     <textarea id="brainDumpInput" 
                            class="brain-dump-input" 
-                           placeholder="随便写点什么...可以一口气说完，我会帮你拆分"
+                           placeholder="💬 跟我说点什么...可以聊天、添加任务、问问题"
                            rows="1"
                            oninput="BrainDump.autoResizeInput(this)"
                            onkeydown="BrainDump.handleInputKeydown(event)"></textarea>
-                    <button class="brain-dump-add-btn" onclick="BrainDump.handleInputSubmit()">
-                        <span>+</span>
+                    <button class="brain-dump-send-btn" onclick="BrainDump.handleInputSubmit()" title="发送 (Enter)">
+                        <span>📤</span>
+                    </button>
+                    <button class="brain-dump-ai-btn" onclick="BrainDump.toggleAIMode(this)" title="AI智能模式">
+                        <span>🤖</span>
                     </button>
                 </div>
-                <div class="brain-dump-quick-tags">
-                    <span class="quick-tag" onclick="BrainDump.addItem('洗衣服')">🧺 洗衣服</span>
-                    <span class="quick-tag" onclick="BrainDump.addItem('打扫卫生')">🧹 打扫</span>
-                    <span class="quick-tag" onclick="BrainDump.addItem('拿快递')">📦 快递</span>
-                    <span class="quick-tag" onclick="BrainDump.addItem('倒猫粮')">🐱 喂猫</span>
-                    <span class="quick-tag" onclick="BrainDump.addItem('铲猫砂')">🐾 铲屎</span>
+                <div class="brain-dump-smart-suggestions">
+                    <div class="suggestions-header">
+                        <span class="suggestions-title">⚡ 智能推荐 (${this.getCurrentTimeLabel()})</span>
+                        <button class="refresh-suggestions-btn" onclick="BrainDump.refreshSuggestions()" title="刷新推荐">🔄</button>
+                    </div>
+                    <div class="suggestions-grid">
+                        ${smartSuggestions.map(s => `
+                            <button class="suggestion-btn" onclick="BrainDump.fillInput('${this.escapeHtml(s.text)}')" title="${s.reason}">
+                                <span class="suggestion-icon">${s.icon}</span>
+                                <span class="suggestion-text">${s.text}</span>
+                            </button>
+                        `).join('')}
+                    </div>
                 </div>
             </div>
         `;
+    },
+    
+    // 获取当前时间标签
+    getCurrentTimeLabel() {
+        const hour = new Date().getHours();
+        if (hour >= 6 && hour < 9) return '早晨 6:00-9:00';
+        if (hour >= 9 && hour < 12) return '上午 9:00-12:00';
+        if (hour >= 12 && hour < 14) return '午间 12:00-14:00';
+        if (hour >= 14 && hour < 18) return '下午 14:00-18:00';
+        if (hour >= 18 && hour < 22) return '晚上 18:00-22:00';
+        return '深夜 22:00-6:00';
+    },
+    
+    // 获取智能推荐任务（基于时间和习惯）
+    getSmartSuggestions() {
+        const hour = new Date().getHours();
+        const minute = new Date().getMinutes();
+        const day = new Date().getDay(); // 0=周日, 1=周一...
+        
+        const suggestions = [];
+        
+        // 早晨 (6:00-9:00)
+        if (hour >= 6 && hour < 9) {
+            suggestions.push(
+                { icon: '🪥', text: '刷牙洗脸', reason: '早晨个人卫生' },
+                { icon: '🍳', text: '准备早餐', reason: '早餐时间' },
+                { icon: '🐱', text: '喂猫倒猫粮', reason: '猫咪早餐时间' },
+                { icon: '🧹', text: '快速整理卧室', reason: '起床后整理' },
+                { icon: '☕', text: '冲咖啡', reason: '提神醒脑' },
+                { icon: '📱', text: '查看今日日程', reason: '规划一天' }
+            );
+        }
+        // 上午 (9:00-12:00)
+        else if (hour >= 9 && hour < 12) {
+            suggestions.push(
+                { icon: '💻', text: '开始工作训练lora', reason: '上午精力充沛，适合工作' },
+                { icon: '📦', text: '下楼拿快递', reason: '快递通常上午到' },
+                { icon: '🧺', text: '洗衣服晾衣服', reason: '上午洗衣服下午能干' },
+                { icon: '🧹', text: '打扫客厅和厨房', reason: '上午做家务效率高' },
+                { icon: '🐾', text: '铲猫砂清理猫砂盆', reason: '保持环境清洁' },
+                { icon: '💧', text: '换猫水洗猫碗', reason: '保持猫咪饮水卫生' }
+            );
+        }
+        // 午间 (12:00-14:00)
+        else if (hour >= 12 && hour < 14) {
+            if (hour === 12 && minute < 30) {
+                suggestions.push(
+                    { icon: '🍳', text: '准备午饭', reason: '午餐时间到了' },
+                    { icon: '🥗', text: '决定午饭菜单', reason: '想想吃什么' }
+                );
+            } else {
+                suggestions.push(
+                    { icon: '🍽️', text: '吃午饭', reason: '午餐时间' },
+                    { icon: '🧼', text: '洗碗刷锅', reason: '饭后清洁' }
+                );
+            }
+            suggestions.push(
+                { icon: '🐱', text: '喂猫加猫粮', reason: '猫咪午餐时间' },
+                { icon: '😴', text: '午休20分钟', reason: '午后小憩恢复精力' },
+                { icon: '🚶', text: '饭后散步', reason: '帮助消化' }
+            );
+        }
+        // 下午 (14:00-18:00)
+        else if (hour >= 14 && hour < 18) {
+            suggestions.push(
+                { icon: '💻', text: '继续工作修图剪辑', reason: '下午工作时段' },
+                { icon: '📷', text: '拍摄新内容', reason: '下午光线好' },
+                { icon: '🧹', text: '整理工作区', reason: '保持工作环境整洁' },
+                { icon: '🧺', text: '收衣服叠衣服', reason: '衣服应该干了' },
+                { icon: '🛒', text: '出门买东西', reason: '下午出门不晒' },
+                { icon: '☕', text: '下午茶休息', reason: '补充能量' }
+            );
+        }
+        // 晚上 (18:00-22:00)
+        else if (hour >= 18 && hour < 22) {
+            if (hour === 18 && minute < 30) {
+                suggestions.push(
+                    { icon: '🍳', text: '准备晚饭', reason: '晚餐时间到了' },
+                    { icon: '🥘', text: '决定晚饭菜单', reason: '想想吃什么' }
+                );
+            } else if (hour < 19) {
+                suggestions.push(
+                    { icon: '🍽️', text: '吃晚饭', reason: '晚餐时间' },
+                    { icon: '🧼', text: '洗碗刷锅', reason: '饭后清洁' }
+                );
+            }
+            suggestions.push(
+                { icon: '🐱', text: '喂猫倒猫粮', reason: '猫咪晚餐时间' },
+                { icon: '🧹', text: '打扫厨房', reason: '晚饭后清洁' },
+                { icon: '🚿', text: '洗澡洗头', reason: '晚上洗澡放松' },
+                { icon: '🗑️', text: '倒垃圾', reason: '晚上倒垃圾' },
+                { icon: '🛏️', text: '整理卧室准备睡觉', reason: '睡前整理' },
+                { icon: '📱', text: '总结今日完成情况', reason: '回顾一天' }
+            );
+        }
+        // 深夜 (22:00-6:00)
+        else {
+            suggestions.push(
+                { icon: '🪥', text: '刷牙洗脸', reason: '睡前个人卫生' },
+                { icon: '🐱', text: '检查猫粮猫水', reason: '确保猫咪夜间有食物' },
+                { icon: '🛏️', text: '铺床换床单', reason: '保持床铺整洁' },
+                { icon: '😴', text: '准备睡觉', reason: '该休息了' },
+                { icon: '📱', text: '设置明日闹钟', reason: '准备明天' },
+                { icon: '💡', text: '关灯检查门窗', reason: '睡前安全检查' }
+            );
+        }
+        
+        // 周末特殊推荐
+        if (day === 0 || day === 6) {
+            suggestions.push(
+                { icon: '🧹', text: '大扫除全屋清洁', reason: '周末深度清洁' },
+                { icon: '🧺', text: '洗床单被套', reason: '周末洗大件' },
+                { icon: '🛒', text: '采购一周食材', reason: '周末囤货' }
+            );
+        }
+        
+        // 限制显示数量，优先显示前8个
+        return suggestions.slice(0, 8);
+    },
+    
+    // 填充输入框
+    fillInput(text) {
+        const input = document.getElementById('brainDumpInput');
+        if (input) {
+            input.value = text;
+            input.focus();
+            this.autoResizeInput(input);
+        }
+    },
+    
+    // 刷新推荐
+    refreshSuggestions() {
+        this.refresh();
+        
+        // 播放音效
+        if (typeof UnifiedAudioSystem !== 'undefined') {
+            UnifiedAudioSystem.playSound('click');
+        }
+    },
+    
+    // 切换AI模式
+    toggleAIMode(btn) {
+        btn.classList.toggle('active');
+        const isAIMode = btn.classList.contains('active');
+        
+        const input = document.getElementById('brainDumpInput');
+        if (input) {
+            if (isAIMode) {
+                input.placeholder = '🤖 AI模式：问我任何问题，我会智能回答...';
+            } else {
+                input.placeholder = '💬 跟我说点什么...可以聊天、添加任务、问问题';
+            }
+        }
+        
+        // 保存AI模式状态
+        localStorage.setItem('brain_dump_ai_mode', isAIMode);
+        
+        // 播放音效
+        if (typeof UnifiedAudioSystem !== 'undefined') {
+            UnifiedAudioSystem.playSound('click');
+        }
     },
     
     // 自动调整输入框高度
@@ -470,14 +644,101 @@ const BrainDump = {
         }
     },
     
-    // 处理输入提交
-    handleInputSubmit() {
+    // 处理输入提交（支持AI对话模式）
+    async handleInputSubmit() {
         const input = document.getElementById('brainDumpInput');
-        if (input && input.value.trim()) {
-            this.addItem(input.value);
-            input.value = '';
-            input.focus();
+        const aiBtn = document.querySelector('.brain-dump-ai-btn');
+        const isAIMode = aiBtn && aiBtn.classList.contains('active');
+        
+        if (!input || !input.value.trim()) return;
+        
+        const text = input.value.trim();
+        input.value = '';
+        input.focus();
+        
+        // AI对话模式
+        if (isAIMode) {
+            await this.handleAIChat(text);
+        } 
+        // 普通任务添加模式
+        else {
+            this.addItem(text);
         }
+    },
+    
+    // 处理AI对话
+    async handleAIChat(userMessage) {
+        // 添加用户消息到聊天记录
+        if (typeof App !== 'undefined' && App.addChatMessage) {
+            App.addChatMessage('user', userMessage, '👤');
+        }
+        
+        try {
+            // 判断是否是任务相关的请求
+            const isTaskRequest = /添加|安排|帮我|任务|待办|要做|计划/.test(userMessage);
+            
+            if (isTaskRequest) {
+                // 任务相关请求，使用任务安排AI
+                const prompt = `用户说：${userMessage}\n\n请分析用户的需求，提取出具体的任务，并以友好的语气回复。如果是要添加任务，请列出具体的任务项。`;
+                
+                const response = await this.callAI(prompt);
+                
+                // 显示AI回复
+                if (typeof App !== 'undefined' && App.addChatMessage) {
+                    App.addChatMessage('assistant', response, '🤖');
+                }
+                
+                // 尝试从回复中提取任务
+                const tasks = this.extractTasksFromAIResponse(response);
+                if (tasks.length > 0) {
+                    tasks.forEach(task => this.addItem(task));
+                }
+            } else {
+                // 普通对话，调用AI聊天
+                if (typeof AIService !== 'undefined' && AIService.chat) {
+                    const response = await AIService.chat([
+                        { role: 'system', content: '你是KiiKii，一个温暖、有趣、善解人意的AI助手。用简短、亲切的语气回复用户。' },
+                        { role: 'user', content: userMessage }
+                    ]);
+                    
+                    if (typeof App !== 'undefined' && App.addChatMessage) {
+                        App.addChatMessage('assistant', response, '🤖');
+                    }
+                } else {
+                    throw new Error('AI服务不可用');
+                }
+            }
+            
+            // 播放音效
+            if (typeof UnifiedAudioSystem !== 'undefined') {
+                UnifiedAudioSystem.playSound('success');
+            }
+            
+        } catch (error) {
+            console.error('AI对话失败:', error);
+            
+            if (typeof App !== 'undefined' && App.addChatMessage) {
+                App.addChatMessage('system', '抱歉，AI暂时无法回复。你可以关闭AI模式直接添加任务哦~', '⚠️');
+            }
+        }
+    },
+    
+    // 从AI回复中提取任务
+    extractTasksFromAIResponse(response) {
+        const tasks = [];
+        
+        // 匹配列表格式的任务 (1. xxx, - xxx, • xxx)
+        const listPattern = /(?:^|\n)(?:\d+\.|[-•])\s*(.+?)(?=\n|$)/g;
+        let match;
+        
+        while ((match = listPattern.exec(response)) !== null) {
+            const task = match[1].trim();
+            if (task.length > 2 && task.length < 50) {
+                tasks.push(task);
+            }
+        }
+        
+        return tasks;
     },
     
     // 渲染项目列表

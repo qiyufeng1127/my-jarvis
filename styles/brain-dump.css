@@ -16,7 +16,7 @@
 .brain-dump-input-wrapper {
     display: flex;
     gap: 8px;
-    margin-bottom: 8px;
+    margin-bottom: 12px;
     align-items: flex-end;
 }
 
@@ -43,6 +43,59 @@
     box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.1);
 }
 
+.brain-dump-send-btn,
+.brain-dump-ai-btn {
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 12px;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.brain-dump-send-btn {
+    background: linear-gradient(135deg, #E74C3C, #C0392B);
+}
+
+.brain-dump-send-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+}
+
+.brain-dump-send-btn:active {
+    transform: scale(0.95);
+}
+
+.brain-dump-ai-btn {
+    background: linear-gradient(135deg, #9B59B6, #8E44AD);
+}
+
+.brain-dump-ai-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(155, 89, 182, 0.3);
+}
+
+.brain-dump-ai-btn:active {
+    transform: scale(0.95);
+}
+
+.brain-dump-ai-btn.active {
+    background: linear-gradient(135deg, #27AE60, #2ECC71);
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(46, 204, 113, 0); }
+}
+
+/* 旧的添加按钮样式保留用于兼容 */
 .brain-dump-add-btn {
     width: 44px;
     height: 44px;
@@ -67,7 +120,94 @@
     transform: scale(0.95);
 }
 
-/* 快捷标签 */
+/* 智能推荐区域 */
+.brain-dump-smart-suggestions {
+    margin-top: 12px;
+    padding: 12px;
+    background: linear-gradient(135deg, #F8F9FA, #E8F4F8);
+    border-radius: 12px;
+    border: 1px solid #E0E8F0;
+}
+
+.suggestions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.suggestions-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #555;
+}
+
+.refresh-suggestions-btn {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.8);
+    color: #666;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.refresh-suggestions-btn:hover {
+    background: white;
+    transform: rotate(90deg);
+}
+
+.suggestions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+}
+
+.suggestion-btn {
+    padding: 10px 12px;
+    border: 1px solid rgba(231, 76, 60, 0.2);
+    border-radius: 10px;
+    background: white;
+    color: #333;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-align: left;
+}
+
+.suggestion-btn:hover {
+    border-color: #E74C3C;
+    background: linear-gradient(135deg, #FFF5F5, #FFE8E8);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(231, 76, 60, 0.15);
+}
+
+.suggestion-btn:active {
+    transform: translateY(0);
+}
+
+.suggestion-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.suggestion-text {
+    flex: 1;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 快捷标签（旧版，保留兼容） */
 .brain-dump-quick-tags {
     display: flex;
     flex-wrap: wrap;
@@ -640,6 +780,34 @@
     border-color: #E74C3C;
 }
 
+[data-theme="dark"] .brain-dump-smart-suggestions {
+    background: linear-gradient(135deg, #2A2A2A, #252A30);
+    border-color: #3A3A3A;
+}
+
+[data-theme="dark"] .suggestions-title {
+    color: #AAA;
+}
+
+[data-theme="dark"] .refresh-suggestions-btn {
+    background: rgba(50, 50, 50, 0.8);
+    color: #AAA;
+}
+
+[data-theme="dark"] .refresh-suggestions-btn:hover {
+    background: #3A3A3A;
+}
+
+[data-theme="dark"] .suggestion-btn {
+    background: #2A2A2A;
+    border-color: rgba(231, 76, 60, 0.3);
+    color: #E0E0E0;
+}
+
+[data-theme="dark"] .suggestion-btn:hover {
+    background: linear-gradient(135deg, #3A2A2A, #3A2020);
+}
+
 [data-theme="dark"] .quick-tag {
     background: #333;
     color: #AAA;
@@ -707,9 +875,30 @@
         font-size: 16px; /* 防止iOS缩放 */
     }
     
+    .brain-dump-send-btn,
+    .brain-dump-ai-btn,
     .brain-dump-add-btn {
         width: 40px;
         height: 40px;
+        font-size: 18px;
+    }
+    
+    .brain-dump-smart-suggestions {
+        padding: 10px;
+    }
+    
+    .suggestions-grid {
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 6px;
+    }
+    
+    .suggestion-btn {
+        padding: 8px 10px;
+        font-size: 12px;
+    }
+    
+    .suggestion-icon {
+        font-size: 16px;
     }
     
     .quick-tag {
