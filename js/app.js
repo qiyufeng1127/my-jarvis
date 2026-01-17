@@ -2696,7 +2696,7 @@ const App = {
         if (triggerCelebration && typeof CelebrationEffects !== 'undefined') {
             CelebrationEffects.triggerTaskComplete(task);
         } else {
-            this.showCoinAnimation(coinsEarned);
+        this.showCoinAnimation(coinsEarned);
         }
         
         // 语音播报（仅在语音助手开启时播报完成庆祝）
@@ -3638,8 +3638,8 @@ const App = {
             } else if (progress >= 75) {
                 statusClass = 'warning';
                 statusText = '即将超时';
-            }
-            
+        }
+        
             const currentStep = currentTask.substeps?.[0]?.title || '开始执行';
             
             html = `
