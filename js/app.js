@@ -813,12 +813,12 @@ const App = {
                     '</div>' +
                 '<div class="quick-replies" id="quickReplies">' +
                     '<button class="quick-reply-btn" onclick="App.quickReply(\'今天做什么\')">📅 今天做什么</button>' +
-                    '<button class="quick-reply-btn" onclick="App.quickReply(\'查看收入\')">💰 查看收入</button>' +
+                    '<button class="quick-reply-btn" onclick="App.showAddIncomeModal()">💰 记录收入</button>' +
                     '<button class="quick-reply-btn" onclick="App.quickReply(\'我有点累\')">😴 有点累</button>' +
                 '</div>' +
                 '<div class="chat-input-area">' +
                     '<div class="input-wrapper">' +
-                        '<input type="text" class="chat-input" id="chatInput" placeholder="告诉 KiiKii 你想做什么..." onkeypress="if(event.key===\'Enter\')App.sendMessage()">' +
+                        '<input type="text" class="chat-input" id="chatInput" placeholder="💬 告诉我你的收入/支出，或今天要做什么..." onkeypress="if(event.key===\'Enter\')App.sendMessage()">' +
                         '<button class="input-btn" onclick="App.addAttachment()" title="添加附件">➕</button>' +
                         '<button class="ai-parse-btn" onclick="App.aiParseInput()">AI拆解</button>' +
                         '<button class="input-btn" onclick="App.sendMessage()" title="发送">➡️</button>' +
@@ -893,11 +893,16 @@ const App = {
                 '<button class="quick-reply-btn" onclick="App.quickReply(\'休息10分钟\')">😴 休息10分钟</button>' +
                 '<button class="quick-reply-btn" onclick="App.quickReply(\'做点轻松的\')">🎮 做点轻松的</button>' +
                 '<button class="quick-reply-btn" onclick="App.quickReply(\'继续坚持\')">💪 继续坚持</button>';
+        } else if (context === 'income_recorded') {
+            buttons = 
+                '<button class="quick-reply-btn" onclick="App.showAddIncomeModal()">💰 继续记录</button>' +
+                '<button class="quick-reply-btn" onclick="App.showAllIncomes()">📊 查看流水</button>' +
+                '<button class="quick-reply-btn" onclick="App.quickReply(\'今天做什么\')">📅 今天做什么</button>';
         } else {
             // 默认
             buttons = 
                 '<button class="quick-reply-btn" onclick="App.quickReply(\'今天做什么\')">📅 今天做什么</button>' +
-                '<button class="quick-reply-btn" onclick="App.quickReply(\'查看收入\')">💰 查看收入</button>' +
+                '<button class="quick-reply-btn" onclick="App.showAddIncomeModal()">💰 记录收入</button>' +
                 '<button class="quick-reply-btn" onclick="App.quickReply(\'我有点累\')">😴 有点累</button>';
         }
         
@@ -1008,6 +1013,8 @@ const App = {
                         `📊 今日收入：¥${FinanceSystem.formatMoney(FinanceSystem.getTodayIncome())} | 本月：¥${FinanceSystem.formatMoney(FinanceSystem.getMonthIncome())}`,
                         '💰'
                     );
+                    // 更新快捷回复为收入相关操作
+                    this.updateQuickReplies('income_recorded');
                 } else if (financeResult.type === 'expense') {
                     this.addChatMessage('system', 
                         `💸 已记录支出 ¥${financeResult.amount}\n` +
@@ -5241,6 +5248,15 @@ const App = {
         
         const html = `
             <div style="padding:12px;max-height:100%;overflow-y:auto;">
+                <!-- 系统说明横幅 -->
+                <div style="background:linear-gradient(135deg,#667eea,#764ba2);border-radius:12px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px;color:white;">
+                    <span style="font-size:28px;">💎</span>
+                    <div style="flex:1;">
+                        <div style="font-size:13px;font-weight:600;margin-bottom:2px;">价值显化器 - 真实财富追踪</div>
+                        <div style="font-size:11px;opacity:0.9;">记录真实收入支出，与游戏金币🪙独立运作</div>
+                    </div>
+                </div>
+                
                 <!-- 财富仪表盘 -->
                 <div style="background:linear-gradient(135deg,${balance >= 0 ? '#27AE60' : '#E74C3C'},${balance >= 0 ? '#2ECC71' : '#E57373'});border-radius:16px;padding:20px;color:white;margin-bottom:12px;position:relative;overflow:hidden;">
                     <div style="position:absolute;right:-20px;top:-20px;font-size:100px;opacity:0.1;">💰</div>
@@ -5316,7 +5332,7 @@ const App = {
                 </div>
                 
                 <!-- 固定支出提醒 -->
-                <div style="background:linear-gradient(135deg,#FFF3E0,#FFE0B2);border-radius:12px;padding:14px;">
+                <div style="background:linear-gradient(135deg,#FFF3E0,#FFE0B2);border-radius:12px;padding:14px;margin-bottom:12px;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                         <span style="font-size:13px;font-weight:600;color:#E65100;">📅 每月固定支出</span>
                         <span style="font-size:12px;color:#F57C00;">¥${FS.formatMoney(FS.getTotalFixedExpenses())}</span>
@@ -5330,6 +5346,48 @@ const App = {
                     <button onclick="App.showFixedExpenseModal()" style="margin-top:10px;width:100%;padding:8px;background:rgba(230,81,0,0.1);color:#E65100;border:1px dashed #E65100;border-radius:8px;font-size:12px;cursor:pointer;">
                         ⚙️ 管理固定支出
                     </button>
+                </div>
+                
+                <!-- 项目想法库 -->
+                <div style="background:linear-gradient(135deg,#E8F5E9,#C8E6C9);border-radius:12px;padding:14px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <span style="font-size:13px;font-weight:600;color:#2E7D32;">💡 项目想法库</span>
+                        <span style="font-size:11px;color:#43A047;">${FS.ideas.length} 个想法</span>
+                    </div>
+                    ${FS.ideas.length > 0 ? `
+                        <div style="margin-bottom:10px;">
+                            ${FS.ideas.slice(0, 3).map(idea => {
+                                const statusIcons = {
+                                    'thinking': '💭',
+                                    'researching': '🔍',
+                                    'started': '🚀',
+                                    'achieved': '✅'
+                                };
+                                const icon = statusIcons[idea.status] || '💭';
+                                return `
+                                    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(46,125,50,0.1);">
+                                        <div style="flex:1;overflow:hidden;">
+                                            <div style="font-size:12px;color:#2C3E50;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${icon} ${idea.title}</div>
+                                            ${idea.estimatedIncome > 0 ? `<div style="font-size:10px;color:#27AE60;">预估 ¥${FS.formatMoney(idea.estimatedIncome)}</div>` : ''}
+                                        </div>
+                                        <span style="font-size:10px;color:#999;">⭐${'⭐'.repeat(idea.feasibility)}</span>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    ` : `
+                        <div style="text-align:center;color:#666;padding:12px 0;font-size:12px;">
+                            还没有想法？<br>记录你的赚钱点子吧！
+                        </div>
+                    `}
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                        <button onclick="App.showAddIdeaModal()" style="padding:8px;background:rgba(46,125,50,0.1);color:#2E7D32;border:1px dashed #2E7D32;border-radius:8px;font-size:12px;cursor:pointer;">
+                            ➕ 添加想法
+                        </button>
+                        <button onclick="App.showAllIdeas()" style="padding:8px;background:rgba(46,125,50,0.1);color:#2E7D32;border:1px solid #2E7D32;border-radius:8px;font-size:12px;cursor:pointer;">
+                            📋 查看全部
+                        </button>
+                    </div>
                 </div>
             </div>
         `;
@@ -6276,6 +6334,183 @@ App.removeFixedExpense = function(id) {
     document.getElementById('fixedExpenseModal').remove();
     this.showFixedExpenseModal();
     this.loadValuePanel();
+};
+
+// 显示添加项目想法弹窗
+App.showAddIdeaModal = function() {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay show';
+    modal.id = 'addIdeaModal';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width:450px;">
+            <div class="modal-header">
+                <span class="modal-icon">💡</span>
+                <h2>添加赚钱想法</h2>
+                <button class="modal-close-btn" onclick="document.getElementById('addIdeaModal').remove()">×</button>
+            </div>
+            <div class="modal-body" style="padding:20px;">
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;font-size:13px;color:#666;margin-bottom:6px;">想法标题</label>
+                    <input type="text" id="ideaTitle" placeholder="例如：开发一个小程序" style="width:100%;padding:12px;border:1px solid #E0E0E0;border-radius:8px;font-size:14px;box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;font-size:13px;color:#666;margin-bottom:6px;">预估收入 (元)</label>
+                    <input type="number" id="ideaIncome" placeholder="预计能赚多少" style="width:100%;padding:12px;border:1px solid #E0E0E0;border-radius:8px;font-size:14px;box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;font-size:13px;color:#666;margin-bottom:6px;">可行性评分</label>
+                    <div style="display:flex;gap:8px;justify-content:space-between;">
+                        <button class="feasibility-btn" data-score="1" onclick="App.selectFeasibility(1)" style="flex:1;padding:10px;border:2px solid #E0E0E0;border-radius:8px;background:white;cursor:pointer;font-size:12px;">⭐<br>很难</button>
+                        <button class="feasibility-btn" data-score="2" onclick="App.selectFeasibility(2)" style="flex:1;padding:10px;border:2px solid #E0E0E0;border-radius:8px;background:white;cursor:pointer;font-size:12px;">⭐⭐<br>较难</button>
+                        <button class="feasibility-btn active" data-score="3" onclick="App.selectFeasibility(3)" style="flex:1;padding:10px;border:2px solid #667eea;border-radius:8px;background:#F0F4FF;cursor:pointer;font-size:12px;">⭐⭐⭐<br>中等</button>
+                        <button class="feasibility-btn" data-score="4" onclick="App.selectFeasibility(4)" style="flex:1;padding:10px;border:2px solid #E0E0E0;border-radius:8px;background:white;cursor:pointer;font-size:12px;">⭐⭐⭐⭐<br>较易</button>
+                        <button class="feasibility-btn" data-score="5" onclick="App.selectFeasibility(5)" style="flex:1;padding:10px;border:2px solid #E0E0E0;border-radius:8px;background:white;cursor:pointer;font-size:12px;">⭐⭐⭐⭐⭐<br>很容易</button>
+                    </div>
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;font-size:13px;color:#666;margin-bottom:6px;">备注说明</label>
+                    <textarea id="ideaNotes" placeholder="记录你的想法、计划、需要的资源等..." style="width:100%;padding:12px;border:1px solid #E0E0E0;border-radius:8px;font-size:13px;min-height:80px;box-sizing:border-box;resize:vertical;"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn btn-cancel" onclick="document.getElementById('addIdeaModal').remove()">取消</button>
+                <button class="modal-btn btn-confirm" onclick="App.confirmAddIdea()">添加想法</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    document.getElementById('ideaTitle').focus();
+};
+
+// 选择可行性评分
+App.selectFeasibility = function(score) {
+    const buttons = document.querySelectorAll('.feasibility-btn');
+    buttons.forEach(btn => {
+        if (parseInt(btn.dataset.score) === score) {
+            btn.style.border = '2px solid #667eea';
+            btn.style.background = '#F0F4FF';
+            btn.classList.add('active');
+        } else {
+            btn.style.border = '2px solid #E0E0E0';
+            btn.style.background = 'white';
+            btn.classList.remove('active');
+        }
+    });
+};
+
+// 确认添加想法
+App.confirmAddIdea = function() {
+    const FS = typeof FinanceSystem !== 'undefined' ? FinanceSystem : null;
+    if (!FS) return;
+    
+    const title = document.getElementById('ideaTitle').value.trim();
+    const income = parseFloat(document.getElementById('ideaIncome').value) || 0;
+    const notes = document.getElementById('ideaNotes').value.trim();
+    const feasibilityBtn = document.querySelector('.feasibility-btn.active');
+    const feasibility = feasibilityBtn ? parseInt(feasibilityBtn.dataset.score) : 3;
+    
+    if (!title) {
+        alert('请输入想法标题');
+        return;
+    }
+    
+    FS.addIdea({
+        title,
+        estimatedIncome: income,
+        feasibility,
+        notes
+    });
+    
+    document.getElementById('addIdeaModal').remove();
+    this.addChatMessage('system', `💡 已添加赚钱想法：${title}`, '💡');
+};
+
+// 显示所有项目想法
+App.showAllIdeas = function() {
+    const FS = typeof FinanceSystem !== 'undefined' ? FinanceSystem : null;
+    if (!FS) return;
+    
+    const ideas = FS.ideas;
+    
+    const statusMap = {
+        'thinking': { label: '💭 构思中', color: '#95A5A6' },
+        'researching': { label: '🔍 调研中', color: '#3498DB' },
+        'started': { label: '🚀 已启动', color: '#F39C12' },
+        'achieved': { label: '✅ 已实现', color: '#27AE60' }
+    };
+    
+    const listHtml = ideas.map(idea => {
+        const status = statusMap[idea.status] || statusMap.thinking;
+        const date = new Date(idea.createdAt);
+        const dateStr = `${date.getMonth()+1}/${date.getDate()}`;
+        const stars = '⭐'.repeat(idea.feasibility);
+        
+        return `
+            <div style="background:white;border-radius:12px;padding:14px;margin-bottom:12px;border:1px solid #E0E0E0;">
+                <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;">
+                    <div style="flex:1;">
+                        <div style="font-size:14px;font-weight:600;color:#2C3E50;margin-bottom:4px;">${idea.title}</div>
+                        <div style="font-size:11px;color:#999;">${dateStr} · ${stars}</div>
+                    </div>
+                    <span style="font-size:11px;padding:4px 8px;background:${status.color}22;color:${status.color};border-radius:6px;white-space:nowrap;">${status.label}</span>
+                </div>
+                ${idea.estimatedIncome > 0 ? `<div style="font-size:13px;color:#27AE60;margin-bottom:8px;">💰 预估收入：¥${FS.formatMoney(idea.estimatedIncome)}</div>` : ''}
+                ${idea.notes ? `<div style="font-size:12px;color:#666;line-height:1.5;margin-bottom:10px;">${idea.notes}</div>` : ''}
+                <div style="display:flex;gap:8px;">
+                    <button onclick="App.updateIdeaStatus('${idea.id}', 'researching')" style="flex:1;padding:6px;background:#3498DB22;color:#3498DB;border:none;border-radius:6px;font-size:11px;cursor:pointer;">🔍 调研</button>
+                    <button onclick="App.updateIdeaStatus('${idea.id}', 'started')" style="flex:1;padding:6px;background:#F39C1222;color:#F39C12;border:none;border-radius:6px;font-size:11px;cursor:pointer;">🚀 启动</button>
+                    <button onclick="App.updateIdeaStatus('${idea.id}', 'achieved')" style="flex:1;padding:6px;background:#27AE6022;color:#27AE60;border:none;border-radius:6px;font-size:11px;cursor:pointer;">✅ 完成</button>
+                    <button onclick="App.removeIdea('${idea.id}')" style="padding:6px 10px;background:#E74C3C22;color:#E74C3C;border:none;border-radius:6px;font-size:11px;cursor:pointer;">🗑️</button>
+                </div>
+            </div>
+        `;
+    }).join('') || '<div style="text-align:center;color:#999;padding:40px;">暂无想法记录<br>点击下方按钮添加你的赚钱想法</div>';
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay show';
+    modal.id = 'allIdeasModal';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width:500px;">
+            <div class="modal-header">
+                <span class="modal-icon">💡</span>
+                <h2>项目想法库</h2>
+                <button class="modal-close-btn" onclick="document.getElementById('allIdeasModal').remove()">×</button>
+            </div>
+            <div class="modal-body" style="padding:16px;max-height:500px;overflow-y:auto;background:#F8F9FA;">
+                ${listHtml}
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn btn-confirm" onclick="document.getElementById('allIdeasModal').remove(); App.showAddIdeaModal();">+ 添加新想法</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+};
+
+// 更新想法状态
+App.updateIdeaStatus = function(ideaId, status) {
+    const FS = typeof FinanceSystem !== 'undefined' ? FinanceSystem : null;
+    if (!FS) return;
+    
+    FS.updateIdeaStatus(ideaId, status);
+    
+    // 刷新弹窗
+    document.getElementById('allIdeasModal').remove();
+    this.showAllIdeas();
+};
+
+// 删除想法
+App.removeIdea = function(ideaId) {
+    const FS = typeof FinanceSystem !== 'undefined' ? FinanceSystem : null;
+    if (!FS) return;
+    
+    if (!confirm('确定要删除这个想法吗？')) return;
+    
+    FS.removeIdea(ideaId);
+    
+    // 刷新弹窗
+    document.getElementById('allIdeasModal').remove();
+    this.showAllIdeas();
 };
 
 // 显示所有收入记录

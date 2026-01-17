@@ -137,27 +137,29 @@ const FinanceSystem = {
     parseAndRecord(text) {
         // 收入关键词
         const incomePatterns = [
-            /(?:赚了?|收入|入账|到账|收到|获得|挣了?)[\s]*[¥￥]?(\d+(?:\.\d{1,2})?)/,
-            /[¥￥]?(\d+(?:\.\d{1,2})?)[\s]*(?:收入|入账|到账)/,
-            /(?:画|做|写|接|完成).*?(?:赚了?|收入|获得)[\s]*[¥￥]?(\d+(?:\.\d{1,2})?)/
+            /(?:赚了?|收入|入账|到账|收到|获得|挣了?|接了|完成了)[\s]*[¥￥]?(\d+(?:\.\d{1,2})?)/,
+            /[¥￥]?(\d+(?:\.\d{1,2})?)[\s]*(?:收入|入账|到账|进账)/,
+            /(?:画|做|写|接|完成|卖|售).*?(?:赚了?|收入|获得|挣了?)[\s]*[¥￥]?(\d+(?:\.\d{1,2})?)/,
+            /(?:今天|昨天|刚才|刚刚).*?(?:赚了?|收入|获得)[\s]*[¥￥]?(\d+(?:\.\d{1,2})?)/
         ];
         
         // 支出关键词
         const expensePatterns = [
-            /(?:花了?|支出|消费|付了?|买了?)[\s]*[¥￥]?(\d+(?:\.\d{1,2})?)/,
-            /[¥￥]?(\d+(?:\.\d{1,2})?)[\s]*(?:支出|消费)/,
-            /(?:房租|水电|话费|订阅|会员)[\s]*[¥￥]?(\d+(?:\.\d{1,2})?)/
+            /(?:花了?|支出|消费|付了?|买了?|交了?)[\s]*[¥￥]?(\d+(?:\.\d{1,2})?)/,
+            /[¥￥]?(\d+(?:\.\d{1,2})?)[\s]*(?:支出|消费|花费)/,
+            /(?:房租|水电|话费|订阅|会员|买|购).*?[¥￥]?(\d+(?:\.\d{1,2})?)/,
+            /(?:今天|昨天|刚才|刚刚).*?(?:花了?|付了?|买了?)[\s]*[¥￥]?(\d+(?:\.\d{1,2})?)/
         ];
         
         // 时间关键词
-        const hoursPattern = /(?:花了?|用了?|耗时|做了?)[\s]*(\d+(?:\.\d{1,2})?)[\s]*(?:小时|h|H)/;
+        const hoursPattern = /(?:花了?|用了?|耗时|做了?|工作了?)[\s]*(\d+(?:\.\d{1,2})?)[\s]*(?:小时|h|H|个小时)/;
         
         // 项目关键词映射
         const projectKeywords = {
-            'design': ['插画', '设计', 'UI', 'logo', '海报', '头像', '美术'],
-            'coding': ['编程', '代码', '开发', '网站', 'APP', '程序', '软件'],
-            'writing': ['写作', '文章', '文案', '稿子', '公众号', '小说'],
-            'consulting': ['咨询', '顾问', '培训', '课程', '教学'],
+            'design': ['插画', '设计', 'UI', 'logo', '海报', '头像', '美术', '画', '绘画', '图标', 'banner'],
+            'coding': ['编程', '代码', '开发', '网站', 'APP', '程序', '软件', '写代码', '敲代码', '调试', 'bug'],
+            'writing': ['写作', '文章', '文案', '稿子', '公众号', '小说', '写文', '撰稿', '编辑'],
+            'consulting': ['咨询', '顾问', '培训', '课程', '教学', '辅导', '指导', '讲课'],
             'other': []
         };
         
@@ -206,6 +208,16 @@ const FinanceSystem = {
             if (projectId !== 'other') break;
         }
         
+        // 如果没有明确时间，根据金额估算
+        if (isIncome && hours === 0) {
+            // 根据项目类型和金额估算时间
+            if (amount >= 5000) hours = 8;
+            else if (amount >= 2000) hours = 4;
+            else if (amount >= 1000) hours = 2;
+            else if (amount >= 500) hours = 1;
+            else hours = 0.5;
+        }
+        
         // 记录
         if (isIncome && amount > 0) {
             this.addIncome({
@@ -214,7 +226,7 @@ const FinanceSystem = {
                 description: text,
                 hours: hours || 1
             });
-            return { type: 'income', amount, project: projectId };
+            return { type: 'income', amount, project: projectId, hours };
         } else if (isExpense && amount > 0) {
             this.addExpense({
                 amount,
@@ -615,6 +627,11 @@ const FinanceSystem = {
         this.ideas.unshift(idea);
         this.saveIdeas();
         
+        // 刷新UI
+        if (typeof App !== 'undefined' && App.loadValuePanel) {
+            App.loadValuePanel();
+        }
+        
         return idea;
     },
     
@@ -626,6 +643,24 @@ const FinanceSystem = {
         if (idea) {
             idea.status = status;
             this.saveIdeas();
+            
+            // 刷新UI
+            if (typeof App !== 'undefined' && App.loadValuePanel) {
+                App.loadValuePanel();
+            }
+        }
+    },
+    
+    /**
+     * 删除想法
+     */
+    removeIdea(ideaId) {
+        this.ideas = this.ideas.filter(i => i.id !== ideaId);
+        this.saveIdeas();
+        
+        // 刷新UI
+        if (typeof App !== 'undefined' && App.loadValuePanel) {
+            App.loadValuePanel();
         }
     },
     
