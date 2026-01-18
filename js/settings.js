@@ -7,6 +7,58 @@ const Settings = {
         this.initKeyboardShortcuts();
         this.checkFirstVisit();
         this.initThemeToggle();
+        this.displayVersion();
+    },
+    
+    // 显示版本号
+    displayVersion() {
+        const versionElement = document.getElementById('appVersion');
+        if (versionElement && typeof AppVersion !== 'undefined') {
+            const info = AppVersion.getInfo();
+            versionElement.textContent = `v${info.version}`;
+            versionElement.title = `版本 ${info.version}\n更新日期: ${info.updateDate}`;
+        }
+    },
+    
+    // 显示版本详情
+    showVersionDetails() {
+        if (typeof AppVersion === 'undefined') {
+            this.showToast('error', '错误', '版本信息不可用');
+            return;
+        }
+        
+        const latest = AppVersion.getLatestChanges();
+        const message = `
+            <div style="text-align: left;">
+                <p><strong>当前版本：</strong>v${AppVersion.current}</p>
+                <p><strong>更新日期：</strong>${AppVersion.updateDate}</p>
+                <br>
+                <p><strong>最新更新：</strong></p>
+                <ul style="margin: 10px 0; padding-left: 20px;">
+                    ${latest.changes.map(c => `<li>${c}</li>`).join('')}
+                </ul>
+            </div>
+        `;
+        
+        // 创建自定义弹窗
+        const modal = document.createElement('div');
+        modal.className = 'version-modal-overlay';
+        modal.innerHTML = `
+            <div class="version-modal">
+                <div class="version-modal-header">
+                    <span>📱 版本信息</span>
+                    <button class="version-modal-close" onclick="this.closest('.version-modal-overlay').remove()">×</button>
+                </div>
+                <div class="version-modal-body">
+                    ${message}
+                </div>
+                <div class="version-modal-footer">
+                    <button class="version-modal-btn" onclick="this.closest('.version-modal-overlay').remove()">知道了</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        setTimeout(() => modal.classList.add('show'), 10);
     },
 
     // ==================== 主题切换 ====================
@@ -464,6 +516,10 @@ function nextOnboardingStep() {
 
 function resetOnboarding() {
     Settings.resetOnboarding();
+}
+
+function showVersionDetails() {
+    Settings.showVersionDetails();
 }
 
 // 页面加载时初始化

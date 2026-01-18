@@ -6,6 +6,8 @@
     height: 100%;
     padding: 12px;
     gap: 12px;
+    /* 优化滚动性能 */
+    contain: layout style paint;
 }
 
 /* 输入区域 */
@@ -222,12 +224,46 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 10px;
+    gap: 10px;
 }
 
 .suggestions-title {
     font-size: 13px;
     font-weight: 600;
     color: #555;
+    flex-shrink: 0;
+}
+
+.suggestions-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    justify-content: flex-end;
+}
+
+.time-slot-selector {
+    padding: 6px 10px;
+    border: 1px solid rgba(231, 76, 60, 0.3);
+    border-radius: 8px;
+    background: white;
+    color: #555;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    outline: none;
+    max-width: 180px;
+}
+
+.time-slot-selector:hover {
+    border-color: #E74C3C;
+    background: #FFF5F5;
+}
+
+.time-slot-selector:focus {
+    border-color: #E74C3C;
+    box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.1);
 }
 
 .refresh-suggestions-btn {
@@ -243,6 +279,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
 }
 
 .refresh-suggestions-btn:hover {
@@ -353,6 +390,7 @@
     flex-direction: column;
     min-height: 0;
     overflow: hidden;
+    margin-bottom: 0; /* 确保列表不会被遮挡 */
 }
 
 .list-header {
@@ -381,6 +419,29 @@
     flex-direction: column;
     gap: 8px;
     padding-right: 4px;
+    padding-bottom: 20px; /* 底部留白 */
+    /* 优化滚动性能 - 关键修复 */
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin; /* Firefox */
+    scrollbar-color: rgba(231, 76, 60, 0.3) transparent; /* Firefox */
+}
+
+/* 自定义滚动条 - Webkit浏览器 */
+.items-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.items-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.items-container::-webkit-scrollbar-thumb {
+    background: rgba(231, 76, 60, 0.3);
+    border-radius: 3px;
+}
+
+.items-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(231, 76, 60, 0.5);
 }
 
 /* 想法项目 */
@@ -393,7 +454,12 @@
     border: 1px solid #E8E8E8;
     border-radius: 10px;
     cursor: grab;
-    transition: all 0.2s ease;
+    flex-shrink: 0; /* 防止被压缩 */
+}
+
+.brain-dump-item:hover {
+    border-color: #E74C3C;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .brain-dump-item:hover {
@@ -445,13 +511,19 @@
     color: #E74C3C;
 }
 
-/* 操作按钮区 */
+/* 操作按钮区 - 关键修复：确保始终显示 */
 .brain-dump-actions {
-    display: flex;
+    display: flex !important; /* 强制显示 */
     gap: 10px;
     padding-top: 12px;
+    padding-bottom: 100px !important; /* 为底部Dock导航栏留出更多空间 */
     border-top: 1px solid #F0F0F0;
-    flex-shrink: 0;
+    flex-shrink: 0 !important;
+    background: white !important; /* 确保背景不透明 */
+    position: sticky !important; /* 改为sticky让它始终可见 */
+    bottom: 0;
+    z-index: 100 !important; /* 提高层级确保在最上层 */
+    margin-top: auto; /* 确保在底部 */
 }
 
 .action-btn {
@@ -877,6 +949,21 @@
     color: #AAA;
 }
 
+[data-theme="dark"] .time-slot-selector {
+    background: #2A2A2A;
+    border-color: rgba(231, 76, 60, 0.4);
+    color: #E0E0E0;
+}
+
+[data-theme="dark"] .time-slot-selector:hover {
+    background: #333;
+    border-color: #E74C3C;
+}
+
+[data-theme="dark"] .time-slot-selector:focus {
+    background: #333;
+}
+
 [data-theme="dark"] .refresh-suggestions-btn {
     background: rgba(50, 50, 50, 0.8);
     color: #AAA;
@@ -956,6 +1043,12 @@
 @media (max-width: 768px) {
     .brain-dump-container {
         padding: 10px;
+        padding-bottom: 0; /* 移动端底部不需要额外padding */
+    }
+    
+    /* 移动端操作按钮区域需要更多底部空间 */
+    .brain-dump-actions {
+        padding-bottom: 100px; /* 移动端Dock更高，需要更多空间 */
     }
     
     .brain-dump-input {
@@ -973,6 +1066,26 @@
     
     .brain-dump-smart-suggestions {
         padding: 10px;
+    }
+    
+    .suggestions-header {
+        flex-wrap: wrap;
+    }
+    
+    .suggestions-title {
+        width: 100%;
+        margin-bottom: 8px;
+    }
+    
+    .suggestions-controls {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .time-slot-selector {
+        flex: 1;
+        max-width: none;
+        font-size: 11px;
     }
     
     .suggestions-grid {
@@ -1075,5 +1188,35 @@
     border-color: #E74C3C;
     color: #E74C3C;
     background: rgba(231, 76, 60, 0.1);
+}
+
+/* ==================== 移动端适配 ==================== */
+@media (max-width: 768px) {
+    /* 操作按钮区 - 移动端加大底部间距 */
+    .brain-dump-actions {
+        padding-bottom: 120px !important; /* 移动端留更多空间 */
+        gap: 8px;
+    }
+    
+    .action-btn {
+        padding: 14px 12px;
+        font-size: 13px;
+    }
+    
+    /* 确保容器不会被底部导航栏遮挡 */
+    .brain-dump-container {
+        padding-bottom: 0;
+    }
+    
+    /* 列表容器优化 */
+    .items-container {
+        padding-bottom: 30px;
+    }
+}
+
+/* 深色模式 - 操作按钮区 */
+[data-theme="dark"] .brain-dump-actions {
+    background: #1A1A1A !important;
+    border-top-color: #333;
 }
 

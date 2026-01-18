@@ -233,7 +233,7 @@ const BrainDump = {
         }
     },
     
-    // 智能拆分文本为多个任务
+    // 智能拆分文本为多个任务（优化版 - 避免过度拆分）
     smartSplitText(text) {
         // 如果文本很短（少于4个字符），不拆分
         if (text.length < 4) {
@@ -244,140 +244,88 @@ const BrainDump = {
         const explicitSeparators = /[,，、;；\n\r]+/;
         if (explicitSeparators.test(text)) {
             const parts = text.split(explicitSeparators).map(s => s.trim()).filter(s => s.length > 0);
-            if (parts.length > 1) {
-                // 对每个部分递归拆分
-                const allTasks = [];
-                parts.forEach(part => {
-                    const subTasks = this.smartSplitText(part);
-                    allTasks.push(...subTasks);
-                });
-                return allTasks;
+            if (parts.length > 1 && parts.every(p => p.length >= 2)) {
+                return parts;
             }
         }
         
-        // 方法2：基于完整任务关键词列表进行贪婪匹配
-        // 按长度降序排列，优先匹配更长的任务短语
-        const allTaskPhrases = [
-            // 收拾整理类（带位置）- 长的放前面
-            '收拾整理工作区', '收拾整理客厅', '收拾整理厨房', '收拾整理卧室', '收拾整理厕所', '收拾整理房间',
-            '整理收拾工作区', '整理收拾客厅', '整理收拾厨房', '整理收拾卧室', '整理收拾厕所', '整理收拾房间',
-            '收拾工作区', '收拾客厅', '收拾厨房', '收拾卧室', '收拾厕所', '收拾房间', '收拾书桌', '收拾衣柜',
-            '整理工作区', '整理客厅', '整理厨房', '整理卧室', '整理厕所', '整理房间', '整理书桌', '整理衣柜',
-            '打扫工作区', '打扫客厅', '打扫厨房', '打扫卧室', '打扫厕所', '打扫房间', '打扫卫生',
-            '清洁工作区', '清洁客厅', '清洁厨房', '清洁卧室', '清洁厕所', '清洁房间',
-            // 收拾衣服类
-            '收拾衣服', '整理衣服', '叠衣服', '晾衣服', '收衣服', '换衣服',
-            // 洗涤类
-            '洗衣服', '洗碗', '洗澡', '洗头', '洗脸', '洗手', '刷锅',
-            // 个人卫生
-            '刷牙', '上厕所', '护肤', '敷面膜', '化妆', '卸妆',
-            // 地面清洁
-            '拖地', '扫地', '擦地', '擦桌子', '擦窗户', '擦玻璃',
-            // 厨房类
-            '做饭', '炒菜', '煮饭', '烧水', '泡茶', '冲咖啡',
-            '吃早饭', '吃午饭', '吃晚饭', '吃饭', '早饭', '午饭', '晚饭', '早餐', '午餐', '晚餐',
-            '决定晚上的菜单', '决定菜单', '想菜单',
-            // 猫咪类
-            '喂猫', '倒猫粮', '换猫粮', '加猫粮', '铲猫砂', '换猫砂', '清理猫砂', '换猫水', '洗猫碗', '加水',
-            // 工作学习
-            '训练lora', '训练模型', '写代码', '修图', '剪辑', '拍摄', '学习', '看书', '写作', '开会', '工作',
-            // 外出类
-            '拿快递', '取快递', '寄快递', '出门', '买东西', '购物', '逛街',
-            // 休息娱乐
-            '休息', '午睡', '睡觉', '看电视', '玩游戏', '刷手机',
-            // 其他
-            '换床单', '铺床', '浇花', '倒垃圾'
+        // 方法2：尝试用强连接词拆分（只用明确的连接词）
+        const strongSeparators = /(?:然后|接着|还要|还得|以及|之后)/g;
+        if (strongSeparators.test(text)) {
+            const parts = text.split(strongSeparators).map(s => s.trim()).filter(s => s.length >= 2);
+            if (parts.length > 1 && parts.length <= 4) {
+                // 验证拆分是否合理：每个部分都应该是完整的任务
+                const validParts = parts.filter(p => {
+                    // 至少包含一个动词或任务关键词
+                    return /刷|洗|做|吃|喂|铲|换|收|整理|打扫|拖|扫|擦|训练|修|剪|拍|学|看|写|拿|取|寄|买|倒|浇|铺/.test(p);
+                });
+                
+                if (validParts.length === parts.length) {
+                    return parts;
+                }
+            }
+        }
+        
+        // 方法3：检测是否是"动词+地点"的组合（这种不应该拆分）
+        // 例如："收拾客厅" 不应该拆成 "收拾" 和 "客厅"
+        const singleTaskPattern = /^(收拾|整理|打扫|清洁|拖|扫|擦)(客厅|卧室|厨房|厕所|工作区|房间|书桌|衣柜|地|桌子|窗户)$/;
+        if (singleTaskPattern.test(text)) {
+            return [text];
+        }
+        
+        // 方法4：检测是否是完整的复合任务（不应该拆分）
+        const compoundTaskPatterns = [
+            /^(刷牙)(洗脸)$/,  // 刷牙洗脸
+            /^(洗衣服)(晾衣服)$/,  // 洗衣服晾衣服
+            /^(收衣服)(叠衣服)$/,  // 收衣服叠衣服
+            /^(洗碗)(刷锅)$/,  // 洗碗刷锅
+            /^(喂猫)(倒猫粮)$/,  // 喂猫倒猫粮
+            /^(换猫水)(洗猫碗)$/,  // 换猫水洗猫碗
         ];
         
-        // 贪婪匹配：从文本中依次找出所有任务
-        const foundTasks = [];
-        let remaining = text;
-        let lastLength = -1;
+        for (const pattern of compoundTaskPatterns) {
+            if (pattern.test(text)) {
+                return [text];  // 这些是常见的组合任务，不拆分
+            }
+        }
         
-        // 循环直到没有新的匹配
-        while (remaining.length > 0 && remaining.length !== lastLength) {
-            lastLength = remaining.length;
-            let matched = false;
+        // 方法5：如果文本包含多个明确的独立任务，才拆分
+        const taskKeywords = [
+            '刷牙', '洗脸', '洗澡', '洗头', '上厕所',
+            '洗衣服', '晾衣服', '叠衣服', '收衣服',
+            '洗碗', '刷锅', '做饭', '炒菜',
+            '喂猫', '铲猫砂', '换猫水',
+            '拖地', '扫地', '擦桌子',
+            '拿快递', '倒垃圾', '浇花'
+        ];
+        
+        let matchCount = 0;
+        const matches = [];
+        
+        for (const keyword of taskKeywords) {
+            if (text.includes(keyword)) {
+                matchCount++;
+                matches.push(keyword);
+            }
+        }
+        
+        // 只有当匹配到3个或以上独立任务时，才考虑拆分
+        if (matchCount >= 3) {
+            const tasks = [];
+            let remaining = text;
             
-            // 按长度降序尝试匹配
-            for (const phrase of allTaskPhrases) {
-                const index = remaining.indexOf(phrase);
+            matches.forEach(keyword => {
+                const index = remaining.indexOf(keyword);
                 if (index !== -1) {
-                    foundTasks.push({
-                        text: phrase,
-                        index: text.indexOf(phrase)
-                    });
-                    // 用占位符替换已匹配的部分
-                    remaining = remaining.replace(phrase, '§');
-                    matched = true;
-                    break; // 找到一个就重新开始，确保贪婪匹配
-                }
-            }
-            
-            // 如果没有匹配到预定义短语，尝试匹配动态组合
-            if (!matched) {
-                // 尝试匹配 "收拾/整理 + 任意位置词"
-                const dynamicPatterns = [
-                    /(?:收拾整理|整理收拾|收拾|整理|打扫|清洁)([^\s§]{1,4})/,
-                ];
-                
-                for (const pattern of dynamicPatterns) {
-                    const match = remaining.match(pattern);
-                    if (match && match[0].length >= 2) {
-                        foundTasks.push({
-                            text: match[0],
-                            index: text.indexOf(match[0])
-                        });
-                        remaining = remaining.replace(match[0], '§');
-                        matched = true;
-                        break;
-                    }
-                }
-            }
-        }
-        
-        // 处理剩余未匹配的文本（可能是自定义任务）
-        const leftover = remaining.split('§').map(s => s.trim()).filter(s => s.length >= 2);
-        leftover.forEach(item => {
-            // 检查是否包含有意义的内容
-            if (!/^[的一下了着]$/.test(item)) {
-                foundTasks.push({
-                    text: item,
-                    index: text.indexOf(item)
-                });
-            }
-        });
-        
-        // 如果找到多个任务，按原文位置排序返回
-        if (foundTasks.length > 1) {
-            // 去重
-            const uniqueTasks = [];
-            const seen = new Set();
-            foundTasks.forEach(t => {
-                if (!seen.has(t.text)) {
-                    seen.add(t.text);
-                    uniqueTasks.push(t);
+                    tasks.push(keyword);
+                    remaining = remaining.replace(keyword, '');
                 }
             });
             
-            uniqueTasks.sort((a, b) => a.index - b.index);
-            return uniqueTasks.map(t => t.text);
+            return tasks;
         }
         
-        // 方法3：尝试用常见的口语连接词拆分
-        const oralSeparators = /(?:然后|接着|再去|再|还要|还得|还有|以及|同时|之后|完了|完再)/g;
-        const oralParts = text.split(oralSeparators).map(s => s.trim()).filter(s => s.length > 1);
-        if (oralParts.length > 1) {
-            // 对每个部分递归拆分
-            const allTasks = [];
-            oralParts.forEach(part => {
-                const subTasks = this.smartSplitText(part);
-                allTasks.push(...subTasks);
-            });
-            return allTasks;
-        }
-        
-        // 无法拆分，返回原文
+        // 默认：不拆分，返回原文
         return [text];
     },
     
@@ -432,8 +380,11 @@ const BrainDump = {
     
     // 渲染输入区（合并智能对话功能）
     renderInputSection() {
-        // 获取当前时间段的智能推荐任务
-        const smartSuggestions = this.getSmartSuggestions();
+        // 获取选中的时间段
+        const selectedTimeSlot = this.getSelectedTimeSlot();
+        
+        // 获取该时间段的智能推荐任务
+        const smartSuggestions = this.getSmartSuggestions(selectedTimeSlot);
         
         // 获取 AI 模式状态
         const isAIMode = localStorage.getItem('brain_dump_ai_mode') === 'true';
@@ -460,8 +411,25 @@ const BrainDump = {
                 </div>
                 <div class="brain-dump-smart-suggestions">
                     <div class="suggestions-header">
-                        <span class="suggestions-title">⚡ 智能推荐 (${this.getCurrentTimeLabel()})</span>
-                        <button class="refresh-suggestions-btn" onclick="BrainDump.refreshSuggestions()" title="刷新推荐">🔄</button>
+                        <span class="suggestions-title">⚡ 智能推荐</span>
+                        <div class="suggestions-controls">
+                            <select class="time-slot-selector" onchange="BrainDump.changeTimeSlot(this.value)">
+                                <option value="current" ${selectedTimeSlot === 'current' ? 'selected' : ''}>当前时段 (${this.getCurrentTimeLabel()})</option>
+                                <option value="today-morning" ${selectedTimeSlot === 'today-morning' ? 'selected' : ''}>今天早晨 (6:00-9:00)</option>
+                                <option value="today-forenoon" ${selectedTimeSlot === 'today-forenoon' ? 'selected' : ''}>今天上午 (9:00-12:00)</option>
+                                <option value="today-noon" ${selectedTimeSlot === 'today-noon' ? 'selected' : ''}>今天午间 (12:00-14:00)</option>
+                                <option value="today-afternoon" ${selectedTimeSlot === 'today-afternoon' ? 'selected' : ''}>今天下午 (14:00-18:00)</option>
+                                <option value="today-evening" ${selectedTimeSlot === 'today-evening' ? 'selected' : ''}>今天晚上 (18:00-22:00)</option>
+                                <option value="today-night" ${selectedTimeSlot === 'today-night' ? 'selected' : ''}>今天深夜 (22:00-6:00)</option>
+                                <option value="tomorrow-morning" ${selectedTimeSlot === 'tomorrow-morning' ? 'selected' : ''}>明天早晨 (6:00-9:00)</option>
+                                <option value="tomorrow-forenoon" ${selectedTimeSlot === 'tomorrow-forenoon' ? 'selected' : ''}>明天上午 (9:00-12:00)</option>
+                                <option value="tomorrow-noon" ${selectedTimeSlot === 'tomorrow-noon' ? 'selected' : ''}>明天午间 (12:00-14:00)</option>
+                                <option value="tomorrow-afternoon" ${selectedTimeSlot === 'tomorrow-afternoon' ? 'selected' : ''}>明天下午 (14:00-18:00)</option>
+                                <option value="tomorrow-evening" ${selectedTimeSlot === 'tomorrow-evening' ? 'selected' : ''}>明天晚上 (18:00-22:00)</option>
+                                <option value="tomorrow-night" ${selectedTimeSlot === 'tomorrow-night' ? 'selected' : ''}>明天深夜 (22:00-6:00)</option>
+                            </select>
+                            <button class="refresh-suggestions-btn" onclick="BrainDump.refreshSuggestions()" title="刷新推荐">🔄</button>
+                        </div>
                     </div>
                     <div class="suggestions-grid">
                         ${smartSuggestions.map(s => `
@@ -544,8 +512,8 @@ const BrainDump = {
     },
     
     // 获取智能推荐任务（基于习惯学习）
-    getSmartSuggestions() {
-        const hour = new Date().getHours();
+    getSmartSuggestions(timeSlot = 'current') {
+        const hour = this.getHourFromTimeSlot(timeSlot);
         
         // 1. 先尝试从习惯数据中获取推荐
         const habitSuggestions = this.getHabitBasedSuggestions(hour);
@@ -570,6 +538,41 @@ const BrainDump = {
         }
         
         return unique.slice(0, 8);
+    },
+    
+    // 获取选中的时间段
+    getSelectedTimeSlot() {
+        return localStorage.getItem('brain_dump_time_slot') || 'current';
+    },
+    
+    // 切换时间段
+    changeTimeSlot(timeSlot) {
+        localStorage.setItem('brain_dump_time_slot', timeSlot);
+        this.refresh();
+    },
+    
+    // 从时间段字符串获取小时数
+    getHourFromTimeSlot(timeSlot) {
+        if (timeSlot === 'current') {
+            return new Date().getHours();
+        }
+        
+        const timeMap = {
+            'today-morning': 7,
+            'today-forenoon': 10,
+            'today-noon': 13,
+            'today-afternoon': 16,
+            'today-evening': 20,
+            'today-night': 23,
+            'tomorrow-morning': 7,
+            'tomorrow-forenoon': 10,
+            'tomorrow-noon': 13,
+            'tomorrow-afternoon': 16,
+            'tomorrow-evening': 20,
+            'tomorrow-night': 23
+        };
+        
+        return timeMap[timeSlot] || new Date().getHours();
     },
     
     // 基于习惯学习的推荐
@@ -1568,15 +1571,12 @@ const BrainDump = {
         `;
     },
     
-    // 渲染操作按钮
+    // 渲染操作按钮 - 强制显示版本
     renderActions() {
-        if (this.items.length === 0 && !this.showArrangedView) {
-            return '';
-        }
-        
+        // 如果是安排视图且有任务，显示推送按钮
         if (this.showArrangedView && this.arrangedTasks.length > 0) {
             return `
-                <div class="brain-dump-actions arranged-actions">
+                <div class="brain-dump-actions arranged-actions" style="display: flex !important; position: fixed !important; bottom: 80px !important; left: 0; right: 0; padding: 12px; background: white; z-index: 9999 !important; box-shadow: 0 -2px 10px rgba(0,0,0,0.1);">
                     <button class="action-btn secondary" onclick="BrainDump.reArrange()">
                         🔄 重新安排
                     </button>
@@ -1587,16 +1587,22 @@ const BrainDump = {
             `;
         }
         
-        return `
-            <div class="brain-dump-actions">
-                <button class="action-btn danger" onclick="BrainDump.clearAll()">
-                    🗑️ 一键清空
-                </button>
-                <button class="action-btn primary" onclick="BrainDump.aiArrange()">
-                    🤖 AI智能安排
-                </button>
-            </div>
-        `;
+        // 如果有待安排的任务，强制显示操作按钮
+        if (this.items.length > 0) {
+            return `
+                <div class="brain-dump-actions" style="display: flex !important; position: fixed !important; bottom: 80px !important; left: 0; right: 0; padding: 12px; background: white; z-index: 9999 !important; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); gap: 10px;">
+                    <button class="action-btn danger" onclick="BrainDump.clearAll()" style="flex: 1;">
+                        🗑️ 一键清空
+                    </button>
+                    <button class="action-btn primary" onclick="BrainDump.aiArrange()" style="flex: 1;">
+                        🤖 AI智能安排
+                    </button>
+                </div>
+            `;
+        }
+        
+        // 没有任务时不显示按钮
+        return '';
     },
     
     // ==================== AI智能安排 ====================
