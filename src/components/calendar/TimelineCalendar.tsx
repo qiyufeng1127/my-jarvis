@@ -5,6 +5,7 @@ import {
   Camera, AlertCircle, ZoomIn, ZoomOut, MoreVertical
 } from 'lucide-react';
 import type { Task } from '@/types';
+import { TASK_TYPE_CONFIG } from '@/constants';
 import TaskVerification from './TaskVerification';
 import TaskExecutionPanel from './TaskExecutionPanel';
 import { useUserStore } from '@/stores/userStore';
@@ -750,27 +751,59 @@ export default function TimelineCalendar({
               {/* 任务块 */}
               {timeBlocks.map((block) => {
                 const statusStyle = statusStyles[block.status];
+                const task = tasks.find(t => t.id === block.id);
+                const duration = Math.round((block.endTime.getTime() - block.startTime.getTime()) / 60000);
+                
                 return (
                   <div
                     key={block.id}
-                    className={`absolute left-4 right-4 rounded-lg border-2 ${statusStyle.border} ${statusStyle.bg} shadow-md transition-all group cursor-move hover:shadow-xl ${
+                    className={`absolute left-4 right-4 rounded-xl border-l-4 shadow-lg transition-all group cursor-move hover:shadow-2xl ${
                       draggedBlockId === block.id ? 'scale-105 z-40 shadow-2xl' : 'z-20'
                     } ${
                       selectedBlockId === block.id ? 'ring-2 ring-blue-500' : ''
                     }`}
-                    style={getBlockStyle(block)}
+                    style={{
+                      ...getBlockStyle(block),
+                      borderLeftColor: block.color,
+                      backgroundColor: isDark ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.95)',
+                      backdropFilter: 'blur(10px)',
+                    }}
                     onMouseDown={(e) => handleDragStart(e, block.id)}
                     onClick={() => setSelectedBlockId(block.id)}
                     onContextMenu={(e) => handleContextMenu(e, block.id)}
                   >
                     <div className="p-3 h-full flex flex-col">
                       {/* 任务头部 */}
-                      <div className="flex items-start justify-between mb-1">
+                      <div className="flex items-start justify-between mb-2">
                         <div className="flex items-center space-x-2 flex-1 min-w-0">
                           <span className="text-lg">{statusStyle.icon}</span>
-                          <div className="font-semibold text-sm truncate" style={{ color: textColor }}>{block.title}</div>
+                          <div className="flex flex-col flex-1 min-w-0">
+                            <div className="font-bold text-sm truncate" style={{ color: textColor }}>
+                              {block.title}
+                            </div>
+                            {block.description && (
+                              <div className="text-xs truncate mt-0.5" style={{ color: accentColor }}>
+                                {block.description}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center space-x-1">
+                        <div className="flex items-center space-x-1 ml-2">
+                          {/* 验证按钮 */}
+                          {(task?.verificationStart?.type !== 'none' || task?.verificationComplete?.type !== 'none') && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const verificationType = block.status === 'pending' ? 'start' : 'complete';
+                                setShowVerification({ taskId: block.id, type: verificationType });
+                              }}
+                              className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition-all hover:scale-110"
+                              style={{ backgroundColor: 'rgba(234, 179, 8, 0.2)' }}
+                              title="任务验证"
+                            >
+                              <Camera className="w-4 h-4 text-yellow-600" />
+                            </button>
+                          )}
                           {/* 开始按钮 */}
                           {block.status === 'pending' && (
                             <button
@@ -778,7 +811,7 @@ export default function TimelineCalendar({
                                 e.stopPropagation();
                                 handleQuickAction('start', block.id);
                               }}
-                              className="opacity-0 group-hover:opacity-100 p-1 rounded transition-all hover:scale-110"
+                              className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition-all hover:scale-110"
                               style={{ backgroundColor: 'rgba(34, 197, 94, 0.2)' }}
                               title="开始任务"
                             >
@@ -792,7 +825,7 @@ export default function TimelineCalendar({
                                 e.stopPropagation();
                                 handleQuickAction('complete', block.id);
                               }}
-                              className="opacity-0 group-hover:opacity-100 p-1 rounded transition-all hover:scale-110"
+                              className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition-all hover:scale-110"
                               style={{ backgroundColor: 'rgba(59, 130, 246, 0.2)' }}
                               title="完成任务"
                             >
@@ -804,7 +837,7 @@ export default function TimelineCalendar({
                               e.stopPropagation();
                               handleContextMenu(e, block.id);
                             }}
-                            className="opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity"
+                            className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition-opacity"
                             style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
                           >
                             <MoreVertical className="w-4 h-4" style={{ color: textColor }} />
@@ -812,30 +845,123 @@ export default function TimelineCalendar({
                         </div>
                       </div>
 
-                      {/* 时间信息 */}
-                      <div className="text-xs flex items-center mb-2" style={{ color: accentColor }}>
-                        <Clock className="w-3 h-3 mr-1" />
-                        {block.startTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-                        {' - '}
-                        {block.endTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-                        <span className="ml-2">
-                          ({Math.round((block.endTime.getTime() - block.startTime.getTime()) / 60000)}分钟)
-                        </span>
+                      {/* 时间段和持续时间 */}
+                      <div className="flex items-center justify-between mb-2 text-xs">
+                        <div className="flex items-center space-x-1" style={{ color: accentColor }}>
+                          <Clock className="w-3.5 h-3.5" />
+                          <span className="font-medium">
+                            {block.startTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                            {' - '}
+                            {block.endTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-1 px-2 py-0.5 rounded-full" 
+                          style={{ 
+                            backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                            color: accentColor 
+                          }}
+                        >
+                          <span className="font-semibold">{duration}</span>
+                          <span>分钟</span>
+                        </div>
                       </div>
 
-                      {/* 奖励信息 */}
-                      {block.rewards && (
-                        <div className="text-xs mt-auto" style={{ color: accentColor }}>
-                          💰 {block.rewards.gold} 金币
+                      {/* 金币奖励/惩罚 */}
+                      <div className="flex items-center justify-between mb-2">
+                        {block.rewards && block.rewards.gold > 0 && (
+                          <div className="flex items-center space-x-1 px-2 py-1 rounded-lg" 
+                            style={{ 
+                              backgroundColor: 'rgba(234, 179, 8, 0.15)',
+                              color: '#d97706'
+                            }}
+                          >
+                            <span className="text-base">💰</span>
+                            <span className="text-xs font-bold">+{block.rewards.gold}</span>
+                          </div>
+                        )}
+                        {task?.penaltyGold && task.penaltyGold > 0 && (
+                          <div className="flex items-center space-x-1 px-2 py-1 rounded-lg" 
+                            style={{ 
+                              backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                              color: '#dc2626'
+                            }}
+                          >
+                            <span className="text-base">💸</span>
+                            <span className="text-xs font-bold">-{task.penaltyGold}</span>
+                          </div>
+                        )}
+                        {/* 任务类别标签 */}
+                        <div className="ml-auto px-2 py-0.5 rounded-full text-xs font-medium"
+                          style={{
+                            backgroundColor: `${block.color}20`,
+                            color: block.color,
+                          }}
+                        >
+                          {TASK_TYPE_CONFIG[block.category]?.label || block.category}
                         </div>
-                      )}
+                      </div>
+
+                      {/* 底部操作栏 */}
+                      <div className="flex items-center justify-between mt-auto pt-2 border-t" 
+                        style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
+                      >
+                        <div className="flex items-center space-x-2">
+                          {/* AI拆解按钮 */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // TODO: 打开AI拆解面板
+                              console.log('AI拆解任务:', block.id);
+                            }}
+                            className="text-xs px-2 py-1 rounded-lg transition-all hover:scale-105"
+                            style={{ 
+                              backgroundColor: 'rgba(139, 92, 246, 0.15)',
+                              color: '#8b5cf6'
+                            }}
+                            title="AI智能拆解"
+                          >
+                            🤖 AI拆解
+                          </button>
+                          {/* 展开子任务按钮 */}
+                          {task?.subtasks && task.subtasks.length > 0 && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // TODO: 展开子任务
+                                console.log('展开子任务:', block.id);
+                              }}
+                              className="text-xs px-2 py-1 rounded-lg transition-all hover:scale-105"
+                              style={{ 
+                                backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                                color: accentColor
+                              }}
+                              title="展开子任务"
+                            >
+                              📋 {task.subtasks.length}个子任务
+                            </button>
+                          )}
+                        </div>
+                        {/* 状态标签 */}
+                        <div className="text-xs px-2 py-0.5 rounded-full font-medium"
+                          style={{
+                            backgroundColor: statusStyle.bg,
+                            color: textColor,
+                          }}
+                        >
+                          {block.status === 'pending' && '待开始'}
+                          {block.status === 'in-progress' && '进行中'}
+                          {block.status === 'completed' && '已完成'}
+                          {block.status === 'overdue' && '已逾期'}
+                          {block.status === 'verification-needed' && '待验证'}
+                        </div>
+                      </div>
 
                       {/* 调整大小手柄 */}
                       <div
-                        className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                         onMouseDown={(e) => handleResizeStart(e, block.id)}
                       >
-                        <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-12 h-1 rounded-full" style={{ backgroundColor: accentColor }}></div>
+                        <div className="w-16 h-1 rounded-full" style={{ backgroundColor: block.color }}></div>
                       </div>
                     </div>
                   </div>

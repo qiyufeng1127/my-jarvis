@@ -89,6 +89,9 @@ export interface Task {
   progressChecks: ProgressCheck[];
   penaltyGold: number;
   
+  // 子任务
+  subtasks?: SubTask[];
+  
   // 状态
   status: TaskStatus;
   completionQuality?: 1 | 2 | 3 | 4 | 5;
@@ -96,6 +99,14 @@ export interface Task {
   
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface SubTask {
+  id: string;
+  title: string;
+  isCompleted: boolean;
+  durationMinutes?: number;
+  order: number;
 }
 
 export interface VerificationConfig {
