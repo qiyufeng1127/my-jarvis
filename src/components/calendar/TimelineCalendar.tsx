@@ -658,6 +658,9 @@ export default function TimelineCalendar({
           <div 
             ref={timelineRef}
             className="flex-1 relative overflow-y-scroll timeline-scrollbar"
+            style={{
+              maxHeight: `${timelineHeight}px`,
+            }}
             onMouseMove={(e) => {
               if (draggedBlockId) handleDragMove(e);
               if (resizingBlockId) handleResizeMove(e);
