@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   Target, 
@@ -168,7 +168,19 @@ interface CustomizableDashboardProps {
 }
 
 export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDashboardProps = {}) {
-  const [modules, setModules] = useState<Module[]>([]);
+  const [modules, setModules] = useState<Module[]>(() => {
+    // 从 localStorage 加载保存的模块配置
+    const saved = localStorage.getItem('dashboard_modules');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Failed to parse saved modules:', e);
+        return [];
+      }
+    }
+    return [];
+  });
   const [draggingModule, setDraggingModule] = useState<string | null>(null);
   const [resizingModule, setResizingModule] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -184,13 +196,18 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
   // 坏习惯百分比（模拟数据）
   const [habitScore, setHabitScore] = useState(0); // 0-100，越高越差
 
+  // 保存 modules 到 localStorage（每次 modules 变化时）
+  useEffect(() => {
+    localStorage.setItem('dashboard_modules', JSON.stringify(modules));
+  }, [modules]);
+
   // 加载保存的头像
-  useState(() => {
+  useEffect(() => {
     const savedImage = localStorage.getItem('profile_image');
     if (savedImage) {
       setProfileImage(savedImage);
     }
-  });
+  }, []);
 
   // 处理头像上传
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -672,23 +689,17 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                     </label>
                   )}
                   
-                  {/* 调整大小手柄 */}
+                  {/* 图片组件：隐藏的调整大小区域（右下角 20% 区域） */}
                   <div
-                    className="absolute bottom-0 right-0 w-8 h-8 cursor-se-resize flex items-end justify-end p-1 bg-black/20"
-                    onMouseDown={(e) => handleResizeStart(module.id, e)}
+                    className="absolute bottom-0 right-0 w-1/5 h-1/5 cursor-se-resize"
+                    style={{ minWidth: '40px', minHeight: '40px' }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      handleResizeStart(module.id, e);
+                    }}
                     onClick={(e) => e.stopPropagation()}
                     title="拖拽缩放"
-                  >
-                    <div className="flex flex-col items-end space-y-0.5">
-                      <div className="flex space-x-0.5">
-                        <div className="w-1.5 h-1.5 rounded-full bg-white opacity-70" />
-                      </div>
-                      <div className="flex space-x-0.5">
-                        <div className="w-1.5 h-1.5 rounded-full bg-white opacity-70" />
-                        <div className="w-1.5 h-1.5 rounded-full bg-white opacity-70" />
-                      </div>
-                    </div>
-                  </div>
+                  />
                 </div>
               );
             }
@@ -877,42 +888,19 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                     }
                   </div>
 
-                  {/* 调整大小手柄 */}
+                  {/* 调整大小手柄 - 简洁的小圆点 */}
                   <div
-                    className="absolute bottom-0 right-0 w-8 h-8 cursor-se-resize flex items-end justify-end p-1"
+                    className="absolute bottom-0 right-0 w-8 h-8 cursor-se-resize flex items-center justify-center"
                     onMouseDown={(e) => handleResizeStart(module.id, e)}
                     title="拖拽缩放"
-                    style={{
-                      background: `linear-gradient(135deg, transparent 0%, transparent 50%, ${isColorDark(module.color) ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.3)'} 50%)`,
-                    }}
                   >
-                    <div className="flex flex-col items-end space-y-0.5">
-                      <div className="flex space-x-0.5">
-                        <div 
-                          className="w-1.5 h-1.5 rounded-full" 
-                          style={{ 
-                            backgroundColor: isColorDark(module.color) ? '#ffffff' : '#000000',
-                            opacity: 0.7
-                          }}
-                        />
-                      </div>
-                      <div className="flex space-x-0.5">
-                        <div 
-                          className="w-1.5 h-1.5 rounded-full" 
-                          style={{ 
-                            backgroundColor: isColorDark(module.color) ? '#ffffff' : '#000000',
-                            opacity: 0.7
-                          }}
-                        />
-                        <div 
-                          className="w-1.5 h-1.5 rounded-full" 
-                          style={{ 
-                            backgroundColor: isColorDark(module.color) ? '#ffffff' : '#000000',
-                            opacity: 0.7
-                          }}
-                        />
-                      </div>
-                    </div>
+                    <div 
+                      className="w-2 h-2 rounded-full" 
+                      style={{ 
+                        backgroundColor: isColorDark(module.color) ? '#ffffff' : '#000000',
+                        opacity: 0.3
+                      }}
+                    />
                   </div>
                 </div>
               </div>
