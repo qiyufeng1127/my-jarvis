@@ -650,7 +650,7 @@ export default function TimelineCalendar({
               handleResizeEnd();
             }}
           >
-            <div className="relative" style={{ backgroundColor: bgColor, height: `${(24 * 60 / timeScale) * 40}px`, minHeight: '100%' }}>
+            <div className="relative" style={{ backgroundColor: bgColor, height: `${(24 * 60 / timeScale) * 40}px` }}>
               {/* 时间网格线 */}
               {timeSlots.map((slot, index) => (
                 <div
