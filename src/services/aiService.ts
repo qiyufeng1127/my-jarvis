@@ -180,31 +180,72 @@ class AIService {
       startTime?: string;
       category: string;
       priority: 'low' | 'medium' | 'high';
+      location?: string;
     }>;
     error?: string;
   }> {
-    const systemPrompt = `你是一个任务分解专家。用户会描述一个任务或计划，你需要将其分解为具体的子任务。
+    const systemPrompt = `你是一个任务分解专家。用户会描述一个任务或计划，你需要将其分解为**多个独立的**子任务。
+
+**重要规则：**
+1. **必须识别每个独立的动作**，例如：
+   - "洗漱" 是一个任务
+   - "洗衣服" 是另一个任务
+   - "吃饭" 是另一个任务
+   - "收拾垃圾" 是另一个任务
+   - **绝对不要把多个动作合并成一个任务！**
+
+2. **识别连接词**：
+   - "然后"、"接着"、"再"、"之后" 表示不同的任务
+   - "，"、"、" 分隔的也是不同任务
+
+3. **每个任务要简洁明确**：
+   - ✅ 好的："洗漱"、"洗衣服"、"吃饭"
+   - ❌ 不好的："洗漱把衣服洗了然后吃饭"
 
 返回JSON格式：
 {
   "tasks": [
     {
-      "title": "任务标题",
+      "title": "任务标题（简短、具体）",
       "duration": 分钟数,
       "startTime": "HH:MM格式的开始时间（可选）",
       "category": "work/study/life/health等",
-      "priority": "low/medium/high"
+      "priority": "low/medium/high",
+      "location": "bathroom/workspace/kitchen/livingroom/bedroom/studio（可选）"
     }
   ]
 }
 
-注意：
-1. 任务要具体、可执行
-2. 时间估算要合理
-3. 如果用户提到具体时间（如"5分钟后"、"明天上午9点"），要计算并设置startTime
-4. 优先级根据任务重要性和紧急程度判断
+**时长参考：**
+- 洗漱：5-10分钟
+- 洗衣服：10-15分钟
+- 洗碗、倒猫粮：5分钟
+- 吃饭（在家）：30分钟
+- 吃饭（外出）：120分钟
+- 工作：60分钟起步
+- 收拾房间：10-15分钟
 
-只返回JSON，不要其他内容。`;
+**位置参考：**
+- bathroom: 厕所（洗漱、洗衣服）
+- kitchen: 厨房（吃饭、洗碗、倒猫粮）
+- livingroom: 客厅（收拾）
+- bedroom: 卧室（睡觉、收拾）
+- workspace: 工作区（工作、学习）
+- studio: 拍摄间（拍摄、录制）
+
+**示例：**
+输入："1小时后去洗漱把衣服洗了然后吃完饭之后去把垃圾收拾好了"
+输出：
+{
+  "tasks": [
+    {"title": "洗漱", "duration": 10, "category": "life", "priority": "medium", "location": "bathroom"},
+    {"title": "洗衣服", "duration": 15, "category": "life", "priority": "medium", "location": "bathroom"},
+    {"title": "吃饭", "duration": 30, "category": "life", "priority": "medium", "location": "kitchen"},
+    {"title": "收拾垃圾", "duration": 10, "category": "life", "priority": "low", "location": "livingroom"}
+  ]
+}
+
+**只返回JSON，不要其他内容。一定要把每个独立的动作分解成单独的任务！**`;
 
     const response = await this.chat([
       { role: 'system', content: systemPrompt },
@@ -219,13 +260,29 @@ class AIService {
     }
 
     try {
-      const result = JSON.parse(response.content);
+      // 尝试提取JSON（有时AI会返回带解释的内容）
+      let jsonContent = response.content.trim();
+      
+      // 如果内容包含```json，提取其中的JSON
+      const jsonMatch = jsonContent.match(/```json\s*([\s\S]*?)\s*```/);
+      if (jsonMatch) {
+        jsonContent = jsonMatch[1];
+      } else {
+        // 尝试提取{}之间的内容
+        const braceMatch = jsonContent.match(/\{[\s\S]*\}/);
+        if (braceMatch) {
+          jsonContent = braceMatch[0];
+        }
+      }
+      
+      const result = JSON.parse(jsonContent);
       return {
         success: true,
         tasks: result.tasks || [],
       };
     } catch (error) {
       console.error('解析任务分解结果失败:', error);
+      console.error('AI返回内容:', response.content);
       return {
         success: false,
         error: '解析结果失败',
