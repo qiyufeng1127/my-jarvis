@@ -552,54 +552,105 @@ export default function TimelineCalendar({
         </div>
       </div>
 
-      {/* 下半部分：时间轴视图 */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* 下半部分：时间轴视图 - 完全重写的滚动结构 */}
+      <div style={{ 
+        flex: 1, 
+        display: 'flex',
+        minHeight: 0,
+      }}>
         {/* 左侧时间刻度 */}
-        <div className="w-20 flex-shrink-0 overflow-y-auto" style={{ backgroundColor: cardBg, borderRight: `1px solid ${borderColor}` }}>
-          <div className="sticky top-0 z-20 p-2" style={{ backgroundColor: cardBg, borderBottom: `1px solid ${borderColor}` }}>
-            <div className="flex flex-col items-center space-y-1">
+        <div style={{ 
+          width: '80px',
+          flexShrink: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          backgroundColor: cardBg,
+          borderRight: `1px solid ${borderColor}`,
+        }}>
+          {/* 时间刻度头部 */}
+          <div style={{ 
+            padding: '8px',
+            backgroundColor: cardBg,
+            borderBottom: `1px solid ${borderColor}`,
+            flexShrink: 0,
+          }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
               <button
                 onClick={cycleTimeScale}
-                className="p-1.5 rounded transition-colors"
-                style={{ backgroundColor: hoverBg }}
+                style={{ 
+                  padding: '6px',
+                  borderRadius: '8px',
+                  backgroundColor: hoverBg,
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
                 title="切换时间粒度"
               >
-                <Clock className="w-4 h-4" style={{ color: textColor }} />
+                <Clock style={{ width: '16px', height: '16px', color: textColor }} />
               </button>
-              <span className="text-xs font-medium" style={{ color: textColor }}>{timeScale}分钟</span>
+              <span style={{ fontSize: '12px', fontWeight: 500, color: textColor }}>{timeScale}分钟</span>
             </div>
           </div>
 
-          <div className="relative" style={{ height: `${(24 * 60 / timeScale) * 40}px` }}>
-            {timeSlots.map((slot, index) => (
-              <button
-                key={index}
-                onClick={() => handleTimeSlotClick(slot.minutes)}
-                className={`absolute left-0 right-0 text-right pr-3 transition-colors ${
-                  slot.isHour ? 'font-semibold' : ''
-                }`}
-                style={{ 
-                  top: `${(slot.minutes / (24 * 60)) * 100}%`,
-                  height: `${(timeScale / (24 * 60)) * 100}%`,
-                  color: slot.isHour ? textColor : accentColor,
-                  backgroundColor: 'transparent',
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = hoverBg}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-              >
-                <span className="text-xs">{slot.time}</span>
-              </button>
-            ))}
+          {/* 时间刻度列表 - 可滚动 */}
+          <div style={{ 
+            flex: 1,
+            overflowY: 'scroll',
+            overflowX: 'hidden',
+          }}>
+            <div style={{ 
+              position: 'relative',
+              height: `${(24 * 60 / timeScale) * 40}px`,
+            }}>
+              {timeSlots.map((slot, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleTimeSlotClick(slot.minutes)}
+                  style={{ 
+                    position: 'absolute',
+                    left: 0,
+                    right: 0,
+                    top: `${(slot.minutes / (24 * 60)) * 100}%`,
+                    height: `${(timeScale / (24 * 60)) * 100}%`,
+                    textAlign: 'right',
+                    paddingRight: '12px',
+                    color: slot.isHour ? textColor : accentColor,
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontWeight: slot.isHour ? 600 : 400,
+                    fontSize: '12px',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = hoverBg}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  {slot.time}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
         {/* 右侧时间轴主体 */}
-        <div className="flex-1 flex flex-col">
+        <div style={{ 
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          minWidth: 0,
+        }}>
           {/* 顶部工具栏 */}
-          <div className="flex-shrink-0 flex items-center justify-between px-6 py-3" style={{ backgroundColor: bgColor, borderBottom: `1px solid ${borderColor}` }}>
-            <div className="flex items-center space-x-2">
-              <Clock className="w-5 h-5" style={{ color: textColor }} />
-              <h2 className="text-base font-semibold" style={{ color: textColor }}>
+          <div style={{ 
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '12px 24px',
+            backgroundColor: bgColor,
+            borderBottom: `1px solid ${borderColor}`,
+            flexShrink: 0,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Clock style={{ width: '20px', height: '20px', color: textColor }} />
+              <h2 style={{ fontSize: '16px', fontWeight: 600, color: textColor, margin: 0 }}>
                 {selectedDate.toLocaleDateString('zh-CN', {
                   month: 'long',
                   day: 'numeric',
@@ -608,8 +659,8 @@ export default function TimelineCalendar({
               </h2>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <span className="text-sm" style={{ color: accentColor }}>{timeBlocks.length} 个任务</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '14px', color: accentColor }}>{timeBlocks.length} 个任务</span>
               <button
                 onClick={() => {
                   const newTask = {
@@ -621,25 +672,33 @@ export default function TimelineCalendar({
                   };
                   onTaskCreate(newTask);
                 }}
-                className="flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors"
-                style={{ backgroundColor: hoverBg, color: textColor }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  backgroundColor: hoverBg,
+                  color: textColor,
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
               >
-                <Plus className="w-4 h-4" />
+                <Plus style={{ width: '16px', height: '16px' }} />
                 <span>新建任务</span>
               </button>
             </div>
           </div>
 
-          {/* 时间轴滚动区域 - 隐藏滚动条但保持滚动功能 */}
+          {/* 时间轴滚动区域 - 最简单的滚动实现 */}
           <div 
             ref={timelineRef}
-            className="flex-1 relative timeline-scrollbar"
+            className="timeline-scrollbar"
             style={{
+              flex: 1,
+              position: 'relative',
               overflowY: 'scroll',
               overflowX: 'hidden',
-              scrollbarWidth: 'thin',
-              scrollbarColor: `${isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)'} transparent`,
-              WebkitOverflowScrolling: 'touch',
             }}
             onMouseMove={(e) => {
               if (draggedBlockId) handleDragMove(e);
@@ -654,13 +713,20 @@ export default function TimelineCalendar({
               handleResizeEnd();
             }}
           >
-            <div className="relative" style={{ backgroundColor: bgColor, height: `${(24 * 60 / timeScale) * 40}px` }}>
+            <div style={{ 
+              position: 'relative',
+              backgroundColor: bgColor,
+              height: `${(24 * 60 / timeScale) * 40}px`,
+              minHeight: `${(24 * 60 / timeScale) * 40}px`,
+            }}>
               {/* 时间网格线 */}
               {timeSlots.map((slot, index) => (
                 <div
                   key={index}
-                  className="absolute left-0 right-0"
                   style={{ 
+                    position: 'absolute',
+                    left: 0,
+                    right: 0,
                     top: `${(slot.minutes / (24 * 60)) * 100}%`,
                     borderTop: `${slot.isHour ? '2px' : '1px'} solid ${borderColor}`,
                   }}
@@ -669,77 +735,142 @@ export default function TimelineCalendar({
 
               {/* 当前时间指示线 */}
               <div
-                className="absolute left-0 right-0 z-30 pointer-events-none"
-                style={{ top: `${getCurrentTimePosition()}%` }}
+                style={{ 
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  top: `${getCurrentTimePosition()}%`,
+                  zIndex: 30,
+                  pointerEvents: 'none',
+                }}
               >
-                <div className="relative">
-                  <div className="absolute -left-2 -top-3 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded shadow-lg">
+                <div style={{ position: 'relative' }}>
+                  <div style={{
+                    position: 'absolute',
+                    left: '-8px',
+                    top: '-12px',
+                    backgroundColor: '#ef4444',
+                    color: 'white',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                  }}>
                     NOW
                   </div>
-                  <div className="h-0.5 bg-red-500 shadow-lg"></div>
-                  <div className="absolute -left-1.5 -top-1.5 w-3 h-3 bg-red-500 rounded-full shadow-lg animate-pulse"></div>
+                  <div style={{ height: '2px', backgroundColor: '#ef4444', boxShadow: '0 0 8px rgba(239,68,68,0.5)' }}></div>
+                  <div className="animate-pulse" style={{
+                    position: 'absolute',
+                    left: '-6px',
+                    top: '-6px',
+                    width: '12px',
+                    height: '12px',
+                    backgroundColor: '#ef4444',
+                    borderRadius: '50%',
+                    boxShadow: '0 0 8px rgba(239,68,68,0.5)',
+                  }}></div>
                 </div>
               </div>
 
               {/* 任务块 */}
               {timeBlocks.map((block) => {
                 const statusStyle = statusStyles[block.status];
+                const blockStyle = getBlockStyle(block);
                 return (
                   <div
                     key={block.id}
-                    className={`absolute left-4 right-4 rounded-lg border-2 ${statusStyle.border} ${statusStyle.bg} shadow-md transition-all group cursor-move hover:shadow-xl ${
-                      draggedBlockId === block.id ? 'scale-105 z-40 shadow-2xl' : 'z-20'
-                    } ${
-                      selectedBlockId === block.id ? 'ring-2 ring-blue-500' : ''
-                    }`}
-                    style={getBlockStyle(block)}
+                    className={`${statusStyle.border} ${statusStyle.bg} group`}
+                    style={{
+                      position: 'absolute',
+                      left: '16px',
+                      right: '16px',
+                      top: blockStyle.top,
+                      height: blockStyle.height,
+                      borderRadius: '8px',
+                      borderWidth: '2px',
+                      borderStyle: 'solid',
+                      borderColor: block.color,
+                      boxShadow: draggedBlockId === block.id ? '0 20px 25px -5px rgba(0,0,0,0.3)' : '0 4px 6px -1px rgba(0,0,0,0.1)',
+                      transform: draggedBlockId === block.id ? 'scale(1.05)' : 'scale(1)',
+                      zIndex: draggedBlockId === block.id ? 40 : selectedBlockId === block.id ? 30 : 20,
+                      cursor: 'move',
+                      transition: draggedBlockId === block.id ? 'none' : 'all 0.2s',
+                    }}
                     onMouseDown={(e) => handleDragStart(e, block.id)}
                     onClick={() => setSelectedBlockId(block.id)}
                     onContextMenu={(e) => handleContextMenu(e, block.id)}
                   >
-                    <div className="p-3 h-full flex flex-col">
+                    <div style={{ padding: '12px', height: '100%', display: 'flex', flexDirection: 'column' }}>
                       {/* 任务头部 */}
-                      <div className="flex items-start justify-between mb-1">
-                        <div className="flex items-center space-x-2 flex-1 min-w-0">
-                          <span className="text-lg">{statusStyle.icon}</span>
-                          <div className="font-semibold text-sm truncate" style={{ color: textColor }}>{block.title}</div>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+                          <span style={{ fontSize: '18px' }}>{statusStyle.icon}</span>
+                          <div style={{ fontWeight: 600, fontSize: '14px', color: textColor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {block.title}
+                          </div>
                         </div>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleContextMenu(e, block.id);
                           }}
-                          className="opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity"
-                          style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
+                          className="opacity-0 group-hover:opacity-100"
+                          style={{
+                            padding: '4px',
+                            borderRadius: '4px',
+                            backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+                            border: 'none',
+                            cursor: 'pointer',
+                            transition: 'opacity 0.2s',
+                          }}
                         >
-                          <MoreVertical className="w-4 h-4" style={{ color: textColor }} />
+                          <MoreVertical style={{ width: '16px', height: '16px', color: textColor }} />
                         </button>
                       </div>
 
                       {/* 时间信息 */}
-                      <div className="text-xs flex items-center mb-2" style={{ color: accentColor }}>
-                        <Clock className="w-3 h-3 mr-1" />
+                      <div style={{ display: 'flex', alignItems: 'center', fontSize: '12px', color: accentColor, marginBottom: '8px' }}>
+                        <Clock style={{ width: '12px', height: '12px', marginRight: '4px' }} />
                         {block.startTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
                         {' - '}
                         {block.endTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-                        <span className="ml-2">
+                        <span style={{ marginLeft: '8px' }}>
                           ({Math.round((block.endTime.getTime() - block.startTime.getTime()) / 60000)}分钟)
                         </span>
                       </div>
 
                       {/* 奖励信息 */}
                       {block.rewards && (
-                        <div className="text-xs mt-auto" style={{ color: accentColor }}>
+                        <div style={{ fontSize: '12px', color: accentColor, marginTop: 'auto' }}>
                           💰 {block.rewards.gold} 金币
                         </div>
                       )}
 
                       {/* 调整大小手柄 */}
                       <div
-                        className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="opacity-0 group-hover:opacity-100"
+                        style={{
+                          position: 'absolute',
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          height: '8px',
+                          cursor: 'ns-resize',
+                          transition: 'opacity 0.2s',
+                        }}
                         onMouseDown={(e) => handleResizeStart(e, block.id)}
                       >
-                        <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-12 h-1 rounded-full" style={{ backgroundColor: accentColor }}></div>
+                        <div style={{
+                          position: 'absolute',
+                          bottom: '4px',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          width: '48px',
+                          height: '4px',
+                          borderRadius: '2px',
+                          backgroundColor: accentColor,
+                        }}></div>
                       </div>
                     </div>
                   </div>
@@ -749,15 +880,20 @@ export default function TimelineCalendar({
           </div>
 
           {/* 底部提示 */}
-          <div className="flex-shrink-0 px-6 py-2" style={{ backgroundColor: cardBg, borderTop: `1px solid ${borderColor}` }}>
-            <div className="flex items-center justify-between text-xs" style={{ color: accentColor }}>
-              <div className="flex items-center space-x-4">
+          <div style={{ 
+            padding: '8px 24px',
+            backgroundColor: cardBg,
+            borderTop: `1px solid ${borderColor}`,
+            flexShrink: 0,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', color: accentColor }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                 <span>💡 拖拽任务调整时间</span>
                 <span>📏 拖拽底部调整时长</span>
                 <span>🖱️ 右键打开菜单</span>
               </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div className="animate-pulse" style={{ width: '8px', height: '8px', backgroundColor: '#ef4444', borderRadius: '50%' }}></div>
                 <span>红线表示当前时间</span>
               </div>
             </div>
