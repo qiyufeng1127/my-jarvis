@@ -196,8 +196,9 @@ export default function TimelineCalendar({
     if (!draggedBlockId || !timelineRef.current) return;
 
     const rect = timelineRef.current.getBoundingClientRect();
+    const scrollHeight = timelineRef.current.scrollHeight;
     const deltaY = e.clientY - dragStartY.current;
-    const minutesPerPixel = (24 * 60) / rect.height;
+    const minutesPerPixel = (24 * 60) / scrollHeight; // 使用 scrollHeight 而不是 rect.height
     const deltaMinutes = Math.round(deltaY * minutesPerPixel / timeScale) * timeScale;
     
     const newStartMinutes = Math.max(0, Math.min(24 * 60 - 15, dragStartMinutes.current + deltaMinutes));
@@ -234,9 +235,9 @@ export default function TimelineCalendar({
   const handleResizeMove = (e: React.MouseEvent) => {
     if (!resizingBlockId || !timelineRef.current) return;
 
-    const rect = timelineRef.current.getBoundingClientRect();
+    const scrollHeight = timelineRef.current.scrollHeight;
     const deltaY = e.clientY - dragStartY.current;
-    const minutesPerPixel = (24 * 60) / rect.height;
+    const minutesPerPixel = (24 * 60) / scrollHeight; // 使用 scrollHeight 而不是 rect.height
     const deltaMinutes = Math.round(deltaY * minutesPerPixel / timeScale) * timeScale;
     
     const block = timeBlocks.find(b => b.id === resizingBlockId);
