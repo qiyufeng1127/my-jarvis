@@ -121,7 +121,7 @@ export default function TaskVerification({
 
     // 文件上传验证
     if (task.verificationType === 'file') {
-      // 检查文件类型
+    // 检查文件类型
       const acceptedTypes = task.acceptedFileTypes || ['*/*'];
       const isAccepted = acceptedTypes.some(type => {
         if (type === '*/*') return true;
@@ -232,15 +232,15 @@ export default function TaskVerification({
         task.title
       );
 
-      setIsVerifying(false);
+    setIsVerifying(false);
 
       if (result.success && result.isValid && result.confidence >= 0.6) {
         // 验证成功
         setVerificationResult('success');
         setVerificationReason(result.reason || '图片验证通过');
-        
-        setTimeout(() => {
-          onSuccess();
+
+    setTimeout(() => {
+        onSuccess();
         }, 2000);
       } else {
         // 验证失败
@@ -251,7 +251,7 @@ export default function TaskVerification({
         deductGold(20, `任务验证失败: ${task.title}`);
         
         setTimeout(() => {
-          onFail();
+        onFail();
         }, 2000);
       }
     } catch (error) {
@@ -265,7 +265,7 @@ export default function TaskVerification({
       
       setTimeout(() => {
         onFail();
-      }, 2000);
+    }, 2000);
     }
   };
 

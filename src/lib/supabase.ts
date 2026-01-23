@@ -39,6 +39,56 @@ const isValidUUID = (uuid: string): boolean => {
   return uuidRegex.test(uuid);
 };
 
+// 确保用户在 Supabase 中存在
+const ensureUserExists = async (userId: string) => {
+  if (!isSupabaseConfigured()) return;
+  
+  try {
+    // 检查用户是否存在
+    const { data, error } = await supabase
+      .from(TABLES.USERS)
+      .select('id')
+      .eq('id', userId)
+      .single();
+    
+    // 如果用户不存在，创建用户
+    if (error || !data) {
+      const { error: insertError } = await supabase.from(TABLES.USERS).insert({
+        id: userId,
+        local_user_id: userId,
+        public_data: {},
+        device_list: [],
+        settings: {
+          verificationStrictness: 'medium',
+          enableProgressCheck: true,
+          goldRewardMultiplier: 1.0,
+          goldPenaltyMultiplier: 1.0,
+          enableNotifications: true,
+          notificationTimes: ['09:00', '14:00', '21:00'],
+          quietHours: { start: '22:00', end: '08:00' },
+          theme: 'auto',
+          primaryColor: '#991B1B',
+          fontSize: 'medium',
+          voiceType: 'default',
+          voiceSpeed: 1.0,
+          wakeWordSensitivity: 0.8,
+          autoSync: true,
+          syncInterval: 5,
+          syncPhotos: false,
+        },
+      });
+      
+      if (insertError) {
+        console.error('创建用户失败:', insertError);
+      } else {
+        console.log('✅ 自动创建用户到 Supabase:', userId);
+      }
+    }
+  } catch (error) {
+    console.error('检查用户存在失败:', error);
+  }
+};
+
 // 获取当前用户 ID（本地或云端）
 export const getCurrentUserId = () => {
   let localUserId = localStorage.getItem('manifestos_user_id');
@@ -48,6 +98,12 @@ export const getCurrentUserId = () => {
     localUserId = crypto.randomUUID();
     localStorage.setItem('manifestos_user_id', localUserId);
     console.log('✅ 生成新的用户 ID:', localUserId);
+    
+    // 异步确保用户在 Supabase 中存在
+    ensureUserExists(localUserId);
+  } else {
+    // 即使用户 ID 存在，也要确保在 Supabase 中有记录
+    ensureUserExists(localUserId);
   }
   
   return localUserId;
