@@ -53,14 +53,41 @@ export default function FloatingAIChat() {
   const { addMemory } = useMemoryStore();
   const { isConfigured } = useAIStore();
   const { createTask, updateTask, tasks, getTodayTasks } = useTaskStore();
-  const [isOpen, setIsOpen] = useState(false);
+  
+  // 从localStorage加载持久化状态
+  const loadPersistedState = () => {
+    try {
+      const saved = localStorage.getItem('ai_chat_state');
+      if (saved) {
+        const state = JSON.parse(saved);
+        return {
+          isOpen: state.isOpen ?? false,
+          position: state.position ?? { x: window.innerWidth - 420, y: 100 },
+          size: state.size ?? { width: 400, height: 600 },
+          bgColor: state.bgColor ?? '#ffffff',
+        };
+      }
+    } catch (error) {
+      console.error('加载AI助手状态失败:', error);
+    }
+    return {
+      isOpen: false,
+      position: { x: window.innerWidth - 420, y: 100 },
+      size: { width: 400, height: 600 },
+      bgColor: '#ffffff',
+    };
+  };
+
+  const persistedState = loadPersistedState();
+  
+  const [isOpen, setIsOpen] = useState(persistedState.isOpen);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [editingTasks, setEditingTasks] = useState<DecomposedTask[]>([]);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [bgColor, setBgColor] = useState('#ffffff');
+  const [bgColor, setBgColor] = useState(persistedState.bgColor);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [thinkingSteps, setThinkingSteps] = useState<string[]>([]);
   const [messages, setMessages] = useState<Message[]>([
@@ -73,12 +100,12 @@ export default function FloatingAIChat() {
   ]);
 
   // 拖拽相关状态
-  const [position, setPosition] = useState({ x: window.innerWidth - 420, y: 100 });
+  const [position, setPosition] = useState(persistedState.position);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   
   // 缩放相关状态
-  const [size, setSize] = useState({ width: 400, height: 600 });
+  const [size, setSize] = useState(persistedState.size);
   const [isResizing, setIsResizing] = useState(false);
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
   
@@ -118,12 +145,26 @@ export default function FloatingAIChat() {
 
   // 智能识别任务位置
   const detectTaskLocation = (title: string): string | undefined => {
-    if (/厕所|洗手间|卫生间|洗漱/.test(title)) return 'bathroom';
-    if (/工作|电脑|办公|写代码|编程/.test(title)) return 'workspace';
-    if (/厨房|做饭|洗碗|猫粮|倒水/.test(title)) return 'kitchen';
-    if (/客厅/.test(title)) return 'livingroom';
-    if (/卧室|睡觉|床/.test(title)) return 'bedroom';
-    if (/拍摄间|拍摄|录制/.test(title)) return 'studio';
+    const titleLower = title.toLowerCase();
+    
+    // 厕所相关
+    if (/厕所|洗手间|卫生间|洗漱|洗衣|洗澡|刷牙|洗脸/.test(title)) return 'bathroom';
+    
+    // 工作区相关
+    if (/工作|电脑|办公|写代码|编程|学习|写作|设计|吃药|艾司唑仑/.test(title)) return 'workspace';
+    
+    // 厨房相关
+    if (/厨房|做饭|洗碗|猫粮|倒水|煮|炒|吃饭|用餐|喝水/.test(title)) return 'kitchen';
+    
+    // 客厅相关
+    if (/客厅|看电视|沙发|垃圾|收拾客厅/.test(title)) return 'livingroom';
+    
+    // 卧室相关
+    if (/卧室|睡觉|床|休息|收拾卧室/.test(title)) return 'bedroom';
+    
+    // 拍摄间相关
+    if (/拍摄间|拍摄|录制|录像|收拾拍摄间/.test(title)) return 'studio';
+    
     return undefined;
   };
 
@@ -198,6 +239,25 @@ export default function FloatingAIChat() {
       conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // 保存状态到localStorage
+  useEffect(() => {
+    const saveState = () => {
+      try {
+        const state = {
+          isOpen,
+          position,
+          size,
+          bgColor,
+        };
+        localStorage.setItem('ai_chat_state', JSON.stringify(state));
+      } catch (error) {
+        console.error('保存AI助手状态失败:', error);
+      }
+    };
+    
+    saveState();
+  }, [isOpen, position, size, bgColor]);
 
   // 拖拽处理
   const handleDragStart = (e: React.MouseEvent) => {
@@ -752,11 +812,11 @@ export default function FloatingAIChat() {
                 duration: task.duration || detectTaskDuration(task.title),
                 category: task.category,
                 priority: task.priority,
-                location: detectTaskLocation(task.title),
+                location: task.location || detectTaskLocation(task.title), // 优先使用AI返回的位置，否则自动识别
               }));
 
               addThinkingStep('🏠 正在优化任务动线...');
-              // 按动线优化排序
+              // 按动线优化排序（按位置分组）
               tasksWithMetadata = optimizeTasksByLocation(tasksWithMetadata);
 
               addThinkingStep('⏰ 正在计算任务时间...');
@@ -1280,7 +1340,7 @@ export default function FloatingAIChat() {
                       </button>
                     </div>
                     
-                    <div className="space-y-2 max-h-64 overflow-y-auto mb-3">
+                    <div className="space-y-2 max-h-96 overflow-y-auto mb-3">
                       {editingTasks.map((task, index) => (
                         <div
                           key={task.id}
