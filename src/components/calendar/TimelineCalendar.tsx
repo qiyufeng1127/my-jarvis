@@ -619,63 +619,51 @@ export default function TimelineCalendar({
           </div>
         </div>
 
-        {/* 时间轴主体区域 */}
-        <div className="flex-1 flex min-h-0 overflow-hidden">
-          {/* 左侧时间刻度 */}
-          <div className="w-20 flex-shrink-0 border-r" style={{ borderColor }}>
-            <div className="h-full overflow-y-auto">
-              <div className="sticky top-0 z-20 p-2" style={{ backgroundColor: bgColor, borderBottom: `1px solid ${borderColor}` }}>
-                <div className="flex flex-col items-center space-y-1">
-                  <span className="text-xs font-medium" style={{ color: textColor }}>{timeScale}分钟/格</span>
-                </div>
-              </div>
-
+        {/* 时间轴主体区域 - 统一滚动容器 */}
+        <div 
+          ref={timelineRef}
+          className="flex-1 overflow-y-scroll timeline-scrollbar"
+          style={{
+            maxHeight: `${timelineHeight}px`,
+          }}
+          onMouseMove={(e) => {
+            if (draggedBlockId) handleDragMove(e);
+            if (resizingBlockId) handleResizeMove(e);
+          }}
+          onMouseUp={() => {
+            handleDragEnd();
+            handleResizeEnd();
+          }}
+          onMouseLeave={() => {
+            handleDragEnd();
+            handleResizeEnd();
+          }}
+        >
+          <div className="flex min-h-0">
+            {/* 左侧时间刻度 */}
+            <div className="w-20 flex-shrink-0 border-r" style={{ borderColor }}>
               <div className="relative" style={{ height: `${(24 * 60 / timeScale) * 2}rem` }}>
                 {timeSlots.map((slot, index) => (
-                  <button
+                  <div
                     key={index}
-                    onClick={() => handleTimeSlotClick(slot.minutes)}
-                    className={`absolute left-0 right-0 text-right pr-3 transition-colors ${
+                    className={`absolute left-0 right-0 text-right pr-3 ${
                       slot.isHour ? 'font-semibold' : ''
                     }`}
                     style={{ 
                       top: `${(slot.minutes / (24 * 60)) * 100}%`,
                       height: `${(timeScale / (24 * 60)) * 100}%`,
                       color: slot.isHour ? textColor : accentColor,
-                      backgroundColor: 'transparent',
                     }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = hoverBg}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                   >
                     <span className="text-xs">{slot.time}</span>
-                  </button>
+                  </div>
                 ))}
               </div>
             </div>
-          </div>
 
-          {/* 右侧时间轴滚动区域 */}
-          <div 
-            ref={timelineRef}
-            className="flex-1 relative overflow-y-scroll timeline-scrollbar"
-            style={{
-              maxHeight: `${timelineHeight}px`,
-            }}
-            onMouseMove={(e) => {
-              if (draggedBlockId) handleDragMove(e);
-              if (resizingBlockId) handleResizeMove(e);
-            }}
-            onMouseUp={() => {
-              handleDragEnd();
-              handleResizeEnd();
-            }}
-            onMouseLeave={() => {
-              handleDragEnd();
-              handleResizeEnd();
-            }}
-          >
+            {/* 右侧时间轴内容区域 */}
             <div 
-              className="relative" 
+              className="flex-1 relative"
               style={{ 
                 minHeight: `${(24 * 60 / timeScale) * 2}rem`,
                 height: `${(24 * 60 / timeScale) * 2}rem`

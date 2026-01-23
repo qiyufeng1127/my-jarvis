@@ -173,32 +173,29 @@ p, span, div, h1, h2, h3, h4, h5, h6, a, button, input, textarea, label {
   scrollbar-color: var(--color-neutral-300) var(--color-neutral-100);
 }
 
-/* 时间轴滚动条样式 - 非常明显的深灰色滚动条 */
+/* 时间轴滚动条样式 - 简洁的灰色滚动条 */
 .timeline-scrollbar::-webkit-scrollbar {
-  width: 14px !important;
-  height: 14px !important;
+  width: 10px !important;
+  height: 10px !important;
 }
 
 .timeline-scrollbar::-webkit-scrollbar-track {
-  background: #e0e0e0 !important;
-  border-radius: 7px !important;
-  border: 1px solid #d0d0d0 !important;
+  background: transparent !important;
 }
 
 .timeline-scrollbar::-webkit-scrollbar-thumb {
-  background: #808080 !important;
-  border-radius: 7px !important;
-  border: 2px solid #e0e0e0 !important;
+  background: #999999 !important;
+  border-radius: 5px !important;
 }
 
 .timeline-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #606060 !important;
+  background: #666666 !important;
 }
 
 /* Firefox 时间轴滚动条 */
 .timeline-scrollbar {
-  scrollbar-width: auto !important;
-  scrollbar-color: #808080 #e0e0e0 !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: #999999 transparent !important;
 }
 
 /* 日历滚动条样式 - 隐蔽但可用 */
