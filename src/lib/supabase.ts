@@ -44,48 +44,42 @@ const ensureUserExists = async (userId: string) => {
   if (!isSupabaseConfigured()) return;
   
   try {
-    // 检查用户是否存在
-    const { data, error } = await supabase
-      .from(TABLES.USERS)
-      .select('id')
-      .eq('id', userId)
-      .single();
+    // 使用 upsert 代替 insert，如果用户已存在则更新，不存在则创建
+    const { error } = await supabase.from(TABLES.USERS).upsert({
+      id: userId,
+      local_user_id: userId,
+      public_data: {},
+      device_list: [],
+      settings: {
+        verificationStrictness: 'medium',
+        enableProgressCheck: true,
+        goldRewardMultiplier: 1.0,
+        goldPenaltyMultiplier: 1.0,
+        enableNotifications: true,
+        notificationTimes: ['09:00', '14:00', '21:00'],
+        quietHours: { start: '22:00', end: '08:00' },
+        theme: 'auto',
+        primaryColor: '#991B1B',
+        fontSize: 'medium',
+        voiceType: 'default',
+        voiceSpeed: 1.0,
+        wakeWordSensitivity: 0.8,
+        autoSync: true,
+        syncInterval: 5,
+        syncPhotos: false,
+      },
+    }, {
+      onConflict: 'id', // 如果 id 冲突，则更新
+      ignoreDuplicates: false, // 不忽略重复，而是更新
+    });
     
-    // 如果用户不存在，创建用户
-    if (error || !data) {
-      const { error: insertError } = await supabase.from(TABLES.USERS).insert({
-        id: userId,
-        local_user_id: userId,
-        public_data: {},
-        device_list: [],
-        settings: {
-          verificationStrictness: 'medium',
-          enableProgressCheck: true,
-          goldRewardMultiplier: 1.0,
-          goldPenaltyMultiplier: 1.0,
-          enableNotifications: true,
-          notificationTimes: ['09:00', '14:00', '21:00'],
-          quietHours: { start: '22:00', end: '08:00' },
-          theme: 'auto',
-          primaryColor: '#991B1B',
-          fontSize: 'medium',
-          voiceType: 'default',
-          voiceSpeed: 1.0,
-          wakeWordSensitivity: 0.8,
-          autoSync: true,
-          syncInterval: 5,
-          syncPhotos: false,
-        },
-      });
-      
-      if (insertError) {
-        console.error('创建用户失败:', insertError);
-      } else {
-        console.log('✅ 自动创建用户到 Supabase:', userId);
-      }
+    if (error) {
+      console.error('确保用户存在失败:', error);
+    } else {
+      console.log('✅ 用户已确保存在于 Supabase:', userId);
     }
   } catch (error) {
-    console.error('检查用户存在失败:', error);
+    console.error('确保用户存在失败:', error);
   }
 };
 
