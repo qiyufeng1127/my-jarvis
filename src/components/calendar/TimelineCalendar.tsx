@@ -173,7 +173,48 @@ export default function TimelineCalendar({
     return (minutes / (24 * 60)) * 100;
   };
 
-  // 计算时间块样式
+  // 检测任务是否重叠
+  const isOverlapping = (block1: TimeBlock, block2: TimeBlock) => {
+    return block1.startTime < block2.endTime && block1.endTime > block2.startTime;
+  };
+
+  // 计算任务的列位置（避免重叠）
+  const calculateTaskColumns = (blocks: TimeBlock[]) => {
+    const columns: TimeBlock[][] = [];
+    const blockColumns = new Map<string, number>();
+
+    // 按开始时间排序
+    const sortedBlocks = [...blocks].sort((a, b) => 
+      a.startTime.getTime() - b.startTime.getTime()
+    );
+
+    sortedBlocks.forEach(block => {
+      // 找到第一个不重叠的列
+      let columnIndex = 0;
+      while (columnIndex < columns.length) {
+        const column = columns[columnIndex];
+        const hasOverlap = column.some(existingBlock => isOverlapping(block, existingBlock));
+        if (!hasOverlap) {
+          break;
+        }
+        columnIndex++;
+      }
+
+      // 如果所有列都重叠，创建新列
+      if (columnIndex === columns.length) {
+        columns.push([]);
+      }
+
+      columns[columnIndex].push(block);
+      blockColumns.set(block.id, columnIndex);
+    });
+
+    return { columns, blockColumns, totalColumns: columns.length };
+  };
+
+  const { blockColumns, totalColumns } = calculateTaskColumns(timeBlocks);
+
+  // 计算时间块样式（包含列位置）
   const getBlockStyle = (block: TimeBlock) => {
     const startMinutes = block.startTime.getHours() * 60 + block.startTime.getMinutes();
     const endMinutes = block.endTime.getHours() * 60 + block.endTime.getMinutes();
@@ -182,9 +223,16 @@ export default function TimelineCalendar({
     const top = (startMinutes / (24 * 60)) * 100;
     const height = (duration / (24 * 60)) * 100;
 
+    // 计算列位置
+    const columnIndex = blockColumns.get(block.id) || 0;
+    const columnWidth = 100 / totalColumns;
+    const left = columnIndex * columnWidth;
+
     return {
       top: `${top}%`,
       height: `${Math.max(height, 2)}%`,
+      left: `${left}%`,
+      width: `${columnWidth}%`,
       borderColor: block.color,
     };
   };
@@ -753,20 +801,23 @@ export default function TimelineCalendar({
                 const statusStyle = statusStyles[block.status];
                 const task = tasks.find(t => t.id === block.id);
                 const duration = Math.round((block.endTime.getTime() - block.startTime.getTime()) / 60000);
+                const blockStyle = getBlockStyle(block);
                 
                 return (
                   <div
                     key={block.id}
-                    className={`absolute left-4 right-4 rounded-xl border-l-4 shadow-lg transition-all group cursor-move hover:shadow-2xl ${
+                    className={`absolute rounded-xl border-l-4 shadow-lg transition-all group cursor-move hover:shadow-2xl ${
                       draggedBlockId === block.id ? 'scale-105 z-40 shadow-2xl' : 'z-20'
                     } ${
                       selectedBlockId === block.id ? 'ring-2 ring-blue-500' : ''
                     }`}
                     style={{
-                      ...getBlockStyle(block),
+                      ...blockStyle,
                       borderLeftColor: block.color,
                       backgroundColor: isDark ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.95)',
                       backdropFilter: 'blur(10px)',
+                      paddingLeft: '4px',
+                      paddingRight: '4px',
                     }}
                     onMouseDown={(e) => handleDragStart(e, block.id)}
                     onClick={() => setSelectedBlockId(block.id)}
