@@ -39,18 +39,21 @@ const isValidUUID = (uuid: string): boolean => {
   return uuidRegex.test(uuid);
 };
 
-// 确保用户在 Supabase 中存在
-const ensureUserExists = async (userId: string) => {
+// 用户创建 Promise 缓存，避免重复创建
+const userCreationPromises = new Map<string, Promise<void>>();
+
+// 确保用户在 Supabase 中存在（异步，返回 Promise）
+export const ensureUserExists = async (userId: string): Promise<void> => {
   if (!isSupabaseConfigured()) return;
   
-  try {
-    // 使用 upsert，以 local_user_id 作为冲突键
-    const { error } = await supabase.from(TABLES.USERS).upsert({
-      id: userId,
-      local_user_id: userId,
-      public_data: {},
-      device_list: [],
-      settings: {
+  // 如果已经有正在进行的创建请求，直接返回该 Promise
+  if (userCreationPromises.has(userId)) {
+    return userCreationPromises.get(userId)!;
+  }
+  
+  const promise = (async () => {
+    try {
+      const defaultSettings = {
         verificationStrictness: 'medium',
         enableProgressCheck: true,
         goldRewardMultiplier: 1.0,
@@ -67,58 +70,55 @@ const ensureUserExists = async (userId: string) => {
         autoSync: true,
         syncInterval: 5,
         syncPhotos: false,
-      },
-    }, {
-      onConflict: 'local_user_id', // 使用 local_user_id 作为冲突键
-      ignoreDuplicates: true, // 如果已存在则忽略
-    });
-    
-    if (error) {
-      // 如果还是失败，可能是因为 id 和 local_user_id 不一致
-      // 尝试只用 id 作为冲突键
-      const { error: error2 } = await supabase.from(TABLES.USERS).upsert({
+      };
+      
+      // 使用 upsert，以 local_user_id 作为冲突键
+      const { error } = await supabase.from(TABLES.USERS).upsert({
         id: userId,
         local_user_id: userId,
         public_data: {},
         device_list: [],
-        settings: {
-          verificationStrictness: 'medium',
-          enableProgressCheck: true,
-          goldRewardMultiplier: 1.0,
-          goldPenaltyMultiplier: 1.0,
-          enableNotifications: true,
-          notificationTimes: ['09:00', '14:00', '21:00'],
-          quietHours: { start: '22:00', end: '08:00' },
-          theme: 'auto',
-          primaryColor: '#991B1B',
-          fontSize: 'medium',
-          voiceType: 'default',
-          voiceSpeed: 1.0,
-          wakeWordSensitivity: 0.8,
-          autoSync: true,
-          syncInterval: 5,
-          syncPhotos: false,
-        },
+        settings: defaultSettings,
       }, {
-        onConflict: 'id',
+        onConflict: 'local_user_id',
         ignoreDuplicates: true,
       });
       
-      if (error2) {
-        console.error('确保用户存在失败:', error2);
-      } else {
-        console.log('✅ 用户已确保存在于 Supabase:', userId);
+      if (error) {
+        // 如果失败，尝试用 id 作为冲突键
+        const { error: error2 } = await supabase.from(TABLES.USERS).upsert({
+          id: userId,
+          local_user_id: userId,
+          public_data: {},
+          device_list: [],
+          settings: defaultSettings,
+        }, {
+          onConflict: 'id',
+          ignoreDuplicates: true,
+        });
+        
+        if (error2) {
+          console.error('确保用户存在失败:', error2);
+          throw error2;
+        }
       }
-    } else {
+      
       console.log('✅ 用户已确保存在于 Supabase:', userId);
+    } catch (error) {
+      console.error('确保用户存在失败:', error);
+      throw error;
+    } finally {
+      // 完成后从缓存中移除
+      userCreationPromises.delete(userId);
     }
-  } catch (error) {
-    console.error('确保用户存在失败:', error);
-  }
+  })();
+  
+  userCreationPromises.set(userId, promise);
+  return promise;
 };
 
-// 获取当前用户 ID（本地或云端）
-export const getCurrentUserId = () => {
+// 获取当前用户 ID（同步）
+export const getCurrentUserId = (): string => {
   let localUserId = localStorage.getItem('manifestos_user_id');
   
   // 如果没有用户 ID 或格式不正确，生成一个新的 UUID
@@ -126,12 +126,6 @@ export const getCurrentUserId = () => {
     localUserId = crypto.randomUUID();
     localStorage.setItem('manifestos_user_id', localUserId);
     console.log('✅ 生成新的用户 ID:', localUserId);
-    
-    // 异步确保用户在 Supabase 中存在
-    ensureUserExists(localUserId);
-  } else {
-    // 即使用户 ID 存在，也要确保在 Supabase 中有记录
-    ensureUserExists(localUserId);
   }
   
   return localUserId;

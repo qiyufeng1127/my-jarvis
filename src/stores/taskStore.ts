@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Task, TaskStatus, TaskType } from '@/types';
-import { supabase, TABLES, isSupabaseConfigured, getCurrentUserId } from '@/lib/supabase';
+import { supabase, TABLES, isSupabaseConfigured, getCurrentUserId, ensureUserExists } from '@/lib/supabase';
 
 interface TaskState {
   tasks: Task[];
@@ -101,6 +101,12 @@ export const useTaskStore = create<TaskState>()(
     
     try {
       const userId = getCurrentUserId();
+      
+      // 🔥 关键修复：在创建任务前，先确保用户在 Supabase 中存在
+      if (isSupabaseConfigured()) {
+        await ensureUserExists(userId);
+      }
+      
       const newTask: Task = {
         id: crypto.randomUUID(),
         userId,
