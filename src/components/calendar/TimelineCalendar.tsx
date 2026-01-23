@@ -657,12 +657,7 @@ export default function TimelineCalendar({
           {/* 右侧时间轴滚动区域 */}
           <div 
             ref={timelineRef}
-            className="flex-1 relative overflow-y-auto timeline-scrollbar"
-            style={{
-              scrollbarWidth: 'thin',
-              scrollbarColor: `${isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)'} transparent`,
-              WebkitOverflowScrolling: 'touch',
-            }}
+            className="flex-1 relative overflow-y-scroll timeline-scrollbar"
             onMouseMove={(e) => {
               if (draggedBlockId) handleDragMove(e);
               if (resizingBlockId) handleResizeMove(e);
