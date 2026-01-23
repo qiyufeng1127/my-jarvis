@@ -146,9 +146,10 @@ p, span, div, h1, h2, h3, h4, h5, h6, a, button, input, textarea, label {
    滚动条样式
    ============================================ */
 
+/* Webkit 浏览器（Chrome, Safari, Edge）*/
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
@@ -164,6 +165,64 @@ p, span, div, h1, h2, h3, h4, h5, h6, a, button, input, textarea, label {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-neutral-400);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-neutral-300) var(--color-neutral-100);
+}
+
+/* 深色背景的滚动条 */
+[style*="background"][style*="#0"]::-webkit-scrollbar-track,
+[style*="background"][style*="#1"]::-webkit-scrollbar-track,
+[style*="background"][style*="#2"]::-webkit-scrollbar-track,
+[style*="background"][style*="#3"]::-webkit-scrollbar-track,
+[style*="background"][style*="#4"]::-webkit-scrollbar-track,
+[style*="background"][style*="#5"]::-webkit-scrollbar-track,
+[style*="background"][style*="#6"]::-webkit-scrollbar-track,
+[style*="background"][style*="#7"]::-webkit-scrollbar-track,
+[style*="background"][style*="#8"]::-webkit-scrollbar-track,
+[style*="background"][style*="#9"]::-webkit-scrollbar-track,
+[style*="background"][style*="#a"]::-webkit-scrollbar-track,
+[style*="background"][style*="#b"]::-webkit-scrollbar-track,
+[style*="background"][style*="#c"]::-webkit-scrollbar-track,
+[style*="background"][style*="#d"]::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+[style*="background"][style*="#0"]::-webkit-scrollbar-thumb,
+[style*="background"][style*="#1"]::-webkit-scrollbar-thumb,
+[style*="background"][style*="#2"]::-webkit-scrollbar-thumb,
+[style*="background"][style*="#3"]::-webkit-scrollbar-thumb,
+[style*="background"][style*="#4"]::-webkit-scrollbar-thumb,
+[style*="background"][style*="#5"]::-webkit-scrollbar-thumb,
+[style*="background"][style*="#6"]::-webkit-scrollbar-thumb,
+[style*="background"][style*="#7"]::-webkit-scrollbar-thumb,
+[style*="background"][style*="#8"]::-webkit-scrollbar-thumb,
+[style*="background"][style*="#9"]::-webkit-scrollbar-thumb,
+[style*="background"][style*="#a"]::-webkit-scrollbar-thumb,
+[style*="background"][style*="#b"]::-webkit-scrollbar-thumb,
+[style*="background"][style*="#c"]::-webkit-scrollbar-thumb,
+[style*="background"][style*="#d"]::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+[style*="background"][style*="#0"]::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#1"]::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#2"]::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#3"]::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#4"]::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#5"]::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#6"]::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#7"]::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#8"]::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#9"]::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#a"]::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#b"]::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#c"]::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#d"]::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
 }
 
 /* ============================================

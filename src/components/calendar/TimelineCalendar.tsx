@@ -11,6 +11,7 @@ interface TimelineCalendarProps {
   onTaskUpdate: (taskId: string, updates: Partial<Task>) => void;
   onTaskCreate: (task: Partial<Task>) => void;
   onTaskDelete: (taskId: string) => void;
+  bgColor?: string; // 背景颜色
 }
 
 type TimeScale = 30 | 15 | 5; // 时间粒度（分钟）
@@ -40,6 +41,7 @@ export default function TimelineCalendar({
   onTaskUpdate,
   onTaskCreate,
   onTaskDelete,
+  bgColor = '#ffffff',
 }: TimelineCalendarProps) {
   const [calendarView, setCalendarView] = useState<'week' | 'month'>('month');
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -55,6 +57,23 @@ export default function TimelineCalendar({
   const timelineRef = useRef<HTMLDivElement>(null);
   const dragStartY = useRef(0);
   const dragStartMinutes = useRef(0);
+
+  // 判断颜色是否为深色
+  const isColorDark = (color: string): boolean => {
+    const hex = color.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    return brightness < 128;
+  };
+
+  const isDark = isColorDark(bgColor);
+  const textColor = isDark ? '#ffffff' : '#000000';
+  const accentColor = isDark ? 'rgba(255,255,255,0.7)' : '#666666';
+  const borderColor = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)';
+  const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
+  const cardBg = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)';
 
   // 任务类别颜色
   const categoryColors: Record<string, string> = {
@@ -371,11 +390,11 @@ export default function TimelineCalendar({
   const calendarDays = calendarView === 'month' ? generateMonthCalendarDays() : generateWeekCalendarDays();
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full" style={{ backgroundColor: bgColor }}>
       {/* 上半部分：日历视图 */}
-      <div className="flex-shrink-0 border-b-2 border-neutral-300">
+      <div className="flex-shrink-0" style={{ borderBottom: `2px solid ${borderColor}` }}>
         {/* 日历工具栏 */}
-        <div className="flex items-center justify-between px-6 py-3 bg-white border-b border-neutral-200">
+        <div className="flex items-center justify-between px-6 py-3" style={{ backgroundColor: bgColor, borderBottom: `1px solid ${borderColor}` }}>
           <div className="flex items-center space-x-4">
             <button
               onClick={() => {
@@ -387,14 +406,15 @@ export default function TimelineCalendar({
                 }
                 setSelectedDate(newDate);
               }}
-              className="p-2 hover:bg-neutral-100 rounded-lg transition-colors"
+              className="p-2 rounded-lg transition-colors"
+              style={{ backgroundColor: hoverBg }}
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-5 h-5" style={{ color: textColor }} />
             </button>
 
             <div className="flex items-center space-x-2">
-              <CalendarIcon className="w-5 h-5 text-neutral-700" />
-              <h2 className="text-lg font-semibold">
+              <CalendarIcon className="w-5 h-5" style={{ color: textColor }} />
+              <h2 className="text-lg font-semibold" style={{ color: textColor }}>
                 {calendarView === 'month' 
                   ? selectedDate.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' })
                   : `${selectedDate.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' })} 第${Math.ceil(selectedDate.getDate() / 7)}周`
@@ -412,28 +432,34 @@ export default function TimelineCalendar({
                 }
                 setSelectedDate(newDate);
               }}
-              className="p-2 hover:bg-neutral-100 rounded-lg transition-colors"
+              className="p-2 rounded-lg transition-colors"
+              style={{ backgroundColor: hoverBg }}
             >
-              <ChevronRight className="w-5 h-5" />
+              <ChevronRight className="w-5 h-5" style={{ color: textColor }} />
             </button>
 
             <button
               onClick={() => setSelectedDate(new Date())}
-              className="px-3 py-1.5 text-sm bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors"
+              className="px-3 py-1.5 text-sm rounded-lg transition-colors"
+              style={{ backgroundColor: hoverBg, color: textColor }}
             >
               今天
             </button>
           </div>
 
           <div className="flex items-center space-x-2">
-            <div className="flex bg-neutral-100 rounded-lg p-1">
+            <div className="flex rounded-lg p-1" style={{ backgroundColor: cardBg }}>
               <button
                 onClick={() => setCalendarView('week')}
                 className={`px-3 py-1.5 text-sm rounded transition-colors ${
                   calendarView === 'week'
-                    ? 'bg-white text-blue-600 font-semibold shadow-sm'
-                    : 'text-neutral-600 hover:text-neutral-900'
+                    ? 'font-semibold shadow-sm'
+                    : ''
                 }`}
+                style={{
+                  backgroundColor: calendarView === 'week' ? hoverBg : 'transparent',
+                  color: calendarView === 'week' ? textColor : accentColor,
+                }}
               >
                 周视图
               </button>
@@ -441,9 +467,13 @@ export default function TimelineCalendar({
                 onClick={() => setCalendarView('month')}
                 className={`px-3 py-1.5 text-sm rounded transition-colors ${
                   calendarView === 'month'
-                    ? 'bg-white text-blue-600 font-semibold shadow-sm'
-                    : 'text-neutral-600 hover:text-neutral-900'
+                    ? 'font-semibold shadow-sm'
+                    : ''
                 }`}
+                style={{
+                  backgroundColor: calendarView === 'month' ? hoverBg : 'transparent',
+                  color: calendarView === 'month' ? textColor : accentColor,
+                }}
               >
                 月视图
               </button>
@@ -451,12 +481,12 @@ export default function TimelineCalendar({
           </div>
         </div>
 
-        {/* 日历网格 */}
+        {/* 日历网格 - 添加滚动条 */}
         <div className="overflow-auto p-4" style={{ maxHeight: calendarView === 'month' ? '400px' : '200px' }}>
           <div className={`grid grid-cols-7 ${calendarView === 'month' ? 'gap-2' : 'gap-3'}`}>
             {/* 星期标题 */}
             {['日', '一', '二', '三', '四', '五', '六'].map((day, index) => (
-              <div key={index} className="text-center font-semibold text-neutral-700 py-2">
+              <div key={index} className="text-center font-semibold py-2" style={{ color: textColor }}>
                 {day}
               </div>
             ))}
@@ -466,20 +496,30 @@ export default function TimelineCalendar({
               <button
                 key={index}
                 onClick={() => setSelectedDate(day.date)}
-                className={`${calendarView === 'month' ? 'aspect-square' : 'h-24'} rounded-lg border-2 p-2 transition-all hover:shadow-md ${
-                  day.isSelected
-                    ? 'border-blue-500 bg-blue-50'
+                className={`${calendarView === 'month' ? 'aspect-square' : 'h-24'} rounded-lg border-2 p-2 transition-all hover:shadow-md`}
+                style={{
+                  borderColor: day.isSelected
+                    ? '#3B82F6'
                     : day.isToday
-                    ? 'border-green-500 bg-green-50'
+                    ? '#10B981'
                     : day.isCurrentMonth
-                    ? 'border-neutral-200 bg-white hover:border-neutral-300'
-                    : 'border-neutral-100 bg-neutral-50'
-                }`}
+                    ? borderColor
+                    : 'transparent',
+                  backgroundColor: day.isSelected
+                    ? isDark ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)'
+                    : day.isToday
+                    ? isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.1)'
+                    : day.isCurrentMonth
+                    ? cardBg
+                    : 'transparent',
+                }}
               >
                 <div className="flex flex-col h-full">
-                  <div className={`text-sm font-semibold mb-1 ${
-                    day.isToday ? 'text-green-600' : day.isSelected ? 'text-blue-600' : day.isCurrentMonth ? 'text-neutral-900' : 'text-neutral-400'
-                  }`}>
+                  <div className={`text-sm font-semibold mb-1`}
+                    style={{
+                      color: day.isToday ? '#10B981' : day.isSelected ? '#3B82F6' : day.isCurrentMonth ? textColor : accentColor
+                    }}
+                  >
                     {day.date.getDate()}
                   </div>
                   
@@ -498,7 +538,7 @@ export default function TimelineCalendar({
                         </div>
                       ))}
                       {day.tasks.length > (calendarView === 'month' ? 2 : 4) && (
-                        <div className="text-xs text-neutral-500">
+                        <div className="text-xs" style={{ color: accentColor }}>
                           +{day.tasks.length - (calendarView === 'month' ? 2 : 4)} 更多
                         </div>
                       )}
@@ -514,17 +554,18 @@ export default function TimelineCalendar({
       {/* 下半部分：时间轴视图 */}
       <div className="flex-1 flex overflow-hidden">
         {/* 左侧时间刻度 */}
-        <div className="w-20 bg-neutral-50 border-r border-neutral-200 flex-shrink-0 overflow-y-auto">
-          <div className="sticky top-0 z-20 bg-neutral-50 border-b border-neutral-200 p-2">
+        <div className="w-20 flex-shrink-0 overflow-y-auto" style={{ backgroundColor: cardBg, borderRight: `1px solid ${borderColor}` }}>
+          <div className="sticky top-0 z-20 p-2" style={{ backgroundColor: cardBg, borderBottom: `1px solid ${borderColor}` }}>
             <div className="flex flex-col items-center space-y-1">
               <button
                 onClick={cycleTimeScale}
-                className="p-1.5 hover:bg-neutral-200 rounded transition-colors"
+                className="p-1.5 rounded transition-colors"
+                style={{ backgroundColor: hoverBg }}
                 title="切换时间粒度"
               >
-                <Clock className="w-4 h-4 text-neutral-600" />
+                <Clock className="w-4 h-4" style={{ color: textColor }} />
               </button>
-              <span className="text-xs text-neutral-600 font-medium">{timeScale}分钟</span>
+              <span className="text-xs font-medium" style={{ color: textColor }}>{timeScale}分钟</span>
             </div>
           </div>
 
@@ -533,13 +574,17 @@ export default function TimelineCalendar({
               <button
                 key={index}
                 onClick={() => handleTimeSlotClick(slot.minutes)}
-                className={`absolute left-0 right-0 text-right pr-3 hover:bg-neutral-100 transition-colors ${
-                  slot.isHour ? 'font-semibold text-neutral-900' : 'text-neutral-600'
+                className={`absolute left-0 right-0 text-right pr-3 transition-colors ${
+                  slot.isHour ? 'font-semibold' : ''
                 }`}
                 style={{ 
                   top: `${(slot.minutes / (24 * 60)) * 100}%`,
                   height: `${(timeScale / (24 * 60)) * 100}%`,
+                  color: slot.isHour ? textColor : accentColor,
+                  backgroundColor: 'transparent',
                 }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = hoverBg}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
               >
                 <span className="text-xs">{slot.time}</span>
               </button>
@@ -550,10 +595,10 @@ export default function TimelineCalendar({
         {/* 右侧时间轴主体 */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* 顶部工具栏 */}
-          <div className="flex items-center justify-between px-6 py-3 bg-white border-b border-neutral-200">
+          <div className="flex items-center justify-between px-6 py-3" style={{ backgroundColor: bgColor, borderBottom: `1px solid ${borderColor}` }}>
             <div className="flex items-center space-x-2">
-              <Clock className="w-5 h-5 text-neutral-700" />
-              <h2 className="text-base font-semibold">
+              <Clock className="w-5 h-5" style={{ color: textColor }} />
+              <h2 className="text-base font-semibold" style={{ color: textColor }}>
                 {selectedDate.toLocaleDateString('zh-CN', {
                   month: 'long',
                   day: 'numeric',
@@ -563,7 +608,7 @@ export default function TimelineCalendar({
             </div>
 
             <div className="flex items-center space-x-2">
-              <span className="text-sm text-neutral-600">{timeBlocks.length} 个任务</span>
+              <span className="text-sm" style={{ color: accentColor }}>{timeBlocks.length} 个任务</span>
               <button
                 onClick={() => {
                   const newTask = {
@@ -575,7 +620,8 @@ export default function TimelineCalendar({
                   };
                   onTaskCreate(newTask);
                 }}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors"
+                style={{ backgroundColor: hoverBg, color: textColor }}
               >
                 <Plus className="w-4 h-4" />
                 <span>新建任务</span>
@@ -583,10 +629,14 @@ export default function TimelineCalendar({
             </div>
           </div>
 
-          {/* 时间轴滚动区域 */}
+          {/* 时间轴滚动区域 - 添加滚动条样式 */}
           <div 
             ref={timelineRef}
             className="flex-1 overflow-y-auto relative"
+            style={{
+              scrollbarWidth: 'thin',
+              scrollbarColor: `${isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)'} ${cardBg}`,
+            }}
             onMouseMove={(e) => {
               if (draggedBlockId) handleDragMove(e);
               if (resizingBlockId) handleResizeMove(e);
@@ -600,17 +650,15 @@ export default function TimelineCalendar({
               handleResizeEnd();
             }}
           >
-            <div className="relative bg-white" style={{ height: `${(24 * 60 / timeScale) * 40}px`, minHeight: '100%' }}>
+            <div className="relative" style={{ backgroundColor: bgColor, height: `${(24 * 60 / timeScale) * 40}px`, minHeight: '100%' }}>
               {/* 时间网格线 */}
               {timeSlots.map((slot, index) => (
                 <div
                   key={index}
-                  className={`absolute left-0 right-0 ${
-                    slot.isHour ? 'border-neutral-300' : 'border-neutral-100'
-                  }`}
+                  className="absolute left-0 right-0"
                   style={{ 
                     top: `${(slot.minutes / (24 * 60)) * 100}%`,
-                    borderTopWidth: slot.isHour ? '2px' : '1px',
+                    borderTop: `${slot.isHour ? '2px' : '1px'} solid ${borderColor}`,
                   }}
                 />
               ))}
@@ -650,33 +698,34 @@ export default function TimelineCalendar({
                       <div className="flex items-start justify-between mb-1">
                         <div className="flex items-center space-x-2 flex-1 min-w-0">
                           <span className="text-lg">{statusStyle.icon}</span>
-                          <div className="font-semibold text-sm truncate text-neutral-900">{block.title}</div>
+                          <div className="font-semibold text-sm truncate" style={{ color: textColor }}>{block.title}</div>
                         </div>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleContextMenu(e, block.id);
                           }}
-                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-black/10 rounded transition-opacity"
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity"
+                          style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
                         >
-                          <MoreVertical className="w-4 h-4 text-neutral-700" />
+                          <MoreVertical className="w-4 h-4" style={{ color: textColor }} />
                         </button>
                       </div>
 
                       {/* 时间信息 */}
-                      <div className="text-xs text-neutral-600 flex items-center mb-2">
+                      <div className="text-xs flex items-center mb-2" style={{ color: accentColor }}>
                         <Clock className="w-3 h-3 mr-1" />
                         {block.startTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
                         {' - '}
                         {block.endTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-                        <span className="ml-2 text-neutral-500">
+                        <span className="ml-2">
                           ({Math.round((block.endTime.getTime() - block.startTime.getTime()) / 60000)}分钟)
                         </span>
                       </div>
 
                       {/* 奖励信息 */}
                       {block.rewards && (
-                        <div className="text-xs text-neutral-600 mt-auto">
+                        <div className="text-xs mt-auto" style={{ color: accentColor }}>
                           💰 {block.rewards.gold} 金币
                         </div>
                       )}
@@ -686,7 +735,7 @@ export default function TimelineCalendar({
                         className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity"
                         onMouseDown={(e) => handleResizeStart(e, block.id)}
                       >
-                        <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-12 h-1 bg-neutral-400 rounded-full"></div>
+                        <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-12 h-1 rounded-full" style={{ backgroundColor: accentColor }}></div>
                       </div>
                     </div>
                   </div>
@@ -696,8 +745,8 @@ export default function TimelineCalendar({
           </div>
 
           {/* 底部提示 */}
-          <div className="px-6 py-2 bg-neutral-50 border-t border-neutral-200">
-            <div className="flex items-center justify-between text-xs text-neutral-600">
+          <div className="px-6 py-2" style={{ backgroundColor: cardBg, borderTop: `1px solid ${borderColor}` }}>
+            <div className="flex items-center justify-between text-xs" style={{ color: accentColor }}>
               <div className="flex items-center space-x-4">
                 <span>💡 拖拽任务调整时间</span>
                 <span>📏 拖拽底部调整时长</span>
@@ -715,34 +764,51 @@ export default function TimelineCalendar({
       {/* 右键菜单 */}
       {contextMenu && (
         <div
-          className="fixed bg-white rounded-lg shadow-xl border border-neutral-200 py-1 z-50"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
+          className="fixed rounded-lg shadow-xl py-1 z-50"
+          style={{ 
+            left: contextMenu.x, 
+            top: contextMenu.y,
+            backgroundColor: bgColor,
+            border: `1px solid ${borderColor}`,
+          }}
         >
           <button
             onClick={() => handleQuickAction('edit', contextMenu.blockId)}
-            className="w-full px-4 py-2 text-left text-sm text-neutral-900 hover:bg-neutral-100 flex items-center space-x-2"
+            className="w-full px-4 py-2 text-left text-sm flex items-center space-x-2 transition-colors"
+            style={{ color: textColor }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = hoverBg}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
           >
             <Edit className="w-4 h-4" />
             <span>编辑</span>
           </button>
           <button
             onClick={() => handleQuickAction('complete', contextMenu.blockId)}
-            className="w-full px-4 py-2 text-left text-sm text-neutral-900 hover:bg-neutral-100 flex items-center space-x-2"
+            className="w-full px-4 py-2 text-left text-sm flex items-center space-x-2 transition-colors"
+            style={{ color: textColor }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = hoverBg}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
           >
             <Check className="w-4 h-4" />
             <span>标记完成</span>
           </button>
           <button
             onClick={() => handleQuickAction('copy', contextMenu.blockId)}
-            className="w-full px-4 py-2 text-left text-sm text-neutral-900 hover:bg-neutral-100 flex items-center space-x-2"
+            className="w-full px-4 py-2 text-left text-sm flex items-center space-x-2 transition-colors"
+            style={{ color: textColor }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = hoverBg}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
           >
             <Copy className="w-4 h-4" />
             <span>复制到明天</span>
           </button>
-          <div className="border-t border-neutral-200 my-1"></div>
+          <div style={{ borderTop: `1px solid ${borderColor}`, margin: '4px 0' }}></div>
           <button
             onClick={() => handleQuickAction('delete', contextMenu.blockId)}
-            className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center space-x-2"
+            className="w-full px-4 py-2 text-left text-sm flex items-center space-x-2 transition-colors"
+            style={{ color: '#ef4444' }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
           >
             <Trash2 className="w-4 h-4" />
             <span>删除</span>

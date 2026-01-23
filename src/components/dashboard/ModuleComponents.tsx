@@ -1428,7 +1428,7 @@ export function ReportsModule({ isDark = false }: { isDark?: boolean }) {
 
 // 设置模块
 export function SettingsModule({ isDark = false }: { isDark?: boolean }) {
-  const [activeTab, setActiveTab] = useState<'growth' | 'identity' | 'procrastination' | 'economy' | 'appearance' | 'notification' | 'sync'>('growth');
+  const [activeTab, setActiveTab] = useState<'growth' | 'identity' | 'procrastination' | 'economy' | 'appearance' | 'notification' | 'api' | 'sync'>('growth');
   const [strictnessLevel, setStrictnessLevel] = useState(2); // 0=低, 1=中, 2=高
   
   // 外观设置状态
@@ -1451,40 +1451,350 @@ export function SettingsModule({ isDark = false }: { isDark?: boolean }) {
   const [voiceSpeed, setVoiceSpeed] = useState<'slow' | 'normal' | 'fast'>('normal');
   const [wakeSensitivity, setWakeSensitivity] = useState<'low' | 'medium' | 'high'>('medium');
 
+  // API 配置状态
+  const [supabaseUrl, setSupabaseUrl] = useState(import.meta.env.VITE_SUPABASE_URL || '');
+  const [supabaseKey, setSupabaseKey] = useState(import.meta.env.VITE_SUPABASE_ANON_KEY || '');
+  const [openaiKey, setOpenaiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY || '');
+  const [openaiBaseUrl, setOpenaiBaseUrl] = useState(import.meta.env.VITE_OPENAI_BASE_URL || 'https://api.openai.com/v1');
+
+  // 云同步设置状态
+  const [autoSync, setAutoSync] = useState(true);
+  const [syncInterval, setSyncInterval] = useState<'realtime' | '1min' | '5min' | '15min'>('realtime');
+  const [syncOnStartup, setSyncOnStartup] = useState(true);
+  const [conflictResolution, setConflictResolution] = useState<'cloud' | 'local' | 'manual'>('cloud');
+
   const cardBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
   const textColor = isDark ? '#ffffff' : '#000000';
   const accentColor = isDark ? 'rgba(255,255,255,0.7)' : '#666666';
   const buttonBg = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)';
 
   const tabs = [
+    { id: 'api', label: 'API配置', icon: '🔑' },
+    { id: 'sync', label: '云同步', icon: '☁️' },
+    { id: 'appearance', label: '外观体验', icon: '🎨' },
+    { id: 'notification', label: '通知语音', icon: '🔔' },
     { id: 'growth', label: '成长维度', icon: '📊' },
     { id: 'identity', label: '身份系统', icon: '👤' },
     { id: 'procrastination', label: '防拖延', icon: '⚡' },
     { id: 'economy', label: '金币经济', icon: '💰' },
-    { id: 'appearance', label: '外观体验', icon: '🎨' },
-    { id: 'notification', label: '通知语音', icon: '🔔' },
   ];
 
   return (
-    <div className="space-y-4">
-      {/* 选项卡 */}
-      <div className="grid grid-cols-3 gap-2">
+    <div className="space-y-5">
+      {/* 选项卡 - 增大文字和间距 */}
+      <div className="grid grid-cols-2 gap-3">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className="py-2 px-2 rounded-lg text-xs font-medium transition-all"
+            className="py-3 px-3 rounded-lg text-sm font-medium transition-all"
             style={{
               backgroundColor: activeTab === tab.id ? buttonBg : 'transparent',
               color: textColor,
               border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}`,
             }}
           >
-            <div>{tab.icon}</div>
-            <div className="mt-1">{tab.label}</div>
+            <div className="text-xl">{tab.icon}</div>
+            <div className="mt-1.5">{tab.label}</div>
           </button>
         ))}
       </div>
+
+      {/* API 配置 */}
+      {activeTab === 'api' && (
+        <div className="space-y-4">
+          <h4 className="font-semibold text-base" style={{ color: textColor }}>🔑 API 配置</h4>
+          
+          {/* Supabase 配置 */}
+          <div className="space-y-3">
+            <h5 className="font-medium text-sm" style={{ color: textColor }}>Supabase（云端数据库）</h5>
+            <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
+              <label className="block mb-3">
+                <span className="text-sm font-medium block mb-2" style={{ color: textColor }}>Supabase URL</span>
+                <input
+                  type="text"
+                  value={supabaseUrl}
+                  onChange={(e) => setSupabaseUrl(e.target.value)}
+                  placeholder="https://your-project.supabase.co"
+                  className="w-full px-3 py-2.5 rounded-lg text-sm"
+                  style={{
+                    backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)',
+                    color: textColor,
+                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}`,
+                  }}
+                />
+              </label>
+              <label className="block">
+                <span className="text-sm font-medium block mb-2" style={{ color: textColor }}>Supabase Anon Key</span>
+                <input
+                  type="password"
+                  value={supabaseKey}
+                  onChange={(e) => setSupabaseKey(e.target.value)}
+                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  className="w-full px-3 py-2.5 rounded-lg text-sm"
+                  style={{
+                    backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)',
+                    color: textColor,
+                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}`,
+                  }}
+                />
+              </label>
+              <div className="mt-3 text-xs" style={{ color: accentColor }}>
+                💡 在 Supabase 项目设置中获取这些信息
+              </div>
+            </div>
+          </div>
+
+          {/* OpenAI 配置 */}
+          <div className="space-y-3">
+            <h5 className="font-medium text-sm" style={{ color: textColor }}>OpenAI（AI 功能）</h5>
+            <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
+              <label className="block mb-3">
+                <span className="text-sm font-medium block mb-2" style={{ color: textColor }}>API Key</span>
+                <input
+                  type="password"
+                  value={openaiKey}
+                  onChange={(e) => setOpenaiKey(e.target.value)}
+                  placeholder="sk-..."
+                  className="w-full px-3 py-2.5 rounded-lg text-sm"
+                  style={{
+                    backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)',
+                    color: textColor,
+                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}`,
+                  }}
+                />
+              </label>
+              <label className="block">
+                <span className="text-sm font-medium block mb-2" style={{ color: textColor }}>Base URL（可选）</span>
+                <input
+                  type="text"
+                  value={openaiBaseUrl}
+                  onChange={(e) => setOpenaiBaseUrl(e.target.value)}
+                  placeholder="https://api.openai.com/v1"
+                  className="w-full px-3 py-2.5 rounded-lg text-sm"
+                  style={{
+                    backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)',
+                    color: textColor,
+                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}`,
+                  }}
+                />
+              </label>
+              <div className="mt-3 text-xs" style={{ color: accentColor }}>
+                💡 使用自定义 Base URL 可以连接到其他兼容的 API 服务
+              </div>
+            </div>
+          </div>
+
+          {/* 测试连接 */}
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => alert('测试 Supabase 连接...')}
+              className="py-3 rounded-lg text-sm font-semibold transition-all hover:scale-[1.02]"
+              style={{ backgroundColor: buttonBg, color: textColor }}
+            >
+              🔌 测试 Supabase
+            </button>
+            <button
+              onClick={() => alert('测试 OpenAI 连接...')}
+              className="py-3 rounded-lg text-sm font-semibold transition-all hover:scale-[1.02]"
+              style={{ backgroundColor: buttonBg, color: textColor }}
+            >
+              🤖 测试 OpenAI
+            </button>
+          </div>
+
+          {/* 保存按钮 */}
+          <button
+            onClick={() => {
+              // 保存到环境变量或本地存储
+              localStorage.setItem('VITE_SUPABASE_URL', supabaseUrl);
+              localStorage.setItem('VITE_SUPABASE_ANON_KEY', supabaseKey);
+              localStorage.setItem('VITE_OPENAI_API_KEY', openaiKey);
+              localStorage.setItem('VITE_OPENAI_BASE_URL', openaiBaseUrl);
+              alert('API 配置已保存！请刷新页面使配置生效。');
+            }}
+            className="w-full py-3 rounded-lg text-sm font-semibold transition-all hover:scale-[1.02]"
+            style={{ backgroundColor: buttonBg, color: textColor }}
+          >
+            💾 保存配置
+          </button>
+        </div>
+      )}
+
+      {/* 云同步设置 */}
+      {activeTab === 'sync' && (
+        <div className="space-y-4">
+          <h4 className="font-semibold text-base" style={{ color: textColor }}>☁️ 云同步设置</h4>
+
+          {/* 同步状态 */}
+          <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-sm font-medium" style={{ color: textColor }}>同步状态</div>
+                <div className="text-xs mt-1" style={{ color: accentColor }}>最后同步：2分钟前</div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-sm font-medium" style={{ color: '#4ade80' }}>已连接</span>
+              </div>
+            </div>
+            <button
+              onClick={() => alert('正在手动同步...')}
+              className="w-full py-2.5 rounded-lg text-sm font-semibold transition-all hover:scale-[1.02]"
+              style={{ backgroundColor: buttonBg, color: textColor }}
+            >
+              🔄 立即同步
+            </button>
+          </div>
+
+          {/* 自动同步 */}
+          <div className="space-y-3">
+            <label className="flex items-center justify-between p-4 rounded-lg cursor-pointer transition-all hover:scale-[1.01]" style={{ backgroundColor: cardBg }}>
+              <div>
+                <div className="text-sm font-medium" style={{ color: textColor }}>自动同步</div>
+                <div className="text-xs mt-1" style={{ color: accentColor }}>自动将数据同步到云端</div>
+              </div>
+              <input
+                type="checkbox"
+                checked={autoSync}
+                onChange={(e) => setAutoSync(e.target.checked)}
+                className="w-5 h-5 cursor-pointer"
+              />
+            </label>
+
+            {autoSync && (
+              <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
+                <label className="block">
+                  <span className="text-sm font-medium block mb-2" style={{ color: textColor }}>同步频率</span>
+                  <select
+                    value={syncInterval}
+                    onChange={(e) => setSyncInterval(e.target.value as any)}
+                    className="w-full px-3 py-2.5 rounded-lg text-sm cursor-pointer"
+                    style={{
+                      backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)',
+                      color: textColor,
+                      border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}`,
+                    }}
+                  >
+                    <option value="realtime">实时同步（推荐）</option>
+                    <option value="1min">每1分钟</option>
+                    <option value="5min">每5分钟</option>
+                    <option value="15min">每15分钟</option>
+                  </select>
+                </label>
+              </div>
+            )}
+
+            <label className="flex items-center justify-between p-4 rounded-lg cursor-pointer transition-all hover:scale-[1.01]" style={{ backgroundColor: cardBg }}>
+              <div>
+                <div className="text-sm font-medium" style={{ color: textColor }}>启动时同步</div>
+                <div className="text-xs mt-1" style={{ color: accentColor }}>打开应用时自动从云端加载数据</div>
+              </div>
+              <input
+                type="checkbox"
+                checked={syncOnStartup}
+                onChange={(e) => setSyncOnStartup(e.target.checked)}
+                className="w-5 h-5 cursor-pointer"
+              />
+            </label>
+          </div>
+
+          {/* 冲突解决策略 */}
+          <div className="space-y-3">
+            <h5 className="font-medium text-sm" style={{ color: textColor }}>冲突解决策略</h5>
+            <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
+              <label className="block">
+                <span className="text-xs block mb-2" style={{ color: accentColor }}>
+                  当本地数据与云端数据冲突时
+                </span>
+                <select
+                  value={conflictResolution}
+                  onChange={(e) => setConflictResolution(e.target.value as any)}
+                  className="w-full px-3 py-2.5 rounded-lg text-sm cursor-pointer"
+                  style={{
+                    backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)',
+                    color: textColor,
+                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}`,
+                  }}
+                >
+                  <option value="cloud">优先使用云端数据</option>
+                  <option value="local">优先使用本地数据</option>
+                  <option value="manual">手动选择</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          {/* 同步范围 */}
+          <div className="space-y-3">
+            <h5 className="font-medium text-sm" style={{ color: textColor }}>同步范围</h5>
+            {[
+              { key: 'modules', label: '仪表盘模块配置', checked: true },
+              { key: 'tasks', label: '任务数据', checked: true },
+              { key: 'goals', label: '长期目标', checked: true },
+              { key: 'habits', label: '习惯记录', checked: true },
+              { key: 'journals', label: '日记和记忆', checked: true },
+              { key: 'settings', label: '个人设置', checked: false },
+            ].map((item) => (
+              <label key={item.key} className="flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all hover:scale-[1.01]" style={{ backgroundColor: cardBg }}>
+                <span className="text-sm" style={{ color: textColor }}>{item.label}</span>
+                <input
+                  type="checkbox"
+                  defaultChecked={item.checked}
+                  className="w-4 h-4 cursor-pointer"
+                />
+              </label>
+            ))}
+          </div>
+
+          {/* 数据管理 */}
+          <div className="space-y-3">
+            <h5 className="font-medium text-sm" style={{ color: textColor }}>数据管理</h5>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => {
+                  if (confirm('确定要导出所有数据吗？')) {
+                    alert('正在导出数据...');
+                  }
+                }}
+                className="py-2.5 rounded-lg text-sm font-semibold transition-all hover:scale-[1.02]"
+                style={{ backgroundColor: buttonBg, color: textColor }}
+              >
+                📥 导出数据
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm('确定要清除本地缓存吗？云端数据不会受影响。')) {
+                    localStorage.clear();
+                    alert('本地缓存已清除！');
+                  }
+                }}
+                className="py-2.5 rounded-lg text-sm font-semibold transition-all hover:scale-[1.02]"
+                style={{ backgroundColor: buttonBg, color: textColor }}
+              >
+                🗑️ 清除缓存
+              </button>
+            </div>
+          </div>
+
+          {/* 保存按钮 */}
+          <button
+            onClick={() => {
+              localStorage.setItem('sync_settings', JSON.stringify({
+                autoSync,
+                syncInterval,
+                syncOnStartup,
+                conflictResolution,
+              }));
+              alert('云同步设置已保存！');
+            }}
+            className="w-full py-3 rounded-lg text-sm font-semibold transition-all hover:scale-[1.02]"
+            style={{ backgroundColor: buttonBg, color: textColor }}
+          >
+            💾 保存设置
+          </button>
+        </div>
+      )}
 
       {/* 成长维度 */}
       {activeTab === 'growth' && (
@@ -2051,6 +2361,7 @@ export function TimelineModule({ isDark = false, bgColor = '#ffffff' }: { isDark
         onTaskUpdate={updateTask}
         onTaskCreate={addTask}
         onTaskDelete={deleteTask}
+        bgColor={bgColor}
       />
     </div>
   );
