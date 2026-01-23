@@ -1,5 +1,7 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { LongTermGoal, GoalType } from '@/types';
+import { supabase, TABLES, isSupabaseConfigured, getCurrentUserId } from '@/lib/supabase';
 
 interface GoalState {
   goals: LongTermGoal[];
@@ -21,7 +23,9 @@ interface GoalState {
   findMatchingGoals: (taskDescription: string, keywords: string[]) => LongTermGoal[];
 }
 
-export const useGoalStore = create<GoalState>((set, get) => ({
+export const useGoalStore = create<GoalState>()(
+  persist(
+    (set, get) => ({
   goals: [],
   isLoading: false,
   error: null,
@@ -30,20 +34,53 @@ export const useGoalStore = create<GoalState>((set, get) => ({
     set({ isLoading: true, error: null });
     
     try {
-      // TODO: 从 Supabase 加载目标
-      // 暂时使用本地存储
-      const savedGoals = localStorage.getItem('long_term_goals');
-      if (savedGoals) {
-        const goals = JSON.parse(savedGoals).map((g: any) => ({
-          ...g,
-          deadline: g.deadline ? new Date(g.deadline) : undefined,
-          completedAt: g.completedAt ? new Date(g.completedAt) : undefined,
-          createdAt: new Date(g.createdAt),
-          updatedAt: new Date(g.updatedAt),
+      if (isSupabaseConfigured()) {
+        // 从 Supabase 加载目标
+        const userId = getCurrentUserId();
+        const { data, error } = await supabase
+          .from(TABLES.GOALS)
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        
+        const goals: LongTermGoal[] = (data || []).map((row: any) => ({
+          id: row.id,
+          userId: row.user_id,
+          name: row.name,
+          description: row.description,
+          goalType: row.goal_type,
+          targetValue: row.target_value,
+          currentValue: row.current_value,
+          unit: row.unit,
+          deadline: row.deadline ? new Date(row.deadline) : undefined,
+          relatedDimensions: row.related_dimensions || [],
+          milestones: row.milestones || [],
+          isActive: row.is_active,
+          isCompleted: row.is_completed,
+          completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
+          createdAt: new Date(row.created_at),
+          updatedAt: new Date(row.updated_at),
         }));
+        
         set({ goals, isLoading: false });
       } else {
-        set({ isLoading: false });
+        // 从 localStorage 加载（离线模式）
+        const savedGoals = localStorage.getItem('goals-storage');
+        if (savedGoals) {
+          const parsed = JSON.parse(savedGoals);
+          const goals = (parsed.state?.goals || []).map((g: any) => ({
+            ...g,
+            deadline: g.deadline ? new Date(g.deadline) : undefined,
+            completedAt: g.completedAt ? new Date(g.completedAt) : undefined,
+            createdAt: new Date(g.createdAt),
+            updatedAt: new Date(g.updatedAt),
+          }));
+          set({ goals, isLoading: false });
+        } else {
+          set({ goals: [], isLoading: false });
+        }
       }
     } catch (error) {
       set({ error: '加载目标失败', isLoading: false });
@@ -55,9 +92,10 @@ export const useGoalStore = create<GoalState>((set, get) => ({
     set({ isLoading: true, error: null });
     
     try {
+      const userId = getCurrentUserId();
       const newGoal: LongTermGoal = {
         id: `goal-${Date.now()}`,
-        userId: 'local-user', // TODO: 从 userStore 获取
+        userId,
         name: goalData.name || '',
         description: goalData.description || '',
         goalType: goalData.goalType || 'numeric',
@@ -73,13 +111,29 @@ export const useGoalStore = create<GoalState>((set, get) => ({
         updatedAt: new Date(),
       };
       
-      const updatedGoals = [...get().goals, newGoal];
-      
-      // 保存到本地存储
-      localStorage.setItem('long_term_goals', JSON.stringify(updatedGoals));
+      // 保存到 Supabase（如果已配置）
+      if (isSupabaseConfigured()) {
+        const { error } = await supabase.from(TABLES.GOALS).insert({
+          id: newGoal.id,
+          user_id: newGoal.userId,
+          name: newGoal.name,
+          description: newGoal.description,
+          goal_type: newGoal.goalType,
+          target_value: newGoal.targetValue,
+          current_value: newGoal.currentValue,
+          unit: newGoal.unit,
+          deadline: newGoal.deadline?.toISOString(),
+          related_dimensions: newGoal.relatedDimensions,
+          milestones: newGoal.milestones,
+          is_active: newGoal.isActive,
+          is_completed: newGoal.isCompleted,
+        });
+        
+        if (error) throw error;
+      }
       
       set({
-        goals: updatedGoals,
+        goals: [...get().goals, newGoal],
         isLoading: false,
       });
       
@@ -93,13 +147,39 @@ export const useGoalStore = create<GoalState>((set, get) => ({
 
   updateGoal: async (id, updates) => {
     try {
-      const updatedGoals = get().goals.map((g) =>
-        g.id === id ? { ...g, ...updates, updatedAt: new Date() } : g
-      );
+      const updatedGoal = {
+        ...get().goals.find((g) => g.id === id),
+        ...updates,
+        updatedAt: new Date(),
+      } as LongTermGoal;
       
-      localStorage.setItem('long_term_goals', JSON.stringify(updatedGoals));
+      // 更新到 Supabase（如果已配置）
+      if (isSupabaseConfigured()) {
+        const { error } = await supabase
+          .from(TABLES.GOALS)
+          .update({
+            name: updatedGoal.name,
+            description: updatedGoal.description,
+            goal_type: updatedGoal.goalType,
+            target_value: updatedGoal.targetValue,
+            current_value: updatedGoal.currentValue,
+            unit: updatedGoal.unit,
+            deadline: updatedGoal.deadline?.toISOString(),
+            related_dimensions: updatedGoal.relatedDimensions,
+            milestones: updatedGoal.milestones,
+            is_active: updatedGoal.isActive,
+            is_completed: updatedGoal.isCompleted,
+            completed_at: updatedGoal.completedAt?.toISOString(),
+            updated_at: updatedGoal.updatedAt.toISOString(),
+          })
+          .eq('id', id);
+        
+        if (error) throw error;
+      }
       
-      set({ goals: updatedGoals });
+      set({
+        goals: get().goals.map((g) => (g.id === id ? updatedGoal : g)),
+      });
     } catch (error) {
       set({ error: '更新目标失败' });
       console.error('更新目标失败:', error);
@@ -108,11 +188,17 @@ export const useGoalStore = create<GoalState>((set, get) => ({
 
   deleteGoal: async (id) => {
     try {
-      const updatedGoals = get().goals.filter((g) => g.id !== id);
+      // 从 Supabase 删除（如果已配置）
+      if (isSupabaseConfigured()) {
+        const { error } = await supabase
+          .from(TABLES.GOALS)
+          .delete()
+          .eq('id', id);
+        
+        if (error) throw error;
+      }
       
-      localStorage.setItem('long_term_goals', JSON.stringify(updatedGoals));
-      
-      set({ goals: updatedGoals });
+      set({ goals: get().goals.filter((g) => g.id !== id) });
     } catch (error) {
       set({ error: '删除目标失败' });
       console.error('删除目标失败:', error);
@@ -121,23 +207,17 @@ export const useGoalStore = create<GoalState>((set, get) => ({
 
   updateGoalProgress: async (id, value) => {
     try {
-      const updatedGoals = get().goals.map((g) => {
-        if (g.id === id) {
-          const isCompleted = value >= (g.targetValue || 0);
-          return {
-            ...g,
-            currentValue: value,
-            isCompleted,
-            completedAt: isCompleted && !g.completedAt ? new Date() : g.completedAt,
-            updatedAt: new Date(),
-          };
-        }
-        return g;
-      });
+      const goal = get().goals.find((g) => g.id === id);
+      if (!goal) return;
       
-      localStorage.setItem('long_term_goals', JSON.stringify(updatedGoals));
+      const isCompleted = value >= (goal.targetValue || 0);
+      const updates = {
+        currentValue: value,
+        isCompleted,
+        completedAt: isCompleted && !goal.completedAt ? new Date() : goal.completedAt,
+      };
       
-      set({ goals: updatedGoals });
+      await get().updateGoal(id, updates);
     } catch (error) {
       set({ error: '更新目标进度失败' });
       console.error('更新目标进度失败:', error);
@@ -178,7 +258,12 @@ export const useGoalStore = create<GoalState>((set, get) => ({
       return bScore - aScore;
     });
   },
-}));
+    }),
+    {
+      name: 'goals-storage',
+    }
+  )
+);
 
 // 计算匹配分数
 function calculateMatchScore(goal: LongTermGoal, searchText: string): number {

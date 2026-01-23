@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { supabase, TABLES, isSupabaseConfigured, getCurrentUserId } from '@/lib/supabase';
 
 // 情绪标签
 export const EMOTION_TAGS = [
@@ -86,11 +87,29 @@ export const useMemoryStore = create<MemoryState>()(
       journals: [],
 
       addMemory: (memory) => {
+        const userId = getCurrentUserId();
         const newMemory: MemoryRecord = {
           ...memory,
           id: `memory-${Date.now()}`,
           date: new Date(),
         };
+        
+        // 保存到 Supabase（如果已配置）
+        if (isSupabaseConfigured()) {
+          supabase.from(TABLES.MEMORIES).insert({
+            id: newMemory.id,
+            user_id: userId,
+            type: newMemory.type,
+            content: newMemory.content,
+            emotion_tags: newMemory.emotionTags,
+            category_tags: newMemory.categoryTags,
+            ai_generated: newMemory.aiGenerated || false,
+            rewards: newMemory.rewards || { gold: 0, growth: 0 },
+          }).then(({ error }) => {
+            if (error) console.error('保存记忆到云端失败:', error);
+          });
+        }
+        
         set((state) => ({
           memories: [newMemory, ...state.memories],
         }));
@@ -105,6 +124,21 @@ export const useMemoryStore = create<MemoryState>()(
             tags: [...memory.emotionTags, ...memory.categoryTags],
             rewards: memory.rewards || { gold: 0, growth: 0 },
           };
+          
+          // 保存到 Supabase（如果已配置）
+          if (isSupabaseConfigured()) {
+            supabase.from(TABLES.JOURNALS).insert({
+              id: journal.id,
+              user_id: userId,
+              type: journal.type,
+              content: journal.content,
+              tags: journal.tags,
+              rewards: journal.rewards,
+            }).then(({ error }) => {
+              if (error) console.error('保存日记到云端失败:', error);
+            });
+          }
+          
           set((state) => ({
             journals: [journal, ...state.journals],
           }));
@@ -112,6 +146,14 @@ export const useMemoryStore = create<MemoryState>()(
       },
 
       deleteMemory: (id) => {
+        // 从 Supabase 删除（如果已配置）
+        if (isSupabaseConfigured()) {
+          supabase.from(TABLES.MEMORIES).delete().eq('id', id)
+            .then(({ error }) => {
+              if (error) console.error('删除记忆失败:', error);
+            });
+        }
+        
         set((state) => ({
           memories: state.memories.filter((m) => m.id !== id),
         }));
@@ -126,11 +168,28 @@ export const useMemoryStore = create<MemoryState>()(
       },
 
       addJournal: (journal) => {
+        const userId = getCurrentUserId();
         const newJournal: JournalEntry = {
           ...journal,
           id: `journal-${Date.now()}`,
           date: new Date(),
         };
+        
+        // 保存到 Supabase（如果已配置）
+        if (isSupabaseConfigured()) {
+          supabase.from(TABLES.JOURNALS).insert({
+            id: newJournal.id,
+            user_id: userId,
+            type: newJournal.type,
+            content: newJournal.content,
+            mood: newJournal.mood,
+            tags: newJournal.tags,
+            rewards: newJournal.rewards,
+          }).then(({ error }) => {
+            if (error) console.error('保存日记到云端失败:', error);
+          });
+        }
+        
         set((state) => ({
           journals: [newJournal, ...state.journals],
         }));
@@ -145,12 +204,36 @@ export const useMemoryStore = create<MemoryState>()(
           date: new Date(),
           rewards: journal.rewards,
         };
+        
+        // 保存到 Supabase（如果已配置）
+        if (isSupabaseConfigured()) {
+          supabase.from(TABLES.MEMORIES).insert({
+            id: memory.id,
+            user_id: userId,
+            type: memory.type,
+            content: memory.content,
+            emotion_tags: memory.emotionTags,
+            category_tags: memory.categoryTags,
+            rewards: memory.rewards,
+          }).then(({ error }) => {
+            if (error) console.error('同步记忆到云端失败:', error);
+          });
+        }
+        
         set((state) => ({
           memories: [memory, ...state.memories],
         }));
       },
 
       deleteJournal: (id) => {
+        // 从 Supabase 删除（如果已配置）
+        if (isSupabaseConfigured()) {
+          supabase.from(TABLES.JOURNALS).delete().eq('id', id)
+            .then(({ error }) => {
+              if (error) console.error('删除日记失败:', error);
+            });
+        }
+        
         set((state) => ({
           journals: state.journals.filter((j) => j.id !== id),
         }));

@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import type { User, UserSettings } from '@/types';
 import { STORAGE_KEYS } from '@/constants';
 import { generateId } from '@/utils';
+import { supabase, TABLES, isSupabaseConfigured, getCurrentUserId } from '@/lib/supabase';
 
 interface UserState {
   user: User | null;
@@ -52,8 +53,30 @@ export const useUserStore = create<UserState>()(
           const localUserId = localStorage.getItem(STORAGE_KEYS.USER_ID);
           
           if (localUserId) {
-            // 用户已存在，加载用户数据
-            // TODO: 从 Supabase 加载用户数据
+            // 用户已存在，尝试从云端加载
+            if (isSupabaseConfigured()) {
+              const { data, error } = await supabase
+                .from(TABLES.USERS)
+                .select('*')
+                .eq('local_user_id', localUserId)
+                .single();
+              
+              if (data && !error) {
+                const user: User = {
+                  id: data.id,
+                  localUserId: data.local_user_id,
+                  publicData: data.public_data || {},
+                  deviceList: data.device_list || [],
+                  settings: data.settings || defaultSettings,
+                  createdAt: new Date(data.created_at),
+                  updatedAt: new Date(data.updated_at),
+                };
+                set({ user, isInitialized: true, isLoading: false });
+                return;
+              }
+            }
+            
+            // 云端没有数据，使用本地数据
             const user: User = {
               id: generateId(),
               localUserId,
@@ -92,7 +115,18 @@ export const useUserStore = create<UserState>()(
             updatedAt: new Date(),
           };
           
-          // TODO: 保存到 Supabase 并初始化默认数据
+          // 保存到 Supabase（如果已配置）
+          if (isSupabaseConfigured()) {
+            const { error } = await supabase.from(TABLES.USERS).insert({
+              id: newUser.id,
+              local_user_id: newUser.localUserId,
+              public_data: newUser.publicData,
+              device_list: newUser.deviceList,
+              settings: newUser.settings,
+            });
+            
+            if (error) console.error('保存用户到云端失败:', error);
+          }
           
           set({ user: newUser, isInitialized: true, isLoading: false });
           return newUser;
@@ -114,7 +148,20 @@ export const useUserStore = create<UserState>()(
             updatedAt: new Date(),
           };
           
-          // TODO: 更新到 Supabase
+          // 更新到 Supabase（如果已配置）
+          if (isSupabaseConfigured()) {
+            const { error } = await supabase
+              .from(TABLES.USERS)
+              .update({
+                public_data: updatedUser.publicData,
+                device_list: updatedUser.deviceList,
+                settings: updatedUser.settings,
+                updated_at: updatedUser.updatedAt.toISOString(),
+              })
+              .eq('local_user_id', updatedUser.localUserId);
+            
+            if (error) console.error('更新用户到云端失败:', error);
+          }
           
           set({ user: updatedUser });
         } catch (error) {

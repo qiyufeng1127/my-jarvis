@@ -1,5 +1,7 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { Task, TaskStatus, TaskType } from '@/types';
+import { supabase, TABLES, isSupabaseConfigured, getCurrentUserId } from '@/lib/supabase';
 
 interface TaskState {
   tasks: Task[];
@@ -21,7 +23,9 @@ interface TaskState {
   getTodayTasks: () => Task[];
 }
 
-export const useTaskStore = create<TaskState>((set, get) => ({
+export const useTaskStore = create<TaskState>()(
+  persist(
+    (set, get) => ({
   tasks: [],
   selectedTask: null,
   isLoading: false,
@@ -31,9 +35,61 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     set({ isLoading: true, error: null });
     
     try {
-      // TODO: 从 Supabase 加载任务
-      const tasks: Task[] = [];
-      set({ tasks, isLoading: false });
+      if (isSupabaseConfigured()) {
+        // 从 Supabase 加载任务
+        const userId = getCurrentUserId();
+        const { data, error } = await supabase
+          .from(TABLES.TASKS)
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        
+        const tasks: Task[] = (data || []).map((row: any) => ({
+          id: row.id,
+          userId: row.user_id,
+          title: row.title,
+          description: row.description,
+          taskType: row.task_type,
+          priority: row.priority,
+          durationMinutes: row.duration_minutes,
+          scheduledStart: row.scheduled_start ? new Date(row.scheduled_start) : undefined,
+          scheduledEnd: row.scheduled_end ? new Date(row.scheduled_end) : undefined,
+          actualStart: row.actual_start ? new Date(row.actual_start) : undefined,
+          actualEnd: row.actual_end ? new Date(row.actual_end) : undefined,
+          status: row.status,
+          growthDimensions: row.growth_dimensions || {},
+          longTermGoals: row.long_term_goals || {},
+          identityTags: row.identity_tags || [],
+          enableProgressCheck: row.enable_progress_check || false,
+          progressChecks: row.progress_checks || [],
+          penaltyGold: row.penalty_gold || 0,
+          goldEarned: row.gold_earned || 0,
+          createdAt: new Date(row.created_at),
+          updatedAt: new Date(row.updated_at),
+        }));
+        
+        set({ tasks, isLoading: false });
+      } else {
+        // 从 localStorage 加载（离线模式）
+        const savedTasks = localStorage.getItem('tasks-storage');
+        if (savedTasks) {
+          const parsed = JSON.parse(savedTasks);
+          const tasks = (parsed.state?.tasks || []).map((t: any) => ({
+            ...t,
+            scheduledStart: t.scheduledStart ? new Date(t.scheduledStart) : undefined,
+            scheduledEnd: t.scheduledEnd ? new Date(t.scheduledEnd) : undefined,
+            actualStart: t.actualStart ? new Date(t.actualStart) : undefined,
+            actualEnd: t.actualEnd ? new Date(t.actualEnd) : undefined,
+            createdAt: new Date(t.createdAt),
+            updatedAt: new Date(t.updatedAt),
+          }));
+          set({ tasks, isLoading: false });
+        } else {
+          set({ tasks: [], isLoading: false });
+        }
+      }
     } catch (error) {
       set({ error: '加载任务失败', isLoading: false });
       console.error('加载任务失败:', error);
@@ -44,9 +100,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     set({ isLoading: true, error: null });
     
     try {
+      const userId = getCurrentUserId();
       const newTask: Task = {
         id: `task-${Date.now()}`,
-        userId: '', // TODO: 从 userStore 获取
+        userId,
         title: taskData.title || '',
         description: taskData.description,
         taskType: taskData.taskType || 'work',
@@ -66,7 +123,30 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         updatedAt: new Date(),
       };
       
-      // TODO: 保存到 Supabase
+      // 保存到 Supabase（如果已配置）
+      if (isSupabaseConfigured()) {
+        const { error } = await supabase.from(TABLES.TASKS).insert({
+          id: newTask.id,
+          user_id: newTask.userId,
+          title: newTask.title,
+          description: newTask.description,
+          task_type: newTask.taskType,
+          priority: newTask.priority,
+          duration_minutes: newTask.durationMinutes,
+          scheduled_start: newTask.scheduledStart?.toISOString(),
+          scheduled_end: newTask.scheduledEnd?.toISOString(),
+          status: newTask.status,
+          growth_dimensions: newTask.growthDimensions,
+          long_term_goals: newTask.longTermGoals,
+          identity_tags: newTask.identityTags,
+          enable_progress_check: newTask.enableProgressCheck,
+          progress_checks: newTask.progressChecks,
+          penalty_gold: newTask.penaltyGold,
+          gold_earned: newTask.goldEarned,
+        });
+        
+        if (error) throw error;
+      }
       
       set((state) => ({
         tasks: [...state.tasks, newTask],
@@ -89,7 +169,34 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         updatedAt: new Date(),
       } as Task;
       
-      // TODO: 更新到 Supabase
+      // 更新到 Supabase（如果已配置）
+      if (isSupabaseConfigured()) {
+        const { error } = await supabase
+          .from(TABLES.TASKS)
+          .update({
+            title: updatedTask.title,
+            description: updatedTask.description,
+            task_type: updatedTask.taskType,
+            priority: updatedTask.priority,
+            duration_minutes: updatedTask.durationMinutes,
+            scheduled_start: updatedTask.scheduledStart?.toISOString(),
+            scheduled_end: updatedTask.scheduledEnd?.toISOString(),
+            actual_start: updatedTask.actualStart?.toISOString(),
+            actual_end: updatedTask.actualEnd?.toISOString(),
+            status: updatedTask.status,
+            growth_dimensions: updatedTask.growthDimensions,
+            long_term_goals: updatedTask.longTermGoals,
+            identity_tags: updatedTask.identityTags,
+            enable_progress_check: updatedTask.enableProgressCheck,
+            progress_checks: updatedTask.progressChecks,
+            penalty_gold: updatedTask.penaltyGold,
+            gold_earned: updatedTask.goldEarned,
+            updated_at: updatedTask.updatedAt.toISOString(),
+          })
+          .eq('id', id);
+        
+        if (error) throw error;
+      }
       
       set((state) => ({
         tasks: state.tasks.map((t) => (t.id === id ? updatedTask : t)),
@@ -102,7 +209,15 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
   deleteTask: async (id) => {
     try {
-      // TODO: 从 Supabase 删除
+      // 从 Supabase 删除（如果已配置）
+      if (isSupabaseConfigured()) {
+        const { error } = await supabase
+          .from(TABLES.TASKS)
+          .delete()
+          .eq('id', id);
+        
+        if (error) throw error;
+      }
       
       set((state) => ({
         tasks: state.tasks.filter((t) => t.id !== id),
@@ -140,5 +255,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   getTodayTasks: () => {
     return get().getTasksByDate(new Date());
   },
-}));
+    }),
+    {
+      name: 'tasks-storage',
+    }
+  )
+);
 
