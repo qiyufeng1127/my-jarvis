@@ -264,28 +264,51 @@ class AIService {
       let jsonContent = response.content.trim();
       
       // 如果内容包含```json，提取其中的JSON
-      const jsonMatch = jsonContent.match(/```json\s*([\s\S]*?)\s*```/);
+      const jsonMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
       if (jsonMatch) {
-        jsonContent = jsonMatch[1];
+        jsonContent = jsonMatch[1].trim();
       } else {
         // 尝试提取{}之间的内容
-        const braceMatch = jsonContent.match(/\{[\s\S]*\}/);
+        const braceMatch = jsonContent.match(/(\{[\s\S]*\})/);
         if (braceMatch) {
-          jsonContent = braceMatch[0];
+          jsonContent = braceMatch[1];
         }
       }
       
       const result = JSON.parse(jsonContent);
+      
+      // 验证返回的任务数组
+      if (!result.tasks || !Array.isArray(result.tasks)) {
+        console.error('AI返回的数据格式不正确:', result);
+        return {
+          success: false,
+          error: 'AI返回的数据格式不正确',
+        };
+      }
+      
+      // 验证每个任务是否有必要的字段
+      const validTasks = result.tasks.filter((task: any) => 
+        task.title && typeof task.duration === 'number'
+      );
+      
+      if (validTasks.length === 0) {
+        console.error('没有有效的任务');
+        return {
+          success: false,
+          error: '没有有效的任务',
+        };
+      }
+      
       return {
         success: true,
-        tasks: result.tasks || [],
+        tasks: validTasks,
       };
     } catch (error) {
       console.error('解析任务分解结果失败:', error);
       console.error('AI返回内容:', response.content);
       return {
         success: false,
-        error: '解析结果失败',
+        error: `解析结果失败: ${error instanceof Error ? error.message : '未知错误'}`,
       };
     }
   }
