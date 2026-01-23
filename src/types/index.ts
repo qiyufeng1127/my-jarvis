@@ -99,12 +99,11 @@ export interface Task {
 }
 
 export interface VerificationConfig {
-  type: 'photo' | 'location' | 'action' | 'question' | 'combo';
-  keywords?: string[];
-  location?: { lat: number; lng: number; radius: number };
-  action?: string;
-  question?: { question: string; answer: string };
+  type: 'photo' | 'upload' | 'file'; // 拍照验证、图片上传验证、文件上传验证
+  requirement: string; // 验证要求描述
   timeout: number; // 秒
+  acceptedFileTypes?: string[]; // 接受的文件类型（用于文件上传）
+  maxFileSize?: number; // 最大文件大小（MB）
 }
 
 export interface ProgressCheck {

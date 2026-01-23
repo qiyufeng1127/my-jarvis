@@ -5,9 +5,12 @@ interface TaskVerificationProps {
   task: {
     id: string;
     title: string;
-    verificationType: 'photo' | 'upload'; // 只保留拍照和上传
+    verificationType: 'photo' | 'upload' | 'file'; // 拍照、图片上传、文件上传
     requirement: string;
+    acceptedFileTypes?: string[];
+    maxFileSize?: number;
   };
+  verificationType: 'start' | 'complete'; // 开始验证或完成验证
   onSuccess: () => void;
   onFail: () => void;
   onSkip: () => void;
@@ -24,6 +27,7 @@ export default function TaskVerification({
   const [timeLeft, setTimeLeft] = useState(timeLimit);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationResult, setVerificationResult] = useState<'success' | 'fail' | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -109,13 +113,42 @@ export default function TaskVerification({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // 检查文件类型
+    // 文件上传验证
+    if (task.verificationType === 'file') {
+      // 检查文件类型
+      const acceptedTypes = task.acceptedFileTypes || ['*/*'];
+      const isAccepted = acceptedTypes.some(type => {
+        if (type === '*/*') return true;
+        if (type.endsWith('/*')) {
+          const category = type.split('/')[0];
+          return file.type.startsWith(category + '/');
+        }
+        return file.type === type;
+      });
+
+      if (!isAccepted) {
+        alert(`请上传以下类型的文件：${acceptedTypes.join(', ')}`);
+        return;
+      }
+
+      // 检查文件大小
+      const maxSize = (task.maxFileSize || 10) * 1024 * 1024;
+      if (file.size > maxSize) {
+        alert(`文件大小不能超过 ${task.maxFileSize || 10}MB`);
+        return;
+      }
+
+      setUploadedFile(file);
+      verifyFile(file);
+      return;
+    }
+
+    // 图片上传验证
     if (!file.type.startsWith('image/')) {
       alert('请上传图片文件');
       return;
     }
 
-    // 检查文件大小（最大10MB）
     if (file.size > 10 * 1024 * 1024) {
       alert('图片大小不能超过10MB');
       return;
@@ -128,6 +161,28 @@ export default function TaskVerification({
       verifyImage(imageData);
     };
     reader.readAsDataURL(file);
+  };
+
+  // 验证文件
+  const verifyFile = async (file: File) => {
+    setIsVerifying(true);
+
+    // 模拟文件验证延迟
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
+    // 模拟验证结果（实际应该根据文件内容验证）
+    const isValid = Math.random() > 0.2; // 80% 成功率
+
+    setIsVerifying(false);
+    setVerificationResult(isValid ? 'success' : 'fail');
+
+    setTimeout(() => {
+      if (isValid) {
+        onSuccess();
+      } else {
+        onFail();
+      }
+    }, 2000);
   };
 
   // 验证图片
@@ -170,6 +225,7 @@ export default function TaskVerification({
   const handleRetake = () => {
     setCapturedImage(null);
     setUploadedImage(null);
+    setUploadedFile(null);
     setVerificationResult(null);
     if (task.verificationType === 'photo') {
       startCamera();
@@ -251,27 +307,38 @@ export default function TaskVerification({
             )}
 
             {/* 上传验证 - 上传区域 */}
-            {task.verificationType === 'upload' && !uploadedImage && !verificationResult && (
+            {(task.verificationType === 'upload' || task.verificationType === 'file') && 
+             !uploadedImage && !uploadedFile && !verificationResult && (
               <div className="w-full h-full flex items-center justify-center">
                 <div className="text-center">
                   <div className="w-24 h-24 mx-auto mb-4 bg-white/10 rounded-full flex items-center justify-center">
                     <Camera className="w-12 h-12 text-white" />
                   </div>
-                  <p className="text-white text-lg font-semibold mb-2">上传验证图片</p>
+                  <p className="text-white text-lg font-semibold mb-2">
+                    {task.verificationType === 'file' ? '上传验证文件' : '上传验证图片'}
+                  </p>
                   <p className="text-white/70 text-sm mb-4">{task.requirement}</p>
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
                   >
-                    选择图片
+                    {task.verificationType === 'file' ? '选择文件' : '选择图片'}
                   </button>
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*"
+                    accept={task.verificationType === 'file' 
+                      ? (task.acceptedFileTypes?.join(',') || '*/*')
+                      : 'image/*'
+                    }
                     onChange={handleFileUpload}
                     className="hidden"
                   />
+                  {task.verificationType === 'file' && task.acceptedFileTypes && (
+                    <p className="text-white/50 text-xs mt-2">
+                      支持的文件类型：{task.acceptedFileTypes.join(', ')}
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -283,6 +350,21 @@ export default function TaskVerification({
                 alt="Captured or Uploaded"
                 className="w-full h-full object-cover"
               />
+            )}
+
+            {/* 已上传的文件 */}
+            {uploadedFile && !verificationResult && (
+              <div className="w-full h-full flex items-center justify-center">
+                <div className="text-center">
+                  <div className="w-24 h-24 mx-auto mb-4 bg-white/10 rounded-full flex items-center justify-center">
+                    <span className="text-4xl">📄</span>
+                  </div>
+                  <p className="text-white text-lg font-semibold mb-2">{uploadedFile.name}</p>
+                  <p className="text-white/70 text-sm">
+                    {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB
+                  </p>
+                </div>
+              </div>
             )}
 
             {/* 验证结果 */}
@@ -338,7 +420,8 @@ export default function TaskVerification({
             )}
 
             {/* 上传验证按钮 */}
-            {task.verificationType === 'upload' && !uploadedImage && !verificationResult && (
+            {(task.verificationType === 'upload' || task.verificationType === 'file') && 
+             !uploadedImage && !uploadedFile && !verificationResult && (
               <button
                 onClick={handleSkip}
                 className="px-6 py-3 bg-neutral-200 text-neutral-700 rounded-xl hover:bg-neutral-300 transition-all"
@@ -348,7 +431,7 @@ export default function TaskVerification({
             )}
 
             {/* 重新操作按钮 */}
-            {(capturedImage || uploadedImage) && !verificationResult && !isVerifying && (
+            {(capturedImage || uploadedImage || uploadedFile) && !verificationResult && !isVerifying && (
               <button
                 onClick={handleRetake}
                 className="px-8 py-3 bg-neutral-600 text-white rounded-xl hover:bg-neutral-700 transition-all"
@@ -368,14 +451,21 @@ export default function TaskVerification({
                   {task.verificationType === 'photo' ? (
                     <>
                       <li>确保光线充足，画面清晰</li>
-                      <li>将人脸置于框内，正面拍摄</li>
+                      <li>将内容置于框内拍摄</li>
+                      <li>验证失败将扣除 20 金币</li>
+                      <li>超时未验证将自动标记失败</li>
+                    </>
+                  ) : task.verificationType === 'upload' ? (
+                    <>
+                      <li>上传符合要求的图片</li>
+                      <li>图片大小不超过 10MB</li>
                       <li>验证失败将扣除 20 金币</li>
                       <li>超时未验证将自动标记失败</li>
                     </>
                   ) : (
                     <>
-                      <li>上传符合要求的图片</li>
-                      <li>图片大小不超过 10MB</li>
+                      <li>上传符合要求的文件</li>
+                      <li>文件大小不超过 {task.maxFileSize || 10}MB</li>
                       <li>验证失败将扣除 20 金币</li>
                       <li>超时未验证将自动标记失败</li>
                     </>
