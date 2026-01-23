@@ -483,7 +483,7 @@ export default function TimelineCalendar({
         </div>
 
         {/* 日历网格 - 月视图不滚动，周视图可滚动 */}
-        <div className={calendarView === 'week' ? 'overflow-auto p-4' : 'p-4'} style={{ maxHeight: calendarView === 'week' ? '200px' : 'auto' }}>
+        <div className={calendarView === 'week' ? 'calendar-scrollbar overflow-auto p-4' : 'p-4'} style={{ maxHeight: calendarView === 'week' ? '200px' : 'auto' }}>
           <div className={`grid grid-cols-7 ${calendarView === 'month' ? 'gap-2' : 'gap-3'}`}>
             {/* 星期标题 */}
             {['日', '一', '二', '三', '四', '五', '六'].map((day, index) => (
@@ -593,7 +593,7 @@ export default function TimelineCalendar({
           </div>
 
           {/* 时间刻度列表 - 可滚动 */}
-          <div style={{ 
+          <div className="timeline-scrollbar" style={{ 
             flex: 1,
             overflowY: 'scroll',
             overflowX: 'hidden',
@@ -690,7 +690,7 @@ export default function TimelineCalendar({
             </div>
           </div>
 
-          {/* 时间轴滚动区域 - 最简单的滚动实现 */}
+          {/* 时间轴滚动区域 - 隐藏滚动条但可滚动 */}
           <div 
             ref={timelineRef}
             className="timeline-scrollbar"

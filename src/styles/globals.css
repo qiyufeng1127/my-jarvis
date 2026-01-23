@@ -173,9 +173,9 @@ p, span, div, h1, h2, h3, h4, h5, h6, a, button, input, textarea, label {
   scrollbar-color: var(--color-neutral-300) var(--color-neutral-100);
 }
 
-/* 时间轴隐藏滚动条样式 */
+/* 时间轴隐藏滚动条样式 - 更加隐蔽 */
 .timeline-scrollbar::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 
 .timeline-scrollbar::-webkit-scrollbar-track {
@@ -183,48 +183,44 @@ p, span, div, h1, h2, h3, h4, h5, h6, a, button, input, textarea, label {
 }
 
 .timeline-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.15);
-  border-radius: 3px;
+  background: rgba(128, 128, 128, 0.2);
+  border-radius: 2px;
   border: none;
 }
 
 .timeline-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(128, 128, 128, 0.3);
 }
 
-/* 深色背景的时间轴滚动条 */
-[style*="background"][style*="#0"] .timeline-scrollbar::-webkit-scrollbar-thumb,
-[style*="background"][style*="#1"] .timeline-scrollbar::-webkit-scrollbar-thumb,
-[style*="background"][style*="#2"] .timeline-scrollbar::-webkit-scrollbar-thumb,
-[style*="background"][style*="#3"] .timeline-scrollbar::-webkit-scrollbar-thumb,
-[style*="background"][style*="#4"] .timeline-scrollbar::-webkit-scrollbar-thumb,
-[style*="background"][style*="#5"] .timeline-scrollbar::-webkit-scrollbar-thumb,
-[style*="background"][style*="#6"] .timeline-scrollbar::-webkit-scrollbar-thumb,
-[style*="background"][style*="#7"] .timeline-scrollbar::-webkit-scrollbar-thumb,
-[style*="background"][style*="#8"] .timeline-scrollbar::-webkit-scrollbar-thumb,
-[style*="background"][style*="#9"] .timeline-scrollbar::-webkit-scrollbar-thumb,
-[style*="background"][style*="#a"] .timeline-scrollbar::-webkit-scrollbar-thumb,
-[style*="background"][style*="#b"] .timeline-scrollbar::-webkit-scrollbar-thumb,
-[style*="background"][style*="#c"] .timeline-scrollbar::-webkit-scrollbar-thumb,
-[style*="background"][style*="#d"] .timeline-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+/* Firefox 时间轴滚动条 */
+.timeline-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(128, 128, 128, 0.2) transparent;
 }
 
-[style*="background"][style*="#0"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
-[style*="background"][style*="#1"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
-[style*="background"][style*="#2"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
-[style*="background"][style*="#3"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
-[style*="background"][style*="#4"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
-[style*="background"][style*="#5"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
-[style*="background"][style*="#6"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
-[style*="background"][style*="#7"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
-[style*="background"][style*="#8"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
-[style*="background"][style*="#9"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
-[style*="background"][style*="#a"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
-[style*="background"][style*="#b"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
-[style*="background"][style*="#c"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
-[style*="background"][style*="#d"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+/* 日历滚动条样式 - 隐蔽但可用 */
+.calendar-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.calendar-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.calendar-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.2);
+  border-radius: 2px;
+  border: none;
+}
+
+.calendar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(128, 128, 128, 0.3);
+}
+
+/* Firefox 日历滚动条 */
+.calendar-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(128, 128, 128, 0.2) transparent;
 }
 
 /* 深色背景的滚动条 */
