@@ -2355,7 +2355,7 @@ export function TimelineModule({ isDark = false, bgColor = '#ffffff' }: { isDark
   const { tasks, updateTask, addTask, deleteTask } = useTaskStore();
   
   return (
-    <div className="h-full overflow-auto" style={{ backgroundColor: bgColor }}>
+    <div className="h-full" style={{ backgroundColor: bgColor }}>
       <TimelineCalendar 
         tasks={tasks}
         onTaskUpdate={updateTask}
