@@ -557,6 +557,7 @@ export default function TimelineCalendar({
         flex: 1, 
         display: 'flex',
         minHeight: 0,
+        overflow: 'hidden',
       }}>
         {/* 左侧时间刻度 */}
         <div style={{ 
@@ -595,12 +596,13 @@ export default function TimelineCalendar({
           {/* 时间刻度列表 - 可滚动 */}
           <div className="timeline-scrollbar" style={{ 
             flex: 1,
-            overflowY: 'scroll',
+            overflowY: 'auto',
             overflowX: 'hidden',
           }}>
             <div style={{ 
               position: 'relative',
               height: `${(24 * 60 / timeScale) * 40}px`,
+              width: '100%',
             }}>
               {timeSlots.map((slot, index) => (
                 <button
@@ -637,6 +639,7 @@ export default function TimelineCalendar({
           display: 'flex',
           flexDirection: 'column',
           minWidth: 0,
+          overflow: 'hidden',
         }}>
           {/* 顶部工具栏 */}
           <div style={{ 
@@ -697,7 +700,7 @@ export default function TimelineCalendar({
             style={{
               flex: 1,
               position: 'relative',
-              overflowY: 'scroll',
+              overflowY: 'auto',
               overflowX: 'hidden',
             }}
             onMouseMove={(e) => {
@@ -718,6 +721,7 @@ export default function TimelineCalendar({
               backgroundColor: bgColor,
               height: `${(24 * 60 / timeScale) * 40}px`,
               minHeight: `${(24 * 60 / timeScale) * 40}px`,
+              width: '100%',
             }}>
               {/* 时间网格线 */}
               {timeSlots.map((slot, index) => (
