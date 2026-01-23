@@ -586,8 +586,8 @@ export default function FloatingAIChat() {
       const goals = useGoalStore.getState().goals;
       
       // 检测是否是任务创建/分解请求
-      const isTaskCreation = /创建|添加|新建|安排|计划|做|完成|学习|工作|运动|分解|拆解|洗漱|洗碗|猫粮|洗衣服|收拾/.test(message);
-      const needsDecompose = /分解|拆解|详细安排|具体步骤/.test(message) || message.length > 20 || /然后|接着|再|之后/.test(message);
+      const isTaskCreation = /创建|添加|新建|安排|计划|做|完成|学习|工作|运动|分解|拆解|洗漱|洗碗|猫粮|洗衣服|收拾|吃饭|垃圾/.test(message);
+      const needsDecompose = /分解|拆解|详细安排|具体步骤/.test(message) || message.length > 20 || /然后|接着|再|之后|，|、/.test(message);
       
       let responseContent = '';
       let aiTags = { emotions: [] as string[], categories: [] as string[], type: undefined as any };
@@ -666,10 +666,23 @@ export default function FloatingAIChat() {
             // 增强提示词，包含动线优化和时长参考
             const enhancedPrompt = `${message}
 
-请帮我分解任务，并注意：
-1. 识别每个任务的位置（厕所、工作区、厨房、客厅、卧室、拍摄间）
-2. 按照家里格局优化动线：进门左手边是厕所，右手边是工作区；往前走左手边是厨房，右手边是客厅；从厨房楼梯上去左手边是卧室，右手边是拍摄间
-3. 根据任务类型智能分配时长：
+请帮我把这段话分解成多个独立的任务，并注意：
+
+1. **仔细识别每个独立的动作**，例如：
+   - "洗漱" 是一个任务
+   - "洗衣服" 是另一个任务
+   - "吃饭" 是另一个任务
+   - "收拾垃圾" 是另一个任务
+   - 不要把多个动作合并成一个任务！
+
+2. **识别每个任务的位置**（厕所、工作区、厨房、客厅、卧室、拍摄间）
+
+3. **按照家里格局优化动线**：
+   - 进门左手边是厕所，右手边是工作区
+   - 往前走左手边是厨房，右手边是客厅
+   - 从厨房楼梯上去左手边是卧室，右手边是拍摄间
+
+4. **根据任务类型智能分配时长**：
    - 工作相关：60分钟起步
    - 打扫收拾：10分钟
    - 在家吃饭：30分钟
@@ -677,10 +690,17 @@ export default function FloatingAIChat() {
    - 外出喝酒：240分钟
    - 上楼睡觉：5分钟
    - 吃药：2分钟
-   - 洗漱：5分钟
-   - 洗碗、倒猫粮、洗衣服等简单家务：5分钟
+   - 洗漱：5-10分钟
+   - 洗碗、倒猫粮、洗衣服等简单家务：5-15分钟
 
-请返回JSON格式，包含location字段（bathroom/workspace/kitchen/livingroom/bedroom/studio）。`;
+请返回JSON格式的任务数组，每个任务包含：
+- title: 任务标题（简洁明确）
+- duration: 时长（分钟）
+- category: 类型（work/life/health等）
+- priority: 优先级（high/medium/low）
+- location: 位置（bathroom/workspace/kitchen/livingroom/bedroom/studio）
+
+**重要**：一定要把每个独立的动作分解成单独的任务！`;
 
             const decomposeResult = await aiService.decomposeTask(enhancedPrompt);
             
@@ -701,9 +721,13 @@ export default function FloatingAIChat() {
               // 计算开始时间（从当前时间或用户指定时间开始）
               const startTime = new Date();
               // 检查用户是否指定了开始时间
-              const timeMatch = message.match(/(\d+)分钟(之后|后)/);
-              if (timeMatch) {
-                startTime.setMinutes(startTime.getMinutes() + parseInt(timeMatch[1]));
+              const minuteMatch = message.match(/(\d+)分钟(之后|后)/);
+              const hourMatch = message.match(/(\d+)(个)?小时(之后|后)/);
+              
+              if (hourMatch) {
+                startTime.setHours(startTime.getHours() + parseInt(hourMatch[1]));
+              } else if (minuteMatch) {
+                startTime.setMinutes(startTime.getMinutes() + parseInt(minuteMatch[1]));
               }
               
               tasksWithMetadata = recalculateTaskTimes(tasksWithMetadata, startTime);
