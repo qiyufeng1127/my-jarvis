@@ -233,7 +233,7 @@ export default function VoiceAssistant({
   if (mode === 'float') {
     return (
       <>
-        <div className="fixed bottom-8 right-8 z-50">
+        <div className="fixed bottom-8 right-8 z-50 flex items-center gap-4">
           {/* 语音识别文本显示 */}
           {(displayTranscript || lastCommand) && wakeState !== 'sleeping' && (
             <div className="absolute bottom-20 right-0 mb-2 p-4 bg-white dark:bg-neutral-800 rounded-xl shadow-2xl max-w-sm animate-slide-up border border-neutral-200 dark:border-neutral-700">
@@ -339,7 +339,7 @@ export default function VoiceAssistant({
               {[...Array(5)].map((_, i) => (
                 <div
                   key={i}
-                  className="w-1 bg-gradient-to-t from-blue-500 to-purple-500 rounded-full animate-pulse"
+                  className="w-1 bg-purple-500 rounded-full animate-pulse"
                   style={{
                     height: `${Math.random() * 12 + 4}px`,
                     animationDelay: `${i * 0.1}s`,

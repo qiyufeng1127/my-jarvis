@@ -832,7 +832,7 @@ export default function FloatingAIChat() {
       {/* 浮动按钮 */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-24 w-14 h-14 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-2xl hover:scale-110 transition-all z-50 flex items-center justify-center"
+        className="fixed bottom-8 right-32 w-14 h-14 rounded-full bg-purple-600 text-white shadow-2xl hover:scale-110 transition-all z-50 flex items-center justify-center"
         title="AI助手"
       >
         {isOpen ? (
@@ -858,7 +858,7 @@ export default function FloatingAIChat() {
         >
           {/* 头部 - 可拖拽 */}
           <div
-            className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-3 flex items-center justify-between cursor-move"
+            className="bg-purple-600 text-white px-4 py-3 flex items-center justify-between cursor-move"
             onMouseDown={handleDragStart}
           >
             <div className="flex items-center space-x-2">
@@ -917,7 +917,7 @@ export default function FloatingAIChat() {
                     <div
                       className={`max-w-[85%] rounded-lg p-3 ${
                         message.role === 'user'
-                          ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white'
+                          ? 'bg-purple-600 text-white'
                           : 'bg-white shadow-md'
                       }`}
                     >
@@ -1025,7 +1025,7 @@ export default function FloatingAIChat() {
                           <button
                             onClick={() => handleConfirmAction(message.id)}
                             disabled={isProcessing}
-                            className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 text-white text-sm font-medium hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full py-2 px-3 rounded-lg bg-green-500 text-white text-sm font-medium hover:bg-green-600 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             ✅ 确认创建到时间轴
                           </button>
@@ -1125,7 +1125,7 @@ export default function FloatingAIChat() {
                     <button
                       onClick={handlePushToTimeline}
                       disabled={isProcessing || editingTasks.length === 0}
-                      className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 text-white text-sm font-medium hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full py-2 px-3 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       🚀 推送到时间轴 ({editingTasks.length} 个任务)
                     </button>
@@ -1185,7 +1185,7 @@ export default function FloatingAIChat() {
                   <button
                     onClick={handleSend}
                     disabled={!inputValue.trim() || isProcessing}
-                    className="p-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="p-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Send className="w-4 h-4" />
                   </button>
