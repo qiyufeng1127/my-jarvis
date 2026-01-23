@@ -594,9 +594,9 @@ export default function TimelineCalendar({
         </div>
 
         {/* 右侧时间轴主体 */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col">
           {/* 顶部工具栏 */}
-          <div className="flex items-center justify-between px-6 py-3" style={{ backgroundColor: bgColor, borderBottom: `1px solid ${borderColor}` }}>
+          <div className="flex-shrink-0 flex items-center justify-between px-6 py-3" style={{ backgroundColor: bgColor, borderBottom: `1px solid ${borderColor}` }}>
             <div className="flex items-center space-x-2">
               <Clock className="w-5 h-5" style={{ color: textColor }} />
               <h2 className="text-base font-semibold" style={{ color: textColor }}>
@@ -633,10 +633,13 @@ export default function TimelineCalendar({
           {/* 时间轴滚动区域 - 隐藏滚动条但保持滚动功能 */}
           <div 
             ref={timelineRef}
-            className="flex-1 overflow-y-auto relative timeline-scrollbar"
+            className="flex-1 relative timeline-scrollbar"
             style={{
+              overflowY: 'scroll',
+              overflowX: 'hidden',
               scrollbarWidth: 'thin',
               scrollbarColor: `${isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)'} transparent`,
+              WebkitOverflowScrolling: 'touch',
             }}
             onMouseMove={(e) => {
               if (draggedBlockId) handleDragMove(e);
@@ -746,7 +749,7 @@ export default function TimelineCalendar({
           </div>
 
           {/* 底部提示 */}
-          <div className="px-6 py-2" style={{ backgroundColor: cardBg, borderTop: `1px solid ${borderColor}` }}>
+          <div className="flex-shrink-0 px-6 py-2" style={{ backgroundColor: cardBg, borderTop: `1px solid ${borderColor}` }}>
             <div className="flex items-center justify-between text-xs" style={{ color: accentColor }}>
               <div className="flex items-center space-x-4">
                 <span>💡 拖拽任务调整时间</span>
