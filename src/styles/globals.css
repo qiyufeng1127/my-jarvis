@@ -1,0 +1,400 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   全局样式
+   ============================================ */
+
+:root {
+  /* 温暖治愈色系 */
+  --color-primary: #DD617C;
+  --color-secondary: #6D9978;
+  --color-success: #6D9978;
+  --color-warning: #E8C259;
+  --color-error: #AC0327;
+  --color-beige: #D1CBBA;
+  
+  /* 中性色 */
+  --color-neutral-50: #fafafa;
+  --color-neutral-100: #f5f5f5;
+  --color-neutral-200: #e5e5e5;
+  --color-neutral-300: #d4d4d4;
+  --color-neutral-400: #a3a3a3;
+  --color-neutral-500: #737373;
+  --color-neutral-600: #525252;
+  --color-neutral-700: #404040;
+  --color-neutral-800: #262626;
+  --color-neutral-900: #171717;
+  
+  /* 间距 */
+  --spacing-unit: 8px;
+  
+  /* 圆角 */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  
+  /* 阴影 */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.1);
+  
+  /* 过渡 */
+  --transition-fast: 150ms;
+  --transition-normal: 250ms;
+  --transition-slow: 400ms;
+  
+  /* 字体 */
+  --font-sans: 'SF Pro Display', 'Inter', system-ui, sans-serif;
+}
+
+/* ============================================
+   基础样式重置
+   ============================================ */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 18px; /* 增大基础字体 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: #000000; /* 统一为纯黑色 */
+  background-color: var(--color-neutral-50);
+  line-height: 1.6; /* 增加行高 */
+  overflow-x: hidden;
+}
+
+/* ============================================
+   文字颜色统一规则 - 只用黑白
+   ============================================ */
+
+/* 浅色背景使用黑色文字 */
+.text-on-light,
+[style*="background"][style*="#f"],
+[style*="background"][style*="rgb(2"],
+[style*="background"][style*="rgba(2"] {
+  color: #000000 !important;
+}
+
+/* 深色背景使用白色文字 */
+.text-on-dark,
+[style*="background"][style*="#0"],
+[style*="background"][style*="#1"],
+[style*="background"][style*="#2"],
+[style*="background"][style*="#3"],
+[style*="background"][style*="#4"],
+[style*="background"][style*="#5"],
+[style*="background"][style*="#6"],
+[style*="background"][style*="#7"],
+[style*="background"][style*="#8"],
+[style*="background"][style*="#9"],
+[style*="background"][style*="#a"],
+[style*="background"][style*="#b"],
+[style*="background"][style*="#c"],
+[style*="background"][style*="#d"] {
+  color: #ffffff !important;
+}
+
+/* 强制所有文字只用黑白 */
+p, span, div, h1, h2, h3, h4, h5, h6, a, button, input, textarea, label {
+  color: inherit;
+}
+
+/* 增大所有文字尺寸 */
+.text-xs {
+  font-size: 0.875rem !important; /* 14px -> 15.75px */
+}
+
+.text-sm {
+  font-size: 1rem !important; /* 14px -> 18px */
+}
+
+.text-base {
+  font-size: 1.125rem !important; /* 16px -> 20.25px */
+}
+
+.text-lg {
+  font-size: 1.25rem !important; /* 18px -> 22.5px */
+}
+
+.text-xl {
+  font-size: 1.5rem !important; /* 20px -> 27px */
+}
+
+.text-2xl {
+  font-size: 1.75rem !important; /* 24px -> 31.5px */
+}
+
+.text-3xl {
+  font-size: 2rem !important; /* 30px -> 36px */
+}
+
+.text-4xl {
+  font-size: 2.5rem !important; /* 36px -> 45px */
+}
+
+/* ============================================
+   滚动条样式
+   ============================================ */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-neutral-100);
+  border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-neutral-300);
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-neutral-400);
+}
+
+/* ============================================
+   选择文本样式
+   ============================================ */
+
+::selection {
+  background-color: var(--color-primary);
+  color: white;
+}
+
+/* ============================================
+   焦点样式
+   ============================================ */
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ============================================
+   动画类
+   ============================================ */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn var(--transition-normal) ease-in-out;
+}
+
+.animate-slide-up {
+  animation: slideUp var(--transition-normal) ease-in-out;
+}
+
+.animate-slide-down {
+  animation: slideDown var(--transition-normal) ease-in-out;
+}
+
+.animate-scale-in {
+  animation: scaleIn var(--transition-normal) ease-in-out;
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.animate-bounce {
+  animation: bounce 1s ease-in-out infinite;
+}
+
+/* ============================================
+   工具类
+   ============================================ */
+
+.bg-primary {
+  background-color: var(--color-primary);
+}
+
+.bg-secondary {
+  background-color: var(--color-secondary);
+}
+
+.bg-beige {
+  background-color: var(--color-beige);
+}
+
+.text-primary {
+  color: var(--color-primary);
+}
+
+.text-secondary {
+  color: var(--color-secondary);
+}
+
+.shadow-glow {
+  box-shadow: 0 0 20px rgba(221, 97, 124, 0.3);
+}
+
+.transition-all {
+  transition: all var(--transition-normal) ease-in-out;
+}
+
+/* ============================================
+   响应式断点
+   ============================================ */
+
+@media (max-width: 640px) {
+  html {
+    font-size: 14px;
+  }
+}
+
+@media (min-width: 1920px) {
+  html {
+    font-size: 18px;
+  }
+}
+
+/* ============================================
+   打印样式
+   ============================================ */
+
+@media print {
+  body {
+    background: white;
+  }
+  
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* ============================================
+   暗色模式
+   ============================================ */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-neutral-50: #171717;
+    --color-neutral-100: #262626;
+    --color-neutral-200: #404040;
+    --color-neutral-300: #525252;
+    --color-neutral-400: #737373;
+    --color-neutral-500: #a3a3a3;
+    --color-neutral-600: #d4d4d4;
+    --color-neutral-700: #e5e5e5;
+    --color-neutral-800: #f5f5f5;
+    --color-neutral-900: #fafafa;
+  }
+  
+  body {
+    background-color: var(--color-neutral-50);
+    color: var(--color-neutral-900);
+  }
+}
+
+/* ============================================
+   可访问性
+   ============================================ */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* 减少动画（用户偏好）*/
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+

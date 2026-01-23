@@ -1,0 +1,481 @@
+// ============================================
+// ManifestOS 核心类型定义
+// ============================================
+
+// ============================================
+// 用户相关类型
+// ============================================
+export interface User {
+  id: string;
+  localUserId: string;
+  syncCode?: string;
+  syncCodeExpiresAt?: Date;
+  verificationCode?: string;
+  encryptedData?: string;
+  publicData: Record<string, any>;
+  deviceList: Device[];
+  settings: UserSettings;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Device {
+  id: string;
+  name: string;
+  type: 'mobile' | 'tablet' | 'desktop';
+  lastSyncAt: Date;
+  isOnline: boolean;
+}
+
+export interface UserSettings {
+  // 防拖延设置
+  verificationStrictness: 'low' | 'medium' | 'high';
+  enableProgressCheck: boolean;
+  
+  // 金币经济设置
+  goldRewardMultiplier: number;
+  goldPenaltyMultiplier: number;
+  
+  // 通知设置
+  enableNotifications: boolean;
+  notificationTimes: string[];
+  quietHours: { start: string; end: string };
+  
+  // 外观设置
+  theme: 'light' | 'dark' | 'auto';
+  primaryColor: string;
+  fontSize: 'small' | 'medium' | 'large';
+  
+  // 语音设置
+  voiceType: string;
+  voiceSpeed: number;
+  wakeWordSensitivity: number;
+  
+  // 同步设置
+  autoSync: boolean;
+  syncInterval: number;
+  syncPhotos: boolean;
+}
+
+// ============================================
+// 任务相关类型
+// ============================================
+export type TaskType = 'work' | 'study' | 'health' | 'life' | 'finance' | 'creative' | 'rest';
+export type TaskStatus = 'pending' | 'scheduled' | 'waiting_start' | 'verifying_start' | 'in_progress' | 'verifying_complete' | 'completed' | 'failed' | 'cancelled';
+export type TaskPriority = 1 | 2 | 3 | 4; // 1最高，4最低
+
+export interface Task {
+  id: string;
+  userId: string;
+  title: string;
+  description?: string;
+  taskType: TaskType;
+  priority: TaskPriority;
+  durationMinutes: number;
+  scheduledStart?: Date;
+  scheduledEnd?: Date;
+  actualStart?: Date;
+  actualEnd?: Date;
+  
+  // 成长关联
+  growthDimensions: Record<string, number>; // dimensionId -> points
+  longTermGoals: Record<string, number>; // goalId -> contribution percentage
+  identityTags: string[];
+  
+  // 防拖延设置
+  verificationStart?: VerificationConfig;
+  verificationComplete?: VerificationConfig;
+  enableProgressCheck: boolean;
+  progressChecks: ProgressCheck[];
+  penaltyGold: number;
+  
+  // 状态
+  status: TaskStatus;
+  completionQuality?: 1 | 2 | 3 | 4 | 5;
+  goldEarned: number;
+  
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface VerificationConfig {
+  type: 'photo' | 'location' | 'action' | 'question' | 'combo';
+  keywords?: string[];
+  location?: { lat: number; lng: number; radius: number };
+  action?: string;
+  question?: { question: string; answer: string };
+  timeout: number; // 秒
+}
+
+export interface ProgressCheck {
+  checkTime: Date;
+  passed: boolean;
+  evidence?: string;
+  notes?: string;
+}
+
+// ============================================
+// 成长系统相关类型
+// ============================================
+export interface GrowthDimension {
+  id: string;
+  userId: string;
+  name: string;
+  description: string;
+  icon: string;
+  color: string;
+  currentValue: number; // 0-100
+  targetValue: number;
+  weight: number; // 0.5-2.0
+  taskTypes: TaskType[];
+  displayOrder: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type GoalType = 'numeric' | 'milestone' | 'habit';
+
+export interface LongTermGoal {
+  id: string;
+  userId: string;
+  name: string;
+  description: string;
+  goalType: GoalType;
+  targetValue?: number;
+  currentValue: number;
+  unit?: string;
+  deadline?: Date;
+  relatedDimensions: string[]; // dimension IDs
+  milestones: Milestone[];
+  isActive: boolean;
+  isCompleted: boolean;
+  completedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Milestone {
+  id: string;
+  name: string;
+  targetValue: number;
+  isReached: boolean;
+  reachedAt?: Date;
+}
+
+export interface IdentityLevel {
+  id: string;
+  userId: string;
+  levelOrder: number;
+  name: string;
+  description: string;
+  requiredGrowth: number;
+  unlockFeatures: string[];
+  themeSettings: Record<string, any>;
+  icon: string;
+  isCurrent: boolean;
+  unlockedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface GrowthHistory {
+  id: string;
+  userId: string;
+  dimensionId: string;
+  oldValue: number;
+  newValue: number;
+  changeAmount: number;
+  reason: string;
+  relatedTaskId?: string;
+  notes?: string;
+  createdAt: Date;
+}
+
+// ============================================
+// 金币经济相关类型
+// ============================================
+export type TransactionType = 'earn' | 'spend' | 'penalty' | 'bonus';
+
+export interface GoldTransaction {
+  id: string;
+  userId: string;
+  amount: number;
+  transactionType: TransactionType;
+  category: string;
+  description: string;
+  balanceAfter: number;
+  relatedTaskId?: string;
+  relatedHabitId?: string;
+  metadata: Record<string, any>;
+  createdAt: Date;
+}
+
+export interface RewardItem {
+  id: string;
+  userId: string;
+  name: string;
+  description: string;
+  category: string;
+  goldCost: number;
+  icon: string;
+  isActive: boolean;
+  displayOrder: number;
+  redemptionCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface RewardRedemption {
+  id: string;
+  userId: string;
+  rewardId: string;
+  rewardName: string;
+  goldSpent: number;
+  redeemedAt: Date;
+  notes?: string;
+  createdAt: Date;
+}
+
+// ============================================
+// 坏习惯相关类型
+// ============================================
+export type BadHabitType = 'procrastination' | 'stay_up_late' | 'wake_up_late' | 'low_efficiency' | 'sedentary' | 'distraction' | 'irregular_meals' | 'custom';
+
+export interface BadHabit {
+  id: string;
+  userId: string;
+  habitType: BadHabitType;
+  customName?: string;
+  detectionRules: Record<string, any>;
+  severity: number; // 1-10
+  occurrenceCount: number;
+  lastOccurredAt?: Date;
+  improvementPlan?: ImprovementPlan;
+  consecutiveSuccessDays: number;
+  bestStreak: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface BadHabitOccurrence {
+  id: string;
+  userId: string;
+  badHabitId: string;
+  occurredAt: Date;
+  severity: number;
+  context: Record<string, any>;
+  relatedTaskId?: string;
+  notes?: string;
+  createdAt: Date;
+}
+
+export interface ImprovementPlan {
+  startDate: Date;
+  duration: number; // 天数
+  phase: 'awareness' | 'adjustment' | 'consolidation';
+  dailyTasks: string[];
+  strategies: string[];
+  progress: number; // 0-100
+}
+
+// ============================================
+// 成就相关类型
+// ============================================
+export type AchievementRarity = 'common' | 'rare' | 'epic' | 'legendary';
+
+export interface Achievement {
+  id: string;
+  userId: string;
+  achievementType: string;
+  name: string;
+  description: string;
+  icon: string;
+  rarity: AchievementRarity;
+  goldReward: number;
+  unlockedAt?: Date;
+  isUnlocked: boolean;
+  progress: Record<string, any>;
+  createdAt: Date;
+}
+
+// ============================================
+// 同步相关类型
+// ============================================
+export interface SyncLog {
+  id: string;
+  userId: string;
+  deviceId: string;
+  deviceName: string;
+  operation: 'create' | 'update' | 'delete';
+  tableName: string;
+  recordId: string;
+  dataBefore?: Record<string, any>;
+  dataAfter?: Record<string, any>;
+  syncTimestamp: Date;
+  resolvedConflict: boolean;
+  conflictResolution?: Record<string, any>;
+  createdAt: Date;
+}
+
+// ============================================
+// AI 相关类型
+// ============================================
+export interface AITaskSuggestion {
+  task: Partial<Task>;
+  growthDimensions: Record<string, number>;
+  longTermGoals: Record<string, number>;
+  verificationStart?: VerificationConfig;
+  verificationComplete?: VerificationConfig;
+  estimatedGold: number;
+  identityTags: string[];
+  confidence: number; // 0-1
+}
+
+export interface AICoachMessage {
+  type: 'encouragement' | 'warning' | 'suggestion' | 'celebration';
+  message: string;
+  actionable?: {
+    label: string;
+    action: string;
+  };
+  priority: 'low' | 'medium' | 'high';
+}
+
+export interface DailyGrowthStory {
+  date: Date;
+  summary: string;
+  highlights: string[];
+  dimensionChanges: Record<string, number>;
+  goalProgress: Record<string, number>;
+  achievements: string[];
+  tomorrowSuggestions: string[];
+  mood: 'excellent' | 'good' | 'normal' | 'challenging';
+}
+
+// ============================================
+// 报告相关类型
+// ============================================
+export interface DailyReport {
+  date: Date;
+  tasksCompleted: number;
+  tasksTotal: number;
+  totalTimeSpent: number; // 分钟
+  goldEarned: number;
+  goldSpent: number;
+  growthPoints: number;
+  highlights: string[];
+  improvements: string[];
+  tomorrowSuggestions: string[];
+}
+
+export interface WeeklyReport extends DailyReport {
+  weekStart: Date;
+  weekEnd: Date;
+  efficiencyAnalysis: {
+    completionRate: number;
+    averageDelay: number;
+    highEfficiencyHours: number[];
+    lowEfficiencyHours: number[];
+  };
+  growthAnalysis: {
+    dimensionChanges: Record<string, number>;
+    topDimensions: string[];
+    needsAttention: string[];
+  };
+  habitAnalysis: {
+    badHabitFrequency: Record<string, number>;
+    improvementRate: number;
+    consecutiveSuccessDays: number;
+  };
+  personalizedSuggestions: string[];
+}
+
+export interface MonthlyReport extends WeeklyReport {
+  monthStart: Date;
+  monthEnd: Date;
+  behaviorInsights: {
+    patterns: string[];
+    correlations: string[];
+    breakthroughs: string[];
+  };
+  growthTrajectory: {
+    currentLevel: string;
+    nextLevel: string;
+    estimatedDaysToNextLevel: number;
+    monthlyGrowthRate: number;
+  };
+  predictions: {
+    nextMonthGoals: string[];
+    estimatedGrowth: number;
+    riskWarnings: string[];
+  };
+  personalizedRoadmap: {
+    focus: string[];
+    strategies: string[];
+    milestones: string[];
+  };
+}
+
+// ============================================
+// 语音交互相关类型
+// ============================================
+export interface VoiceCommand {
+  type: 'task' | 'query' | 'control' | 'emotion';
+  intent: string;
+  entities: Record<string, any>;
+  confidence: number;
+  rawText: string;
+}
+
+export interface VoiceResponse {
+  text: string;
+  audioUrl?: string;
+  action?: {
+    type: string;
+    payload: any;
+  };
+  emotion: 'neutral' | 'encouraging' | 'celebratory' | 'supportive';
+}
+
+// ============================================
+// UI 状态相关类型
+// ============================================
+export type ViewMode = 'timeline' | 'kanban' | 'list' | 'calendar';
+
+export interface UIState {
+  currentView: ViewMode;
+  selectedDate: Date;
+  selectedTask?: string;
+  isVoiceActive: boolean;
+  isSyncing: boolean;
+  showGrowthPanel: boolean;
+  showGoalsPanel: boolean;
+  notifications: Notification[];
+}
+
+export interface Notification {
+  id: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  title: string;
+  message: string;
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
+  duration?: number;
+  createdAt: Date;
+}
+
+// ============================================
+// 工具类型
+// ============================================
+export type DeepPartial<T> = {
+  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
+};
+
+export type Nullable<T> = T | null;
+
+export type Optional<T> = T | undefined;
+

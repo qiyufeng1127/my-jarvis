@@ -1,0 +1,850 @@
+import React, { useState } from 'react';
+import { 
+  LayoutDashboard, 
+  Target, 
+  CheckSquare, 
+  Coins, 
+  AlertTriangle, 
+  TrendingUp, 
+  Settings, 
+  Mic,
+  X,
+  Palette,
+  GripVertical,
+  Calendar
+} from 'lucide-react';
+import {
+  DashboardModule,
+  GoalsModule,
+  GoldModule,
+  HabitsModule,
+  ReportsModule,
+  SettingsModule,
+  KikiModule,
+  AISmartModule,
+  TimelineModule,
+} from './ModuleComponents';
+import JournalModule from '@/components/journal/JournalModule';
+import PanoramaMemory from '@/components/memory/PanoramaMemory';
+
+interface Module {
+  id: string;
+  type: string;
+  title: string;
+  icon: React.ReactNode;
+  position: { x: number; y: number };
+  size: 'small' | 'medium' | 'large';
+  color: string;
+  isVisible: boolean;
+  customSize?: { width: number; height: number };
+}
+
+interface ModuleDefinition {
+  id: string;
+  type: string;
+  title: string;
+  icon: React.ReactNode;
+  defaultColor: string;
+  component: React.ComponentType<any>;
+}
+
+// 可用的功能模块定义
+const availableModules: ModuleDefinition[] = [
+  {
+    id: 'dashboard',
+    type: 'dashboard',
+    title: '总控面板',
+    icon: <span className="text-2xl">📊</span>,
+    defaultColor: '#DD617C',
+    component: DashboardModule,
+  },
+  {
+    id: 'goals',
+    type: 'goals',
+    title: '长期目标',
+    icon: <span className="text-2xl">🎯</span>,
+    defaultColor: '#3B82F6',
+    component: GoalsModule,
+  },
+  {
+    id: 'timeline',
+    type: 'timeline',
+    title: '时间轴',
+    icon: <span className="text-2xl">📅</span>,
+    defaultColor: '#0891b2',
+    component: TimelineModule,
+  },
+  {
+    id: 'gold',
+    type: 'gold',
+    title: '金币经济',
+    icon: <span className="text-2xl">💰</span>,
+    defaultColor: '#E8C259',
+    component: GoldModule,
+  },
+  {
+    id: 'habits',
+    type: 'habits',
+    title: '坏习惯',
+    icon: <span className="text-2xl">⚠️</span>,
+    defaultColor: '#AC0327',
+    component: HabitsModule,
+  },
+  {
+    id: 'reports',
+    type: 'reports',
+    title: '数据报告',
+    icon: <span className="text-2xl">📈</span>,
+    defaultColor: '#6D9978',
+    component: ReportsModule,
+  },
+  {
+    id: 'settings',
+    type: 'settings',
+    title: '设置',
+    icon: <span className="text-2xl">⚙️</span>,
+    defaultColor: '#9CA3AF',
+    component: SettingsModule,
+  },
+  {
+    id: 'kiki',
+    type: 'kiki',
+    title: 'Kiki宝宝',
+    icon: <span className="text-2xl">🎤</span>,
+    defaultColor: '#DD617C',
+    component: KikiModule,
+  },
+  {
+    id: 'journal',
+    type: 'journal',
+    title: '成功&感恩日记',
+    icon: <span className="text-2xl">📔</span>,
+    defaultColor: '#F59E0B',
+    component: JournalModule,
+  },
+  {
+    id: 'memory',
+    type: 'memory',
+    title: '全景记忆栏',
+    icon: <span className="text-2xl">🧠</span>,
+    defaultColor: '#8B5CF6',
+    component: PanoramaMemory,
+  },
+];
+
+// 模块尺寸配置 - 根据内容设置合适的尺寸
+const moduleSizes = {
+  small: { width: 450, height: 650 },
+  medium: { width: 600, height: 900 },
+  large: { width: 800, height: 1200 },
+};
+
+// 不同模块类型的特定高度（根据实际内容）
+const moduleSpecificHeights: Record<string, number> = {
+  'dashboard': 950,      // 总控面板 - 内容最多
+  'goals': 700,          // 长期目标
+  'timeline': 600,       // 时间轴
+  'gold': 700,           // 金币经济
+  'habits': 800,         // 坏习惯
+  'reports': 700,        // 数据报告
+  'settings': 800,       // 设置
+  'kiki': 400,           // Kiki宝宝 - 内容少
+  'journal': 750,        // 成功&感恩日记
+  'memory': 800,         // 全景记忆栏
+};
+
+interface CustomizableDashboardProps {
+  onOpenAISmart?: () => void;
+}
+
+export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDashboardProps = {}) {
+  const [modules, setModules] = useState<Module[]>([]);
+  const [draggingModule, setDraggingModule] = useState<string | null>(null);
+  const [resizingModule, setResizingModule] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const [showColorPicker, setShowColorPicker] = useState<string | null>(null);
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [showHistoryModal, setShowHistoryModal] = useState<string | null>(null); // 'gold' | 'growth' | 'identity' | 'habits'
+
+  // 坏习惯百分比（模拟数据）
+  const [habitScore, setHabitScore] = useState(0); // 0-100，越高越差
+
+  // 加载保存的头像
+  useState(() => {
+    const savedImage = localStorage.getItem('profile_image');
+    if (savedImage) {
+      setProfileImage(savedImage);
+    }
+  });
+
+  // 处理头像上传
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        setProfileImage(result);
+        localStorage.setItem('profile_image', result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // 判断颜色是否为深色
+  const isColorDark = (color: string) => {
+    const hex = color.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    return brightness < 128;
+  };
+
+  // 添加模块到主页
+  const addModule = (moduleDefinition: ModuleDefinition) => {
+    const existingModule = modules.find((m) => m.type === moduleDefinition.type);
+    
+    if (existingModule) {
+      // 如果已存在，切换可见性
+      setModules(
+        modules.map((m) =>
+          m.type === moduleDefinition.type ? { ...m, isVisible: !m.isVisible } : m
+        )
+      );
+    } else {
+      // 添加新模块
+      const newModule: Module = {
+        id: `${moduleDefinition.type}-${Date.now()}`,
+        type: moduleDefinition.type,
+        title: moduleDefinition.title,
+        icon: moduleDefinition.icon,
+        position: { x: 100, y: 100 },
+        size: 'medium',
+        color: moduleDefinition.defaultColor,
+        isVisible: true,
+      };
+      setModules([...modules, newModule]);
+    }
+  };
+
+  // 开始拖拽
+  const handleDragStart = (moduleId: string, e: React.MouseEvent) => {
+    const module = modules.find((m) => m.id === moduleId);
+    if (!module) return;
+
+    setDraggingModule(moduleId);
+    setDragOffset({
+      x: e.clientX - module.position.x,
+      y: e.clientY - module.position.y,
+    });
+  };
+
+  // 拖拽中
+  const handleDrag = (e: React.MouseEvent) => {
+    if (!draggingModule) return;
+
+    const newX = e.clientX - dragOffset.x;
+    const newY = e.clientY - dragOffset.y;
+
+    setModules(
+      modules.map((m) =>
+        m.id === draggingModule
+          ? { ...m, position: { x: Math.max(0, newX), y: Math.max(0, newY) } }
+          : m
+      )
+    );
+  };
+
+  // 结束拖拽
+  const handleDragEnd = () => {
+    setDraggingModule(null);
+  };
+
+  // 开始调整大小（缩放）
+  const handleResizeStart = (moduleId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // 阻止冒泡到拖拽事件
+    e.preventDefault(); // 阻止默认行为
+    
+    const module = modules.find((m) => m.id === moduleId);
+    if (!module) return;
+
+    const currentSize = module.customSize || moduleSizes[module.size];
+    setResizingModule(moduleId);
+    setResizeStart({
+      x: e.clientX,
+      y: e.clientY,
+      width: currentSize.width,
+      height: currentSize.height,
+    });
+  };
+
+  // 调整大小（缩放） - 使用 scale 实现整体缩放
+  const handleResize = (e: React.MouseEvent) => {
+    if (!resizingModule) return;
+
+    const deltaX = e.clientX - resizeStart.x;
+    const deltaY = e.clientY - resizeStart.y;
+
+    // 计算新的宽高
+    const newWidth = Math.max(300, resizeStart.width + deltaX);
+    const newHeight = Math.max(250, resizeStart.height + deltaY);
+
+    setModules(
+      modules.map((m) => {
+        if (m.id === resizingModule) {
+          // 更新尺寸，用于计算缩放比例
+          return { 
+            ...m, 
+            customSize: { width: newWidth, height: newHeight }
+          };
+        }
+        return m;
+      })
+    );
+  };
+
+  // 结束调整大小
+  const handleResizeEnd = () => {
+    setResizingModule(null);
+  };
+
+  // 切换模块尺寸
+  const toggleModuleSize = (moduleId: string) => {
+    setModules(
+      modules.map((m) => {
+        if (m.id === moduleId) {
+          const sizes: Array<'small' | 'medium' | 'large'> = ['small', 'medium', 'large'];
+          const currentIndex = sizes.indexOf(m.size);
+          const nextSize = sizes[(currentIndex + 1) % sizes.length];
+          return { ...m, size: nextSize };
+        }
+        return m;
+      })
+    );
+  };
+
+  // 改变模块颜色
+  const changeModuleColor = (moduleId: string, color: string) => {
+    setModules(modules.map((m) => (m.id === moduleId ? { ...m, color } : m)));
+    // 不自动关闭颜色选择器，让用户可以继续选择
+  };
+
+  // 移除模块
+  const removeModule = (moduleId: string) => {
+    setModules(modules.map((m) => (m.id === moduleId ? { ...m, isVisible: false } : m)));
+  };
+
+  // 复古背景色（每个图标不同）- 使用图片中的颜色
+  const vintageColors = [
+    '#FFF1B5', // Buttermilk - 奶油黄
+    '#C1DBE8', // Pastel Blue - 粉蓝
+    '#43302E', // Old Burgundy - 深酒红
+    '#3B82F6', // Blue - 蓝色（长期目标）
+    '#0891b2', // Cyan - 青色（时间轴）
+    '#EAA239', // Tangerine - 橘色
+    '#FFF4A1', // Cream - 奶油色
+    '#8F9E25', // Leaves - 叶绿
+    '#C3A5C1', // Wisteria - 紫藤
+    '#97332C', // Mulberry - 桑葚红
+  ];
+
+  // 预设颜色
+  const presetColors = [
+    '#3B82F6', // 蓝色
+    '#10B981', // 绿色
+    '#F59E0B', // 黄色
+    '#EF4444', // 红色
+    '#8B5CF6', // 紫色
+    '#EC4899', // 粉色
+  ];
+
+  return (
+    <div
+      className="flex h-screen"
+      style={{ backgroundColor: '#e2d9bc' }}
+      onMouseMove={draggingModule ? handleDrag : resizingModule ? handleResize : undefined}
+      onMouseUp={draggingModule ? handleDragEnd : resizingModule ? handleResizeEnd : undefined}
+      onClick={() => setShowColorPicker(null)}
+    >
+      {/* 左侧功能模块栏 */}
+      <div className="w-24 flex flex-col items-center py-8 space-y-4" style={{ backgroundColor: '#e2d9bc' }}>
+        {/* 头像上传 */}
+        <div className="relative mb-6">
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleImageUpload}
+            className="hidden"
+            id="profile-upload"
+          />
+          <label
+            htmlFor="profile-upload"
+            className="block w-20 h-20 rounded-xl overflow-hidden cursor-pointer hover:opacity-80 transition-opacity border-2 border-neutral-300 shadow-lg"
+            style={{ backgroundColor: '#D1CBBA' }}
+          >
+            {profileImage ? (
+              <img
+                src={profileImage}
+                alt="Profile"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-3xl">
+                📷
+              </div>
+            )}
+          </label>
+        </div>
+        
+        {availableModules.map((moduleDef, index) => {
+          const isActive = modules.some(
+            (m) => m.type === moduleDef.type && m.isVisible
+          );
+          
+          // 获取当前模块的颜色（如果存在且可见）
+          const activeModule = modules.find(
+            (m) => m.type === moduleDef.type && m.isVisible
+          );
+          const iconBgColor = activeModule ? activeModule.color : vintageColors[index];
+          
+          return (
+            <button
+              key={moduleDef.id}
+              onClick={() => addModule(moduleDef)}
+              className={`
+                w-12 h-12 rounded-lg flex items-center justify-center transition-all
+                ${
+                  isActive
+                    ? 'shadow-lg scale-110'
+                    : 'hover:scale-105'
+                }
+              `}
+              style={{
+                backgroundColor: iconBgColor,
+              }}
+              title={moduleDef.title}
+            >
+              {moduleDef.icon}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 主内容区域 */}
+      <div 
+        className="flex-1 relative overflow-hidden flex flex-col"
+        onMouseMove={(e) => {
+          if (draggingModule) {
+            handleDrag(e);
+          } else if (resizingModule) {
+            handleResize(e);
+          }
+        }}
+        onMouseUp={() => {
+          handleDragEnd();
+          handleResizeEnd();
+        }}
+      >
+        {/* 顶部状态栏 - 透明背景，与主页一致 */}
+        <div 
+          className="relative z-10 px-8 py-4"
+          style={{
+            backgroundColor: 'transparent', // 透明背景
+            borderBottom: '1px solid rgba(0,0,0,0.05)',
+          }}
+        >
+          <div className="flex items-center justify-between max-w-7xl mx-auto">
+            {/* 左侧：身份等级 */}
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => setShowHistoryModal('identity')}
+                className="flex items-center space-x-3 px-4 py-2 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100/50 shadow-sm hover:scale-105 transition-transform cursor-pointer"
+              >
+                <div className="text-2xl">👑</div>
+                <div>
+                  <div className="text-sm text-black font-semibold tracking-wide">IDENTITY</div>
+                  <div className="text-base font-bold text-black">萌芽新手 Lv.1</div>
+                </div>
+              </button>
+              
+              {/* 成长值进度 */}
+              <button
+                onClick={() => setShowHistoryModal('growth')}
+                className="flex items-center space-x-3 px-4 py-2 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100/50 shadow-sm hover:scale-105 transition-transform cursor-pointer"
+              >
+                <div className="text-2xl">📊</div>
+                <div>
+                  <div className="text-sm text-black font-semibold tracking-wide">GROWTH</div>
+                  <div className="flex items-center space-x-2">
+                    <div className="text-base font-bold text-black">0/200</div>
+                    <div className="text-sm text-black">(0%)</div>
+                  </div>
+                </div>
+              </button>
+              
+              {/* 本周成长 */}
+              <div className="flex items-center space-x-2 px-3 py-2 rounded-xl bg-green-50 border border-green-100/50">
+                <div className="text-lg">⚡</div>
+                <div className="text-sm text-black font-semibold">+0 本周</div>
+              </div>
+
+              {/* 坏习惯指示器 */}
+              <button
+                onClick={() => setShowHistoryModal('habits')}
+                className="flex items-center space-x-2 px-3 py-2 rounded-xl bg-yellow-50 border border-yellow-100/50 hover:scale-105 transition-transform cursor-pointer"
+              >
+                <div className="relative">
+                  <div className="text-lg">⚠️</div>
+                </div>
+                <div className="text-sm text-black font-semibold">{habitScore}%</div>
+              </button>
+            </div>
+
+            {/* 右侧：金币余额 */}
+            <button
+              onClick={() => setShowHistoryModal('gold')}
+              className="flex items-center space-x-3 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-100/50 shadow-sm hover:scale-105 transition-transform cursor-pointer"
+            >
+              <div className="text-2xl">💰</div>
+              <div>
+                <div className="text-sm text-black font-semibold tracking-wide">BALANCE</div>
+                <div className="text-xl font-bold text-black">0</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* 模块容器区域 */}
+        <div className="flex-1 relative overflow-hidden">
+        {/* 模块容器 */}
+        {modules
+          .filter((m) => m.isVisible)
+          .map((module) => {
+            const baseSize = moduleSizes[module.size];
+            // 使用模块特定高度，如果没有则使用默认高度
+            const specificHeight = moduleSpecificHeights[module.type] || baseSize.height;
+            const actualBaseSize = { width: baseSize.width, height: specificHeight };
+            const currentSize = module.customSize || actualBaseSize;
+            
+            // 计算缩放比例
+            const scale = Math.min(
+              currentSize.width / actualBaseSize.width,
+              currentSize.height / actualBaseSize.height
+            );
+            
+            const moduleDefinition = availableModules.find((m) => m.type === module.type);
+
+            return (
+              <div
+                key={module.id}
+                className="absolute rounded-lg shadow-lg"
+                style={{
+                  left: module.position.x,
+                  top: module.position.y,
+                  width: currentSize.width,
+                  height: currentSize.height,
+                  backgroundColor: module.color,
+                  cursor: draggingModule === module.id ? 'grabbing' : 'default',
+                  zIndex: draggingModule === module.id ? 1000 : 1,
+                  overflow: 'hidden',
+                }}
+              >
+                {/* 缩放包装器 - 整体缩放 */}
+                <div
+                  style={{
+                    width: actualBaseSize.width,
+                    height: actualBaseSize.height,
+                    transform: `scale(${scale})`,
+                    transformOrigin: 'top left',
+                    position: 'relative',
+                  }}
+                >
+                  {/* 模块头部 */}
+                  <div
+                    className="flex items-center justify-between p-4 cursor-move"
+                    onMouseDown={(e) => handleDragStart(module.id, e)}
+                    style={{ 
+                      backgroundColor: module.color,
+                      color: isColorDark(module.color) ? '#ffffff' : '#000000',
+                      height: '60px',
+                    }}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <GripVertical 
+                        className="w-4 h-4" 
+                        style={{ color: isColorDark(module.color) ? '#ffffff' : '#000000' }}
+                      />
+                      <div>{module.icon}</div>
+                      <h3 
+                        className="font-semibold"
+                        style={{ color: isColorDark(module.color) ? '#ffffff' : '#000000' }}
+                      >
+                        {module.title}
+                      </h3>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      {/* 颜色选择器 */}
+                      <div className="relative">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowColorPicker(
+                              showColorPicker === module.id ? null : module.id
+                            );
+                          }}
+                          className="p-1 rounded transition-colors"
+                          style={{ 
+                            backgroundColor: isColorDark(module.color) ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'
+                          }}
+                          title="修改颜色"
+                        >
+                          <Palette 
+                            className="w-4 h-4" 
+                            style={{ color: isColorDark(module.color) ? '#ffffff' : '#000000' }}
+                          />
+                        </button>
+
+                        {showColorPicker === module.id && (
+                          <div 
+                            className="absolute right-0 top-8 bg-white rounded-lg shadow-xl p-4 z-50 border border-neutral-200"
+                            onClick={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            style={{ minWidth: '280px', transform: `scale(${1/scale})`, transformOrigin: 'top right' }}
+                          >
+                            {/* 复古颜色 - 第一排 */}
+                            <div className="mb-2">
+                              <div className="text-xs text-neutral-500 mb-2">复古配色</div>
+                              <div className="grid grid-cols-7 gap-2">
+                                {vintageColors.map((color) => (
+                                  <button
+                                    key={color}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      changeModuleColor(module.id, color);
+                                    }}
+                                    className="w-8 h-8 rounded-lg border-2 border-neutral-200 hover:scale-110 transition-transform"
+                                    style={{ backgroundColor: color }}
+                                    title={color}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* 预设颜色 - 第二排 */}
+                            <div className="mb-3">
+                              <div className="text-xs text-neutral-500 mb-2">预设颜色</div>
+                              <div className="grid grid-cols-7 gap-2">
+                                {presetColors.map((color) => (
+                                  <button
+                                    key={color}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      changeModuleColor(module.id, color);
+                                    }}
+                                    className="w-8 h-8 rounded-lg border-2 border-neutral-200 hover:scale-110 transition-transform"
+                                    style={{ backgroundColor: color }}
+                                    title={color}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* 自定义颜色选择器 */}
+                            <div>
+                              <div className="text-xs text-neutral-500 mb-2">自定义颜色</div>
+                              <input
+                                type="color"
+                                value={module.color}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  changeModuleColor(module.id, e.target.value);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-full h-10 rounded cursor-pointer"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 关闭按钮 */}
+                      <button
+                        onClick={() => removeModule(module.id)}
+                        className="p-1 rounded transition-colors"
+                        style={{ 
+                          backgroundColor: isColorDark(module.color) ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'
+                        }}
+                        title="隐藏模块"
+                      >
+                        <X 
+                          className="w-4 h-4" 
+                          style={{ color: isColorDark(module.color) ? '#ffffff' : '#000000' }}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 模块内容 - 自动高度，显示所有内容，不要滚动条 */}
+                  <div 
+                    style={{ 
+                      backgroundColor: module.color,
+                      color: isColorDark(module.color) ? '#ffffff' : '#000000',
+                      minHeight: `${actualBaseSize.height - 60}px`,
+                      overflow: 'visible', // 让内容可见，不裁剪
+                    }}
+                  >
+                    {moduleDefinition?.component && 
+                      React.createElement(moduleDefinition.component, { 
+                        isDark: isColorDark(module.color),
+                        bgColor: module.color,
+                        onOpen: module.type === 'ai-smart' ? onOpenAISmart : undefined
+                      })
+                    }
+                  </div>
+
+                  {/* 调整大小手柄 */}
+                  <div
+                    className="absolute bottom-0 right-0 w-8 h-8 cursor-se-resize flex items-end justify-end p-1"
+                    onMouseDown={(e) => handleResizeStart(module.id, e)}
+                    title="拖拽缩放"
+                    style={{
+                      background: `linear-gradient(135deg, transparent 0%, transparent 50%, ${isColorDark(module.color) ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.3)'} 50%)`,
+                    }}
+                  >
+                    <div className="flex flex-col items-end space-y-0.5">
+                      <div className="flex space-x-0.5">
+                        <div 
+                          className="w-1.5 h-1.5 rounded-full" 
+                          style={{ 
+                            backgroundColor: isColorDark(module.color) ? '#ffffff' : '#000000',
+                            opacity: 0.7
+                          }}
+                        />
+                      </div>
+                      <div className="flex space-x-0.5">
+                        <div 
+                          className="w-1.5 h-1.5 rounded-full" 
+                          style={{ 
+                            backgroundColor: isColorDark(module.color) ? '#ffffff' : '#000000',
+                            opacity: 0.7
+                          }}
+                        />
+                        <div 
+                          className="w-1.5 h-1.5 rounded-full" 
+                          style={{ 
+                            backgroundColor: isColorDark(module.color) ? '#ffffff' : '#000000',
+                            opacity: 0.7
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+        {/* 空状态提示 */}
+        {modules.filter((m) => m.isVisible).length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center">
+              <div className="text-6xl mb-4">📊</div>
+              <h2 className="text-2xl font-bold text-neutral-900 mb-2">
+                欢迎来到 ManifestOS
+              </h2>
+              <p className="text-neutral-600 mb-6">
+                点击左侧图标添加功能模块到主页
+              </p>
+              <div className="flex items-center justify-center space-x-4 text-sm text-neutral-500">
+                <div>💡 单击添加模块</div>
+                <div>🎨 修改颜色</div>
+                <div>↔️ 拖拽移动</div>
+                <div>↘️ 调整大小</div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+        {/* 历史记录弹窗 */}
+        {showHistoryModal && (
+          <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+            onClick={() => setShowHistoryModal(null)}
+          >
+            <div 
+              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* 头部 */}
+              <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-bold">
+                    {showHistoryModal === 'gold' && '💰 金币历史记录'}
+                    {showHistoryModal === 'growth' && '📊 成长值历史'}
+                    {showHistoryModal === 'identity' && '👑 升级历史'}
+                    {showHistoryModal === 'habits' && '⚠️ 坏习惯记录'}
+                  </h2>
+                  <button
+                    onClick={() => setShowHistoryModal(null)}
+                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+              </div>
+
+              {/* 内容 */}
+              <div className="p-6 overflow-y-auto max-h-[calc(80vh-120px)]">
+                {showHistoryModal === 'gold' && (
+                  <div className="space-y-3">
+                    <div className="text-center text-neutral-500 py-8">
+                      <div className="text-4xl mb-2">💰</div>
+                      <p>暂无金币交易记录</p>
+                      <p className="text-sm mt-2">完成任务即可获得金币奖励</p>
+                    </div>
+                  </div>
+                )}
+
+                {showHistoryModal === 'growth' && (
+                  <div className="space-y-3">
+                    <div className="text-center text-neutral-500 py-8">
+                      <div className="text-4xl mb-2">📊</div>
+                      <p>暂无成长值记录</p>
+                      <p className="text-sm mt-2">完成任务和目标即可获得成长值</p>
+                    </div>
+                  </div>
+                )}
+
+                {showHistoryModal === 'identity' && (
+                  <div className="space-y-3">
+                    <div className="text-center text-neutral-500 py-8">
+                      <div className="text-4xl mb-2">👑</div>
+                      <p>暂无升级记录</p>
+                      <p className="text-sm mt-2">当前等级：萌芽新手 Lv.1</p>
+                      <p className="text-sm">下一等级需要：200 成长值</p>
+                    </div>
+                  </div>
+                )}
+
+                {showHistoryModal === 'habits' && (
+                  <div className="space-y-3">
+                    <div className="text-center text-neutral-500 py-8">
+                      <div className="text-4xl mb-2">⚠️</div>
+                      <p>暂无坏习惯记录</p>
+                      <p className="text-sm mt-2">当前坏习惯分数：{habitScore}%</p>
+                      <p className="text-sm">每2小时无坏习惯自动-1%</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
