@@ -4,4 +4,9 @@ export { useVoiceRecognition } from './useVoiceRecognition';
 export { useSpeechSynthesis } from './useSpeechSynthesis';
 export { useRealtime } from './useRealtime';
 export { useLocalStorage } from './useLocalStorage';
+export { useColorTheme } from './useColorTheme';
+export { useDraggable } from './useDraggable';
+export { useResizable } from './useResizable';
+export { useTaskEditor } from './useTaskEditor';
+export { useThinkingProcess } from './useThinkingProcess';
 

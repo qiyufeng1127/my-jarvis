@@ -8,6 +8,23 @@ import { aiService } from '@/services/aiService';
 import { useTaskStore } from '@/stores/taskStore';
 import type { TaskType, TaskPriority } from '@/types';
 import AIConfigModal from './AIConfigModal';
+import { 
+  useLocalStorage, 
+  useColorTheme, 
+  useDraggable, 
+  useResizable, 
+  useTaskEditor,
+  useThinkingProcess 
+} from '@/hooks';
+import {
+  detectTaskLocation,
+  detectTaskDuration,
+  optimizeTasksByLocation,
+  parseStartTime,
+  getPriorityEmoji,
+  LOCATION_NAMES,
+  LOCATION_ICONS,
+} from '@/utils/taskUtils';
 
 interface DecomposedTask {
   id: string;
@@ -54,42 +71,21 @@ export default function FloatingAIChat() {
   const { isConfigured } = useAIStore();
   const { createTask, updateTask, tasks, getTodayTasks } = useTaskStore();
   
-  // 从localStorage加载持久化状态
-  const loadPersistedState = () => {
-    try {
-      const saved = localStorage.getItem('ai_chat_state');
-      if (saved) {
-        const state = JSON.parse(saved);
-        return {
-          isOpen: state.isOpen ?? false,
-          position: state.position ?? { x: window.innerWidth - 420, y: 100 },
-          size: state.size ?? { width: 400, height: 600 },
-          bgColor: state.bgColor ?? '#ffffff',
-        };
-      }
-    } catch (error) {
-      console.error('加载AI助手状态失败:', error);
-    }
-    return {
-      isOpen: false,
-      position: { x: window.innerWidth - 420, y: 100 },
-      size: { width: 400, height: 600 },
-      bgColor: '#ffffff',
-    };
-  };
-
-  const persistedState = loadPersistedState();
+  // 使用自定义 Hooks
+  const [persistedState, setPersistedState] = useLocalStorage('ai_chat_state', {
+    isOpen: false,
+    position: { x: window.innerWidth - 420, y: 100 },
+    size: { width: 400, height: 600 },
+    bgColor: '#ffffff',
+  });
   
   const [isOpen, setIsOpen] = useState(persistedState.isOpen);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [showConfigModal, setShowConfigModal] = useState(false);
-  const [editingTasks, setEditingTasks] = useState<DecomposedTask[]>([]);
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [bgColor, setBgColor] = useState(persistedState.bgColor);
   const [showColorPicker, setShowColorPicker] = useState(false);
-  const [thinkingSteps, setThinkingSteps] = useState<string[]>([]);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome',
@@ -98,140 +94,39 @@ export default function FloatingAIChat() {
       timestamp: new Date(),
     }
   ]);
-
-  // 拖拽相关状态
-  const [position, setPosition] = useState(persistedState.position);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  
-  // 缩放相关状态
-  const [size, setSize] = useState(persistedState.size);
-  const [isResizing, setIsResizing] = useState(false);
-  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
   
   const chatRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
 
-  // 家里格局配置（用于动线优化）
-  const HOME_LAYOUT = {
-    entrance: { left: 'bathroom', right: 'workspace' },
-    forward: { left: 'kitchen', right: 'livingroom' },
-    upstairs: { left: 'bedroom', right: 'studio' },
-  };
-
-  // 位置顺序（按照动线最优排序）
-  const LOCATION_ORDER = [
-    'bathroom',      // 厕所
-    'workspace',     // 工作区
-    'kitchen',       // 厨房
-    'livingroom',    // 客厅
-    'bedroom',       // 卧室
-    'studio',        // 拍摄间
-  ];
-
-  // 任务时长参考（分钟）
-  const DURATION_REFERENCE: Record<string, number> = {
-    work: 60,           // 工作：1小时起步
-    cleaning: 10,       // 打扫：10分钟
-    eating_home: 30,    // 在家吃饭：30分钟
-    eating_out: 120,    // 外出吃饭：2小时
-    drinking: 240,      // 外出喝酒：4小时
-    sleep: 5,           // 上楼睡觉：5分钟
-    medicine: 2,        // 吃药：2分钟
-    washing: 5,         // 洗漱：5分钟
-    tidying: 5,         // 简单收拾：5分钟
-  };
-
-  // 智能识别任务位置
-  const detectTaskLocation = (title: string): string | undefined => {
-    const titleLower = title.toLowerCase();
-    
-    // 厕所相关
-    if (/厕所|洗手间|卫生间|洗漱|洗衣|洗澡|刷牙|洗脸/.test(title)) return 'bathroom';
-    
-    // 工作区相关
-    if (/工作|电脑|办公|写代码|编程|学习|写作|设计|吃药|艾司唑仑/.test(title)) return 'workspace';
-    
-    // 厨房相关
-    if (/厨房|做饭|洗碗|猫粮|倒水|煮|炒|吃饭|用餐|喝水/.test(title)) return 'kitchen';
-    
-    // 客厅相关
-    if (/客厅|看电视|沙发|垃圾|收拾客厅/.test(title)) return 'livingroom';
-    
-    // 卧室相关
-    if (/卧室|睡觉|床|休息|收拾卧室/.test(title)) return 'bedroom';
-    
-    // 拍摄间相关
-    if (/拍摄间|拍摄|录制|录像|收拾拍摄间/.test(title)) return 'studio';
-    
-    return undefined;
-  };
-
-  // 智能识别任务时长
-  const detectTaskDuration = (title: string): number => {
-    // 首先检查是否明确指定了时长
-    const durationMatch = title.match(/(\d+)(分钟|小时)/);
-    if (durationMatch) {
-      const value = parseInt(durationMatch[1]);
-      const unit = durationMatch[2];
-      return unit === '小时' ? value * 60 : value;
-    }
-
-    // 根据任务类型推断
-    if (/工作|编程|写代码|开发/.test(title)) return DURATION_REFERENCE.work;
-    if (/打扫|收拾|整理/.test(title)) return DURATION_REFERENCE.cleaning;
-    if (/吃饭/.test(title) && /外出|出去/.test(title)) return DURATION_REFERENCE.eating_out;
-    if (/吃饭|用餐/.test(title)) return DURATION_REFERENCE.eating_home;
-    if (/喝酒|聚会|应酬/.test(title)) return DURATION_REFERENCE.drinking;
-    if (/睡觉|上楼|休息/.test(title)) return DURATION_REFERENCE.sleep;
-    if (/吃药|服药/.test(title)) return DURATION_REFERENCE.medicine;
-    if (/洗漱|刷牙|洗脸/.test(title)) return DURATION_REFERENCE.washing;
-    if (/洗碗|倒猫粮|洗衣服/.test(title)) return DURATION_REFERENCE.tidying;
-    
-    // 默认根据任务类型推断
-    if (/学习|阅读|看书/.test(title)) return 30;
-    if (/运动|锻炼|健身/.test(title)) return 30;
-    return 15; // 默认15分钟
-  };
-
-  // 按动线优化任务顺序
-  const optimizeTasksByLocation = (tasks: DecomposedTask[]): DecomposedTask[] => {
-    return [...tasks].sort((a, b) => {
-      const locA = a.location || 'unknown';
-      const locB = b.location || 'unknown';
-      
-      const indexA = LOCATION_ORDER.indexOf(locA);
-      const indexB = LOCATION_ORDER.indexOf(locB);
-      
-      // 如果位置不在列表中，放到最后
-      if (indexA === -1 && indexB === -1) return 0;
-      if (indexA === -1) return 1;
-      if (indexB === -1) return -1;
-      
-      return indexA - indexB;
-    });
-  };
-
-  // 重新计算任务时间（基于顺序和持续时间）
-  const recalculateTaskTimes = (tasks: DecomposedTask[], startTime?: Date): DecomposedTask[] => {
-    const baseTime = startTime || new Date();
-    let currentTime = new Date(baseTime);
-
-    return tasks.map((task, index) => {
-      const taskStartTime = new Date(currentTime);
-      const hours = taskStartTime.getHours().toString().padStart(2, '0');
-      const minutes = taskStartTime.getMinutes().toString().padStart(2, '0');
-      
-      // 更新当前时间（加上任务持续时间）
-      currentTime = new Date(currentTime.getTime() + task.duration * 60000);
-      
-      return {
-        ...task,
-        startTime: `${hours}:${minutes}`,
-      };
-    });
-  };
+  // 使用自定义 Hooks 管理状态
+  const theme = useColorTheme(bgColor);
+  const { position, isDragging, handleDragStart } = useDraggable({
+    initialPosition: persistedState.position,
+    bounds: {
+      minX: 0,
+      maxX: window.innerWidth - 400,
+      minY: 0,
+      maxY: window.innerHeight - 600,
+    },
+  });
+  const { size, isResizing, handleResizeStart } = useResizable({
+    initialSize: persistedState.size,
+    minSize: { width: 320, height: 400 },
+  });
+  const {
+    editingTasks,
+    editingMessageId,
+    setEditingTasks,
+    handleTaskReorder,
+    handleTaskDurationChange,
+    handleTaskTitleChange,
+    handleDeleteTask,
+    startEditing,
+    cancelEditing,
+    recalculateTaskTimes,
+  } = useTaskEditor();
+  const { thinkingSteps, addStep: addThinkingStep, clearSteps: clearThinkingSteps } = useThinkingProcess();
 
   // 自动滚动到底部
   useEffect(() => {
@@ -242,113 +137,22 @@ export default function FloatingAIChat() {
 
   // 保存状态到localStorage
   useEffect(() => {
-    const saveState = () => {
-      try {
-        const state = {
-          isOpen,
-          position,
-          size,
-          bgColor,
-        };
-        localStorage.setItem('ai_chat_state', JSON.stringify(state));
-      } catch (error) {
-        console.error('保存AI助手状态失败:', error);
-      }
-    };
-    
-    saveState();
-  }, [isOpen, position, size, bgColor]);
-
-  // 拖拽处理
-  const handleDragStart = (e: React.MouseEvent) => {
-    setIsDragging(true);
-    setDragOffset({
-      x: e.clientX - position.x,
-      y: e.clientY - position.y,
+    setPersistedState({
+      isOpen,
+      position,
+      size,
+      bgColor,
     });
+  }, [isOpen, position, size, bgColor, setPersistedState]);
+
+  // 切换思考过程展开/折叠
+  const toggleThinkingExpanded = (messageId: string) => {
+    setMessages(prev => prev.map(msg => 
+      msg.id === messageId 
+        ? { ...msg, isThinkingExpanded: !msg.isThinkingExpanded }
+        : msg
+    ));
   };
-
-  const handleDrag = (e: MouseEvent) => {
-    if (!isDragging) return;
-    
-    const newX = Math.max(0, Math.min(e.clientX - dragOffset.x, window.innerWidth - 400));
-    const newY = Math.max(0, Math.min(e.clientY - dragOffset.y, window.innerHeight - 600));
-    
-    setPosition({ x: newX, y: newY });
-  };
-
-  const handleDragEnd = () => {
-    setIsDragging(false);
-  };
-
-  useEffect(() => {
-    if (isDragging) {
-      window.addEventListener('mousemove', handleDrag);
-      window.addEventListener('mouseup', handleDragEnd);
-      return () => {
-        window.removeEventListener('mousemove', handleDrag);
-        window.removeEventListener('mouseup', handleDragEnd);
-      };
-    }
-  }, [isDragging, dragOffset]);
-
-  // 开始缩放
-  const handleResizeStart = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    setIsResizing(true);
-    setResizeStart({
-      x: e.clientX,
-      y: e.clientY,
-      width: size.width,
-      height: size.height,
-    });
-  };
-
-  // 缩放中
-  const handleResize = (e: MouseEvent) => {
-    if (!isResizing) return;
-    
-    const deltaX = e.clientX - resizeStart.x;
-    const deltaY = e.clientY - resizeStart.y;
-    
-    const newWidth = Math.max(320, resizeStart.width + deltaX);
-    const newHeight = Math.max(400, resizeStart.height + deltaY);
-    
-    setSize({ width: newWidth, height: newHeight });
-  };
-
-  // 结束缩放
-  const handleResizeEnd = () => {
-    setIsResizing(false);
-  };
-
-  useEffect(() => {
-    if (isResizing) {
-      window.addEventListener('mousemove', handleResize);
-      window.addEventListener('mouseup', handleResizeEnd);
-      return () => {
-        window.removeEventListener('mousemove', handleResize);
-        window.removeEventListener('mouseup', handleResizeEnd);
-      };
-    }
-  }, [isResizing, resizeStart]);
-
-  // 判断颜色是否为深色
-  const isColorDark = (color: string): boolean => {
-    const hex = color.replace('#', '');
-    const r = parseInt(hex.substr(0, 2), 16);
-    const g = parseInt(hex.substr(2, 2), 16);
-    const b = parseInt(hex.substr(4, 2), 16);
-    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-    return brightness < 128;
-  };
-
-  const isDark = isColorDark(bgColor);
-  const textColor = isDark ? '#ffffff' : '#000000';
-  const accentColor = isDark ? 'rgba(255,255,255,0.7)' : '#666666';
-  const cardBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
-  const buttonBg = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)';
 
   // 智能标签分析 - 使用AI或关键词作为后备
   const analyzeMessageTags = async (message: string) => {
@@ -454,39 +258,7 @@ export default function FloatingAIChat() {
     return { emotions, categories, type, rewards, isAI: false, confidence: 0 };
   };
 
-  // 处理任务编辑（拖拽排序、修改时长等）
-  const handleTaskReorder = (fromIndex: number, toIndex: number) => {
-    const newTasks = [...editingTasks];
-    const [movedTask] = newTasks.splice(fromIndex, 1);
-    newTasks.splice(toIndex, 0, movedTask);
-    
-    // 重新计算时间
-    const updatedTasks = recalculateTaskTimes(newTasks);
-    setEditingTasks(updatedTasks);
-  };
 
-  const handleTaskDurationChange = (taskId: string, newDuration: number) => {
-    const newTasks = editingTasks.map(task =>
-      task.id === taskId ? { ...task, duration: newDuration } : task
-    );
-    
-    // 重新计算时间
-    const updatedTasks = recalculateTaskTimes(newTasks);
-    setEditingTasks(updatedTasks);
-  };
-
-  const handleTaskTitleChange = (taskId: string, newTitle: string) => {
-    const newTasks = editingTasks.map(task =>
-      task.id === taskId ? { ...task, title: newTitle } : task
-    );
-    setEditingTasks(newTasks);
-  };
-
-  const handleDeleteTask = (taskId: string) => {
-    const newTasks = editingTasks.filter(task => task.id !== taskId);
-    const updatedTasks = recalculateTaskTimes(newTasks);
-    setEditingTasks(updatedTasks);
-  };
 
   // 推送任务到时间轴
   const handlePushToTimeline = async () => {
@@ -534,8 +306,7 @@ export default function FloatingAIChat() {
       setMessages(prev => [...prev, successMessage]);
       
       // 清空编辑状态
-      setEditingTasks([]);
-      setEditingMessageId(null);
+      cancelEditing();
     } catch (error) {
       console.error('推送任务失败:', error);
       const errorMessage: Message = {
@@ -550,36 +321,7 @@ export default function FloatingAIChat() {
     }
   };
 
-  // 开始编辑任务
-  const handleStartEditing = (messageId: string, tasks: DecomposedTask[]) => {
-    setEditingMessageId(messageId);
-    setEditingTasks(tasks);
-  };
 
-  // 取消编辑
-  const handleCancelEditing = () => {
-    setEditingMessageId(null);
-    setEditingTasks([]);
-  };
-
-  // 添加思考步骤
-  const addThinkingStep = (step: string) => {
-    setThinkingSteps(prev => [...prev, step]);
-  };
-
-  // 清空思考步骤
-  const clearThinkingSteps = () => {
-    setThinkingSteps([]);
-  };
-
-  // 切换思考过程展开/折叠
-  const toggleThinkingExpanded = (messageId: string) => {
-    setMessages(prev => prev.map(msg => 
-      msg.id === messageId 
-        ? { ...msg, isThinkingExpanded: !msg.isThinkingExpanded }
-        : msg
-    ));
-  };
 
   // 发送消息
   const handleSend = async () => {
@@ -821,18 +563,16 @@ export default function FloatingAIChat() {
 
               addThinkingStep('⏰ 正在计算任务时间...');
               // 计算开始时间（从当前时间或用户指定时间开始）
-              const startTime = new Date();
-              // 检查用户是否指定了开始时间
+              const startTime = parseStartTime(message);
+              
               const minuteMatch = message.match(/(\d+)分钟(之后|后)/);
               const hourMatch = message.match(/(\d+)(个)?小时(之后|后)/);
               
               if (hourMatch) {
                 const hours = parseInt(hourMatch[1]);
-                startTime.setHours(startTime.getHours() + hours);
                 addThinkingStep(`⏰ 任务将在 ${hours} 小时后开始`);
               } else if (minuteMatch) {
                 const minutes = parseInt(minuteMatch[1]);
-                startTime.setMinutes(startTime.getMinutes() + minutes);
                 addThinkingStep(`⏰ 任务将在 ${minutes} 分钟后开始`);
               }
               
@@ -865,26 +605,11 @@ export default function FloatingAIChat() {
               responseContent += `我帮你把任务分解成了 ${tasksWithMetadata.length} 个具体步骤，并按照家里格局优化了动线：\n\n`;
               
               tasksWithMetadata.forEach((task, index) => {
-                const priorityEmoji = task.priority === 'high' ? '🔴' : task.priority === 'medium' ? '🟡' : '🟢';
-                const locationNames: Record<string, string> = {
-                  bathroom: '厕所',
-                  workspace: '工作区',
-                  kitchen: '厨房',
-                  livingroom: '客厅',
-                  bedroom: '卧室',
-                  studio: '拍摄间',
-                };
-                const locationEmoji = {
-                  bathroom: '🚽',
-                  workspace: '💻',
-                  kitchen: '🍳',
-                  livingroom: '🛋️',
-                  bedroom: '🛏️',
-                  studio: '📸',
-                }[task.location || ''] || '📍';
+                const priorityEmoji = getPriorityEmoji(task.priority);
+                const locationEmoji = LOCATION_ICONS[task.location || ''] || '📍';
                 
                 responseContent += `${index + 1}. ${priorityEmoji} **${task.title}**\n`;
-                responseContent += `   ${locationEmoji} ${task.location ? locationNames[task.location] : '未指定位置'} | ⏱️ ${task.duration} 分钟 | 🕐 ${task.startTime}\n\n`;
+                responseContent += `   ${locationEmoji} ${task.location ? LOCATION_NAMES[task.location] : '未指定位置'} | ⏱️ ${task.duration} 分钟 | 🕐 ${task.startTime}\n\n`;
               });
 
               // 显示目标关联
@@ -916,7 +641,7 @@ export default function FloatingAIChat() {
               
               setMessages(prev => [...prev, aiMessage]);
               // 自动开始编辑
-              handleStartEditing(aiMessage.id, tasksWithMetadata);
+              startEditing(aiMessage.id, tasksWithMetadata);
               setIsProcessing(false);
               clearThinkingSteps();
               return;
@@ -989,7 +714,7 @@ export default function FloatingAIChat() {
         };
         
         setMessages(prev => [...prev, aiMessage]);
-        handleStartEditing(aiMessage.id, [singleTask]);
+        startEditing(aiMessage.id, [singleTask]);
       } else if (analysis.type) {
         // 只是记录，不是任务
         const aiMessage: Message = {
@@ -1066,15 +791,15 @@ export default function FloatingAIChat() {
           {/* 头部 - 可拖拽 */}
           <div
             className="px-4 py-3 flex items-center justify-between cursor-move"
-            style={{ backgroundColor: bgColor, color: textColor }}
+            style={{ backgroundColor: theme.bgColor, color: theme.textColor }}
             onMouseDown={handleDragStart}
           >
             <div className="flex items-center space-x-2">
               <GripVertical className="w-4 h-4 opacity-50" />
               <span className="text-2xl">🤖</span>
               <div>
-                <div className="font-semibold" style={{ color: textColor }}>AI助手</div>
-                <div className="text-xs" style={{ color: accentColor }}>智能任务分析</div>
+                <div className="font-semibold" style={{ color: theme.textColor }}>AI助手</div>
+                <div className="text-xs" style={{ color: theme.accentColor }}>智能任务分析</div>
               </div>
             </div>
             
@@ -1087,7 +812,7 @@ export default function FloatingAIChat() {
                     setShowColorPicker(!showColorPicker);
                   }}
                   className="p-1 rounded transition-colors"
-                  style={{ backgroundColor: buttonBg }}
+                  style={{ backgroundColor: theme.buttonBg }}
                   title="修改颜色"
                 >
                   <span className="text-sm">🎨</span>
@@ -1097,13 +822,13 @@ export default function FloatingAIChat() {
                   <div 
                     className="absolute right-0 top-8 rounded-lg shadow-xl p-4 z-50 border"
                     style={{ 
-                      backgroundColor: bgColor,
-                      borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)',
+                      backgroundColor: theme.bgColor,
+                      borderColor: theme.borderColor,
                       minWidth: '200px'
                     }}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <div className="text-xs mb-2" style={{ color: accentColor }}>选择背景颜色</div>
+                    <div className="text-xs mb-2" style={{ color: theme.accentColor }}>选择背景颜色</div>
                     <input
                       type="color"
                       value={bgColor}
@@ -1120,10 +845,10 @@ export default function FloatingAIChat() {
                   setShowConfigModal(true);
                 }}
                 className="p-1 rounded transition-colors"
-                style={{ backgroundColor: buttonBg }}
+                style={{ backgroundColor: theme.buttonBg }}
                 title="AI配置"
               >
-                <Settings className="w-4 h-4" style={{ color: textColor }} />
+                <Settings className="w-4 h-4" style={{ color: theme.textColor }} />
               </button>
               <button
                 onClick={(e) => {
@@ -1131,10 +856,10 @@ export default function FloatingAIChat() {
                   setIsMinimized(!isMinimized);
                 }}
                 className="p-1 rounded transition-colors"
-                style={{ backgroundColor: buttonBg }}
+                style={{ backgroundColor: theme.buttonBg }}
                 title={isMinimized ? "展开" : "最小化"}
               >
-                {isMinimized ? <Maximize2 className="w-4 h-4" style={{ color: textColor }} /> : <Minimize2 className="w-4 h-4" style={{ color: textColor }} />}
+                {isMinimized ? <Maximize2 className="w-4 h-4" style={{ color: theme.textColor }} /> : <Minimize2 className="w-4 h-4" style={{ color: theme.textColor }} />}
               </button>
               <button
                 onClick={(e) => {
@@ -1142,10 +867,10 @@ export default function FloatingAIChat() {
                   setIsOpen(false);
                 }}
                 className="p-1 rounded transition-colors"
-                style={{ backgroundColor: buttonBg }}
+                style={{ backgroundColor: theme.buttonBg }}
                 title="关闭"
               >
-                <X className="w-4 h-4" style={{ color: textColor }} />
+                <X className="w-4 h-4" style={{ color: theme.textColor }} />
               </button>
             </div>
           </div>
@@ -1154,7 +879,7 @@ export default function FloatingAIChat() {
           {!isMinimized && (
             <>
               {/* 对话区域 */}
-              <div ref={conversationRef} className="flex-1 overflow-y-auto p-4 space-y-3" style={{ backgroundColor: cardBg }}>
+              <div ref={conversationRef} className="flex-1 overflow-y-auto p-4 space-y-3" style={{ backgroundColor: theme.cardBg }}>
                 {messages.map((message) => (
                   <div
                     key={message.id}
@@ -1164,9 +889,9 @@ export default function FloatingAIChat() {
                       className="max-w-[85%] rounded-lg p-3"
                       style={{
                         backgroundColor: message.role === 'user' 
-                          ? (isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)')
-                          : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.9)'),
-                        color: textColor,
+                          ? (theme.isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)')
+                          : (theme.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.9)'),
+                        color: theme.textColor,
                         boxShadow: message.role === 'assistant' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
                       }}
                     >
@@ -1174,11 +899,11 @@ export default function FloatingAIChat() {
                       
                       {/* 显示AI思考过程 */}
                       {message.role === 'assistant' && message.thinkingProcess && message.thinkingProcess.length > 0 && (
-                        <div className="mt-3 pt-3 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}>
+                        <div className="mt-3 pt-3 border-t" style={{ borderColor: theme.borderColor }}>
                           <button
                             onClick={() => toggleThinkingExpanded(message.id)}
                             className="flex items-center space-x-2 text-xs font-semibold hover:opacity-80 transition-opacity"
-                            style={{ color: accentColor }}
+                            style={{ color: theme.accentColor }}
                           >
                             {message.isThinkingExpanded ? (
                               <ChevronUp className="w-4 h-4" />
@@ -1189,12 +914,12 @@ export default function FloatingAIChat() {
                           </button>
                           
                           {message.isThinkingExpanded && (
-                            <div className="mt-2 space-y-1 pl-2 border-l-2" style={{ borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)' }}>
+                            <div className="mt-2 space-y-1 pl-2 border-l-2" style={{ borderColor: theme.borderColor }}>
                               {message.thinkingProcess.map((step, index) => (
                                 <div 
                                   key={index} 
                                   className="text-xs flex items-start space-x-2"
-                                  style={{ color: accentColor }}
+                                  style={{ color: theme.accentColor }}
                                 >
                                   <span className="opacity-50">{index + 1}.</span>
                                   <span>{step}</span>
@@ -1207,7 +932,7 @@ export default function FloatingAIChat() {
                       
                       {/* 显示用户消息的标签 */}
                       {message.role === 'user' && message.tags && (message.tags.emotions.length > 0 || message.tags.categories.length > 0) && (
-                        <div className="mt-2 pt-2 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}>
+                        <div className="mt-2 pt-2 border-t" style={{ borderColor: theme.borderColor }}>
                           <div className="flex flex-wrap gap-1">
                             {message.tags.emotions.map(emotionId => {
                               const tag = EMOTION_TAGS.find(t => t.id === emotionId);
@@ -1215,7 +940,7 @@ export default function FloatingAIChat() {
                                 <span
                                   key={emotionId}
                                   className="text-xs px-2 py-0.5 rounded-full"
-                                  style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}
+                                  style={{ backgroundColor: theme.isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}
                                 >
                                   {tag.emoji} {tag.label}
                                 </span>
@@ -1227,7 +952,7 @@ export default function FloatingAIChat() {
                                 <span
                                   key={categoryId}
                                   className="text-xs px-2 py-0.5 rounded-full"
-                                  style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}
+                                  style={{ backgroundColor: theme.isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}
                                 >
                                   {tag.emoji} {tag.label}
                                 </span>
@@ -1257,8 +982,8 @@ export default function FloatingAIChat() {
                       
                       {/* 显示目标匹配结果 */}
                       {message.goalMatches && message.goalMatches.length > 0 && (
-                        <div className="mt-3 pt-3 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}>
-                          <div className="text-xs font-semibold mb-2" style={{ color: accentColor }}>
+                        <div className="mt-3 pt-3 border-t" style={{ borderColor: theme.borderColor }}>
+                          <div className="text-xs font-semibold mb-2" style={{ color: theme.accentColor }}>
                             🎯 关联的目标：
                           </div>
                           <div className="space-y-2">
@@ -1266,9 +991,9 @@ export default function FloatingAIChat() {
                               <div
                                 key={match.goalId}
                                 className="flex items-center justify-between p-2 rounded"
-                                style={{ backgroundColor: cardBg }}
+                                style={{ backgroundColor: theme.cardBg }}
                               >
-                                <span className="text-xs font-medium" style={{ color: textColor }}>
+                                <span className="text-xs font-medium" style={{ color: theme.textColor }}>
                                   {index + 1}. {match.goalName}
                                 </span>
                                 <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#4ade80', color: '#ffffff' }}>
@@ -1282,8 +1007,8 @@ export default function FloatingAIChat() {
 
                       {/* 显示分解的任务列表 */}
                       {message.decomposedTasks && message.decomposedTasks.length > 0 && !message.showTaskEditor && (
-                        <div className="mt-3 pt-3 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}>
-                          <div className="text-xs font-semibold mb-2" style={{ color: accentColor }}>
+                        <div className="mt-3 pt-3 border-t" style={{ borderColor: theme.borderColor }}>
+                          <div className="text-xs font-semibold mb-2" style={{ color: theme.accentColor }}>
                             📋 分解的任务：
                           </div>
                           <div className="space-y-2">
@@ -1291,10 +1016,10 @@ export default function FloatingAIChat() {
                               <div
                                 key={index}
                                 className="p-2 rounded text-xs"
-                                style={{ backgroundColor: cardBg }}
+                                style={{ backgroundColor: theme.cardBg }}
                               >
-                                <div className="font-medium" style={{ color: textColor }}>{task.title}</div>
-                                <div className="mt-1" style={{ color: accentColor }}>
+                                <div className="font-medium" style={{ color: theme.textColor }}>{task.title}</div>
+                                <div className="mt-1" style={{ color: theme.accentColor }}>
                                   ⏱️ {task.duration}分钟
                                   {task.startTime && ` | 🕐 ${task.startTime}`}
                                   {task.location && ` | 📍 ${task.location}`}
@@ -1328,13 +1053,13 @@ export default function FloatingAIChat() {
                 
                 {/* 任务编辑器 */}
                 {editingMessageId && editingTasks.length > 0 && (
-                  <div className="rounded-lg shadow-lg p-4 border-2" style={{ backgroundColor: bgColor, borderColor: '#8b5cf6' }}>
+                  <div className="rounded-lg shadow-lg p-4 border-2" style={{ backgroundColor: theme.bgColor, borderColor: '#8b5cf6' }}>
                     <div className="flex items-center justify-between mb-3">
                       <div className="font-semibold text-gray-900">✏️ 任务编辑器</div>
                       <button
-                        onClick={handleCancelEditing}
+                        onClick={cancelEditing}
                         className="text-xs"
-                        style={{ color: accentColor }}
+                        style={{ color: theme.accentColor }}
                       >
                         取消
                       </button>
@@ -1346,22 +1071,22 @@ export default function FloatingAIChat() {
                           key={task.id}
                           className="rounded-lg p-3 border"
                           style={{ 
-                            backgroundColor: cardBg,
-                            borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'
+                            backgroundColor: theme.cardBg,
+                            borderColor: theme.borderColor
                           }}
                         >
                           <div className="flex items-start justify-between mb-2">
                             <div className="flex items-center space-x-2 flex-1">
-                              <span className="text-sm font-medium" style={{ color: accentColor }}>#{index + 1}</span>
+                              <span className="text-sm font-medium" style={{ color: theme.accentColor }}>#{index + 1}</span>
                               <input
                                 type="text"
                                 value={task.title}
                                 onChange={(e) => handleTaskTitleChange(task.id, e.target.value)}
                                 className="flex-1 text-sm px-2 py-1 rounded border focus:outline-none"
                                 style={{
-                                  backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)',
-                                  color: textColor,
-                                  borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)',
+                                  backgroundColor: theme.isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)',
+                                  color: theme.textColor,
+                                  borderColor: theme.borderColor,
                                 }}
                               />
                             </div>
@@ -1374,7 +1099,7 @@ export default function FloatingAIChat() {
                             </button>
                           </div>
                           
-                          <div className="flex items-center space-x-2 text-xs" style={{ color: accentColor }}>
+                          <div className="flex items-center space-x-2 text-xs" style={{ color: theme.accentColor }}>
                             <span>⏱️</span>
                             <input
                               type="number"
@@ -1382,9 +1107,9 @@ export default function FloatingAIChat() {
                               onChange={(e) => handleTaskDurationChange(task.id, parseInt(e.target.value) || 0)}
                               className="w-16 px-2 py-1 rounded border focus:outline-none"
                               style={{
-                                backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)',
-                                color: textColor,
-                                borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)',
+                                backgroundColor: theme.isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)',
+                                color: theme.textColor,
+                                borderColor: theme.borderColor,
                               }}
                               min="1"
                             />
@@ -1410,7 +1135,7 @@ export default function FloatingAIChat() {
                               onClick={() => index > 0 && handleTaskReorder(index, index - 1)}
                               disabled={index === 0}
                               className="text-xs px-2 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                              style={{ backgroundColor: buttonBg, color: textColor }}
+                              style={{ backgroundColor: theme.buttonBg, color: theme.textColor }}
                             >
                               ⬆️ 上移
                             </button>
@@ -1418,7 +1143,7 @@ export default function FloatingAIChat() {
                               onClick={() => index < editingTasks.length - 1 && handleTaskReorder(index, index + 1)}
                               disabled={index === editingTasks.length - 1}
                               className="text-xs px-2 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                              style={{ backgroundColor: buttonBg, color: textColor }}
+                              style={{ backgroundColor: theme.buttonBg, color: theme.textColor }}
                             >
                               ⬇️ 下移
                             </button>
@@ -1441,10 +1166,10 @@ export default function FloatingAIChat() {
                 {/* 处理中状态 */}
                 {isProcessing && (
                   <div className="flex justify-start">
-                    <div className="shadow-md rounded-lg p-3 max-w-[85%]" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.9)' }}>
+                    <div className="shadow-md rounded-lg p-3 max-w-[85%]" style={{ backgroundColor: theme.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.9)' }}>
                       <div className="flex items-center space-x-2 mb-2">
-                        <Hourglass className="w-4 h-4 animate-spin" style={{ color: accentColor }} />
-                        <span className="text-xs font-semibold" style={{ color: accentColor }}>AI正在思考...</span>
+                        <Hourglass className="w-4 h-4 animate-spin" style={{ color: theme.accentColor }} />
+                        <span className="text-xs font-semibold" style={{ color: theme.accentColor }}>AI正在思考...</span>
                       </div>
                       
                       {/* 思考步骤 */}
@@ -1455,7 +1180,7 @@ export default function FloatingAIChat() {
                               key={index} 
                               className="text-xs flex items-start space-x-2 animate-fade-in"
                               style={{ 
-                                color: accentColor,
+                                color: theme.accentColor,
                                 animationDelay: `${index * 100}ms`
                               }}
                             >
@@ -1471,9 +1196,9 @@ export default function FloatingAIChat() {
               </div>
 
               {/* 快速指令 */}
-              <div className="px-3 py-2 border-t" style={{ backgroundColor: bgColor, borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}>
+              <div className="px-3 py-2 border-t" style={{ backgroundColor: theme.bgColor, borderColor: theme.borderColor }}>
                 <div className="flex items-center space-x-2 overflow-x-auto">
-                  <span className="text-xs whitespace-nowrap" style={{ color: accentColor }}>快速：</span>
+                  <span className="text-xs whitespace-nowrap" style={{ color: theme.accentColor }}>快速：</span>
                   {[
                     { label: '查看任务', icon: '📊' },
                     { label: '分解任务', icon: '📅' },
@@ -1484,7 +1209,7 @@ export default function FloatingAIChat() {
                       key={cmd.label}
                       onClick={() => setInputValue(cmd.label === '分解任务' ? '5分钟后去洗漱，然后洗碗，倒猫粮，洗衣服，工作30分钟，收拾卧室、客厅和拍摄间' : cmd.label + '：')}
                       className="px-2 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap"
-                      style={{ backgroundColor: buttonBg, color: textColor }}
+                      style={{ backgroundColor: theme.buttonBg, color: theme.textColor }}
                     >
                       {cmd.icon} {cmd.label}
                     </button>
@@ -1493,7 +1218,7 @@ export default function FloatingAIChat() {
               </div>
 
               {/* 输入区域 */}
-              <div className="p-3 border-t" style={{ backgroundColor: bgColor, borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}>
+              <div className="p-3 border-t" style={{ backgroundColor: theme.bgColor, borderColor: theme.borderColor }}>
                 <div className="flex items-end space-x-2">
                   <textarea
                     ref={textareaRef}
@@ -1504,9 +1229,9 @@ export default function FloatingAIChat() {
                     rows={2}
                     className="flex-1 px-3 py-2 rounded-lg resize-none focus:outline-none text-sm border"
                     style={{
-                      backgroundColor: cardBg,
-                      color: textColor,
-                      borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)',
+                      backgroundColor: theme.cardBg,
+                      color: theme.textColor,
+                      borderColor: theme.borderColor,
                     }}
                   />
                   <button
@@ -1531,7 +1256,7 @@ export default function FloatingAIChat() {
                   className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"
                   onMouseDown={handleResizeStart}
                   style={{
-                    background: `linear-gradient(135deg, transparent 50%, ${isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)'} 50%)`,
+                    background: `linear-gradient(135deg, transparent 50%, ${theme.isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)'} 50%)`,
                   }}
                   title="拖拽缩放"
                 />

@@ -6,6 +6,9 @@ import { format, formatDistanceToNow, isToday, isYesterday, startOfDay, endOfDay
 import { zhCN } from 'date-fns/locale';
 import { clsx, type ClassValue } from 'clsx';
 
+// 导出任务相关工具
+export * from './taskUtils';
+
 // ============================================
 // 样式工具
 // ============================================
