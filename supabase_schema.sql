@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- 2. 任务表
 CREATE TABLE IF NOT EXISTS tasks (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id TEXT PRIMARY KEY,  -- 改为 TEXT 类型，因为代码生成的是字符串 ID
   user_id TEXT NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS tasks (
 
 -- 3. 长期目标表
 CREATE TABLE IF NOT EXISTS long_term_goals (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id TEXT PRIMARY KEY,  -- 改为 TEXT 类型
   user_id TEXT NOT NULL,
   name TEXT NOT NULL,
   description TEXT,
@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS long_term_goals (
 
 -- 4. 全景记忆表
 CREATE TABLE IF NOT EXISTS memories (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id TEXT PRIMARY KEY,  -- 改为 TEXT 类型
   user_id TEXT NOT NULL,
   type TEXT NOT NULL,
   content TEXT NOT NULL,
@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS memories (
 
 -- 5. 日记表
 CREATE TABLE IF NOT EXISTS journals (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id TEXT PRIMARY KEY,  -- 改为 TEXT 类型
   user_id TEXT NOT NULL,
   type TEXT NOT NULL,
   content TEXT NOT NULL,

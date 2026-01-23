@@ -226,9 +226,19 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
               hint: error.hint,
             });
           }
-        } else if (data) {
+        } else if (data && data.modules) {
           console.log('✅ 成功加载模块配置', data);
-          setModules(data.modules || []);
+          
+          // 恢复模块数据：重新添加 icon 字段
+          const restoredModules = data.modules.map((m: any) => {
+            const moduleDef = availableModules.find(def => def.type === m.type);
+            return {
+              ...m,
+              icon: moduleDef?.icon || <span className="text-2xl">📦</span>, // 恢复 icon
+            };
+          });
+          
+          setModules(restoredModules);
         }
       } catch (error) {
         console.error('❌ 加载模块配置时发生异常：', error);
@@ -252,13 +262,29 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
 
       try {
         const userId = getCurrentUserId();
-        console.log('💾 正在保存模块配置到 Supabase...', { userId, modulesCount: modules.length });
+        
+        // 序列化模块数据：移除 React 元素（icon）
+        const serializableModules = modules.map(m => ({
+          id: m.id,
+          type: m.type,
+          title: m.title,
+          position: m.position,
+          size: m.size,
+          color: m.color,
+          isVisible: m.isVisible,
+          customSize: m.customSize,
+          imageUrl: m.imageUrl,
+          customIcon: m.customIcon,
+          // 不保存 icon 字段（React 元素无法序列化）
+        }));
+        
+        console.log('💾 正在保存模块配置到 Supabase...', { userId, modulesCount: serializableModules.length });
 
         const { error } = await supabase
           .from('dashboard_modules')
           .upsert({
             user_id: userId,
-            modules: modules,
+            modules: serializableModules,
             updated_at: new Date().toISOString(),
           }, {
             onConflict: 'user_id'
