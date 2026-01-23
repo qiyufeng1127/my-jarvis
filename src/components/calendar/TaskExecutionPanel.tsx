@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Play, Pause, Check, X, Clock, Target, TrendingUp, DollarSign, MessageSquare } from 'lucide-react';
+import { useUserStore } from '@/stores/userStore';
 
 interface TaskExecutionPanelProps {
   task: {
@@ -12,6 +13,13 @@ interface TaskExecutionPanelProps {
       growth: { dimension: string; value: number; completed: number }[];
     };
     goals?: { name: string; contribution: number }[];
+    verificationComplete?: {
+      type: 'photo' | 'upload' | 'file';
+      requirement: string;
+      timeout?: number;
+      acceptedFileTypes?: string[];
+      maxFileSize?: number;
+    };
   };
   onPause: () => void;
   onResume: () => void;
@@ -36,6 +44,9 @@ export default function TaskExecutionPanel({
   
   const dragStart = useRef({ x: 0, y: 0 });
   const panelRef = useRef<HTMLDivElement>(null);
+  
+  // 金币管理
+  const { deductGold } = useUserStore();
 
   // 计时器
   useEffect(() => {
@@ -105,6 +116,8 @@ export default function TaskExecutionPanel({
 
   // 完成任务
   const handleComplete = () => {
+    // 如果任务需要完成验证，这里不直接完成，而是由父组件处理验证流程
+    // 这个函数会在验证通过后被调用
     if (confirm('确定要完成这个任务吗？')) {
       onComplete();
     }
@@ -113,6 +126,13 @@ export default function TaskExecutionPanel({
   // 放弃任务
   const handleAbandon = () => {
     if (confirm('放弃任务将扣除 50 金币，确定要放弃吗？')) {
+      // 扣除金币
+      const success = deductGold(50, `放弃任务: ${task.title}`);
+      
+      if (!success) {
+        alert('金币不足，但仍然可以放弃任务');
+      }
+      
       onAbandon();
     }
   };
@@ -133,6 +153,13 @@ export default function TaskExecutionPanel({
   // 跳过进度检查
   const handleSkipProgress = () => {
     if (confirm('跳过进度检查将扣除 20 金币，确定要跳过吗？')) {
+      // 扣除金币
+      const success = deductGold(20, `跳过进度检查: ${task.title}`);
+      
+      if (!success) {
+        alert('金币不足，但仍然可以跳过');
+      }
+      
       setShowProgressCheck(false);
       setProgressNote('');
     }

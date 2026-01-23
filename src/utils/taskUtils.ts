@@ -19,7 +19,7 @@ export const LOCATION_ORDER = [
   'studio',        // 拍摄间
 ];
 
-// 位置名称映射
+// 位置名称映射（支持中英文）
 export const LOCATION_NAMES: Record<string, string> = {
   bathroom: '厕所',
   workspace: '工作区',
@@ -27,9 +27,16 @@ export const LOCATION_NAMES: Record<string, string> = {
   livingroom: '客厅',
   bedroom: '卧室',
   studio: '拍摄间',
+  // 中文映射
+  '厕所': '厕所',
+  '工作区': '工作区',
+  '厨房': '厨房',
+  '客厅': '客厅',
+  '卧室': '卧室',
+  '拍摄间': '拍摄间',
 };
 
-// 位置图标映射
+// 位置图标映射（支持中英文）
 export const LOCATION_ICONS: Record<string, string> = {
   bathroom: '🚽',
   workspace: '💻',
@@ -37,6 +44,13 @@ export const LOCATION_ICONS: Record<string, string> = {
   livingroom: '🛋️',
   bedroom: '🛏️',
   studio: '📸',
+  // 中文映射
+  '厕所': '🚽',
+  '工作区': '💻',
+  '厨房': '🍳',
+  '客厅': '🛋️',
+  '卧室': '🛏️',
+  '拍摄间': '📸',
 };
 
 // 任务时长参考（分钟）
@@ -112,19 +126,30 @@ export function detectTaskDuration(title: string): number {
  * 按动线优化任务顺序
  */
 export function optimizeTasksByLocation<T extends { location?: string }>(tasks: T[]): T[] {
+  // 位置优先级映射（支持中英文）
+  const locationPriorityMap: Record<string, number> = {
+    'workspace': 1,
+    '工作区': 1,
+    'bathroom': 2,
+    '厕所': 2,
+    'kitchen': 3,
+    '厨房': 3,
+    'livingroom': 4,
+    '客厅': 4,
+    'bedroom': 5,
+    '卧室': 5,
+    'studio': 6,
+    '拍摄间': 6,
+  };
+  
   return [...tasks].sort((a, b) => {
     const locA = a.location || 'unknown';
     const locB = b.location || 'unknown';
     
-    const indexA = LOCATION_ORDER.indexOf(locA);
-    const indexB = LOCATION_ORDER.indexOf(locB);
+    const priorityA = locationPriorityMap[locA] || 999;
+    const priorityB = locationPriorityMap[locB] || 999;
     
-    // 如果位置不在列表中，放到最后
-    if (indexA === -1 && indexB === -1) return 0;
-    if (indexA === -1) return 1;
-    if (indexB === -1) return -1;
-    
-    return indexA - indexB;
+    return priorityA - priorityB;
   });
 }
 

@@ -16,14 +16,27 @@ export function useTaskEditor() {
 
   // 重新计算任务时间
   const recalculateTaskTimes = useCallback((tasks: DecomposedTask[], startTime?: Date): DecomposedTask[] => {
-    const baseTime = startTime || new Date();
-    let currentTime = new Date(baseTime);
+    if (tasks.length === 0) return tasks;
+    
+    // 如果第一个任务已经有开始时间，使用它；否则使用传入的startTime或当前时间
+    let currentTime: Date;
+    
+    if (tasks[0].startTime && !startTime) {
+      // 第一个任务已有开始时间，解析它
+      const [hours, minutes] = tasks[0].startTime.split(':').map(Number);
+      currentTime = new Date();
+      currentTime.setHours(hours, minutes, 0, 0);
+    } else {
+      // 使用传入的时间或当前时间
+      currentTime = startTime ? new Date(startTime) : new Date();
+    }
 
-    return tasks.map((task) => {
+    return tasks.map((task, index) => {
       const taskStartTime = new Date(currentTime);
       const hours = taskStartTime.getHours().toString().padStart(2, '0');
       const minutes = taskStartTime.getMinutes().toString().padStart(2, '0');
       
+      // 更新当前时间为下一个任务的开始时间
       currentTime = new Date(currentTime.getTime() + task.duration * 60000);
       
       return {

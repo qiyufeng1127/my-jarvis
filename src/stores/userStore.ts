@@ -10,6 +10,7 @@ interface UserState {
   isInitialized: boolean;
   isLoading: boolean;
   error: string | null;
+  goldBalance: number; // 金币余额
   
   // Actions
   initializeUser: () => Promise<void>;
@@ -17,6 +18,11 @@ interface UserState {
   updateUser: (updates: Partial<User>) => Promise<void>;
   updateSettings: (settings: Partial<UserSettings>) => Promise<void>;
   logout: () => void;
+  
+  // 金币管理
+  addGold: (amount: number, reason: string) => void;
+  deductGold: (amount: number, reason: string) => boolean;
+  getGoldBalance: () => number;
 }
 
 const defaultSettings: UserSettings = {
@@ -45,6 +51,7 @@ export const useUserStore = create<UserState>()(
       isInitialized: false,
       isLoading: false,
       error: null,
+      goldBalance: 1000, // 初始金币
 
       initializeUser: async () => {
         set({ isLoading: true, error: null });
@@ -189,12 +196,47 @@ export const useUserStore = create<UserState>()(
 
       logout: () => {
         localStorage.removeItem(STORAGE_KEYS.USER_ID);
-        set({ user: null, isInitialized: false });
+        set({ user: null, isInitialized: false, goldBalance: 1000 });
+      },
+
+      // 增加金币
+      addGold: (amount, reason) => {
+        const { goldBalance } = get();
+        const newBalance = goldBalance + amount;
+        set({ goldBalance: newBalance });
+        
+        console.log(`💰 金币增加: +${amount} (${reason}) | 余额: ${newBalance}`);
+        
+        // TODO: 记录金币交易历史
+        // 可以在这里调用 GoldTransaction 相关的 store
+      },
+
+      // 扣除金币
+      deductGold: (amount, reason) => {
+        const { goldBalance } = get();
+        
+        if (goldBalance < amount) {
+          console.warn(`⚠️ 金币不足: 需要${amount}，当前${goldBalance}`);
+          return false;
+        }
+        
+        const newBalance = goldBalance - amount;
+        set({ goldBalance: newBalance });
+        
+        console.log(`💸 金币扣除: -${amount} (${reason}) | 余额: ${newBalance}`);
+        
+        // TODO: 记录金币交易历史
+        return true;
+      },
+
+      // 获取金币余额
+      getGoldBalance: () => {
+        return get().goldBalance;
       },
     }),
     {
       name: 'user-storage',
-      partialize: (state) => ({ user: state.user }),
+      partialize: (state) => ({ user: state.user, goldBalance: state.goldBalance }),
     }
   )
 );

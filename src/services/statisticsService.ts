@@ -19,6 +19,16 @@ export interface DailyStatistics {
   tasksByType: Record<string, number>;
   tasksByStatus: Record<string, number>;
   hourlyDistribution: number[]; // 24小时分布
+  // 验证统计
+  verificationStats?: {
+    totalVerifications: number;
+    successfulVerifications: number;
+    failedVerifications: number;
+    skippedVerifications: number;
+    successRate: number;
+    averageVerificationTime: number; // 秒
+    verificationsByType: Record<'photo' | 'upload' | 'file', number>;
+  };
 }
 
 export interface WeeklyStatistics extends DailyStatistics {
@@ -460,6 +470,160 @@ class StatisticsService {
       currentStreak,
       totalGold,
     };
+  }
+
+  // 计算验证统计
+  calculateVerificationStats(tasks: Task[], dateRange?: { start: Date; end: Date }): {
+    totalVerifications: number;
+    successfulVerifications: number;
+    failedVerifications: number;
+    skippedVerifications: number;
+    successRate: number;
+    averageVerificationTime: number;
+    verificationsByType: Record<'photo' | 'upload' | 'file', number>;
+    goldLostToFailures: number;
+    goldLostToSkips: number;
+  } {
+    let filteredTasks = tasks;
+
+    // 如果指定了日期范围，筛选任务
+    if (dateRange) {
+      filteredTasks = tasks.filter((t) => {
+        if (!t.scheduledStart) return false;
+        const taskDate = new Date(t.scheduledStart);
+        return taskDate >= dateRange.start && taskDate <= dateRange.end;
+      });
+    }
+
+    // 统计需要验证的任务
+    const tasksWithVerification = filteredTasks.filter(
+      (t) => t.verificationStart || t.verificationComplete
+    );
+
+    let totalVerifications = 0;
+    let successfulVerifications = 0;
+    let failedVerifications = 0;
+    let skippedVerifications = 0;
+    let totalVerificationTime = 0;
+    let verificationCount = 0;
+
+    const verificationsByType: Record<'photo' | 'upload' | 'file', number> = {
+      photo: 0,
+      upload: 0,
+      file: 0,
+    };
+
+    tasksWithVerification.forEach((task) => {
+      // 统计开始验证
+      if (task.verificationStart) {
+        totalVerifications++;
+        
+        if (task.verificationStart.type !== 'none') {
+          verificationsByType[task.verificationStart.type as 'photo' | 'upload' | 'file']++;
+        }
+
+        // 根据任务状态判断验证结果
+        if (task.status === 'in_progress' || task.status === 'completed') {
+          successfulVerifications++;
+        } else if (task.status === 'failed') {
+          failedVerifications++;
+        } else if (task.status === 'cancelled') {
+          skippedVerifications++;
+        }
+      }
+
+      // 统计完成验证
+      if (task.verificationComplete) {
+        totalVerifications++;
+        
+        if (task.verificationComplete.type !== 'none') {
+          verificationsByType[task.verificationComplete.type as 'photo' | 'upload' | 'file']++;
+        }
+
+        if (task.status === 'completed') {
+          successfulVerifications++;
+        } else if (task.status === 'verifying_complete') {
+          // 正在验证中
+        }
+      }
+
+      // 估算验证时间（基于任务实际开始时间和计划开始时间的差异）
+      if (task.actualStart && task.scheduledStart) {
+        const verificationTime = (new Date(task.actualStart).getTime() - new Date(task.scheduledStart).getTime()) / 1000;
+        if (verificationTime > 0 && verificationTime < 300) { // 最多5分钟
+          totalVerificationTime += verificationTime;
+          verificationCount++;
+        }
+      }
+    });
+
+    const successRate = totalVerifications > 0 
+      ? (successfulVerifications / totalVerifications) * 100 
+      : 0;
+
+    const averageVerificationTime = verificationCount > 0 
+      ? totalVerificationTime / verificationCount 
+      : 0;
+
+    // 计算因验证失败和跳过而损失的金币
+    const goldLostToFailures = failedVerifications * 20;
+    const goldLostToSkips = skippedVerifications * 50;
+
+    return {
+      totalVerifications,
+      successfulVerifications,
+      failedVerifications,
+      skippedVerifications,
+      successRate,
+      averageVerificationTime,
+      verificationsByType,
+      goldLostToFailures,
+      goldLostToSkips,
+    };
+  }
+
+  // 获取验证趋势（按天）
+  getVerificationTrend(tasks: Task[], days: number = 7): Array<{
+    date: string;
+    total: number;
+    successful: number;
+    failed: number;
+    skipped: number;
+    successRate: number;
+  }> {
+    const trend: Array<{
+      date: string;
+      total: number;
+      successful: number;
+      failed: number;
+      skipped: number;
+      successRate: number;
+    }> = [];
+
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+
+      const dayTasks = tasks.filter((t) => {
+        if (!t.scheduledStart) return false;
+        const taskDate = new Date(t.scheduledStart).toISOString().split('T')[0];
+        return taskDate === dateStr;
+      });
+
+      const stats = this.calculateVerificationStats(dayTasks);
+
+      trend.push({
+        date: dateStr,
+        total: stats.totalVerifications,
+        successful: stats.successfulVerifications,
+        failed: stats.failedVerifications,
+        skipped: stats.skippedVerifications,
+        successRate: stats.successRate,
+      });
+    }
+
+    return trend;
   }
 }
 

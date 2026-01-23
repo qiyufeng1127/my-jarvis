@@ -542,7 +542,10 @@ export default function FloatingAIChat() {
 **重要**：一定要把每个独立的动作分解成单独的任务！`;
 
             addThinkingStep('⏳ AI正在分析任务结构...');
-            const decomposeResult = await aiService.decomposeTask(enhancedPrompt);
+            
+            // 传入当前时间，让AI正确计算任务开始时间
+            const currentTime = new Date();
+            const decomposeResult = await aiService.decomposeTask(enhancedPrompt, currentTime);
             
             if (decomposeResult.success && decomposeResult.tasks && decomposeResult.tasks.length > 0) {
               addThinkingStep(`✅ 成功分解出 ${decomposeResult.tasks.length} 个任务`);
@@ -555,28 +558,11 @@ export default function FloatingAIChat() {
                 category: task.category,
                 priority: task.priority,
                 location: task.location || detectTaskLocation(task.title), // 优先使用AI返回的位置，否则自动识别
+                startTime: task.startTime, // 保留AI计算的开始时间
               }));
 
-              addThinkingStep('🏠 正在优化任务动线...');
-              // 按动线优化排序（按位置分组）
-              tasksWithMetadata = optimizeTasksByLocation(tasksWithMetadata);
-
-              addThinkingStep('⏰ 正在计算任务时间...');
-              // 计算开始时间（从当前时间或用户指定时间开始）
-              const startTime = parseStartTime(message);
-              
-              const minuteMatch = message.match(/(\d+)分钟(之后|后)/);
-              const hourMatch = message.match(/(\d+)(个)?小时(之后|后)/);
-              
-              if (hourMatch) {
-                const hours = parseInt(hourMatch[1]);
-                addThinkingStep(`⏰ 任务将在 ${hours} 小时后开始`);
-              } else if (minuteMatch) {
-                const minutes = parseInt(minuteMatch[1]);
-                addThinkingStep(`⏰ 任务将在 ${minutes} 分钟后开始`);
-              }
-              
-              tasksWithMetadata = recalculateTaskTimes(tasksWithMetadata, startTime);
+              // AI已经按照位置排序和计算时间了，不需要再次处理
+              addThinkingStep('✅ AI已优化任务顺序和时间');
 
               addThinkingStep('🎯 正在匹配长期目标...');
               // 匹配目标

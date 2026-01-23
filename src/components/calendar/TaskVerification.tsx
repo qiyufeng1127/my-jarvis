@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Camera, X, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { aiService } from '@/services/aiService';
+import { useUserStore } from '@/stores/userStore';
 
 interface TaskVerificationProps {
   task: {
@@ -30,11 +32,15 @@ export default function TaskVerification({
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationResult, setVerificationResult] = useState<'success' | 'fail' | null>(null);
+  const [verificationReason, setVerificationReason] = useState<string>('');
   const [stream, setStream] = useState<MediaStream | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // 金币管理
+  const { deductGold } = useUserStore();
 
   // 倒计时
   useEffect(() => {
@@ -167,44 +173,100 @@ export default function TaskVerification({
   const verifyFile = async (file: File) => {
     setIsVerifying(true);
 
-    // 模拟文件验证延迟
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      // 调用 AI 服务验证文件
+      const result = await aiService.verifyTaskFile(
+        file.name,
+        file.size,
+        file.type,
+        task.requirement,
+        task.title
+      );
 
-    // 模拟验证结果（实际应该根据文件内容验证）
-    const isValid = Math.random() > 0.2; // 80% 成功率
+      setIsVerifying(false);
 
-    setIsVerifying(false);
-    setVerificationResult(isValid ? 'success' : 'fail');
-
-    setTimeout(() => {
-      if (isValid) {
-        onSuccess();
+      if (result.success && result.isValid && result.confidence >= 0.6) {
+        // 验证成功
+        setVerificationResult('success');
+        setVerificationReason(result.reason || '文件验证通过');
+        
+        setTimeout(() => {
+          onSuccess();
+        }, 2000);
       } else {
-        onFail();
+        // 验证失败
+        setVerificationResult('fail');
+        setVerificationReason(result.reason || '文件不符合要求');
+        
+        // 扣除金币
+        deductGold(20, `任务验证失败: ${task.title}`);
+        
+        setTimeout(() => {
+          onFail();
+        }, 2000);
       }
-    }, 2000);
+    } catch (error) {
+      console.error('文件验证错误:', error);
+      setIsVerifying(false);
+      setVerificationResult('fail');
+      setVerificationReason('验证服务异常，请重试');
+      
+      // 扣除金币
+      deductGold(20, `任务验证失败: ${task.title}`);
+      
+      setTimeout(() => {
+        onFail();
+      }, 2000);
+    }
   };
 
   // 验证图片
   const verifyImage = async (imageData: string) => {
     setIsVerifying(true);
 
-    // 模拟 AI 识别延迟
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    try {
+      // 调用 AI 服务验证图片
+      const result = await aiService.verifyTaskImage(
+        imageData,
+        task.requirement,
+        task.title
+      );
 
-    // 模拟验证结果（实际应该调用 AI 服务）
-    const isValid = Math.random() > 0.3; // 70% 成功率
+      setIsVerifying(false);
 
-    setIsVerifying(false);
-    setVerificationResult(isValid ? 'success' : 'fail');
-
-    setTimeout(() => {
-      if (isValid) {
-        onSuccess();
+      if (result.success && result.isValid && result.confidence >= 0.6) {
+        // 验证成功
+        setVerificationResult('success');
+        setVerificationReason(result.reason || '图片验证通过');
+        
+        setTimeout(() => {
+          onSuccess();
+        }, 2000);
       } else {
-        onFail();
+        // 验证失败
+        setVerificationResult('fail');
+        setVerificationReason(result.reason || '图片不符合要求');
+        
+        // 扣除金币
+        deductGold(20, `任务验证失败: ${task.title}`);
+        
+        setTimeout(() => {
+          onFail();
+        }, 2000);
       }
-    }, 2000);
+    } catch (error) {
+      console.error('图片验证错误:', error);
+      setIsVerifying(false);
+      setVerificationResult('fail');
+      setVerificationReason('验证服务异常，请重试');
+      
+      // 扣除金币
+      deductGold(20, `任务验证失败: ${task.title}`);
+      
+      setTimeout(() => {
+        onFail();
+      }, 2000);
+    }
   };
 
   // 超时处理
@@ -216,6 +278,14 @@ export default function TaskVerification({
   // 跳过验证
   const handleSkip = () => {
     if (confirm('跳过验证将扣除 50 金币，确定要跳过吗？')) {
+      // 扣除金币
+      const success = deductGold(50, `跳过任务验证: ${task.title}`);
+      
+      if (!success) {
+        alert('金币不足，无法跳过验证');
+        return;
+      }
+      
       stopCamera();
       onSkip();
     }
@@ -374,13 +444,16 @@ export default function TaskVerification({
                   <div className="text-center animate-bounce">
                     <CheckCircle className="w-24 h-24 text-green-500 mx-auto mb-4" />
                     <p className="text-2xl font-bold text-white">验证成功！</p>
-                    <p className="text-white/80 mt-2">任务即将开始...</p>
+                    <p className="text-white/80 mt-2">{verificationReason}</p>
+                    <p className="text-white/60 text-sm mt-1">任务即将开始...</p>
                   </div>
                 ) : (
                   <div className="text-center animate-pulse">
                     <AlertCircle className="w-24 h-24 text-red-500 mx-auto mb-4" />
                     <p className="text-2xl font-bold text-white">验证失败</p>
-                    <p className="text-white/80 mt-2">请重新{task.verificationType === 'photo' ? '拍照' : '上传'}或跳过验证</p>
+                    <p className="text-white/80 mt-2">{verificationReason}</p>
+                    <p className="text-white/60 text-sm mt-1">已扣除 20 金币</p>
+                    <p className="text-white/60 text-sm">请重新{task.verificationType === 'photo' ? '拍照' : '上传'}或跳过验证</p>
                   </div>
                 )}
               </div>

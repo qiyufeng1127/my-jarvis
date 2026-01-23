@@ -5,6 +5,9 @@ import {
   Camera, AlertCircle, ZoomIn, ZoomOut, MoreVertical
 } from 'lucide-react';
 import type { Task } from '@/types';
+import TaskVerification from './TaskVerification';
+import TaskExecutionPanel from './TaskExecutionPanel';
+import { useUserStore } from '@/stores/userStore';
 
 interface TimelineCalendarProps {
   tasks: Task[];
@@ -52,13 +55,16 @@ export default function TimelineCalendar({
   const [resizingBlockId, setResizingBlockId] = useState<string | null>(null);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; blockId: string } | null>(null);
-  const [showVerification, setShowVerification] = useState<string | null>(null);
+  const [showVerification, setShowVerification] = useState<{ taskId: string; type: 'start' | 'complete' } | null>(null);
   const [showExecution, setShowExecution] = useState<string | null>(null);
   const [showDetail, setShowDetail] = useState<string | null>(null);
   
   const timelineRef = useRef<HTMLDivElement>(null);
   const dragStartY = useRef(0);
   const dragStartMinutes = useRef(0);
+  
+  // 金币管理
+  const { addGold } = useUserStore();
 
   // 判断颜色是否为深色
   const isColorDark = (color: string): boolean => {
@@ -276,9 +282,26 @@ export default function TimelineCalendar({
 
   // 快速操作
   const handleQuickAction = (action: string, blockId: string) => {
+    const task = tasks.find(t => t.id === blockId);
+    
     switch (action) {
+      case 'start':
+        // 开始任务 - 检查是否需要验证
+        if (task?.verificationStart && task.verificationStart.type !== 'none') {
+          setShowVerification({ taskId: blockId, type: 'start' });
+        } else {
+          // 直接开始任务
+          handleStartTask(blockId);
+        }
+        break;
       case 'complete':
-        onTaskUpdate(blockId, { status: 'completed' });
+        // 完成任务 - 检查是否需要验证
+        if (task?.verificationComplete && task.verificationComplete.type !== 'none') {
+          setShowVerification({ taskId: blockId, type: 'complete' });
+        } else {
+          // 直接完成任务
+          handleCompleteTask(blockId);
+        }
         break;
       case 'delete':
         if (confirm('确定要删除这个任务吗？')) {
@@ -303,6 +326,35 @@ export default function TimelineCalendar({
         break;
     }
     setContextMenu(null);
+  };
+
+  // 开始任务
+  const handleStartTask = (taskId: string) => {
+    onTaskUpdate(taskId, { 
+      status: 'in_progress',
+      actualStart: new Date().toISOString(),
+    });
+    setShowExecution(taskId);
+  };
+
+  // 完成任务
+  const handleCompleteTask = (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    
+    // 计算金币奖励
+    const goldReward = Math.floor((task.durationMinutes || 60) * 2);
+    
+    onTaskUpdate(taskId, { 
+      status: 'completed',
+      actualEnd: new Date().toISOString(),
+      goldEarned: goldReward,
+    });
+    
+    // 增加金币
+    addGold(goldReward, `完成任务: ${task.title}`);
+    
+    setShowExecution(null);
   };
 
   // 切换时间粒度
@@ -718,16 +770,46 @@ export default function TimelineCalendar({
                           <span className="text-lg">{statusStyle.icon}</span>
                           <div className="font-semibold text-sm truncate" style={{ color: textColor }}>{block.title}</div>
                         </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleContextMenu(e, block.id);
-                          }}
-                          className="opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity"
-                          style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
-                        >
-                          <MoreVertical className="w-4 h-4" style={{ color: textColor }} />
-                        </button>
+                        <div className="flex items-center space-x-1">
+                          {/* 开始按钮 */}
+                          {block.status === 'pending' && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleQuickAction('start', block.id);
+                              }}
+                              className="opacity-0 group-hover:opacity-100 p-1 rounded transition-all hover:scale-110"
+                              style={{ backgroundColor: 'rgba(34, 197, 94, 0.2)' }}
+                              title="开始任务"
+                            >
+                              <Play className="w-4 h-4 text-green-600" />
+                            </button>
+                          )}
+                          {/* 完成按钮 */}
+                          {block.status === 'in-progress' && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleQuickAction('complete', block.id);
+                              }}
+                              className="opacity-0 group-hover:opacity-100 p-1 rounded transition-all hover:scale-110"
+                              style={{ backgroundColor: 'rgba(59, 130, 246, 0.2)' }}
+                              title="完成任务"
+                            >
+                              <Check className="w-4 h-4 text-blue-600" />
+                            </button>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleContextMenu(e, block.id);
+                            }}
+                            className="opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity"
+                            style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
+                          >
+                            <MoreVertical className="w-4 h-4" style={{ color: textColor }} />
+                          </button>
+                        </div>
                       </div>
 
                       {/* 时间信息 */}
@@ -801,6 +883,16 @@ export default function TimelineCalendar({
             <span>编辑</span>
           </button>
           <button
+            onClick={() => handleQuickAction('start', contextMenu.blockId)}
+            className="w-full px-4 py-2 text-left text-sm flex items-center space-x-2 transition-colors"
+            style={{ color: textColor }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = hoverBg}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+          >
+            <Play className="w-4 h-4" />
+            <span>开始任务</span>
+          </button>
+          <button
             onClick={() => handleQuickAction('complete', contextMenu.blockId)}
             className="w-full px-4 py-2 text-left text-sm flex items-center space-x-2 transition-colors"
             style={{ color: textColor }}
@@ -833,6 +925,96 @@ export default function TimelineCalendar({
           </button>
         </div>
       )}
+
+      {/* 任务验证弹窗 */}
+      {showVerification && (() => {
+        const task = tasks.find(t => t.id === showVerification.taskId);
+        if (!task) return null;
+        
+        const verificationType = showVerification.type === 'start' 
+          ? task.verificationStart 
+          : task.verificationComplete;
+        
+        if (!verificationType) return null;
+        
+        return (
+          <TaskVerification
+            task={{
+              id: task.id,
+              title: task.title,
+              verificationType: verificationType.type as 'photo' | 'upload' | 'file',
+              requirement: verificationType.requirement || '请提供验证材料',
+              acceptedFileTypes: verificationType.acceptedFileTypes,
+              maxFileSize: verificationType.maxFileSize,
+            }}
+            verificationType={showVerification.type}
+            onSuccess={() => {
+              setShowVerification(null);
+              if (showVerification.type === 'start') {
+                handleStartTask(showVerification.taskId);
+              } else {
+                handleCompleteTask(showVerification.taskId);
+              }
+            }}
+            onFail={() => {
+              setShowVerification(null);
+              // 验证失败，任务保持原状态
+            }}
+            onSkip={() => {
+              setShowVerification(null);
+              // 跳过验证，继续执行
+              if (showVerification.type === 'start') {
+                handleStartTask(showVerification.taskId);
+              } else {
+                handleCompleteTask(showVerification.taskId);
+              }
+            }}
+            timeLimit={verificationType.timeout || 120}
+          />
+        );
+      })()}
+
+      {/* 任务执行面板 */}
+      {showExecution && (() => {
+        const task = tasks.find(t => t.id === showExecution);
+        if (!task || !task.actualStart) return null;
+        
+        return (
+          <TaskExecutionPanel
+            task={{
+              id: task.id,
+              title: task.title,
+              startTime: new Date(task.actualStart),
+              durationMinutes: task.durationMinutes || 60,
+              rewards: {
+                gold: Math.floor((task.durationMinutes || 60) * 2),
+                growth: Object.entries(task.growthDimensions || {}).map(([dimension, value]) => ({
+                  dimension,
+                  value,
+                  completed: 0,
+                })),
+              },
+              goals: Object.entries(task.longTermGoals || {}).map(([name, contribution]) => ({
+                name,
+                contribution,
+              })),
+            }}
+            onPause={() => {
+              onTaskUpdate(showExecution, { status: 'waiting_start' });
+            }}
+            onResume={() => {
+              onTaskUpdate(showExecution, { status: 'in_progress' });
+            }}
+            onComplete={() => {
+              handleQuickAction('complete', showExecution);
+            }}
+            onAbandon={() => {
+              onTaskUpdate(showExecution, { status: 'cancelled' });
+              setShowExecution(null);
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }
