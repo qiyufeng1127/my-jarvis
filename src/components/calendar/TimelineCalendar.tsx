@@ -57,7 +57,6 @@ export default function TimelineCalendar({
   const [showDetail, setShowDetail] = useState<string | null>(null);
   
   const timelineRef = useRef<HTMLDivElement>(null);
-  const timeGridRef = useRef<HTMLDivElement>(null);
   const dragStartY = useRef(0);
   const dragStartMinutes = useRef(0);
 
@@ -199,8 +198,9 @@ export default function TimelineCalendar({
     if (!draggedBlockId || !timelineRef.current) return;
 
     const rect = timelineRef.current.getBoundingClientRect();
+    const scrollHeight = timelineRef.current.scrollHeight;
     const deltaY = e.clientY - dragStartY.current;
-    const minutesPerPixel = (24 * 60) / (timelineRef.current.scrollHeight * 0.8);
+    const minutesPerPixel = (24 * 60) / scrollHeight; // 使用 scrollHeight 而不是 rect.height
     const deltaMinutes = Math.round(deltaY * minutesPerPixel / timeScale) * timeScale;
     
     const newStartMinutes = Math.max(0, Math.min(24 * 60 - 15, dragStartMinutes.current + deltaMinutes));
@@ -237,8 +237,9 @@ export default function TimelineCalendar({
   const handleResizeMove = (e: React.MouseEvent) => {
     if (!resizingBlockId || !timelineRef.current) return;
 
+    const scrollHeight = timelineRef.current.scrollHeight;
     const deltaY = e.clientY - dragStartY.current;
-    const minutesPerPixel = (24 * 60) / (timelineRef.current.scrollHeight * 0.8);
+    const minutesPerPixel = (24 * 60) / scrollHeight; // 使用 scrollHeight 而不是 rect.height
     const deltaMinutes = Math.round(deltaY * minutesPerPixel / timeScale) * timeScale;
     
     const block = timeBlocks.find(b => b.id === resizingBlockId);
@@ -267,9 +268,8 @@ export default function TimelineCalendar({
 
   // 点击时间刻度定位
   const handleTimeSlotClick = (minutes: number) => {
-    if (timelineRef.current && timeGridRef.current) {
-      const totalHeight = timeGridRef.current.scrollHeight;
-      const position = (minutes / (24 * 60)) * totalHeight;
+    if (timelineRef.current) {
+      const position = (minutes / (24 * 60)) * timelineRef.current.scrollHeight;
       timelineRef.current.scrollTop = position - 100;
     }
   };
@@ -392,8 +392,18 @@ export default function TimelineCalendar({
 
   const calendarDays = calendarView === 'month' ? generateMonthCalendarDays() : generateWeekCalendarDays();
 
-  // 计算时间轴区域的实际高度
-  const timeGridHeight = timeScale === 30 ? 4800 : timeScale === 15 ? 9600 : 28800; // 每个时间间隔80px高度
+  // 根据模块尺寸计算时间轴区域的高度
+  const getTimelineHeight = () => {
+    if (!moduleSize) return 500; // 默认高度
+    
+    // 减去顶部日历区域和底部工具栏的高度
+    const calendarHeight = calendarView === 'week' ? 280 : 380; // 日历区域高度
+    const toolbarsHeight = 120; // 顶部和底部工具栏高度
+    
+    return Math.max(300, moduleSize.height - calendarHeight - toolbarsHeight - 100);
+  };
+
+  const timelineHeight = getTimelineHeight();
 
   return (
     <div className="flex flex-col h-full" style={{ backgroundColor: bgColor }}>
@@ -564,7 +574,7 @@ export default function TimelineCalendar({
       </div>
 
       {/* 下半部分：时间轴视图 */}
-      <div className="flex-1 flex flex-col min-h-0" style={{ height: '500px' }}>
+      <div className="flex-1 flex flex-col min-h-0" style={{ height: `${timelineHeight}px` }}>
         {/* 顶部工具栏 */}
         <div className="flex-shrink-0 flex items-center justify-between px-6 py-3" style={{ backgroundColor: bgColor, borderBottom: `1px solid ${borderColor}` }}>
           <div className="flex items-center space-x-2">
@@ -609,55 +619,49 @@ export default function TimelineCalendar({
           </div>
         </div>
 
-        {/* 时间轴主体区域 - 关键修复部分 */}
+        {/* 时间轴主体区域 */}
         <div className="flex-1 flex min-h-0 overflow-hidden">
           {/* 左侧时间刻度 */}
-          <div className="w-20 flex-shrink-0 border-r" style={{ 
-            borderColor: borderColor,
-            backgroundColor: bgColor 
-          }}>
-            <div className="sticky top-0 z-20 p-2" style={{ 
-              backgroundColor: bgColor, 
-              borderBottom: `1px solid ${borderColor}`
-            }}>
-              <div className="flex flex-col items-center space-y-1">
-                <span className="text-xs font-medium" style={{ color: textColor }}>{timeScale}分钟/格</span>
-              </div>
-            </div>
-            
-            {/* 时间刻度容器 */}
-            <div 
-              className="relative" 
-              style={{ 
-                height: `${timeGridHeight}px`
-              }}
-            >
-              {timeSlots.map((slot, index) => (
-                <div
-                  key={index}
-                  className="absolute right-0 left-0 text-right pr-3 text-xs"
-                  style={{ 
-                    top: `${(slot.minutes / (24 * 60)) * 100}%`,
-                    height: `${(timeScale / (24 * 60)) * 100}%`,
-                    color: slot.isHour ? textColor : accentColor,
-                    borderTop: slot.isHour ? `2px solid ${borderColor}` : `1px solid ${borderColor}`,
-                    lineHeight: '32px',
-                  }}
-                >
-                  {slot.time}
+          <div className="w-20 flex-shrink-0 border-r" style={{ borderColor }}>
+            <div className="h-full overflow-y-auto">
+              <div className="sticky top-0 z-20 p-2" style={{ backgroundColor: bgColor, borderBottom: `1px solid ${borderColor}` }}>
+                <div className="flex flex-col items-center space-y-1">
+                  <span className="text-xs font-medium" style={{ color: textColor }}>{timeScale}分钟/格</span>
                 </div>
-              ))}
+              </div>
+
+              <div className="relative" style={{ height: `${(24 * 60 / timeScale) * 2}rem` }}>
+                {timeSlots.map((slot, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleTimeSlotClick(slot.minutes)}
+                    className={`absolute left-0 right-0 text-right pr-3 transition-colors ${
+                      slot.isHour ? 'font-semibold' : ''
+                    }`}
+                    style={{ 
+                      top: `${(slot.minutes / (24 * 60)) * 100}%`,
+                      height: `${(timeScale / (24 * 60)) * 100}%`,
+                      color: slot.isHour ? textColor : accentColor,
+                      backgroundColor: 'transparent',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = hoverBg}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <span className="text-xs">{slot.time}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* 右侧时间轴滚动区域 - 主要修复部分 */}
+          {/* 右侧时间轴滚动区域 */}
           <div 
             ref={timelineRef}
-            className="flex-1 relative overflow-y-auto"
+            className="flex-1 relative overflow-y-auto timeline-scrollbar"
             style={{
-              backgroundColor: bgColor,
               scrollbarWidth: 'thin',
               scrollbarColor: `${isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)'} transparent`,
+              WebkitOverflowScrolling: 'touch',
             }}
             onMouseMove={(e) => {
               if (draggedBlockId) handleDragMove(e);
@@ -672,12 +676,11 @@ export default function TimelineCalendar({
               handleResizeEnd();
             }}
           >
-            {/* 时间网格容器 */}
             <div 
-              ref={timeGridRef}
               className="relative" 
               style={{ 
-                height: `${timeGridHeight}px`
+                minHeight: `${(24 * 60 / timeScale) * 2}rem`,
+                height: `${(24 * 60 / timeScale) * 2}rem`
               }}
             >
               {/* 时间网格线 */}
@@ -687,7 +690,7 @@ export default function TimelineCalendar({
                   className="absolute left-0 right-0"
                   style={{ 
                     top: `${(slot.minutes / (24 * 60)) * 100}%`,
-                    borderTop: slot.isHour ? `2px solid ${borderColor}` : `1px solid ${borderColor}`,
+                    borderTop: `${slot.isHour ? '2px' : '1px'} solid ${borderColor}`,
                   }}
                 />
               ))}
@@ -695,9 +698,7 @@ export default function TimelineCalendar({
               {/* 当前时间指示线 */}
               <div
                 className="absolute left-0 right-0 z-30 pointer-events-none"
-                style={{ 
-                  top: `${getCurrentTimePosition()}%`,
-                }}
+                style={{ top: `${getCurrentTimePosition()}%` }}
               >
                 <div className="relative">
                   <div className="absolute -left-2 -top-3 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded shadow-lg">
