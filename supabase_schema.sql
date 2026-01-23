@@ -2,28 +2,7 @@
 -- 在 Supabase SQL Editor 中执行此脚本
 
 -- ========================================
--- 清理旧的策略和触发器（避免重复错误）
--- ========================================
-
--- 删除所有旧的策略
-DROP POLICY IF EXISTS "Allow all operations on users" ON users;
-DROP POLICY IF EXISTS "Allow all operations on tasks" ON tasks;
-DROP POLICY IF EXISTS "Allow all operations on goals" ON long_term_goals;
-DROP POLICY IF EXISTS "Allow all operations on memories" ON memories;
-DROP POLICY IF EXISTS "Allow all operations on journals" ON journals;
-DROP POLICY IF EXISTS "Allow all operations on growth_records" ON growth_records;
-DROP POLICY IF EXISTS "Allow all operations on notifications" ON notifications;
-DROP POLICY IF EXISTS "Allow all operations on dashboard_modules" ON dashboard_modules;
-
--- 删除所有旧的触发器
-DROP TRIGGER IF EXISTS update_users_updated_at ON users;
-DROP TRIGGER IF EXISTS update_tasks_updated_at ON tasks;
-DROP TRIGGER IF EXISTS update_goals_updated_at ON long_term_goals;
-DROP TRIGGER IF EXISTS update_memories_updated_at ON memories;
-DROP TRIGGER IF EXISTS update_journals_updated_at ON journals;
-
--- ========================================
--- 创建表结构
+-- 第一步：创建所有表结构
 -- ========================================
 
 -- 1. 用户表
@@ -195,6 +174,31 @@ ALTER TABLE journals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE growth_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE dashboard_modules ENABLE ROW LEVEL SECURITY;
+
+-- ========================================
+-- 第二步：清理旧的策略和触发器
+-- ========================================
+
+-- 删除所有旧的策略（表已存在，现在可以安全删除）
+DROP POLICY IF EXISTS "Allow all operations on users" ON users;
+DROP POLICY IF EXISTS "Allow all operations on tasks" ON tasks;
+DROP POLICY IF EXISTS "Allow all operations on goals" ON long_term_goals;
+DROP POLICY IF EXISTS "Allow all operations on memories" ON memories;
+DROP POLICY IF EXISTS "Allow all operations on journals" ON journals;
+DROP POLICY IF EXISTS "Allow all operations on growth_records" ON growth_records;
+DROP POLICY IF EXISTS "Allow all operations on notifications" ON notifications;
+DROP POLICY IF EXISTS "Allow all operations on dashboard_modules" ON dashboard_modules;
+
+-- 删除所有旧的触发器
+DROP TRIGGER IF EXISTS update_users_updated_at ON users;
+DROP TRIGGER IF EXISTS update_tasks_updated_at ON tasks;
+DROP TRIGGER IF EXISTS update_goals_updated_at ON long_term_goals;
+DROP TRIGGER IF EXISTS update_memories_updated_at ON memories;
+DROP TRIGGER IF EXISTS update_journals_updated_at ON journals;
+
+-- ========================================
+-- 第三步：创建触发器和策略
+-- ========================================
 
 -- 创建 RLS 策略（允许所有操作，因为使用 local_user_id 而不是 auth.uid()）
 -- 注意：这是简化版本，生产环境需要更严格的安全策略
