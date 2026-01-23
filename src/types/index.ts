@@ -92,6 +92,9 @@ export interface Task {
   // 子任务
   subtasks?: SubTask[];
   
+  // 参与者
+  participants?: Participant[];
+  
   // 状态
   status: TaskStatus;
   completionQuality?: 1 | 2 | 3 | 4 | 5;
@@ -107,6 +110,13 @@ export interface SubTask {
   isCompleted: boolean;
   durationMinutes?: number;
   order: number;
+}
+
+export interface Participant {
+  id: string;
+  name: string;
+  avatar?: string;
+  role?: string;
 }
 
 export interface VerificationConfig {

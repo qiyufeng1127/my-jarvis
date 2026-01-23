@@ -803,216 +803,207 @@ export default function TimelineCalendar({
                 const duration = Math.round((block.endTime.getTime() - block.startTime.getTime()) / 60000);
                 const blockStyle = getBlockStyle(block);
                 
+                // 根据任务类型设置卡片颜色（使用柔和的渐变色）
+                const cardColors: Record<string, { bg: string; text: string; accent: string }> = {
+                  work: { bg: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', text: '#ffffff', accent: '#a78bfa' },
+                  study: { bg: 'linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%)', text: '#1f2937', accent: '#10b981' },
+                  health: { bg: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', text: '#1f2937', accent: '#f59e0b' },
+                  life: { bg: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)', text: '#1f2937', accent: '#ec4899' },
+                  social: { bg: 'linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%)', text: '#1f2937', accent: '#8b5cf6' },
+                  finance: { bg: 'linear-gradient(135deg, #fddb92 0%, #d1fdff 100%)', text: '#1f2937', accent: '#f59e0b' },
+                  creative: { bg: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)', text: '#1f2937', accent: '#f97316' },
+                  rest: { bg: 'linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)', text: '#1f2937', accent: '#8b5cf6' },
+                };
+                
+                const cardColor = cardColors[block.category] || cardColors.work;
+                
                 return (
                   <div
                     key={block.id}
-                    className={`absolute rounded-xl border-l-4 shadow-lg transition-all group cursor-move hover:shadow-2xl ${
+                    className={`absolute rounded-2xl shadow-xl transition-all group cursor-move hover:shadow-2xl overflow-hidden ${
                       draggedBlockId === block.id ? 'scale-105 z-40 shadow-2xl' : 'z-20'
                     } ${
-                      selectedBlockId === block.id ? 'ring-2 ring-blue-500' : ''
+                      selectedBlockId === block.id ? 'ring-4 ring-blue-400 ring-opacity-50' : ''
                     }`}
                     style={{
                       ...blockStyle,
-                      borderLeftColor: block.color,
-                      backgroundColor: isDark ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.95)',
-                      backdropFilter: 'blur(10px)',
-                      paddingLeft: '4px',
-                      paddingRight: '4px',
+                      background: cardColor.bg,
+                      minHeight: '80px', // 确保最小高度
                     }}
                     onMouseDown={(e) => handleDragStart(e, block.id)}
                     onClick={() => setSelectedBlockId(block.id)}
                     onContextMenu={(e) => handleContextMenu(e, block.id)}
                   >
-                    <div className="p-3 h-full flex flex-col">
-                      {/* 任务头部 */}
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center space-x-2 flex-1 min-w-0">
-                          <span className="text-lg">{statusStyle.icon}</span>
-                          <div className="flex flex-col flex-1 min-w-0">
-                            <div className="font-bold text-sm truncate" style={{ color: textColor }}>
-                              {block.title}
-                            </div>
-                            {block.description && (
-                              <div className="text-xs truncate mt-0.5" style={{ color: accentColor }}>
-                                {block.description}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-1 ml-2">
-                          {/* 验证按钮 */}
-                          {(task?.verificationStart?.type !== 'none' || task?.verificationComplete?.type !== 'none') && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const verificationType = block.status === 'pending' ? 'start' : 'complete';
-                                setShowVerification({ taskId: block.id, type: verificationType });
-                              }}
-                              className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition-all hover:scale-110"
-                              style={{ backgroundColor: 'rgba(234, 179, 8, 0.2)' }}
-                              title="任务验证"
-                            >
-                              <Camera className="w-4 h-4 text-yellow-600" />
-                            </button>
-                          )}
-                          {/* 开始按钮 */}
-                          {block.status === 'pending' && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleQuickAction('start', block.id);
-                              }}
-                              className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition-all hover:scale-110"
-                              style={{ backgroundColor: 'rgba(34, 197, 94, 0.2)' }}
-                              title="开始任务"
-                            >
-                              <Play className="w-4 h-4 text-green-600" />
-                            </button>
-                          )}
-                          {/* 完成按钮 */}
-                          {block.status === 'in-progress' && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleQuickAction('complete', block.id);
-                              }}
-                              className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition-all hover:scale-110"
-                              style={{ backgroundColor: 'rgba(59, 130, 246, 0.2)' }}
-                              title="完成任务"
-                            >
-                              <Check className="w-4 h-4 text-blue-600" />
-                            </button>
-                          )}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleContextMenu(e, block.id);
-                            }}
-                            className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition-opacity"
-                            style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
-                          >
-                            <MoreVertical className="w-4 h-4" style={{ color: textColor }} />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* 时间段和持续时间 */}
-                      <div className="flex items-center justify-between mb-2 text-xs">
-                        <div className="flex items-center space-x-1" style={{ color: accentColor }}>
-                          <Clock className="w-3.5 h-3.5" />
-                          <span className="font-medium">
-                            {block.startTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-                            {' - '}
-                            {block.endTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-                        <div className="flex items-center space-x-1 px-2 py-0.5 rounded-full" 
-                          style={{ 
-                            backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-                            color: accentColor 
-                          }}
-                        >
-                          <span className="font-semibold">{duration}</span>
-                          <span>分钟</span>
-                        </div>
-                      </div>
-
-                      {/* 金币奖励/惩罚 */}
-                      <div className="flex items-center justify-between mb-2">
-                        {block.rewards && block.rewards.gold > 0 && (
-                          <div className="flex items-center space-x-1 px-2 py-1 rounded-lg" 
-                            style={{ 
-                              backgroundColor: 'rgba(234, 179, 8, 0.15)',
-                              color: '#d97706'
-                            }}
-                          >
-                            <span className="text-base">💰</span>
-                            <span className="text-xs font-bold">+{block.rewards.gold}</span>
-                          </div>
-                        )}
-                        {task?.penaltyGold && task.penaltyGold > 0 && (
-                          <div className="flex items-center space-x-1 px-2 py-1 rounded-lg" 
-                            style={{ 
-                              backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                              color: '#dc2626'
-                            }}
-                          >
-                            <span className="text-base">💸</span>
-                            <span className="text-xs font-bold">-{task.penaltyGold}</span>
-                          </div>
-                        )}
-                        {/* 任务类别标签 */}
-                        <div className="ml-auto px-2 py-0.5 rounded-full text-xs font-medium"
+                    <div className="p-3 h-full flex flex-col relative">
+                      {/* 优先级标签 - 左上角 */}
+                      {task && task.priority <= 2 && (
+                        <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-xs font-bold"
                           style={{
-                            backgroundColor: `${block.color}20`,
-                            color: block.color,
+                            backgroundColor: 'rgba(255,255,255,0.9)',
+                            color: task.priority === 1 ? '#dc2626' : '#f59e0b',
                           }}
                         >
-                          {TASK_TYPE_CONFIG[block.category]?.label || block.category}
+                          {task.priority === 1 ? 'High' : 'Medium'}
                         </div>
-                      </div>
+                      )}
 
-                      {/* 底部操作栏 */}
-                      <div className="flex items-center justify-between mt-auto pt-2 border-t" 
-                        style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}
-                      >
-                        <div className="flex items-center space-x-2">
-                          {/* AI拆解按钮 */}
+                      {/* 操作按钮 - 右上角 */}
+                      <div className="absolute top-2 right-2 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {/* 验证按钮 */}
+                        {(task?.verificationStart?.type !== 'none' || task?.verificationComplete?.type !== 'none') && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              // TODO: 打开AI拆解面板
-                              console.log('AI拆解任务:', block.id);
+                              const verificationType = block.status === 'pending' ? 'start' : 'complete';
+                              setShowVerification({ taskId: block.id, type: verificationType });
                             }}
-                            className="text-xs px-2 py-1 rounded-lg transition-all hover:scale-105"
-                            style={{ 
-                              backgroundColor: 'rgba(139, 92, 246, 0.15)',
-                              color: '#8b5cf6'
-                            }}
-                            title="AI智能拆解"
+                            className="p-1.5 rounded-lg transition-all hover:scale-110 backdrop-blur-sm"
+                            style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}
+                            title="任务验证"
                           >
-                            🤖 AI拆解
+                            <Camera className="w-3.5 h-3.5 text-yellow-600" />
                           </button>
-                          {/* 展开子任务按钮 */}
+                        )}
+                        {/* 开始按钮 */}
+                        {block.status === 'pending' && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleQuickAction('start', block.id);
+                            }}
+                            className="p-1.5 rounded-lg transition-all hover:scale-110 backdrop-blur-sm"
+                            style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}
+                            title="开始任务"
+                          >
+                            <Play className="w-3.5 h-3.5 text-green-600" />
+                          </button>
+                        )}
+                        {/* 完成按钮 */}
+                        {block.status === 'in-progress' && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleQuickAction('complete', block.id);
+                            }}
+                            className="p-1.5 rounded-lg transition-all hover:scale-110 backdrop-blur-sm"
+                            style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}
+                            title="完成任务"
+                          >
+                            <Check className="w-3.5 h-3.5 text-blue-600" />
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleContextMenu(e, block.id);
+                          }}
+                          className="p-1.5 rounded-lg transition-opacity backdrop-blur-sm"
+                          style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}
+                        >
+                          <MoreVertical className="w-3.5 h-3.5" style={{ color: cardColor.text }} />
+                        </button>
+                      </div>
+
+                      {/* 任务标题 */}
+                      <div className="mt-8 mb-2">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <span className="text-xl">{statusStyle.icon}</span>
+                          <div className="font-bold text-base" style={{ color: cardColor.text }}>
+                            {block.title}
+                          </div>
+                        </div>
+                        {block.description && (
+                          <div className="text-xs opacity-80 line-clamp-2" style={{ color: cardColor.text }}>
+                            {block.description}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 时间信息 */}
+                      <div className="flex items-center space-x-1 mb-2 text-xs" style={{ color: cardColor.text }}>
+                        <Clock className="w-3.5 h-3.5 opacity-70" />
+                        <span className="font-medium opacity-80">
+                          {block.startTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                          {' - '}
+                          {block.endTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        <span className="opacity-60">•</span>
+                        <span className="font-semibold">{duration}分钟</span>
+                      </div>
+
+                      {/* 底部信息栏 */}
+                      <div className="mt-auto flex items-center justify-between">
+                        {/* 金币和类别 */}
+                        <div className="flex items-center space-x-2">
+                          {block.rewards && block.rewards.gold > 0 && (
+                            <div className="flex items-center space-x-1 px-2 py-1 rounded-lg backdrop-blur-sm" 
+                              style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}
+                            >
+                              <span className="text-sm">💰</span>
+                              <span className="text-xs font-bold text-yellow-600">+{block.rewards.gold}</span>
+                            </div>
+                          )}
+                          {task?.penaltyGold && task.penaltyGold > 0 && (
+                            <div className="flex items-center space-x-1 px-2 py-1 rounded-lg backdrop-blur-sm" 
+                              style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}
+                            >
+                              <span className="text-sm">💸</span>
+                              <span className="text-xs font-bold text-red-600">-{task.penaltyGold}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 子任务和AI按钮 */}
+                        <div className="flex items-center space-x-1">
                           {task?.subtasks && task.subtasks.length > 0 && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                // TODO: 展开子任务
                                 console.log('展开子任务:', block.id);
                               }}
-                              className="text-xs px-2 py-1 rounded-lg transition-all hover:scale-105"
-                              style={{ 
-                                backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-                                color: accentColor
-                              }}
+                              className="flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-medium backdrop-blur-sm transition-all hover:scale-105"
+                              style={{ backgroundColor: 'rgba(255,255,255,0.9)', color: cardColor.text }}
                               title="展开子任务"
                             >
-                              📋 {task.subtasks.length}个子任务
+                              <span>📋</span>
+                              <span>{task.subtasks.length}</span>
                             </button>
                           )}
-                        </div>
-                        {/* 状态标签 */}
-                        <div className="text-xs px-2 py-0.5 rounded-full font-medium"
-                          style={{
-                            backgroundColor: statusStyle.bg,
-                            color: textColor,
-                          }}
-                        >
-                          {block.status === 'pending' && '待开始'}
-                          {block.status === 'in-progress' && '进行中'}
-                          {block.status === 'completed' && '已完成'}
-                          {block.status === 'overdue' && '已逾期'}
-                          {block.status === 'verification-needed' && '待验证'}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              console.log('AI拆解任务:', block.id);
+                            }}
+                            className="px-2 py-1 rounded-lg text-xs font-medium backdrop-blur-sm transition-all hover:scale-105"
+                            style={{ backgroundColor: 'rgba(255,255,255,0.9)', color: '#8b5cf6' }}
+                            title="AI智能拆解"
+                          >
+                            🤖
+                          </button>
                         </div>
                       </div>
+
+                      {/* 参与者头像（如果有） */}
+                      {task?.participants && task.participants.length > 0 && (
+                        <div className="absolute bottom-2 right-2 flex -space-x-2">
+                          {task.participants.slice(0, 3).map((participant: any, index: number) => (
+                            <div
+                              key={index}
+                              className="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-xs font-bold"
+                              style={{ backgroundColor: cardColor.accent, color: '#ffffff' }}
+                            >
+                              {participant.name?.[0] || '?'}
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
                       {/* 调整大小手柄 */}
                       <div
                         className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                         onMouseDown={(e) => handleResizeStart(e, block.id)}
                       >
-                        <div className="w-16 h-1 rounded-full" style={{ backgroundColor: block.color }}></div>
+                        <div className="w-12 h-1 rounded-full backdrop-blur-sm" style={{ backgroundColor: 'rgba(255,255,255,0.5)' }}></div>
                       </div>
                     </div>
                   </div>
