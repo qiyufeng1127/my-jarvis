@@ -223,6 +223,31 @@ p, span, div, h1, h2, h3, h4, h5, h6, a, button, input, textarea, label {
   scrollbar-color: rgba(128, 128, 128, 0.2) transparent;
 }
 
+/* 主页滚动条样式 - 隐藏但可用 */
+.overflow-y-auto::-webkit-scrollbar {
+  width: 8px;
+}
+
+.overflow-y-auto::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.2);
+  border-radius: 4px;
+  border: none;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background: rgba(128, 128, 128, 0.3);
+}
+
+/* Firefox 主页滚动条 */
+.overflow-y-auto {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(128, 128, 128, 0.2) transparent;
+}
+
 /* 深色背景的滚动条 */
 [style*="background"][style*="#0"]::-webkit-scrollbar-track,
 [style*="background"][style*="#1"]::-webkit-scrollbar-track,

@@ -745,9 +745,10 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
           </div>
         </div>
 
-        {/* 模块容器区域 */}
-        <div className="flex-1 relative overflow-hidden">
-        {/* 模块容器 */}
+        {/* 模块容器区域 - 可滚动 */}
+        <div className="flex-1 relative overflow-y-auto overflow-x-hidden">
+        {/* 模块容器 - 设置最小高度以支持向下拖动 */}
+        <div className="relative" style={{ minHeight: '200vh' }}>
         {modules
           .filter((m) => m.isVisible)
           .map((module) => {
@@ -1037,6 +1038,7 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
             </div>
           </div>
         )}
+        </div>
       </div>
 
         {/* 历史记录弹窗 */}
