@@ -10,8 +10,8 @@ interface AIConfigModalProps {
 export default function AIConfigModal({ isOpen, onClose }: AIConfigModalProps) {
   const { config, setApiKey, setApiEndpoint, setModel, isConfigured } = useAIStore();
   const [localApiKey, setLocalApiKey] = useState(config.apiKey);
-  const [localEndpoint, setLocalEndpoint] = useState(config.apiEndpoint);
-  const [localModel, setLocalModel] = useState(config.model);
+  const [localEndpoint, setLocalEndpoint] = useState(config.apiEndpoint || 'https://api.deepseek.com/v1/chat/completions');
+  const [localModel, setLocalModel] = useState(config.model || 'deepseek-chat');
   const [showKey, setShowKey] = useState(false);
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
 
@@ -57,7 +57,7 @@ export default function AIConfigModal({ isOpen, onClose }: AIConfigModalProps) {
     <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-auto shadow-2xl">
         {/* 醒目的头部 */}
-        <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white p-6">
+        <div className="bg-purple-600 text-white p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-3">
               <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
@@ -129,12 +129,13 @@ export default function AIConfigModal({ isOpen, onClose }: AIConfigModalProps) {
               type="text"
               value={localEndpoint}
               onChange={(e) => setLocalEndpoint(e.target.value)}
-              placeholder="https://api.openai.com/v1/chat/completions"
+              placeholder="https://api.deepseek.com/v1/chat/completions"
               className="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-purple-500 focus:outline-none text-sm font-mono"
             />
             <div className="mt-2 text-xs text-gray-600">
               <p>常用端点：</p>
               <ul className="mt-1 space-y-1 ml-4">
+                <li>• DeepSeek: https://api.deepseek.com/v1/chat/completions</li>
                 <li>• OpenAI: https://api.openai.com/v1/chat/completions</li>
                 <li>• 国内中转: 根据你的中转服务商提供的地址</li>
               </ul>
@@ -151,7 +152,9 @@ export default function AIConfigModal({ isOpen, onClose }: AIConfigModalProps) {
               onChange={(e) => setLocalModel(e.target.value)}
               className="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-purple-500 focus:outline-none text-sm cursor-pointer"
             >
-              <option value="gpt-4">GPT-4 (推荐)</option>
+              <option value="deepseek-chat">DeepSeek Chat (推荐)</option>
+              <option value="deepseek-coder">DeepSeek Coder</option>
+              <option value="gpt-4">GPT-4</option>
               <option value="gpt-4-turbo">GPT-4 Turbo</option>
               <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
               <option value="claude-3-opus">Claude 3 Opus</option>
@@ -190,6 +193,18 @@ export default function AIConfigModal({ isOpen, onClose }: AIConfigModalProps) {
             <h3 className="text-sm font-semibold text-blue-900 mb-2">📚 如何获取 API Key？</h3>
             <div className="space-y-2 text-xs text-blue-800">
               <div>
+                <strong>DeepSeek (推荐):</strong>
+                <a
+                  href="https://platform.deepseek.com/api_keys"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-2 inline-flex items-center text-blue-600 hover:text-blue-800 underline"
+                >
+                  前往获取
+                  <ExternalLink className="w-3 h-3 ml-1" />
+                </a>
+              </div>
+              <div>
                 <strong>OpenAI:</strong>
                 <a
                   href="https://platform.openai.com/api-keys"
@@ -201,12 +216,8 @@ export default function AIConfigModal({ isOpen, onClose }: AIConfigModalProps) {
                   <ExternalLink className="w-3 h-3 ml-1" />
                 </a>
               </div>
-              <div>
-                <strong>国内中转:</strong>
-                <span className="ml-2">搜索"OpenAI API 中转"找到服务商</span>
-              </div>
               <div className="mt-2 pt-2 border-t border-blue-200">
-                <p>💡 提示：使用国内中转服务可以避免网络问题，价格也更便宜</p>
+                <p>💡 提示：DeepSeek 是国内大模型，速度快、价格便宜、效果好</p>
               </div>
             </div>
           </div>
@@ -236,7 +247,7 @@ export default function AIConfigModal({ isOpen, onClose }: AIConfigModalProps) {
           <button
             onClick={handleSave}
             disabled={!localApiKey}
-            className="px-8 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-semibold hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className="px-8 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
             💾 保存配置
           </button>
