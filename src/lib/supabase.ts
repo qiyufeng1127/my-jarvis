@@ -33,9 +33,23 @@ export const isSupabaseConfigured = () => {
   return Boolean(supabaseUrl && supabaseAnonKey);
 };
 
+// 验证 UUID 格式
+const isValidUUID = (uuid: string): boolean => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+};
+
 // 获取当前用户 ID（本地或云端）
 export const getCurrentUserId = () => {
-  const localUserId = localStorage.getItem('user_id');
-  return localUserId || 'anonymous';
+  let localUserId = localStorage.getItem('manifestos_user_id');
+  
+  // 如果没有用户 ID 或格式不正确，生成一个新的 UUID
+  if (!localUserId || !isValidUUID(localUserId)) {
+    localUserId = crypto.randomUUID();
+    localStorage.setItem('manifestos_user_id', localUserId);
+    console.log('✅ 生成新的用户 ID:', localUserId);
+  }
+  
+  return localUserId;
 };
 
