@@ -37,6 +37,8 @@ interface Module {
   color: string;
   isVisible: boolean;
   customSize?: { width: number; height: number };
+  imageUrl?: string; // 用于图片组件
+  customIcon?: string; // 用于自定义图标
 }
 
 interface ModuleDefinition {
@@ -130,6 +132,14 @@ const availableModules: ModuleDefinition[] = [
     defaultColor: '#8B5CF6',
     component: PanoramaMemory,
   },
+  {
+    id: 'image-widget',
+    type: 'image-widget',
+    title: '图片组件',
+    icon: <span className="text-2xl">🖼️</span>,
+    defaultColor: 'transparent',
+    component: () => null, // 图片组件不需要内容组件
+  },
 ];
 
 // 模块尺寸配置 - 根据内容设置合适的尺寸
@@ -166,6 +176,10 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
   const [showColorPicker, setShowColorPicker] = useState<string | null>(null);
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [showHistoryModal, setShowHistoryModal] = useState<string | null>(null); // 'gold' | 'growth' | 'identity' | 'habits'
+  const [contextMenuModule, setContextMenuModule] = useState<string | null>(null);
+  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
+  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
+  const [longPressModule, setLongPressModule] = useState<string | null>(null);
 
   // 坏习惯百分比（模拟数据）
   const [habitScore, setHabitScore] = useState(0); // 0-100，越高越差
@@ -204,6 +218,23 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
 
   // 添加模块到主页
   const addModule = (moduleDefinition: ModuleDefinition) => {
+    // 图片组件特殊处理：每次点击都添加新的
+    if (moduleDefinition.type === 'image-widget') {
+      const newModule: Module = {
+        id: `${moduleDefinition.type}-${Date.now()}`,
+        type: moduleDefinition.type,
+        title: moduleDefinition.title,
+        icon: moduleDefinition.icon,
+        position: { x: 100 + modules.length * 20, y: 100 + modules.length * 20 },
+        size: 'small',
+        color: 'transparent',
+        isVisible: true,
+        customSize: { width: 300, height: 300 }, // 默认正方形
+      };
+      setModules([...modules, newModule]);
+      return;
+    }
+    
     const existingModule = modules.find((m) => m.type === moduleDefinition.type);
     
     if (existingModule) {
@@ -333,7 +364,61 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
 
   // 移除模块
   const removeModule = (moduleId: string) => {
-    setModules(modules.map((m) => (m.id === moduleId ? { ...m, isVisible: false } : m)));
+    const module = modules.find(m => m.id === moduleId);
+    // 图片组件直接删除，其他模块只是隐藏
+    if (module?.type === 'image-widget') {
+      setModules(modules.filter((m) => m.id !== moduleId));
+    } else {
+      setModules(modules.map((m) => (m.id === moduleId ? { ...m, isVisible: false } : m)));
+    }
+  };
+
+  // 上传图片到模块
+  const handleModuleImageUpload = (moduleId: string, file: File) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      setModules(modules.map((m) => 
+        m.id === moduleId ? { ...m, imageUrl: result } : m
+      ));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // 上传自定义图标
+  const handleIconUpload = (moduleType: string, file: File) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      setModules(modules.map((m) => 
+        m.type === moduleType ? { ...m, customIcon: result } : m
+      ));
+      // 保存到 localStorage
+      localStorage.setItem(`icon_${moduleType}`, result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // 右键菜单处理
+  const handleContextMenu = (e: React.MouseEvent, moduleType: string) => {
+    e.preventDefault();
+    setContextMenuModule(moduleType);
+    setContextMenuPosition({ x: e.clientX, y: e.clientY });
+  };
+
+  // 长按处理（移动端）
+  const handleLongPressStart = (moduleId: string) => {
+    const timer = setTimeout(() => {
+      setLongPressModule(moduleId);
+    }, 500); // 500ms 长按
+    setLongPressTimer(timer);
+  };
+
+  const handleLongPressEnd = () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
   };
 
   // 复古背景色（每个图标不同）- 使用图片中的颜色
@@ -366,7 +451,10 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
       style={{ backgroundColor: '#e2d9bc' }}
       onMouseMove={draggingModule ? handleDrag : resizingModule ? handleResize : undefined}
       onMouseUp={draggingModule ? handleDragEnd : resizingModule ? handleResizeEnd : undefined}
-      onClick={() => setShowColorPicker(null)}
+      onClick={() => {
+        setShowColorPicker(null);
+        setContextMenuModule(null);
+      }}
     >
       {/* 左侧功能模块栏 */}
       <div className="w-24 flex flex-col items-center py-8 space-y-4" style={{ backgroundColor: '#e2d9bc' }}>
@@ -409,25 +497,39 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
           );
           const iconBgColor = activeModule ? activeModule.color : vintageColors[index];
           
+          // 获取自定义图标
+          const customIcon = activeModule?.customIcon || localStorage.getItem(`icon_${moduleDef.type}`);
+          
           return (
-            <button
-              key={moduleDef.id}
-              onClick={() => addModule(moduleDef)}
-              className={`
-                w-12 h-12 rounded-lg flex items-center justify-center transition-all
-                ${
-                  isActive
-                    ? 'shadow-lg scale-110'
-                    : 'hover:scale-105'
-                }
-              `}
-              style={{
-                backgroundColor: iconBgColor,
-              }}
-              title={moduleDef.title}
-            >
-              {moduleDef.icon}
-            </button>
+            <div key={moduleDef.id} className="relative">
+              <button
+                onClick={() => addModule(moduleDef)}
+                onContextMenu={(e) => handleContextMenu(e, moduleDef.type)}
+                onTouchStart={() => handleLongPressStart(moduleDef.type)}
+                onTouchEnd={handleLongPressEnd}
+                onMouseDown={() => handleLongPressStart(moduleDef.type)}
+                onMouseUp={handleLongPressEnd}
+                onMouseLeave={handleLongPressEnd}
+                className={`
+                  w-12 h-12 rounded-lg flex items-center justify-center transition-all overflow-hidden
+                  ${
+                    isActive
+                      ? 'shadow-lg scale-110'
+                      : 'hover:scale-105'
+                  }
+                `}
+                style={{
+                  backgroundColor: iconBgColor,
+                }}
+                title={moduleDef.title}
+              >
+                {customIcon ? (
+                  <img src={customIcon} alt={moduleDef.title} className="w-full h-full object-cover" />
+                ) : (
+                  moduleDef.icon
+                )}
+              </button>
+            </div>
           );
         })}
       </div>
@@ -522,6 +624,76 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
         {modules
           .filter((m) => m.isVisible)
           .map((module) => {
+            // 图片组件特殊处理
+            if (module.type === 'image-widget') {
+              const currentSize = module.customSize || { width: 300, height: 300 };
+              
+              return (
+                <div
+                  key={module.id}
+                  className="absolute rounded-xl shadow-lg overflow-hidden"
+                  style={{
+                    left: module.position.x,
+                    top: module.position.y,
+                    width: currentSize.width,
+                    height: currentSize.height,
+                    cursor: draggingModule === module.id ? 'grabbing' : 'grab',
+                    zIndex: draggingModule === module.id ? 1000 : 1,
+                  }}
+                  onMouseDown={(e) => handleDragStart(module.id, e)}
+                  onTouchStart={() => handleLongPressStart(module.id)}
+                  onTouchEnd={handleLongPressEnd}
+                >
+                  {module.imageUrl ? (
+                    <img 
+                      src={module.imageUrl} 
+                      alt="Widget" 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <label 
+                      htmlFor={`image-upload-${module.id}`}
+                      className="w-full h-full flex items-center justify-center bg-neutral-100 cursor-pointer hover:bg-neutral-200 transition-colors"
+                    >
+                      <div className="text-center">
+                        <div className="text-4xl mb-2">🖼️</div>
+                        <div className="text-sm text-neutral-600">点击上传图片</div>
+                      </div>
+                      <input
+                        id={`image-upload-${module.id}`}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleModuleImageUpload(module.id, file);
+                        }}
+                      />
+                    </label>
+                  )}
+                  
+                  {/* 调整大小手柄 */}
+                  <div
+                    className="absolute bottom-0 right-0 w-8 h-8 cursor-se-resize flex items-end justify-end p-1 bg-black/20"
+                    onMouseDown={(e) => handleResizeStart(module.id, e)}
+                    onClick={(e) => e.stopPropagation()}
+                    title="拖拽缩放"
+                  >
+                    <div className="flex flex-col items-end space-y-0.5">
+                      <div className="flex space-x-0.5">
+                        <div className="w-1.5 h-1.5 rounded-full bg-white opacity-70" />
+                      </div>
+                      <div className="flex space-x-0.5">
+                        <div className="w-1.5 h-1.5 rounded-full bg-white opacity-70" />
+                        <div className="w-1.5 h-1.5 rounded-full bg-white opacity-70" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+            
+            // 其他模块的原有逻辑
             const baseSize = moduleSizes[module.size];
             // 使用模块特定高度，如果没有则使用默认高度
             const specificHeight = moduleSpecificHeights[module.type] || baseSize.height;
@@ -840,6 +1012,98 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 右键菜单 - 上传自定义图标 */}
+        {contextMenuModule && (
+          <>
+            <div 
+              className="fixed inset-0 z-[90]"
+              onClick={() => setContextMenuModule(null)}
+            />
+            <div
+              className="fixed z-[100] bg-white rounded-lg shadow-xl border border-neutral-200 py-2 min-w-[180px]"
+              style={{
+                left: contextMenuPosition.x,
+                top: contextMenuPosition.y,
+              }}
+            >
+              <label
+                htmlFor={`icon-upload-${contextMenuModule}`}
+                className="flex items-center space-x-3 px-4 py-2 hover:bg-neutral-100 cursor-pointer transition-colors"
+              >
+                <span className="text-lg">📷</span>
+                <span className="text-sm font-medium text-neutral-700">上传自定义图标</span>
+                <input
+                  id={`icon-upload-${contextMenuModule}`}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file && contextMenuModule) {
+                      handleIconUpload(contextMenuModule, file);
+                      setContextMenuModule(null);
+                    }
+                  }}
+                />
+              </label>
+              <button
+                onClick={() => {
+                  if (contextMenuModule) {
+                    localStorage.removeItem(`icon_${contextMenuModule}`);
+                    setModules(modules.map((m) => 
+                      m.type === contextMenuModule ? { ...m, customIcon: undefined } : m
+                    ));
+                    setContextMenuModule(null);
+                  }
+                }}
+                className="flex items-center space-x-3 px-4 py-2 hover:bg-neutral-100 cursor-pointer transition-colors w-full text-left"
+              >
+                <span className="text-lg">🔄</span>
+                <span className="text-sm font-medium text-neutral-700">恢复默认图标</span>
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* 长按删除确认弹窗 */}
+        {longPressModule && (
+          <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+            onClick={() => setLongPressModule(null)}
+          >
+            <div 
+              className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-center mb-6">
+                <div className="text-4xl mb-3">🗑️</div>
+                <h3 className="text-xl font-bold text-neutral-900 mb-2">删除图片</h3>
+                <p className="text-neutral-600">确定要删除这张图片吗？</p>
+              </div>
+              
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setLongPressModule(null)}
+                  className="flex-1 px-4 py-2 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-medium transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={() => {
+                    if (longPressModule) {
+                      removeModule(longPressModule);
+                      setLongPressModule(null);
+                    }
+                  }}
+                  className="flex-1 px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-medium transition-colors"
+                >
+                  删除
+                </button>
               </div>
             </div>
           </div>

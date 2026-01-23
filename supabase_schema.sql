@@ -130,19 +130,24 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 为需要的表添加更新时间触发器
+-- 为需要的表添加更新时间触发器（先删除旧的，避免重复）
+DROP TRIGGER IF EXISTS update_users_updated_at ON users;
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_tasks_updated_at ON tasks;
 CREATE TRIGGER update_tasks_updated_at BEFORE UPDATE ON tasks
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_goals_updated_at ON long_term_goals;
 CREATE TRIGGER update_goals_updated_at BEFORE UPDATE ON long_term_goals
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_memories_updated_at ON memories;
 CREATE TRIGGER update_memories_updated_at BEFORE UPDATE ON memories
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_journals_updated_at ON journals;
 CREATE TRIGGER update_journals_updated_at BEFORE UPDATE ON journals
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
