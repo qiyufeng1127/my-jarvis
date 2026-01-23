@@ -481,8 +481,8 @@ export default function TimelineCalendar({
           </div>
         </div>
 
-        {/* 日历网格 - 添加滚动条 */}
-        <div className="overflow-auto p-4" style={{ maxHeight: calendarView === 'month' ? '400px' : '200px' }}>
+        {/* 日历网格 - 月视图不滚动，周视图可滚动 */}
+        <div className={calendarView === 'week' ? 'overflow-auto p-4' : 'p-4'} style={{ maxHeight: calendarView === 'week' ? '200px' : 'auto' }}>
           <div className={`grid grid-cols-7 ${calendarView === 'month' ? 'gap-2' : 'gap-3'}`}>
             {/* 星期标题 */}
             {['日', '一', '二', '三', '四', '五', '六'].map((day, index) => (
@@ -629,13 +629,13 @@ export default function TimelineCalendar({
             </div>
           </div>
 
-          {/* 时间轴滚动区域 - 添加滚动条样式 */}
+          {/* 时间轴滚动区域 - 隐藏滚动条但保持滚动功能 */}
           <div 
             ref={timelineRef}
-            className="flex-1 overflow-y-auto relative"
+            className="flex-1 overflow-y-auto relative timeline-scrollbar"
             style={{
               scrollbarWidth: 'thin',
-              scrollbarColor: `${isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)'} ${cardBg}`,
+              scrollbarColor: `${isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)'} transparent`,
             }}
             onMouseMove={(e) => {
               if (draggedBlockId) handleDragMove(e);

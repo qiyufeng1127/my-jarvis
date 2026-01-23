@@ -173,6 +173,60 @@ p, span, div, h1, h2, h3, h4, h5, h6, a, button, input, textarea, label {
   scrollbar-color: var(--color-neutral-300) var(--color-neutral-100);
 }
 
+/* 时间轴隐藏滚动条样式 */
+.timeline-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.timeline-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.timeline-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+  border: none;
+}
+
+.timeline-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* 深色背景的时间轴滚动条 */
+[style*="background"][style*="#0"] .timeline-scrollbar::-webkit-scrollbar-thumb,
+[style*="background"][style*="#1"] .timeline-scrollbar::-webkit-scrollbar-thumb,
+[style*="background"][style*="#2"] .timeline-scrollbar::-webkit-scrollbar-thumb,
+[style*="background"][style*="#3"] .timeline-scrollbar::-webkit-scrollbar-thumb,
+[style*="background"][style*="#4"] .timeline-scrollbar::-webkit-scrollbar-thumb,
+[style*="background"][style*="#5"] .timeline-scrollbar::-webkit-scrollbar-thumb,
+[style*="background"][style*="#6"] .timeline-scrollbar::-webkit-scrollbar-thumb,
+[style*="background"][style*="#7"] .timeline-scrollbar::-webkit-scrollbar-thumb,
+[style*="background"][style*="#8"] .timeline-scrollbar::-webkit-scrollbar-thumb,
+[style*="background"][style*="#9"] .timeline-scrollbar::-webkit-scrollbar-thumb,
+[style*="background"][style*="#a"] .timeline-scrollbar::-webkit-scrollbar-thumb,
+[style*="background"][style*="#b"] .timeline-scrollbar::-webkit-scrollbar-thumb,
+[style*="background"][style*="#c"] .timeline-scrollbar::-webkit-scrollbar-thumb,
+[style*="background"][style*="#d"] .timeline-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+[style*="background"][style*="#0"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#1"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#2"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#3"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#4"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#5"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#6"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#7"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#8"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#9"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#a"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#b"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#c"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover,
+[style*="background"][style*="#d"] .timeline-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
 /* 深色背景的滚动条 */
 [style*="background"][style*="#0"]::-webkit-scrollbar-track,
 [style*="background"][style*="#1"]::-webkit-scrollbar-track,
