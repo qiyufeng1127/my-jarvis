@@ -102,7 +102,7 @@ export const useTaskStore = create<TaskState>()(
     try {
       const userId = getCurrentUserId();
       const newTask: Task = {
-        id: `task-${Date.now()}`,
+        id: crypto.randomUUID(),
         userId,
         title: taskData.title || '',
         description: taskData.description,

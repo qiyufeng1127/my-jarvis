@@ -552,7 +552,7 @@ export default function FloatingAIChat() {
               
               // 为每个任务添加ID和位置信息
               let tasksWithMetadata: DecomposedTask[] = decomposeResult.tasks.map((task, index) => ({
-                id: `task-${Date.now()}-${index}`,
+                id: crypto.randomUUID(),
                 title: task.title,
                 duration: task.duration || detectTaskDuration(task.title),
                 category: task.category,
@@ -667,7 +667,7 @@ export default function FloatingAIChat() {
 
         // 创建单个任务也支持编辑
         const singleTask: DecomposedTask = {
-          id: `task-${Date.now()}`,
+          id: crypto.randomUUID(),
           title: message,
           duration: detectTaskDuration(message),
           category: 'work',
