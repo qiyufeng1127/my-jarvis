@@ -135,7 +135,7 @@ export default function FloatingAIChat() {
     }
   }, [messages]);
 
-  // 保存状态到localStorage
+  // 保存状态到localStorage（包括 isOpen）
   useEffect(() => {
     setPersistedState({
       isOpen,
@@ -759,24 +759,22 @@ export default function FloatingAIChat() {
 
   return (
     <>
-      {/* 浮动按钮 */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-8 right-32 w-14 h-14 rounded-full bg-purple-600 text-white shadow-2xl hover:scale-110 transition-all z-50 flex items-center justify-center"
-        title="AI助手"
-      >
-        {isOpen ? (
-          <X className="w-6 h-6" />
-        ) : (
+      {/* 浮动按钮 - 只在未展开时显示 */}
+      {!isOpen && (
+        <button
+          onClick={() => setIsOpen(true)}
+          className="fixed bottom-8 right-32 w-14 h-14 rounded-full bg-purple-600 text-white shadow-2xl hover:scale-110 transition-all z-50 flex items-center justify-center"
+          title="AI助手"
+        >
           <span className="text-2xl">🤖</span>
-        )}
-      </button>
+        </button>
+      )}
 
-      {/* 聊天窗口 */}
+      {/* 聊天窗口 - 改为绝对定位，跟随页面滚动 */}
       {isOpen && (
         <div
           ref={chatRef}
-          className="fixed rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+          className="absolute rounded-2xl shadow-2xl flex flex-col overflow-hidden"
           style={{
             left: position.x,
             top: position.y,
@@ -964,7 +962,7 @@ export default function FloatingAIChat() {
 
                       {/* 显示奖励 */}
                       {message.rewards && (message.rewards.gold > 0 || message.rewards.growth > 0) && (
-                        <div className="mt-2 pt-2 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}>
+                        <div className="mt-2 pt-2 border-t" style={{ borderColor: theme.borderColor }}>
                           <div className="flex items-center space-x-2 text-xs">
                             {message.rewards.gold > 0 && (
                               <span style={{ color: '#fbbf24' }}>
@@ -1032,7 +1030,7 @@ export default function FloatingAIChat() {
 
                       {/* 显示待确认的操作按钮 */}
                       {message.pendingAction && message.role === 'assistant' && (
-                        <div className="mt-3 pt-3 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}>
+                        <div className="mt-3 pt-3 border-t" style={{ borderColor: theme.borderColor }}>
                           <button
                             onClick={() => handleConfirmAction(message.id)}
                             disabled={isProcessing}
@@ -1200,16 +1198,33 @@ export default function FloatingAIChat() {
                 <div className="flex items-center space-x-2 overflow-x-auto">
                   <span className="text-xs whitespace-nowrap" style={{ color: theme.accentColor }}>快速：</span>
                   {[
-                    { label: '查看任务', icon: '📊' },
-                    { label: '分解任务', icon: '📅' },
-                    { label: '记录心情', icon: '📝' },
-                    { label: '成功日记', icon: '🎉' },
+                    { label: '帮我安排', icon: '🎯', action: 'smart_schedule' },
+                    { label: '推荐任务', icon: '💡', action: 'recommend_task' },
+                    { label: '优化时间', icon: '⚡', action: 'optimize_time' },
+                    { label: '查看进度', icon: '📊', action: 'check_progress' },
                   ].map((cmd) => (
                     <button
                       key={cmd.label}
-                      onClick={() => setInputValue(cmd.label === '分解任务' ? '5分钟后去洗漱，然后洗碗，倒猫粮，洗衣服，工作30分钟，收拾卧室、客厅和拍摄间' : cmd.label + '：')}
-                      className="px-2 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap"
+                      onClick={() => {
+                        if (cmd.action === 'smart_schedule') {
+                          setInputValue('根据我的习惯和当前时间，帮我智能安排接下来要做的任务');
+                        } else if (cmd.action === 'recommend_task') {
+                          setInputValue('根据我现在的状态和时间，推荐几个适合现在做的任务');
+                        } else if (cmd.action === 'optimize_time') {
+                          setInputValue('帮我优化今天的任务安排，让时间利用更高效');
+                        } else if (cmd.action === 'check_progress') {
+                          setInputValue('查看今天的任务');
+                        }
+                        handleSend();
+                      }}
+                      className="px-2 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap hover:scale-105"
                       style={{ backgroundColor: theme.buttonBg, color: theme.textColor }}
+                      title={
+                        cmd.action === 'smart_schedule' ? '学习你的习惯，智能推荐当前适合做的任务' :
+                        cmd.action === 'recommend_task' ? '根据时间和状态推荐任务' :
+                        cmd.action === 'optimize_time' ? '优化任务安排，提高效率' :
+                        '查看今日任务进度'
+                      }
                     >
                       {cmd.icon} {cmd.label}
                     </button>
