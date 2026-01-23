@@ -26,6 +26,7 @@ import {
 } from './ModuleComponents';
 import JournalModule from '@/components/journal/JournalModule';
 import PanoramaMemory from '@/components/memory/PanoramaMemory';
+import { supabase, isSupabaseConfigured, getCurrentUserId } from '@/lib/supabase';
 
 interface Module {
   id: string;
@@ -168,19 +169,8 @@ interface CustomizableDashboardProps {
 }
 
 export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDashboardProps = {}) {
-  const [modules, setModules] = useState<Module[]>(() => {
-    // 从 localStorage 加载保存的模块配置
-    const saved = localStorage.getItem('dashboard_modules');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error('Failed to parse saved modules:', e);
-        return [];
-      }
-    }
-    return [];
-  });
+  const [modules, setModules] = useState<Module[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [draggingModule, setDraggingModule] = useState<string | null>(null);
   const [resizingModule, setResizingModule] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -196,10 +186,104 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
   // 坏习惯百分比（模拟数据）
   const [habitScore, setHabitScore] = useState(0); // 0-100，越高越差
 
-  // 保存 modules 到 localStorage（每次 modules 变化时）
+  // 从 Supabase 加载模块配置
   useEffect(() => {
-    localStorage.setItem('dashboard_modules', JSON.stringify(modules));
-  }, [modules]);
+    const loadModules = async () => {
+      if (!isSupabaseConfigured()) {
+        console.error('❌ Supabase 未配置！');
+        console.error('请检查以下配置：');
+        console.error('1. .env 文件是否存在');
+        console.error('2. VITE_SUPABASE_URL 是否配置');
+        console.error('3. VITE_SUPABASE_ANON_KEY 是否配置');
+        console.error('当前配置：', {
+          url: import.meta.env.VITE_SUPABASE_URL,
+          hasKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY,
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const userId = getCurrentUserId();
+        console.log('📡 正在从 Supabase 加载模块配置...', { userId });
+
+        const { data, error } = await supabase
+          .from('dashboard_modules')
+          .select('*')
+          .eq('user_id', userId)
+          .single();
+
+        if (error) {
+          if (error.code === 'PGRST116') {
+            // 没有数据，这是正常的（首次使用）
+            console.log('ℹ️ 首次使用，暂无保存的模块配置');
+          } else {
+            console.error('❌ 加载模块配置失败：', error);
+            console.error('错误详情：', {
+              code: error.code,
+              message: error.message,
+              details: error.details,
+              hint: error.hint,
+            });
+          }
+        } else if (data) {
+          console.log('✅ 成功加载模块配置', data);
+          setModules(data.modules || []);
+        }
+      } catch (error) {
+        console.error('❌ 加载模块配置时发生异常：', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadModules();
+  }, []);
+
+  // 保存模块配置到 Supabase（防抖）
+  useEffect(() => {
+    if (isLoading) return; // 初始加载时不保存
+
+    const saveModules = async () => {
+      if (!isSupabaseConfigured()) {
+        console.warn('⚠️ Supabase 未配置，无法保存模块配置');
+        return;
+      }
+
+      try {
+        const userId = getCurrentUserId();
+        console.log('💾 正在保存模块配置到 Supabase...', { userId, modulesCount: modules.length });
+
+        const { error } = await supabase
+          .from('dashboard_modules')
+          .upsert({
+            user_id: userId,
+            modules: modules,
+            updated_at: new Date().toISOString(),
+          }, {
+            onConflict: 'user_id'
+          });
+
+        if (error) {
+          console.error('❌ 保存模块配置失败：', error);
+          console.error('错误详情：', {
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+          });
+        } else {
+          console.log('✅ 模块配置已保存到云端');
+        }
+      } catch (error) {
+        console.error('❌ 保存模块配置时发生异常：', error);
+      }
+    };
+
+    // 防抖：延迟 1 秒保存，避免频繁写入
+    const timer = setTimeout(saveModules, 1000);
+    return () => clearTimeout(timer);
+  }, [modules, isLoading]);
 
   // 加载保存的头像
   useEffect(() => {

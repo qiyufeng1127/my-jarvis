@@ -108,6 +108,15 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- 8. 仪表盘模块配置表
+CREATE TABLE IF NOT EXISTS dashboard_modules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT UNIQUE NOT NULL,
+  modules JSONB DEFAULT '[]',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- 创建索引以提高查询性能
 CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
@@ -120,6 +129,7 @@ CREATE INDEX IF NOT EXISTS idx_journals_user_id ON journals(user_id);
 CREATE INDEX IF NOT EXISTS idx_journals_created_at ON journals(created_at);
 CREATE INDEX IF NOT EXISTS idx_growth_records_user_id ON growth_records(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_dashboard_modules_user_id ON dashboard_modules(user_id);
 
 -- 创建更新时间触发器函数
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -159,6 +169,7 @@ ALTER TABLE memories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE journals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE growth_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE dashboard_modules ENABLE ROW LEVEL SECURITY;
 
 -- 创建 RLS 策略（允许所有操作，因为使用 local_user_id 而不是 auth.uid()）
 -- 注意：这是简化版本，生产环境需要更严格的安全策略
@@ -182,5 +193,8 @@ CREATE POLICY "Allow all operations on growth_records" ON growth_records
   FOR ALL USING (true) WITH CHECK (true);
 
 CREATE POLICY "Allow all operations on notifications" ON notifications
+  FOR ALL USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow all operations on dashboard_modules" ON dashboard_modules
   FOR ALL USING (true) WITH CHECK (true);
 
