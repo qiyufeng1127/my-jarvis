@@ -56,6 +56,8 @@ export default function FloatingAIChat() {
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [editingTasks, setEditingTasks] = useState<DecomposedTask[]>([]);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [bgColor, setBgColor] = useState('#ffffff');
+  const [showColorPicker, setShowColorPicker] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome',
@@ -69,6 +71,11 @@ export default function FloatingAIChat() {
   const [position, setPosition] = useState({ x: window.innerWidth - 420, y: 100 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  
+  // 缩放相关状态
+  const [size, setSize] = useState({ width: 400, height: 600 });
+  const [isResizing, setIsResizing] = useState(false);
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
   
   const chatRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -219,6 +226,64 @@ export default function FloatingAIChat() {
       };
     }
   }, [isDragging, dragOffset]);
+
+  // 开始缩放
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setIsResizing(true);
+    setResizeStart({
+      x: e.clientX,
+      y: e.clientY,
+      width: size.width,
+      height: size.height,
+    });
+  };
+
+  // 缩放中
+  const handleResize = (e: MouseEvent) => {
+    if (!isResizing) return;
+    
+    const deltaX = e.clientX - resizeStart.x;
+    const deltaY = e.clientY - resizeStart.y;
+    
+    const newWidth = Math.max(320, resizeStart.width + deltaX);
+    const newHeight = Math.max(400, resizeStart.height + deltaY);
+    
+    setSize({ width: newWidth, height: newHeight });
+  };
+
+  // 结束缩放
+  const handleResizeEnd = () => {
+    setIsResizing(false);
+  };
+
+  useEffect(() => {
+    if (isResizing) {
+      window.addEventListener('mousemove', handleResize);
+      window.addEventListener('mouseup', handleResizeEnd);
+      return () => {
+        window.removeEventListener('mousemove', handleResize);
+        window.removeEventListener('mouseup', handleResizeEnd);
+      };
+    }
+  }, [isResizing, resizeStart]);
+
+  // 判断颜色是否为深色
+  const isColorDark = (color: string): boolean => {
+    const hex = color.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    return brightness < 128;
+  };
+
+  const isDark = isColorDark(bgColor);
+  const textColor = isDark ? '#ffffff' : '#000000';
+  const accentColor = isDark ? 'rgba(255,255,255,0.7)' : '#666666';
+  const cardBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
+  const buttonBg = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)';
 
   // 智能标签分析 - 使用AI或关键词作为后备
   const analyzeMessageTags = async (message: string) => {
@@ -846,60 +911,101 @@ export default function FloatingAIChat() {
       {isOpen && (
         <div
           ref={chatRef}
-          className="fixed bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+          className="fixed rounded-2xl shadow-2xl flex flex-col overflow-hidden"
           style={{
             left: position.x,
             top: position.y,
-            width: isMinimized ? '320px' : '400px',
-            height: isMinimized ? '60px' : '600px',
+            width: isMinimized ? '320px' : `${size.width}px`,
+            height: isMinimized ? '60px' : `${size.height}px`,
             zIndex: 1000,
-            cursor: isDragging ? 'grabbing' : 'default',
+            cursor: isDragging ? 'grabbing' : isResizing ? 'se-resize' : 'default',
+            backgroundColor: bgColor,
           }}
+          onClick={() => setShowColorPicker(false)}
         >
           {/* 头部 - 可拖拽 */}
           <div
-            className="bg-purple-600 text-white px-4 py-3 flex items-center justify-between cursor-move"
+            className="px-4 py-3 flex items-center justify-between cursor-move"
+            style={{ backgroundColor: bgColor, color: textColor }}
             onMouseDown={handleDragStart}
           >
             <div className="flex items-center space-x-2">
               <GripVertical className="w-4 h-4 opacity-50" />
               <span className="text-2xl">🤖</span>
               <div>
-                <div className="font-semibold">AI助手</div>
-                <div className="text-xs opacity-80">智能任务分析</div>
+                <div className="font-semibold" style={{ color: textColor }}>AI助手</div>
+                <div className="text-xs" style={{ color: accentColor }}>智能任务分析</div>
               </div>
             </div>
             
             <div className="flex items-center space-x-2">
+              {/* 颜色选择器 */}
+              <div className="relative">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowColorPicker(!showColorPicker);
+                  }}
+                  className="p-1 rounded transition-colors"
+                  style={{ backgroundColor: buttonBg }}
+                  title="修改颜色"
+                >
+                  <span className="text-sm">🎨</span>
+                </button>
+
+                {showColorPicker && (
+                  <div 
+                    className="absolute right-0 top-8 rounded-lg shadow-xl p-4 z-50 border"
+                    style={{ 
+                      backgroundColor: bgColor,
+                      borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)',
+                      minWidth: '200px'
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="text-xs mb-2" style={{ color: accentColor }}>选择背景颜色</div>
+                    <input
+                      type="color"
+                      value={bgColor}
+                      onChange={(e) => setBgColor(e.target.value)}
+                      className="w-full h-10 rounded cursor-pointer"
+                    />
+                  </div>
+                )}
+              </div>
+
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowConfigModal(true);
                 }}
-                className="p-1 hover:bg-white/20 rounded transition-colors"
+                className="p-1 rounded transition-colors"
+                style={{ backgroundColor: buttonBg }}
                 title="AI配置"
               >
-                <Settings className="w-4 h-4" />
+                <Settings className="w-4 h-4" style={{ color: textColor }} />
               </button>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setIsMinimized(!isMinimized);
                 }}
-                className="p-1 hover:bg-white/20 rounded transition-colors"
+                className="p-1 rounded transition-colors"
+                style={{ backgroundColor: buttonBg }}
                 title={isMinimized ? "展开" : "最小化"}
               >
-                {isMinimized ? <Maximize2 className="w-4 h-4" /> : <Minimize2 className="w-4 h-4" />}
+                {isMinimized ? <Maximize2 className="w-4 h-4" style={{ color: textColor }} /> : <Minimize2 className="w-4 h-4" style={{ color: textColor }} />}
               </button>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setIsOpen(false);
                 }}
-                className="p-1 hover:bg-white/20 rounded transition-colors"
+                className="p-1 rounded transition-colors"
+                style={{ backgroundColor: buttonBg }}
                 title="关闭"
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4" style={{ color: textColor }} />
               </button>
             </div>
           </div>
@@ -908,31 +1014,35 @@ export default function FloatingAIChat() {
           {!isMinimized && (
             <>
               {/* 对话区域 */}
-              <div ref={conversationRef} className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+              <div ref={conversationRef} className="flex-1 overflow-y-auto p-4 space-y-3" style={{ backgroundColor: cardBg }}>
                 {messages.map((message) => (
                   <div
                     key={message.id}
                     className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`max-w-[85%] rounded-lg p-3 ${
-                        message.role === 'user'
-                          ? 'bg-purple-600 text-white'
-                          : 'bg-white shadow-md'
-                      }`}
+                      className="max-w-[85%] rounded-lg p-3"
+                      style={{
+                        backgroundColor: message.role === 'user' 
+                          ? (isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)')
+                          : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.9)'),
+                        color: textColor,
+                        boxShadow: message.role === 'assistant' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
+                      }}
                     >
                       <div className="whitespace-pre-wrap text-sm">{message.content}</div>
                       
                       {/* 显示用户消息的标签 */}
                       {message.role === 'user' && message.tags && (message.tags.emotions.length > 0 || message.tags.categories.length > 0) && (
-                        <div className="mt-2 pt-2 border-t border-white/20">
+                        <div className="mt-2 pt-2 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}>
                           <div className="flex flex-wrap gap-1">
                             {message.tags.emotions.map(emotionId => {
                               const tag = EMOTION_TAGS.find(t => t.id === emotionId);
                               return tag ? (
                                 <span
                                   key={emotionId}
-                                  className="text-xs px-2 py-0.5 rounded-full bg-white/20"
+                                  className="text-xs px-2 py-0.5 rounded-full"
+                                  style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}
                                 >
                                   {tag.emoji} {tag.label}
                                 </span>
@@ -943,7 +1053,8 @@ export default function FloatingAIChat() {
                               return tag ? (
                                 <span
                                   key={categoryId}
-                                  className="text-xs px-2 py-0.5 rounded-full bg-white/20"
+                                  className="text-xs px-2 py-0.5 rounded-full"
+                                  style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}
                                 >
                                   {tag.emoji} {tag.label}
                                 </span>
@@ -955,15 +1066,15 @@ export default function FloatingAIChat() {
 
                       {/* 显示奖励 */}
                       {message.rewards && (message.rewards.gold > 0 || message.rewards.growth > 0) && (
-                        <div className={`mt-2 pt-2 border-t ${message.role === 'user' ? 'border-white/20' : 'border-gray-200'}`}>
+                        <div className="mt-2 pt-2 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}>
                           <div className="flex items-center space-x-2 text-xs">
                             {message.rewards.gold > 0 && (
-                              <span className={message.role === 'user' ? 'text-yellow-200' : 'text-yellow-600'}>
+                              <span style={{ color: '#fbbf24' }}>
                                 💰 +{message.rewards.gold}
                               </span>
                             )}
                             {message.rewards.growth > 0 && (
-                              <span className={message.role === 'user' ? 'text-green-200' : 'text-green-600'}>
+                              <span style={{ color: '#4ade80' }}>
                                 ⭐ +{message.rewards.growth}
                               </span>
                             )}
@@ -973,20 +1084,21 @@ export default function FloatingAIChat() {
                       
                       {/* 显示目标匹配结果 */}
                       {message.goalMatches && message.goalMatches.length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-gray-200">
-                          <div className="text-xs font-semibold mb-2 text-gray-600">
+                        <div className="mt-3 pt-3 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}>
+                          <div className="text-xs font-semibold mb-2" style={{ color: accentColor }}>
                             🎯 关联的目标：
                           </div>
                           <div className="space-y-2">
                             {message.goalMatches.map((match, index) => (
                               <div
                                 key={match.goalId}
-                                className="flex items-center justify-between p-2 rounded bg-gray-50"
+                                className="flex items-center justify-between p-2 rounded"
+                                style={{ backgroundColor: cardBg }}
                               >
-                                <span className="text-xs font-medium text-gray-900">
+                                <span className="text-xs font-medium" style={{ color: textColor }}>
                                   {index + 1}. {match.goalName}
                                 </span>
-                                <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                                <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#4ade80', color: '#ffffff' }}>
                                   {Math.round(match.confidence * 100)}%
                                 </span>
                               </div>
@@ -997,18 +1109,19 @@ export default function FloatingAIChat() {
 
                       {/* 显示分解的任务列表 */}
                       {message.decomposedTasks && message.decomposedTasks.length > 0 && !message.showTaskEditor && (
-                        <div className="mt-3 pt-3 border-t border-gray-200">
-                          <div className="text-xs font-semibold mb-2 text-gray-600">
+                        <div className="mt-3 pt-3 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}>
+                          <div className="text-xs font-semibold mb-2" style={{ color: accentColor }}>
                             📋 分解的任务：
                           </div>
                           <div className="space-y-2">
                             {message.decomposedTasks.map((task, index) => (
                               <div
                                 key={index}
-                                className="p-2 rounded bg-gray-50 text-xs"
+                                className="p-2 rounded text-xs"
+                                style={{ backgroundColor: cardBg }}
                               >
-                                <div className="font-medium text-gray-900">{task.title}</div>
-                                <div className="text-gray-600 mt-1">
+                                <div className="font-medium" style={{ color: textColor }}>{task.title}</div>
+                                <div className="mt-1" style={{ color: accentColor }}>
                                   ⏱️ {task.duration}分钟
                                   {task.startTime && ` | 🕐 ${task.startTime}`}
                                   {task.location && ` | 📍 ${task.location}`}
@@ -1021,11 +1134,12 @@ export default function FloatingAIChat() {
 
                       {/* 显示待确认的操作按钮 */}
                       {message.pendingAction && message.role === 'assistant' && (
-                        <div className="mt-3 pt-3 border-t border-gray-200">
+                        <div className="mt-3 pt-3 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}>
                           <button
                             onClick={() => handleConfirmAction(message.id)}
                             disabled={isProcessing}
-                            className="w-full py-2 px-3 rounded-lg bg-green-500 text-white text-sm font-medium hover:bg-green-600 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full py-2 px-3 rounded-lg text-sm font-medium hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            style={{ backgroundColor: '#4ade80', color: '#ffffff' }}
                           >
                             ✅ 确认创建到时间轴
                           </button>
@@ -1041,12 +1155,13 @@ export default function FloatingAIChat() {
                 
                 {/* 任务编辑器 */}
                 {editingMessageId && editingTasks.length > 0 && (
-                  <div className="bg-white rounded-lg shadow-lg p-4 border-2 border-purple-500">
+                  <div className="rounded-lg shadow-lg p-4 border-2" style={{ backgroundColor: bgColor, borderColor: '#8b5cf6' }}>
                     <div className="flex items-center justify-between mb-3">
                       <div className="font-semibold text-gray-900">✏️ 任务编辑器</div>
                       <button
                         onClick={handleCancelEditing}
-                        className="text-xs text-gray-500 hover:text-gray-700"
+                        className="text-xs"
+                        style={{ color: accentColor }}
                       >
                         取消
                       </button>
@@ -1056,33 +1171,48 @@ export default function FloatingAIChat() {
                       {editingTasks.map((task, index) => (
                         <div
                           key={task.id}
-                          className="bg-gray-50 rounded-lg p-3 border border-gray-200"
+                          className="rounded-lg p-3 border"
+                          style={{ 
+                            backgroundColor: cardBg,
+                            borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'
+                          }}
                         >
                           <div className="flex items-start justify-between mb-2">
                             <div className="flex items-center space-x-2 flex-1">
-                              <span className="text-sm font-medium text-gray-500">#{index + 1}</span>
+                              <span className="text-sm font-medium" style={{ color: accentColor }}>#{index + 1}</span>
                               <input
                                 type="text"
                                 value={task.title}
                                 onChange={(e) => handleTaskTitleChange(task.id, e.target.value)}
-                                className="flex-1 text-sm px-2 py-1 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                className="flex-1 text-sm px-2 py-1 rounded border focus:outline-none"
+                                style={{
+                                  backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)',
+                                  color: textColor,
+                                  borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)',
+                                }}
                               />
                             </div>
                             <button
                               onClick={() => handleDeleteTask(task.id)}
-                              className="ml-2 text-red-500 hover:text-red-700 text-xs"
+                              className="ml-2 text-xs"
+                              style={{ color: '#ef4444' }}
                             >
                               🗑️
                             </button>
                           </div>
                           
-                          <div className="flex items-center space-x-2 text-xs text-gray-600">
+                          <div className="flex items-center space-x-2 text-xs" style={{ color: accentColor }}>
                             <span>⏱️</span>
                             <input
                               type="number"
                               value={task.duration}
                               onChange={(e) => handleTaskDurationChange(task.id, parseInt(e.target.value) || 0)}
-                              className="w-16 px-2 py-1 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                              className="w-16 px-2 py-1 rounded border focus:outline-none"
+                              style={{
+                                backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)',
+                                color: textColor,
+                                borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)',
+                              }}
                               min="1"
                             />
                             <span>分钟</span>
@@ -1106,14 +1236,16 @@ export default function FloatingAIChat() {
                             <button
                               onClick={() => index > 0 && handleTaskReorder(index, index - 1)}
                               disabled={index === 0}
-                              className="text-xs px-2 py-1 rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="text-xs px-2 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                              style={{ backgroundColor: buttonBg, color: textColor }}
                             >
                               ⬆️ 上移
                             </button>
                             <button
                               onClick={() => index < editingTasks.length - 1 && handleTaskReorder(index, index + 1)}
                               disabled={index === editingTasks.length - 1}
-                              className="text-xs px-2 py-1 rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="text-xs px-2 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                              style={{ backgroundColor: buttonBg, color: textColor }}
                             >
                               ⬇️ 下移
                             </button>
@@ -1125,7 +1257,8 @@ export default function FloatingAIChat() {
                     <button
                       onClick={handlePushToTimeline}
                       disabled={isProcessing || editingTasks.length === 0}
-                      className="w-full py-2 px-3 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full py-2 px-3 rounded-lg text-sm font-medium hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{ backgroundColor: '#8b5cf6', color: '#ffffff' }}
                     >
                       🚀 推送到时间轴 ({editingTasks.length} 个任务)
                     </button>
@@ -1135,14 +1268,14 @@ export default function FloatingAIChat() {
                 {/* 处理中状态 */}
                 {isProcessing && (
                   <div className="flex justify-start">
-                    <div className="bg-white shadow-md rounded-lg p-3">
+                    <div className="shadow-md rounded-lg p-3" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.9)' }}>
                       <div className="flex items-center space-x-2">
                         <div className="flex space-x-1">
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                          <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: accentColor, animationDelay: '0ms' }} />
+                          <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: accentColor, animationDelay: '150ms' }} />
+                          <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: accentColor, animationDelay: '300ms' }} />
                         </div>
-                        <span className="text-xs text-gray-600">AI正在思考...</span>
+                        <span className="text-xs" style={{ color: accentColor }}>AI正在思考...</span>
                       </div>
                     </div>
                   </div>
@@ -1150,9 +1283,9 @@ export default function FloatingAIChat() {
               </div>
 
               {/* 快速指令 */}
-              <div className="px-3 py-2 border-t border-gray-200 bg-white">
+              <div className="px-3 py-2 border-t" style={{ backgroundColor: bgColor, borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}>
                 <div className="flex items-center space-x-2 overflow-x-auto">
-                  <span className="text-xs text-gray-500 whitespace-nowrap">快速：</span>
+                  <span className="text-xs whitespace-nowrap" style={{ color: accentColor }}>快速：</span>
                   {[
                     { label: '查看任务', icon: '📊' },
                     { label: '分解任务', icon: '📅' },
@@ -1162,7 +1295,8 @@ export default function FloatingAIChat() {
                     <button
                       key={cmd.label}
                       onClick={() => setInputValue(cmd.label === '分解任务' ? '5分钟后去洗漱，然后洗碗，倒猫粮，洗衣服，工作30分钟，收拾卧室、客厅和拍摄间' : cmd.label + '：')}
-                      className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 hover:bg-gray-200 transition-colors whitespace-nowrap"
+                      className="px-2 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap"
+                      style={{ backgroundColor: buttonBg, color: textColor }}
                     >
                       {cmd.icon} {cmd.label}
                     </button>
@@ -1171,7 +1305,7 @@ export default function FloatingAIChat() {
               </div>
 
               {/* 输入区域 */}
-              <div className="p-3 border-t border-gray-200 bg-white">
+              <div className="p-3 border-t" style={{ backgroundColor: bgColor, borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}>
                 <div className="flex items-end space-x-2">
                   <textarea
                     ref={textareaRef}
@@ -1180,17 +1314,35 @@ export default function FloatingAIChat() {
                     onKeyDown={handleKeyDown}
                     placeholder="对我说点什么..."
                     rows={2}
-                    className="flex-1 px-3 py-2 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm border border-gray-200"
+                    className="flex-1 px-3 py-2 rounded-lg resize-none focus:outline-none text-sm border"
+                    style={{
+                      backgroundColor: cardBg,
+                      color: textColor,
+                      borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)',
+                    }}
                   />
                   <button
                     onClick={handleSend}
                     disabled={!inputValue.trim() || isProcessing}
-                    className="p-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="p-2 rounded-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{ backgroundColor: '#8b5cf6', color: '#ffffff' }}
                   >
                     <Send className="w-4 h-4" />
                   </button>
                 </div>
               </div>
+
+              {/* 缩放手柄 - 右下角 */}
+              {!isMinimized && (
+                <div
+                  className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"
+                  onMouseDown={handleResizeStart}
+                  style={{
+                    background: `linear-gradient(135deg, transparent 50%, ${isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)'} 50%)`,
+                  }}
+                  title="拖拽缩放"
+                />
+              )}
             </>
           )}
         </div>

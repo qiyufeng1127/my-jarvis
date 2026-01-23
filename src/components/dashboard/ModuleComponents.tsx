@@ -1428,7 +1428,7 @@ export function ReportsModule({ isDark = false }: { isDark?: boolean }) {
 
 // 设置模块
 export function SettingsModule({ isDark = false }: { isDark?: boolean }) {
-  const [activeTab, setActiveTab] = useState<'growth' | 'identity' | 'procrastination' | 'economy' | 'appearance' | 'notification' | 'api' | 'sync'>('growth');
+  const [activeTab, setActiveTab] = useState<'growth' | 'identity' | 'procrastination' | 'economy' | 'appearance' | 'notification' | 'sync'>('sync');
   const [strictnessLevel, setStrictnessLevel] = useState(2); // 0=低, 1=中, 2=高
   
   // 外观设置状态
@@ -1469,7 +1469,6 @@ export function SettingsModule({ isDark = false }: { isDark?: boolean }) {
   const buttonBg = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)';
 
   const tabs = [
-    { id: 'api', label: 'API配置', icon: '🔑' },
     { id: 'sync', label: '云同步', icon: '☁️' },
     { id: 'appearance', label: '外观体验', icon: '🎨' },
     { id: 'notification', label: '通知语音', icon: '🔔' },
@@ -1499,127 +1498,6 @@ export function SettingsModule({ isDark = false }: { isDark?: boolean }) {
           </button>
         ))}
       </div>
-
-      {/* API 配置 */}
-      {activeTab === 'api' && (
-        <div className="space-y-4">
-          <h4 className="font-semibold text-base" style={{ color: textColor }}>🔑 API 配置</h4>
-          
-          {/* Supabase 配置 */}
-          <div className="space-y-3">
-            <h5 className="font-medium text-sm" style={{ color: textColor }}>Supabase（云端数据库）</h5>
-            <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
-              <label className="block mb-3">
-                <span className="text-sm font-medium block mb-2" style={{ color: textColor }}>Supabase URL</span>
-                <input
-                  type="text"
-                  value={supabaseUrl}
-                  onChange={(e) => setSupabaseUrl(e.target.value)}
-                  placeholder="https://your-project.supabase.co"
-                  className="w-full px-3 py-2.5 rounded-lg text-sm"
-                  style={{
-                    backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)',
-                    color: textColor,
-                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}`,
-                  }}
-                />
-              </label>
-              <label className="block">
-                <span className="text-sm font-medium block mb-2" style={{ color: textColor }}>Supabase Anon Key</span>
-                <input
-                  type="password"
-                  value={supabaseKey}
-                  onChange={(e) => setSupabaseKey(e.target.value)}
-                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  className="w-full px-3 py-2.5 rounded-lg text-sm"
-                  style={{
-                    backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)',
-                    color: textColor,
-                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}`,
-                  }}
-                />
-              </label>
-              <div className="mt-3 text-xs" style={{ color: accentColor }}>
-                💡 在 Supabase 项目设置中获取这些信息
-              </div>
-            </div>
-          </div>
-
-          {/* OpenAI 配置 */}
-          <div className="space-y-3">
-            <h5 className="font-medium text-sm" style={{ color: textColor }}>OpenAI（AI 功能）</h5>
-            <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
-              <label className="block mb-3">
-                <span className="text-sm font-medium block mb-2" style={{ color: textColor }}>API Key</span>
-                <input
-                  type="password"
-                  value={openaiKey}
-                  onChange={(e) => setOpenaiKey(e.target.value)}
-                  placeholder="sk-..."
-                  className="w-full px-3 py-2.5 rounded-lg text-sm"
-                  style={{
-                    backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)',
-                    color: textColor,
-                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}`,
-                  }}
-                />
-              </label>
-              <label className="block">
-                <span className="text-sm font-medium block mb-2" style={{ color: textColor }}>Base URL（可选）</span>
-                <input
-                  type="text"
-                  value={openaiBaseUrl}
-                  onChange={(e) => setOpenaiBaseUrl(e.target.value)}
-                  placeholder="https://api.openai.com/v1"
-                  className="w-full px-3 py-2.5 rounded-lg text-sm"
-                  style={{
-                    backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)',
-                    color: textColor,
-                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}`,
-                  }}
-                />
-              </label>
-              <div className="mt-3 text-xs" style={{ color: accentColor }}>
-                💡 使用自定义 Base URL 可以连接到其他兼容的 API 服务
-              </div>
-            </div>
-          </div>
-
-          {/* 测试连接 */}
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => alert('测试 Supabase 连接...')}
-              className="py-3 rounded-lg text-sm font-semibold transition-all hover:scale-[1.02]"
-              style={{ backgroundColor: buttonBg, color: textColor }}
-            >
-              🔌 测试 Supabase
-            </button>
-            <button
-              onClick={() => alert('测试 OpenAI 连接...')}
-              className="py-3 rounded-lg text-sm font-semibold transition-all hover:scale-[1.02]"
-              style={{ backgroundColor: buttonBg, color: textColor }}
-            >
-              🤖 测试 OpenAI
-            </button>
-          </div>
-
-          {/* 保存按钮 */}
-          <button
-            onClick={() => {
-              // 保存到环境变量或本地存储
-              localStorage.setItem('VITE_SUPABASE_URL', supabaseUrl);
-              localStorage.setItem('VITE_SUPABASE_ANON_KEY', supabaseKey);
-              localStorage.setItem('VITE_OPENAI_API_KEY', openaiKey);
-              localStorage.setItem('VITE_OPENAI_BASE_URL', openaiBaseUrl);
-              alert('API 配置已保存！请刷新页面使配置生效。');
-            }}
-            className="w-full py-3 rounded-lg text-sm font-semibold transition-all hover:scale-[1.02]"
-            style={{ backgroundColor: buttonBg, color: textColor }}
-          >
-            💾 保存配置
-          </button>
-        </div>
-      )}
 
       {/* 云同步设置 */}
       {activeTab === 'sync' && (
