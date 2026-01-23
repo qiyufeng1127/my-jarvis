@@ -44,7 +44,7 @@ const ensureUserExists = async (userId: string) => {
   if (!isSupabaseConfigured()) return;
   
   try {
-    // 使用 upsert 代替 insert，如果用户已存在则更新，不存在则创建
+    // 使用 upsert，以 local_user_id 作为冲突键
     const { error } = await supabase.from(TABLES.USERS).upsert({
       id: userId,
       local_user_id: userId,
@@ -69,12 +69,46 @@ const ensureUserExists = async (userId: string) => {
         syncPhotos: false,
       },
     }, {
-      onConflict: 'id', // 如果 id 冲突，则更新
-      ignoreDuplicates: false, // 不忽略重复，而是更新
+      onConflict: 'local_user_id', // 使用 local_user_id 作为冲突键
+      ignoreDuplicates: true, // 如果已存在则忽略
     });
     
     if (error) {
-      console.error('确保用户存在失败:', error);
+      // 如果还是失败，可能是因为 id 和 local_user_id 不一致
+      // 尝试只用 id 作为冲突键
+      const { error: error2 } = await supabase.from(TABLES.USERS).upsert({
+        id: userId,
+        local_user_id: userId,
+        public_data: {},
+        device_list: [],
+        settings: {
+          verificationStrictness: 'medium',
+          enableProgressCheck: true,
+          goldRewardMultiplier: 1.0,
+          goldPenaltyMultiplier: 1.0,
+          enableNotifications: true,
+          notificationTimes: ['09:00', '14:00', '21:00'],
+          quietHours: { start: '22:00', end: '08:00' },
+          theme: 'auto',
+          primaryColor: '#991B1B',
+          fontSize: 'medium',
+          voiceType: 'default',
+          voiceSpeed: 1.0,
+          wakeWordSensitivity: 0.8,
+          autoSync: true,
+          syncInterval: 5,
+          syncPhotos: false,
+        },
+      }, {
+        onConflict: 'id',
+        ignoreDuplicates: true,
+      });
+      
+      if (error2) {
+        console.error('确保用户存在失败:', error2);
+      } else {
+        console.log('✅ 用户已确保存在于 Supabase:', userId);
+      }
     } else {
       console.log('✅ 用户已确保存在于 Supabase:', userId);
     }
