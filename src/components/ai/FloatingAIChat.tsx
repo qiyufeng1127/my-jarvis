@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, X, Minimize2, Maximize2, GripVertical, Settings } from 'lucide-react';
+import { Send, X, Minimize2, Maximize2, GripVertical, Settings, Hourglass, ChevronDown, ChevronUp } from 'lucide-react';
 import { useGoalStore } from '@/stores/goalStore';
 import { matchTaskToGoals, generateGoalSuggestionMessage } from '@/services/aiGoalMatcher';
 import { useMemoryStore, EMOTION_TAGS, CATEGORY_TAGS } from '@/stores/memoryStore';
@@ -43,6 +43,10 @@ interface Message {
   };
   // 是否显示任务编辑器
   showTaskEditor?: boolean;
+  // AI思考过程
+  thinkingProcess?: string[];
+  // 思考过程是否展开
+  isThinkingExpanded?: boolean;
 }
 
 export default function FloatingAIChat() {
@@ -58,6 +62,7 @@ export default function FloatingAIChat() {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [bgColor, setBgColor] = useState('#ffffff');
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [thinkingSteps, setThinkingSteps] = useState<string[]>([]);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome',
@@ -497,6 +502,25 @@ export default function FloatingAIChat() {
     setEditingTasks([]);
   };
 
+  // 添加思考步骤
+  const addThinkingStep = (step: string) => {
+    setThinkingSteps(prev => [...prev, step]);
+  };
+
+  // 清空思考步骤
+  const clearThinkingSteps = () => {
+    setThinkingSteps([]);
+  };
+
+  // 切换思考过程展开/折叠
+  const toggleThinkingExpanded = (messageId: string) => {
+    setMessages(prev => prev.map(msg => 
+      msg.id === messageId 
+        ? { ...msg, isThinkingExpanded: !msg.isThinkingExpanded }
+        : msg
+    ));
+  };
+
   // 发送消息
   const handleSend = async () => {
     const message = inputValue.trim();
@@ -580,14 +604,25 @@ export default function FloatingAIChat() {
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
     setIsProcessing(true);
+    clearThinkingSteps(); // 清空之前的思考步骤
 
     // 智能分析任务并匹配目标
     try {
       const goals = useGoalStore.getState().goals;
       
+      // 添加思考步骤
+      addThinkingStep('📝 正在分析你的输入...');
+      
       // 检测是否是任务创建/分解请求
       const isTaskCreation = /创建|添加|新建|安排|计划|做|完成|学习|工作|运动|分解|拆解|洗漱|洗碗|猫粮|洗衣服|收拾|吃饭|垃圾/.test(message);
       const needsDecompose = /分解|拆解|详细安排|具体步骤/.test(message) || message.length > 20 || /然后|接着|再|之后|，|、/.test(message);
+      
+      if (isTaskCreation) {
+        addThinkingStep('🎯 检测到任务创建请求');
+        if (needsDecompose) {
+          addThinkingStep('🔍 需要分解成多个任务');
+        }
+      }
       
       let responseContent = '';
       let aiTags = { emotions: [] as string[], categories: [] as string[], type: undefined as any };
@@ -663,6 +698,8 @@ export default function FloatingAIChat() {
         // 如果需要分解且配置了AI，使用AI分解
         if (needsDecompose && hasAI) {
           try {
+            addThinkingStep('🤖 调用AI进行任务分解...');
+            
             // 增强提示词，包含动线优化和时长参考
             const enhancedPrompt = `${message}
 
@@ -702,9 +739,12 @@ export default function FloatingAIChat() {
 
 **重要**：一定要把每个独立的动作分解成单独的任务！`;
 
+            addThinkingStep('⏳ AI正在分析任务结构...');
             const decomposeResult = await aiService.decomposeTask(enhancedPrompt);
             
             if (decomposeResult.success && decomposeResult.tasks && decomposeResult.tasks.length > 0) {
+              addThinkingStep(`✅ 成功分解出 ${decomposeResult.tasks.length} 个任务`);
+              
               // 为每个任务添加ID和位置信息
               let tasksWithMetadata: DecomposedTask[] = decomposeResult.tasks.map((task, index) => ({
                 id: `task-${Date.now()}-${index}`,
@@ -715,9 +755,11 @@ export default function FloatingAIChat() {
                 location: detectTaskLocation(task.title),
               }));
 
+              addThinkingStep('🏠 正在优化任务动线...');
               // 按动线优化排序
               tasksWithMetadata = optimizeTasksByLocation(tasksWithMetadata);
 
+              addThinkingStep('⏰ 正在计算任务时间...');
               // 计算开始时间（从当前时间或用户指定时间开始）
               const startTime = new Date();
               // 检查用户是否指定了开始时间
@@ -725,13 +767,18 @@ export default function FloatingAIChat() {
               const hourMatch = message.match(/(\d+)(个)?小时(之后|后)/);
               
               if (hourMatch) {
-                startTime.setHours(startTime.getHours() + parseInt(hourMatch[1]));
+                const hours = parseInt(hourMatch[1]);
+                startTime.setHours(startTime.getHours() + hours);
+                addThinkingStep(`⏰ 任务将在 ${hours} 小时后开始`);
               } else if (minuteMatch) {
-                startTime.setMinutes(startTime.getMinutes() + parseInt(minuteMatch[1]));
+                const minutes = parseInt(minuteMatch[1]);
+                startTime.setMinutes(startTime.getMinutes() + minutes);
+                addThinkingStep(`⏰ 任务将在 ${minutes} 分钟后开始`);
               }
               
               tasksWithMetadata = recalculateTaskTimes(tasksWithMetadata, startTime);
 
+              addThinkingStep('🎯 正在匹配长期目标...');
               // 匹配目标
               const goalMatches: Record<string, number> = {};
               if (goals.length > 0) {
@@ -742,7 +789,12 @@ export default function FloatingAIChat() {
                 matches.forEach(match => {
                   goalMatches[match.goalId] = match.confidence;
                 });
+                if (matches.length > 0) {
+                  addThinkingStep(`🎯 找到 ${matches.length} 个相关目标`);
+                }
               }
+
+              addThinkingStep('✨ 任务分解完成！');
 
               if (!analysis.type) {
                 responseContent += '🤖 **AI智能任务分解 + 动线优化**\n\n';
@@ -798,16 +850,20 @@ export default function FloatingAIChat() {
                 showTaskEditor: true,
                 tags: aiTags,
                 rewards: aiRewards,
+                thinkingProcess: [...thinkingSteps],
+                isThinkingExpanded: false,
               };
               
               setMessages(prev => [...prev, aiMessage]);
               // 自动开始编辑
               handleStartEditing(aiMessage.id, tasksWithMetadata);
               setIsProcessing(false);
+              clearThinkingSteps();
               return;
             }
           } catch (error) {
             console.error('AI任务分解失败:', error);
+            addThinkingStep('❌ AI分解失败，使用简单创建');
             // 继续使用简单创建
           }
         }
@@ -1056,6 +1112,39 @@ export default function FloatingAIChat() {
                     >
                       <div className="whitespace-pre-wrap text-sm">{message.content}</div>
                       
+                      {/* 显示AI思考过程 */}
+                      {message.role === 'assistant' && message.thinkingProcess && message.thinkingProcess.length > 0 && (
+                        <div className="mt-3 pt-3 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}>
+                          <button
+                            onClick={() => toggleThinkingExpanded(message.id)}
+                            className="flex items-center space-x-2 text-xs font-semibold hover:opacity-80 transition-opacity"
+                            style={{ color: accentColor }}
+                          >
+                            {message.isThinkingExpanded ? (
+                              <ChevronUp className="w-4 h-4" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4" />
+                            )}
+                            <span>💭 AI思考过程 ({message.thinkingProcess.length} 步)</span>
+                          </button>
+                          
+                          {message.isThinkingExpanded && (
+                            <div className="mt-2 space-y-1 pl-2 border-l-2" style={{ borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)' }}>
+                              {message.thinkingProcess.map((step, index) => (
+                                <div 
+                                  key={index} 
+                                  className="text-xs flex items-start space-x-2"
+                                  style={{ color: accentColor }}
+                                >
+                                  <span className="opacity-50">{index + 1}.</span>
+                                  <span>{step}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
                       {/* 显示用户消息的标签 */}
                       {message.role === 'user' && message.tags && (message.tags.emotions.length > 0 || message.tags.categories.length > 0) && (
                         <div className="mt-2 pt-2 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}>
@@ -1292,15 +1381,30 @@ export default function FloatingAIChat() {
                 {/* 处理中状态 */}
                 {isProcessing && (
                   <div className="flex justify-start">
-                    <div className="shadow-md rounded-lg p-3" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.9)' }}>
-                      <div className="flex items-center space-x-2">
-                        <div className="flex space-x-1">
-                          <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: accentColor, animationDelay: '0ms' }} />
-                          <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: accentColor, animationDelay: '150ms' }} />
-                          <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: accentColor, animationDelay: '300ms' }} />
-                        </div>
-                        <span className="text-xs" style={{ color: accentColor }}>AI正在思考...</span>
+                    <div className="shadow-md rounded-lg p-3 max-w-[85%]" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.9)' }}>
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Hourglass className="w-4 h-4 animate-spin" style={{ color: accentColor }} />
+                        <span className="text-xs font-semibold" style={{ color: accentColor }}>AI正在思考...</span>
                       </div>
+                      
+                      {/* 思考步骤 */}
+                      {thinkingSteps.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {thinkingSteps.map((step, index) => (
+                            <div 
+                              key={index} 
+                              className="text-xs flex items-start space-x-2 animate-fade-in"
+                              style={{ 
+                                color: accentColor,
+                                animationDelay: `${index * 100}ms`
+                              }}
+                            >
+                              <span className="opacity-50">•</span>
+                              <span>{step}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1350,8 +1454,13 @@ export default function FloatingAIChat() {
                     disabled={!inputValue.trim() || isProcessing}
                     className="p-2 rounded-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{ backgroundColor: '#8b5cf6', color: '#ffffff' }}
+                    title={isProcessing ? "AI正在思考..." : "发送消息"}
                   >
-                    <Send className="w-4 h-4" />
+                    {isProcessing ? (
+                      <Hourglass className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
                   </button>
                 </div>
               </div>
