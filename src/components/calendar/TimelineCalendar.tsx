@@ -591,13 +591,15 @@ export default function TimelineCalendar({
 
   // 根据模块尺寸计算时间轴区域的高度
   const getTimelineHeight = () => {
-    if (!moduleSize) return 600; // 默认高度增加到600
+    if (!moduleSize) return 600; // 默认高度
     
     // 减去顶部日历区域和底部工具栏的高度
-    const calendarHeight = calendarView === 'week' ? 280 : 380; // 日历区域高度
-    const toolbarsHeight = 120; // 顶部和底部工具栏高度
+    const calendarHeight = calendarView === 'week' ? 200 : 300; // 日历区域固定高度
+    const toolbarsHeight = 150; // 顶部和底部工具栏高度
     
-    return Math.max(400, moduleSize.height - calendarHeight - toolbarsHeight);
+    // 时间轴应该占据至少70%的可用空间
+    const availableHeight = moduleSize.height - calendarHeight - toolbarsHeight;
+    return Math.max(500, availableHeight);
   };
 
   const timelineHeight = getTimelineHeight();
@@ -696,10 +698,11 @@ export default function TimelineCalendar({
 
         {/* 日历网格 */}
         <div 
-          className={calendarView === 'week' ? 'overflow-auto px-4 py-2' : 'px-4 py-2'} 
+          className="overflow-auto px-4 py-2"
           style={{ 
-            maxHeight: calendarView === 'week' ? '200px' : 'auto',
-            overflowY: calendarView === 'week' ? 'auto' : 'visible'
+            maxHeight: calendarView === 'week' ? '180px' : '280px',
+            minHeight: calendarView === 'week' ? '120px' : '200px',
+            overflowY: 'auto',
           }}
         >
           <div className={`grid grid-cols-7 ${calendarView === 'month' ? 'gap-2' : 'gap-3'}`}>
@@ -771,7 +774,7 @@ export default function TimelineCalendar({
       </div>
 
       {/* 下半部分：时间轴视图 */}
-      <div className="flex-1 flex flex-col min-h-0" style={{ minHeight: `${timelineHeight}px` }}>
+      <div className="flex-1 flex flex-col min-h-0">
         {/* 顶部工具栏 */}
         <div className="flex-shrink-0 flex items-center justify-between px-6 py-3" style={{ backgroundColor: bgColor, borderBottom: `1px solid ${borderColor}` }}>
           <div className="flex items-center space-x-2">
@@ -821,7 +824,7 @@ export default function TimelineCalendar({
           ref={timelineRef}
           className="flex-1 overflow-y-auto overflow-x-hidden"
           style={{
-            maxHeight: `${timelineHeight - 100}px`,
+            minHeight: '500px',
             WebkitOverflowScrolling: 'touch',
           }}
           onMouseMove={(e) => {
