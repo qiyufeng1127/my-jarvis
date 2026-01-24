@@ -164,37 +164,6 @@ export default function TimelineCalendar({
       };
     });
 
-  // 生成动态时间刻度（基于时间轴范围）
-  const generateTimeSlots = () => {
-    const slots = [];
-    const startMinutes = Math.floor(timelineRange.startMinutes / 30) * 30; // 对齐到30分钟
-    const endMinutes = Math.ceil(timelineRange.endMinutes / 30) * 30;
-    
-    for (let minutes = startMinutes; minutes <= endMinutes; minutes += 30) {
-      const hour = Math.floor(minutes / 60);
-      const minute = minutes % 60;
-      const relativePosition = minutes - timelineRange.startMinutes;
-      
-      slots.push({
-        minutes,
-        time: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
-        isHour: minute === 0,
-        topPercent: (relativePosition / timelineRange.totalMinutes) * 100,
-      });
-    }
-    return slots;
-  };
-
-  const timeSlots = generateTimeSlots();
-
-  // 获取当前时间位置（基于动态时间范围）
-  const getCurrentTimePosition = () => {
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    const relativePosition = currentMinutes - timelineRange.startMinutes;
-    return (relativePosition / timelineRange.totalMinutes) * 100;
-  };
-
   // 计算时间轴的动态范围（基于事件驱动）
   const calculateTimelineRange = () => {
     if (timeBlocks.length === 0) {
@@ -225,6 +194,37 @@ export default function TimelineCalendar({
   };
 
   const timelineRange = calculateTimelineRange();
+
+  // 生成动态时间刻度（基于时间轴范围）
+  const generateTimeSlots = () => {
+    const slots = [];
+    const startMinutes = Math.floor(timelineRange.startMinutes / 30) * 30; // 对齐到30分钟
+    const endMinutes = Math.ceil(timelineRange.endMinutes / 30) * 30;
+    
+    for (let minutes = startMinutes; minutes <= endMinutes; minutes += 30) {
+      const hour = Math.floor(minutes / 60);
+      const minute = minutes % 60;
+      const relativePosition = minutes - timelineRange.startMinutes;
+      
+      slots.push({
+        minutes,
+        time: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
+        isHour: minute === 0,
+        topPercent: (relativePosition / timelineRange.totalMinutes) * 100,
+      });
+    }
+    return slots;
+  };
+
+  const timeSlots = generateTimeSlots();
+
+  // 获取当前时间位置（基于动态时间范围）
+  const getCurrentTimePosition = () => {
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const relativePosition = currentMinutes - timelineRange.startMinutes;
+    return (relativePosition / timelineRange.totalMinutes) * 100;
+  };
 
   // 计算相邻任务之间的间隔（垂直堆叠版本）
   const calculateGaps = () => {
