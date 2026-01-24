@@ -226,71 +226,6 @@ export default function TimelineCalendar({
     return (relativePosition / timelineRange.totalMinutes) * 100;
   };
 
-  // 计算相邻任务之间的间隔（基于堆叠位置）
-  const calculateGaps = () => {
-    const gaps: Array<{
-      id: string;
-      startTime: Date;
-      endTime: Date;
-      durationMinutes: number;
-      topPx: number;
-      heightPx: number;
-    }> = [];
-
-    const sortedBlocks = [...timeBlocks].sort((a, b) => 
-      a.startTime.getTime() - b.startTime.getTime()
-    );
-
-    for (let i = 0; i < sortedBlocks.length - 1; i++) {
-      const currentBlock = sortedBlocks[i];
-      const nextBlock = sortedBlocks[i + 1];
-      
-      const currentPosition = stackedPositions[currentBlock.id];
-      const nextPosition = stackedPositions[nextBlock.id];
-      
-      if (!currentPosition || !nextPosition) continue;
-      
-      // 计算视觉间隔（堆叠位置的间隔）
-      const currentBottomPx = currentPosition.topPx + currentPosition.heightPx;
-      const gapHeightPx = nextPosition.topPx - currentBottomPx;
-      
-      // 只显示足够大的间隔（至少60px）
-      if (gapHeightPx >= 60) {
-        const currentEnd = currentBlock.endTime;
-        const nextStart = nextBlock.startTime;
-        const gapMinutes = (nextStart.getTime() - currentEnd.getTime()) / 60000;
-        
-        gaps.push({
-          id: `gap-${i}`,
-          startTime: currentEnd,
-          endTime: nextStart,
-          durationMinutes: Math.max(0, gapMinutes), // 可能为负（时间重叠但视觉分离）
-          topPx: currentBottomPx,
-          heightPx: gapHeightPx,
-        });
-      }
-    }
-
-    return gaps;
-  };
-
-  // 展开状态管理
-  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
-
-  const toggleCardExpand = (cardId: string) => {
-    setExpandedCards(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(cardId)) {
-        newSet.delete(cardId);
-      } else {
-        newSet.add(cardId);
-      }
-      return newSet;
-    });
-  };
-
-  const gaps = calculateGaps();
-
   // 计算所有事件的垂直堆叠位置（瀑布流布局）
   const calculateStackedPositions = () => {
     // 按开始时间排序
@@ -363,6 +298,71 @@ export default function TimelineCalendar({
       width: '100%',
       height: `${position.heightPx}px`,
     };
+  };
+
+  // 计算相邻任务之间的间隔（基于堆叠位置）
+  const calculateGaps = () => {
+    const gaps: Array<{
+      id: string;
+      startTime: Date;
+      endTime: Date;
+      durationMinutes: number;
+      topPx: number;
+      heightPx: number;
+    }> = [];
+
+    const sortedBlocks = [...timeBlocks].sort((a, b) => 
+      a.startTime.getTime() - b.startTime.getTime()
+    );
+
+    for (let i = 0; i < sortedBlocks.length - 1; i++) {
+      const currentBlock = sortedBlocks[i];
+      const nextBlock = sortedBlocks[i + 1];
+      
+      const currentPosition = stackedPositions[currentBlock.id];
+      const nextPosition = stackedPositions[nextBlock.id];
+      
+      if (!currentPosition || !nextPosition) continue;
+      
+      // 计算视觉间隔（堆叠位置的间隔）
+      const currentBottomPx = currentPosition.topPx + currentPosition.heightPx;
+      const gapHeightPx = nextPosition.topPx - currentBottomPx;
+      
+      // 只显示足够大的间隔（至少60px）
+      if (gapHeightPx >= 60) {
+        const currentEnd = currentBlock.endTime;
+        const nextStart = nextBlock.startTime;
+        const gapMinutes = (nextStart.getTime() - currentEnd.getTime()) / 60000;
+        
+        gaps.push({
+          id: `gap-${i}`,
+          startTime: currentEnd,
+          endTime: nextStart,
+          durationMinutes: Math.max(0, gapMinutes), // 可能为负（时间重叠但视觉分离）
+          topPx: currentBottomPx,
+          heightPx: gapHeightPx,
+        });
+      }
+    }
+
+    return gaps;
+  };
+
+  const gaps = calculateGaps();
+
+  // 展开状态管理
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+
+  const toggleCardExpand = (cardId: string) => {
+    setExpandedCards(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(cardId)) {
+        newSet.delete(cardId);
+      } else {
+        newSet.add(cardId);
+      }
+      return newSet;
+    });
   };
 
   // 拖拽开始
