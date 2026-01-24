@@ -105,11 +105,11 @@ export default function GoalForm({
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col" style={{ backgroundColor: '#e2d9bc' }}>
         {/* 头部 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 bg-gradient-to-r from-blue-50 to-purple-50">
+        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'rgba(0,0,0,0.1)', backgroundColor: '#e2d9bc' }}>
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: '#DD617C' }}>
               <Target className="w-6 h-6 text-white" />
             </div>
             <div>
@@ -121,14 +121,15 @@ export default function GoalForm({
           </div>
           <button
             onClick={onCancel}
-            className="p-2 hover:bg-white/50 rounded-lg transition-colors"
+            className="p-2 rounded-lg transition-colors"
+            style={{ backgroundColor: 'rgba(221, 97, 124, 0.2)' }}
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* 表单内容 */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6" style={{ backgroundColor: '#e2d9bc' }}>
           {/* 目标名称 */}
           <div>
             <label className="block text-sm font-semibold text-neutral-900 mb-2">
@@ -139,9 +140,13 @@ export default function GoalForm({
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="例如：今年阅读50本书"
-              className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                errors.name ? 'border-red-500' : 'border-neutral-200'
+              className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none ${
+                errors.name ? 'border-red-500' : 'border-neutral-300'
               }`}
+              style={{ 
+                backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                fontSize: '16px'
+              }}
             />
             {errors.name && (
               <p className="text-red-500 text-sm mt-1">{errors.name}</p>
@@ -161,9 +166,12 @@ export default function GoalForm({
                   onClick={() => setFormData({ ...formData, type: type.value })}
                   className={`p-4 rounded-xl border-2 transition-all text-left ${
                     formData.type === type.value
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-neutral-200 hover:border-neutral-300'
+                      ? 'border-pink-500'
+                      : 'border-neutral-300 hover:border-pink-300'
                   }`}
+                  style={{
+                    backgroundColor: formData.type === type.value ? 'rgba(221, 97, 124, 0.15)' : 'rgba(255, 255, 255, 0.7)'
+                  }}
                 >
                   <div className="text-3xl mb-2">{type.emoji}</div>
                   <div className="font-semibold text-neutral-900 mb-1">{type.label}</div>
@@ -171,8 +179,8 @@ export default function GoalForm({
                 </button>
               ))}
             </div>
-            <div className="mt-2 p-3 bg-blue-50 rounded-lg">
-              <p className="text-sm text-blue-900">
+            <div className="mt-2 p-3 rounded-lg" style={{ backgroundColor: 'rgba(221, 97, 124, 0.15)' }}>
+              <p className="text-sm text-neutral-900">
                 💡 {selectedType.example}
               </p>
             </div>
@@ -190,9 +198,13 @@ export default function GoalForm({
                 onChange={(e) => setFormData({ ...formData, targetValue: parseFloat(e.target.value) || 0 })}
                 min="0"
                 step={formData.type === 'milestone' ? '1' : '0.1'}
-                className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.targetValue ? 'border-red-500' : 'border-neutral-200'
+                className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none ${
+                  errors.targetValue ? 'border-red-500' : 'border-neutral-300'
                 }`}
+                style={{ 
+                  backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                  fontSize: '16px'
+                }}
               />
               {errors.targetValue && (
                 <p className="text-red-500 text-sm mt-1">{errors.targetValue}</p>
@@ -209,9 +221,13 @@ export default function GoalForm({
                   value={formData.unit}
                   onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                   placeholder="例如：本、公里、小时"
-                  className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    errors.unit ? 'border-red-500' : 'border-neutral-200'
+                  className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none ${
+                    errors.unit ? 'border-red-500' : 'border-neutral-300'
                   }`}
+                  style={{ 
+                    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                    fontSize: '16px'
+                  }}
                 />
                 {errors.unit && (
                   <p className="text-red-500 text-sm mt-1">{errors.unit}</p>
@@ -230,7 +246,11 @@ export default function GoalForm({
               value={formData.deadline}
               onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
               min={new Date().toISOString().split('T')[0]}
-              className="w-full px-4 py-3 border-2 border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 border-2 border-neutral-300 rounded-lg focus:outline-none"
+              style={{ 
+                backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                fontSize: '16px'
+              }}
             />
           </div>
 
@@ -250,9 +270,14 @@ export default function GoalForm({
                   onClick={() => toggleDimension(dimension.id)}
                   className={`flex items-center space-x-3 px-4 py-3 rounded-lg border-2 transition-all ${
                     formData.relatedDimensions.includes(dimension.id)
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-neutral-200 hover:border-neutral-300'
+                      ? 'border-pink-500'
+                      : 'border-neutral-300 hover:border-pink-300'
                   }`}
+                  style={{
+                    backgroundColor: formData.relatedDimensions.includes(dimension.id) 
+                      ? 'rgba(221, 97, 124, 0.15)' 
+                      : 'rgba(255, 255, 255, 0.7)'
+                  }}
                 >
                   <div
                     className="w-8 h-8 rounded-full flex items-center justify-center text-lg"
@@ -262,7 +287,7 @@ export default function GoalForm({
                   </div>
                   <span className="font-medium text-neutral-900 text-sm">{dimension.name}</span>
                   {formData.relatedDimensions.includes(dimension.id) && (
-                    <span className="ml-auto text-blue-500">✓</span>
+                    <span className="ml-auto" style={{ color: '#DD617C' }}>✓</span>
                   )}
                 </button>
               ))}
@@ -279,7 +304,11 @@ export default function GoalForm({
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               placeholder="描述这个目标的意义和计划..."
               rows={4}
-              className="w-full px-4 py-3 border-2 border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className="w-full px-4 py-3 border-2 border-neutral-300 rounded-lg focus:outline-none resize-none"
+              style={{ 
+                backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                fontSize: '16px'
+              }}
             />
           </div>
 
@@ -288,12 +317,12 @@ export default function GoalForm({
             <label className="block text-sm font-semibold text-neutral-900 mb-2">
               预览效果
             </label>
-            <div className="bg-neutral-50 rounded-xl p-6">
-              <div className="bg-white rounded-xl shadow-md overflow-hidden max-w-md">
-                <div className="h-2 bg-blue-500" />
+            <div className="rounded-xl p-6" style={{ backgroundColor: 'rgba(255, 255, 255, 0.5)' }}>
+              <div className="rounded-xl shadow-md overflow-hidden max-w-md" style={{ backgroundColor: 'rgba(255, 255, 255, 0.9)' }}>
+                <div className="h-2" style={{ backgroundColor: '#DD617C' }} />
                 <div className="p-5">
                   <div className="flex items-center space-x-2 mb-3">
-                    <span className="px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                    <span className="px-2 py-1 rounded-full text-xs font-semibold" style={{ backgroundColor: 'rgba(221, 97, 124, 0.2)', color: '#DD617C' }}>
                       {selectedType.emoji} {selectedType.label}
                     </span>
                   </div>
@@ -303,12 +332,12 @@ export default function GoalForm({
                   <div className="mb-3">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm text-neutral-600">目标进度</span>
-                      <span className="text-lg font-bold text-blue-600">
+                      <span className="text-lg font-bold" style={{ color: '#DD617C' }}>
                         0 / {formData.targetValue} {formData.unit || ''}
                       </span>
                     </div>
                     <div className="w-full h-3 bg-neutral-200 rounded-full overflow-hidden">
-                      <div className="h-full bg-blue-500 rounded-full" style={{ width: '0%' }} />
+                      <div className="h-full rounded-full" style={{ width: '0%', backgroundColor: '#DD617C' }} />
                     </div>
                   </div>
                   {formData.description && (
@@ -323,17 +352,19 @@ export default function GoalForm({
         </form>
 
         {/* 底部按钮 */}
-        <div className="flex items-center justify-end space-x-3 px-6 py-4 border-t border-neutral-200 bg-neutral-50">
+        <div className="flex items-center justify-end space-x-3 px-6 py-4 border-t" style={{ borderColor: 'rgba(0,0,0,0.1)', backgroundColor: '#e2d9bc' }}>
           <button
             type="button"
             onClick={onCancel}
-            className="px-6 py-2.5 bg-neutral-200 text-neutral-700 rounded-lg hover:bg-neutral-300 transition-colors font-medium"
+            className="px-6 py-2.5 rounded-lg transition-colors font-medium"
+            style={{ backgroundColor: 'rgba(221, 97, 124, 0.2)', color: '#DD617C' }}
           >
             取消
           </button>
           <button
             onClick={handleSubmit}
-            className="flex items-center space-x-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            className="flex items-center space-x-2 px-6 py-2.5 rounded-lg transition-colors font-medium"
+            style={{ backgroundColor: '#DD617C', color: 'white' }}
           >
             <Save className="w-4 h-4" />
             <span>保存目标</span>
