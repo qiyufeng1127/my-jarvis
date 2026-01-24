@@ -106,10 +106,10 @@ export default function GoalForm({
   const selectedType = goalTypes.find(t => t.value === formData.type)!;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="rounded-2xl shadow-2xl w-full max-w-3xl h-[80vh] overflow-hidden flex flex-col" style={{ backgroundColor: bgColor }}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 pt-8">
+      <div className="rounded-2xl shadow-2xl w-full max-w-3xl my-8 flex flex-col" style={{ backgroundColor: bgColor }}>
         {/* 头部 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'rgba(0,0,0,0.1)', backgroundColor: bgColor }}>
+        <div className="flex items-center justify-between px-6 py-4 border-b shrink-0" style={{ borderColor: 'rgba(0,0,0,0.1)', backgroundColor: bgColor }}>
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: '#DD617C' }}>
               <Target className="w-6 h-6 text-white" />
@@ -123,6 +123,7 @@ export default function GoalForm({
           </div>
           <button
             onClick={onCancel}
+            type="button"
             className="p-2 rounded-lg transition-colors"
             style={{ backgroundColor: 'rgba(221, 97, 124, 0.2)' }}
           >
@@ -131,7 +132,7 @@ export default function GoalForm({
         </div>
 
         {/* 表单内容 */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6" style={{ backgroundColor: bgColor }}>
+        <form onSubmit={handleSubmit} className="p-6 space-y-6" style={{ backgroundColor: bgColor }}>
           {/* 目标名称 */}
           <div>
             <label className="block text-sm font-semibold text-neutral-900 mb-2">
@@ -351,27 +352,26 @@ export default function GoalForm({
               </div>
             </div>
           </div>
+          {/* 底部按钮 - 放在表单内部 */}
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t" style={{ borderColor: 'rgba(0,0,0,0.1)' }}>
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-6 py-2.5 rounded-lg transition-colors font-medium"
+              style={{ backgroundColor: 'rgba(221, 97, 124, 0.2)', color: '#DD617C' }}
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              className="flex items-center space-x-2 px-6 py-2.5 rounded-lg transition-colors font-medium"
+              style={{ backgroundColor: '#DD617C', color: 'white' }}
+            >
+              <Save className="w-4 h-4" />
+              <span>保存目标</span>
+            </button>
+          </div>
         </form>
-
-        {/* 底部按钮 */}
-        <div className="flex items-center justify-end space-x-3 px-6 py-4 border-t" style={{ borderColor: 'rgba(0,0,0,0.1)', backgroundColor: bgColor }}>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-6 py-2.5 rounded-lg transition-colors font-medium"
-            style={{ backgroundColor: 'rgba(221, 97, 124, 0.2)', color: '#DD617C' }}
-          >
-            取消
-          </button>
-          <button
-            onClick={handleSubmit}
-            className="flex items-center space-x-2 px-6 py-2.5 rounded-lg transition-colors font-medium"
-            style={{ backgroundColor: '#DD617C', color: 'white' }}
-          >
-            <Save className="w-4 h-4" />
-            <span>保存目标</span>
-          </button>
-        </div>
       </div>
     </div>
   );
