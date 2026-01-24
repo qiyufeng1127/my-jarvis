@@ -1112,7 +1112,10 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
           <>
             <div 
               className="fixed inset-0 z-[90]"
-              onClick={() => setContextMenuModule(null)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setContextMenuModule(null);
+              }}
             />
             <div
               className="fixed z-[100] bg-white rounded-lg shadow-xl border border-neutral-200 py-2 min-w-[180px]"
@@ -1120,29 +1123,36 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                 left: contextMenuPosition.x,
                 top: contextMenuPosition.y,
               }}
+              onClick={(e) => e.stopPropagation()}
             >
               <label
                 htmlFor={`icon-upload-${contextMenuModule}`}
-                className="flex items-center space-x-3 px-4 py-2 hover:bg-neutral-100 cursor-pointer transition-colors"
+                className="flex items-center space-x-3 px-4 py-2 hover:bg-neutral-100 cursor-pointer transition-colors block"
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
               >
                 <span className="text-lg">📷</span>
                 <span className="text-sm font-medium text-neutral-700">上传自定义图标</span>
-                <input
-                  id={`icon-upload-${contextMenuModule}`}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file && contextMenuModule) {
-                      handleIconUpload(contextMenuModule, file);
-                      setContextMenuModule(null);
-                    }
-                  }}
-                />
               </label>
+              <input
+                id={`icon-upload-${contextMenuModule}`}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  e.stopPropagation();
+                  const file = e.target.files?.[0];
+                  if (file && contextMenuModule) {
+                    handleIconUpload(contextMenuModule, file);
+                    setContextMenuModule(null);
+                  }
+                }}
+                onClick={(e) => e.stopPropagation()}
+              />
               <button
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   if (contextMenuModule) {
                     localStorage.removeItem(`icon_${contextMenuModule}`);
                     setModules(modules.map((m) => 
