@@ -106,8 +106,8 @@ export default function GoalForm({
   const selectedType = goalTypes.find(t => t.value === formData.type)!;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col" style={{ backgroundColor: bgColor }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col" style={{ backgroundColor: bgColor }}>
         {/* 头部 */}
         <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'rgba(0,0,0,0.1)', backgroundColor: bgColor }}>
           <div className="flex items-center space-x-3">
@@ -319,8 +319,8 @@ export default function GoalForm({
             <label className="block text-sm font-semibold text-neutral-900 mb-2">
               预览效果
             </label>
-            <div className="rounded-xl p-6" style={{ backgroundColor: 'rgba(255, 255, 255, 0.5)' }}>
-              <div className="rounded-xl shadow-md overflow-hidden max-w-md" style={{ backgroundColor: 'rgba(255, 255, 255, 0.9)' }}>
+            <div className="rounded-xl p-4">
+              <div className="rounded-xl shadow-md overflow-hidden max-w-md" style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)' }}>
                 <div className="h-2" style={{ backgroundColor: '#DD617C' }} />
                 <div className="p-5">
                   <div className="flex items-center space-x-2 mb-3">
