@@ -9,57 +9,6 @@ import { useState } from 'react';
 // 重新导出 GoalsModule
 export { GoalsModule } from '@/components/growth/GoalsModule';
 
-// 总控面板模块
-export function DashboardModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: boolean; bgColor?: string }) {
-  const { tasks } = useTaskStore();
-  const { totalGrowth } = useGrowthStore();
-
-  const todayTasks = tasks.filter((task) => {
-    if (!task.scheduledStart) return false;
-    const today = new Date();
-    const taskDate = new Date(task.scheduledStart);
-    return taskDate.toDateString() === today.toDateString();
-  });
-
-  const completedTasks = todayTasks.filter((t) => t.status === 'completed');
-
-  const cardBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
-  const textColor = isDark ? '#ffffff' : '#000000';
-  const accentColor = isDark ? '#ffffff' : '#666666';
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm" style={{ color: accentColor }}>今日任务</span>
-            <CheckCircle className="w-4 h-4" style={{ color: textColor }} />
-          </div>
-          <div className="text-2xl font-bold" style={{ color: textColor }}>
-            {completedTasks.length}/{todayTasks.length}
-          </div>
-        </div>
-
-        <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm" style={{ color: accentColor }}>总成长值</span>
-            <TrendingUp className="w-4 h-4" style={{ color: textColor }} />
-          </div>
-          <div className="text-2xl font-bold" style={{ color: textColor }}>{totalGrowth || 650}</div>
-        </div>
-      </div>
-
-      <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm" style={{ color: accentColor }}>金币余额</span>
-          <span className="text-xl">💰</span>
-        </div>
-        <div className="text-2xl font-bold" style={{ color: textColor }}>5,280</div>
-      </div>
-    </div>
-  );
-}
-
 // 成长系统模块
 export function GrowthModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: boolean; bgColor?: string }) {
   return (

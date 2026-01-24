@@ -14,7 +14,6 @@ import {
   Calendar
 } from 'lucide-react';
 import {
-  DashboardModule,
   GoalsModule,
   GoldModule,
   HabitsModule,
@@ -53,14 +52,6 @@ interface ModuleDefinition {
 
 // 可用的功能模块定义
 const availableModules: ModuleDefinition[] = [
-  {
-    id: 'dashboard',
-    type: 'dashboard',
-    title: '总控面板',
-    icon: <span className="text-2xl">📊</span>,
-    defaultColor: '#DD617C',
-    component: DashboardModule,
-  },
   {
     id: 'goals',
     type: 'goals',
@@ -152,7 +143,6 @@ const moduleSizes = {
 
 // 不同模块类型的特定高度（根据实际内容）
 const moduleSpecificHeights: Record<string, number> = {
-  'dashboard': 950,      // 总控面板 - 内容最多
   'goals': 700,          // 长期目标
   'timeline': 600,       // 时间轴
   'gold': 700,           // 金币经济
