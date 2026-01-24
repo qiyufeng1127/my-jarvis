@@ -16,6 +16,7 @@ interface GoalFormProps {
   dimensions: { id: string; name: string; icon: string; color: string }[];
   onSave: (data: GoalFormData) => void;
   onCancel: () => void;
+  bgColor?: string;
 }
 
 export default function GoalForm({
@@ -23,6 +24,7 @@ export default function GoalForm({
   dimensions,
   onSave,
   onCancel,
+  bgColor = '#e2d9bc',
 }: GoalFormProps) {
   const [formData, setFormData] = useState<GoalFormData>(
     initialData || {
@@ -105,9 +107,9 @@ export default function GoalForm({
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col" style={{ backgroundColor: '#e2d9bc' }}>
+      <div className="rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col" style={{ backgroundColor: bgColor }}>
         {/* 头部 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'rgba(0,0,0,0.1)', backgroundColor: '#e2d9bc' }}>
+        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'rgba(0,0,0,0.1)', backgroundColor: bgColor }}>
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: '#DD617C' }}>
               <Target className="w-6 h-6 text-white" />
@@ -129,7 +131,7 @@ export default function GoalForm({
         </div>
 
         {/* 表单内容 */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6" style={{ backgroundColor: '#e2d9bc' }}>
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6" style={{ backgroundColor: bgColor }}>
           {/* 目标名称 */}
           <div>
             <label className="block text-sm font-semibold text-neutral-900 mb-2">
@@ -352,7 +354,7 @@ export default function GoalForm({
         </form>
 
         {/* 底部按钮 */}
-        <div className="flex items-center justify-end space-x-3 px-6 py-4 border-t" style={{ borderColor: 'rgba(0,0,0,0.1)', backgroundColor: '#e2d9bc' }}>
+        <div className="flex items-center justify-end space-x-3 px-6 py-4 border-t" style={{ borderColor: 'rgba(0,0,0,0.1)', backgroundColor: bgColor }}>
           <button
             type="button"
             onClick={onCancel}

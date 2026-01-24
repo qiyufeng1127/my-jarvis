@@ -148,6 +148,7 @@ export function GoalsModule({ isDark = false, bgColor = '#ffffff' }: GoalsModule
           dimensions={mockDimensions}
           onSave={handleSaveGoal}
           onCancel={() => setShowForm(false)}
+          bgColor={bgColor}
         />
       </div>
     );
