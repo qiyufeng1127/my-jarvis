@@ -226,15 +226,15 @@ export default function TimelineCalendar({
     return (relativePosition / timelineRange.totalMinutes) * 100;
   };
 
-  // 计算相邻任务之间的间隔（垂直堆叠版本）
+  // 计算相邻任务之间的间隔（基于堆叠位置）
   const calculateGaps = () => {
     const gaps: Array<{
       id: string;
       startTime: Date;
       endTime: Date;
       durationMinutes: number;
-      topPercent: number;
-      heightPercent: number;
+      topPx: number;
+      heightPx: number;
     }> = [];
 
     const sortedBlocks = [...timeBlocks].sort((a, b) => 
@@ -242,24 +242,32 @@ export default function TimelineCalendar({
     );
 
     for (let i = 0; i < sortedBlocks.length - 1; i++) {
-      const currentEnd = sortedBlocks[i].endTime;
-      const nextStart = sortedBlocks[i + 1].startTime;
+      const currentBlock = sortedBlocks[i];
+      const nextBlock = sortedBlocks[i + 1];
       
-      if (currentEnd < nextStart) {
+      const currentPosition = stackedPositions[currentBlock.id];
+      const nextPosition = stackedPositions[nextBlock.id];
+      
+      if (!currentPosition || !nextPosition) continue;
+      
+      // 计算视觉间隔（堆叠位置的间隔）
+      const currentBottomPx = currentPosition.topPx + currentPosition.heightPx;
+      const gapHeightPx = nextPosition.topPx - currentBottomPx;
+      
+      // 只显示足够大的间隔（至少60px）
+      if (gapHeightPx >= 60) {
+        const currentEnd = currentBlock.endTime;
+        const nextStart = nextBlock.startTime;
         const gapMinutes = (nextStart.getTime() - currentEnd.getTime()) / 60000;
-        if (gapMinutes >= 15) { // 只显示15分钟以上的间隔
-          const gapStartMinutes = currentEnd.getHours() * 60 + currentEnd.getMinutes();
-          const gapEndMinutes = nextStart.getHours() * 60 + nextStart.getMinutes();
-          
-          gaps.push({
-            id: `gap-${i}`,
-            startTime: currentEnd,
-            endTime: nextStart,
-            durationMinutes: gapMinutes,
-            topPercent: ((gapStartMinutes - timelineRange.startMinutes) / timelineRange.totalMinutes) * 100,
-            heightPercent: (gapMinutes / timelineRange.totalMinutes) * 100,
-          });
-        }
+        
+        gaps.push({
+          id: `gap-${i}`,
+          startTime: currentEnd,
+          endTime: nextStart,
+          durationMinutes: Math.max(0, gapMinutes), // 可能为负（时间重叠但视觉分离）
+          topPx: currentBottomPx,
+          heightPx: gapHeightPx,
+        });
       }
     }
 
@@ -283,28 +291,77 @@ export default function TimelineCalendar({
 
   const gaps = calculateGaps();
 
-  // 计算时间块样式（垂直堆叠版本 - 不再使用列）
-  const getBlockStyle = (block: TimeBlock) => {
-    const startMinutes = block.startTime.getHours() * 60 + block.startTime.getMinutes();
-    const endMinutes = block.endTime.getHours() * 60 + block.endTime.getMinutes();
-    const duration = endMinutes - startMinutes;
+  // 计算所有事件的垂直堆叠位置（瀑布流布局）
+  const calculateStackedPositions = () => {
+    // 按开始时间排序
+    const sortedBlocks = [...timeBlocks].sort((a, b) => 
+      a.startTime.getTime() - b.startTime.getTime()
+    );
 
-    // 计算相对于时间轴范围的位置
-    const relativeStart = startMinutes - timelineRange.startMinutes;
-    const topPercent = (relativeStart / timelineRange.totalMinutes) * 100;
-    
-    // 计算高度百分比
-    const heightPercent = (duration / timelineRange.totalMinutes) * 100;
-    
-    // 最小高度：120px（确保内容完整显示）
-    const minHeightPx = 120;
+    const positions: Record<string, {
+      topPx: number;
+      heightPx: number;
+      timeBasedTopPercent: number; // 保留时间轴上的理论位置（用于参考线）
+    }> = {};
+
+    let currentBottomPx = 0; // 当前已占用的最底部位置（像素）
+    const minHeightPx = 120; // 最小高度
+    const cardGapPx = 12; // 卡片之间的间距
+
+    sortedBlocks.forEach((block) => {
+      const startMinutes = block.startTime.getHours() * 60 + block.startTime.getMinutes();
+      const endMinutes = block.endTime.getHours() * 60 + block.endTime.getMinutes();
+      const duration = endMinutes - startMinutes;
+
+      // 计算基于时间的理论位置（百分比）
+      const relativeStart = startMinutes - timelineRange.startMinutes;
+      const timeBasedTopPercent = (relativeStart / timelineRange.totalMinutes) * 100;
+      
+      // 计算基于时间的高度（像素）
+      // 假设整个时间轴高度为 800px（可以根据实际调整）
+      const timelineHeightPx = 800;
+      const heightPercent = (duration / timelineRange.totalMinutes) * 100;
+      const timeBasedHeightPx = (heightPercent / 100) * timelineHeightPx;
+      
+      // 实际高度：取时间高度和最小高度的较大值
+      const actualHeightPx = Math.max(timeBasedHeightPx, minHeightPx);
+
+      // 计算实际top位置：如果与上一个卡片重叠，则放在上一个卡片下方
+      const timeBasedTopPx = (timeBasedTopPercent / 100) * timelineHeightPx;
+      const actualTopPx = Math.max(timeBasedTopPx, currentBottomPx);
+
+      positions[block.id] = {
+        topPx: actualTopPx,
+        heightPx: actualHeightPx,
+        timeBasedTopPercent, // 保留用于显示时间参考线
+      };
+
+      // 更新当前底部位置
+      currentBottomPx = actualTopPx + actualHeightPx + cardGapPx;
+    });
+
+    return positions;
+  };
+
+  const stackedPositions = calculateStackedPositions();
+
+  // 获取单个事件的样式
+  const getBlockStyle = (block: TimeBlock) => {
+    const position = stackedPositions[block.id];
+    if (!position) {
+      return {
+        top: '0px',
+        left: '0',
+        width: '100%',
+        height: '120px',
+      };
+    }
 
     return {
-      top: `${topPercent}%`,
+      top: `${position.topPx}px`,
       left: '0',
-      width: '100%', // 占满整个宽度，不再分列
-      minHeight: `${minHeightPx}px`,
-      height: `${Math.max(heightPercent, 8)}%`, // 最小8%高度
+      width: '100%',
+      height: `${position.heightPx}px`,
     };
   };
 
@@ -811,6 +868,14 @@ export default function TimelineCalendar({
             handleResizeEnd();
           }}
         >
+          {/* 计算总内容高度 */}
+          {(() => {
+            const maxBottom = Math.max(
+              800, // 最小高度
+              ...Object.values(stackedPositions).map(pos => pos.topPx + pos.heightPx)
+            );
+            return null;
+          })()}
           {/* 全天概览卡片 - 固定在顶部 */}
           <div className="sticky top-0 z-30 mx-4 my-3">
             <div 
@@ -882,7 +947,10 @@ export default function TimelineCalendar({
             <div 
               className="flex-1 relative"
               style={{ 
-                minHeight: '800px',
+                minHeight: Math.max(
+                  800,
+                  ...Object.values(stackedPositions).map(pos => pos.topPx + pos.heightPx + 100)
+                ) + 'px',
               }}
             >
               {/* 时间网格线 */}
@@ -1199,10 +1267,12 @@ export default function TimelineCalendar({
 
               {/* 间隔快速添加组件 */}
               {gaps.map((gap) => {
-                const hours = Math.floor(gap.durationMinutes / 60);
-                const minutes = Math.round(gap.durationMinutes % 60);
+                const hours = Math.floor(Math.abs(gap.durationMinutes) / 60);
+                const minutes = Math.round(Math.abs(gap.durationMinutes) % 60);
                 let gapText = '';
-                if (hours > 0) {
+                if (gap.durationMinutes < 0) {
+                  gapText = '时间重叠';
+                } else if (hours > 0) {
                   gapText += `${hours}h`;
                   if (minutes > 0) {
                     gapText += ` ${minutes}m`;
@@ -1216,8 +1286,8 @@ export default function TimelineCalendar({
                     key={gap.id}
                     className="absolute left-0 right-0 z-10 flex items-center justify-center px-4"
                     style={{ 
-                      top: `${gap.topPercent}%`,
-                      height: `${gap.heightPercent}%`,
+                      top: `${gap.topPx}px`,
+                      height: `${gap.heightPx}px`,
                       minHeight: '60px',
                     }}
                   >
@@ -1227,7 +1297,7 @@ export default function TimelineCalendar({
                         const newTask = {
                           title: '新任务',
                           scheduledStart: gap.startTime.toISOString(),
-                          durationMinutes: Math.round(gap.durationMinutes),
+                          durationMinutes: Math.max(15, Math.round(gap.durationMinutes)),
                           taskType: 'work',
                           status: 'pending' as const,
                         };
@@ -1249,7 +1319,7 @@ export default function TimelineCalendar({
                       </div>
                       <div className="flex flex-col items-start">
                         <span className="text-xs font-medium" style={{ color: isDark ? '#ffffff' : '#666666' }}>
-                          空闲时间
+                          {gap.durationMinutes < 0 ? '视觉间隔' : '空闲时间'}
                         </span>
                         <span className="text-sm font-bold" style={{ color: isDark ? '#ffffff' : '#000000' }}>
                           {gapText}
