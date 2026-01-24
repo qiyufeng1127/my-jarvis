@@ -775,47 +775,72 @@ export default function TimelineCalendar({
 
       {/* 下半部分：时间轴视图 */}
       <div className="flex-1 flex flex-col min-h-0">
-        {/* 顶部工具栏 */}
-        <div className="flex-shrink-0 flex items-center justify-between px-6 py-3" style={{ backgroundColor: bgColor, borderBottom: `1px solid ${borderColor}` }}>
-          <div className="flex items-center space-x-2">
-            <Clock className="w-5 h-5" style={{ color: textColor }} />
-            <h2 className="text-base font-semibold" style={{ color: textColor }}>
-              {selectedDate.toLocaleDateString('zh-CN', {
-                month: 'long',
-                day: 'numeric',
-                weekday: 'long',
-              })} 时间轴
-            </h2>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={cycleTimeScale}
-              className="px-3 py-1.5 rounded-lg text-sm flex items-center space-x-2 transition-colors"
-              style={{ backgroundColor: hoverBg, color: textColor }}
-              title="切换时间粒度"
-            >
-              <Clock className="w-4 h-4" />
-              <span>{timeScale}分钟</span>
-            </button>
-            <span className="text-sm" style={{ color: accentColor }}>{timeBlocks.length} 个任务</span>
-            <button
-              onClick={() => {
-                const newTask = {
-                  title: '新任务',
-                  scheduledStart: new Date(selectedDate.setHours(9, 0, 0, 0)).toISOString(),
-                  durationMinutes: 60,
-                  taskType: 'work',
-                  status: 'pending' as const,
-                };
-                onTaskCreate(newTask);
-              }}
-              className="flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors"
-              style={{ backgroundColor: hoverBg, color: textColor }}
-            >
-              <Plus className="w-4 h-4" />
-              <span>新建任务</span>
-            </button>
+        {/* 全天概览数据 - 移到顶部，无背景 */}
+        <div className="flex-shrink-0 px-6 py-3" style={{ backgroundColor: bgColor, borderBottom: `1px solid ${borderColor}` }}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-6">
+              <div className="flex items-center space-x-2">
+                <span className="text-xl">📅</span>
+                <div>
+                  <div className="text-xs" style={{ color: accentColor }}>今日事件</div>
+                  <div className="text-sm font-bold" style={{ color: textColor }}>
+                    {timeBlocks.filter(b => b.status === 'completed').length} Meeting · 
+                    {timeBlocks.filter(b => b.status === 'in-progress').length} Task · 
+                    已完成: {timeBlocks.filter(b => b.status === 'completed').length}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <span className="text-xl">⏱️</span>
+                <div>
+                  <div className="text-xs" style={{ color: accentColor }}>总专注时长</div>
+                  <div className="text-sm font-bold" style={{ color: textColor }}>
+                    {Math.floor(timeBlocks.reduce((sum, b) => sum + (b.endTime.getTime() - b.startTime.getTime()), 0) / 3600000)}h 
+                    {Math.floor((timeBlocks.reduce((sum, b) => sum + (b.endTime.getTime() - b.startTime.getTime()), 0) % 3600000) / 60000)}m
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <span className="text-xl">💰</span>
+                <div>
+                  <div className="text-xs" style={{ color: accentColor }}>今日金币</div>
+                  <div className="text-sm font-bold text-yellow-600">
+                    +{timeBlocks.reduce((sum, b) => sum + (b.rewards?.gold || 0), 0)}
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={cycleTimeScale}
+                className="px-3 py-1.5 rounded-lg text-sm flex items-center space-x-2 transition-colors"
+                style={{ backgroundColor: hoverBg, color: textColor }}
+                title="切换时间粒度"
+              >
+                <Clock className="w-4 h-4" />
+                <span>{timeScale}分钟</span>
+              </button>
+              <button
+                onClick={() => {
+                  const newTask = {
+                    title: '新任务',
+                    scheduledStart: new Date(selectedDate.setHours(9, 0, 0, 0)).toISOString(),
+                    durationMinutes: 60,
+                    taskType: 'work',
+                    status: 'pending' as const,
+                  };
+                  onTaskCreate(newTask);
+                }}
+                className="flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors"
+                style={{ backgroundColor: hoverBg, color: textColor }}
+              >
+                <Plus className="w-4 h-4" />
+                <span>新建任务</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -841,52 +866,6 @@ export default function TimelineCalendar({
             handleResizeEnd();
           }}
         >
-          {/* 全天概览卡片 - 固定在顶部 */}
-          <div className="sticky top-0 z-30 mx-4 my-3">
-            <div 
-              className="rounded-2xl shadow-lg p-4 backdrop-blur-md"
-              style={{ 
-                backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.95)',
-                border: `1px solid ${borderColor}`
-              }}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-2xl">📅</span>
-                    <div>
-                      <div className="text-sm font-bold" style={{ color: textColor }}>全天概览</div>
-                      <div className="text-xs" style={{ color: accentColor }}>
-                        {timeBlocks.filter(b => b.status === 'completed').length} Meeting · 
-                        {timeBlocks.filter(b => b.status === 'in-progress').length} Task · 
-                        已完成: {timeBlocks.filter(b => b.status === 'completed').length}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="flex items-center space-x-4">
-                  {/* 总专注时长 */}
-                  <div className="text-right">
-                    <div className="text-xs" style={{ color: accentColor }}>总专注时长</div>
-                    <div className="text-lg font-bold" style={{ color: textColor }}>
-                      {Math.floor(timeBlocks.reduce((sum, b) => sum + (b.endTime.getTime() - b.startTime.getTime()), 0) / 3600000)}h 
-                      {Math.floor((timeBlocks.reduce((sum, b) => sum + (b.endTime.getTime() - b.startTime.getTime()), 0) % 3600000) / 60000)}m
-                    </div>
-                  </div>
-                  
-                  {/* 今日金币 */}
-                  <div className="text-right">
-                    <div className="text-xs" style={{ color: accentColor }}>今日金币</div>
-                    <div className="text-lg font-bold text-yellow-600">
-                      💰 +{timeBlocks.reduce((sum, b) => sum + (b.rewards?.gold || 0), 0)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* 时间轴内容区域 - 固定24小时高度 */}
           <div className="flex" style={{ minHeight: `${TIMELINE_TOTAL_HEIGHT}px` }}>
             {/* 左侧时间刻度 */}
