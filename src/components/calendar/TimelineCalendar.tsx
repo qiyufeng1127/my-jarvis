@@ -164,17 +164,22 @@ export default function TimelineCalendar({
       };
     });
 
-  // 生成时间刻度
+  // 生成动态时间刻度（基于时间轴范围）
   const generateTimeSlots = () => {
     const slots = [];
-    const totalMinutes = 24 * 60;
-    for (let minutes = 0; minutes < totalMinutes; minutes += timeScale) {
+    const startMinutes = Math.floor(timelineRange.startMinutes / 30) * 30; // 对齐到30分钟
+    const endMinutes = Math.ceil(timelineRange.endMinutes / 30) * 30;
+    
+    for (let minutes = startMinutes; minutes <= endMinutes; minutes += 30) {
       const hour = Math.floor(minutes / 60);
       const minute = minutes % 60;
+      const relativePosition = minutes - timelineRange.startMinutes;
+      
       slots.push({
         minutes,
         time: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
         isHour: minute === 0,
+        topPercent: (relativePosition / timelineRange.totalMinutes) * 100,
       });
     }
     return slots;
@@ -182,60 +187,54 @@ export default function TimelineCalendar({
 
   const timeSlots = generateTimeSlots();
 
-  // 获取当前时间位置
+  // 获取当前时间位置（基于动态时间范围）
   const getCurrentTimePosition = () => {
     const now = new Date();
-    const minutes = now.getHours() * 60 + now.getMinutes();
-    return (minutes / (24 * 60)) * 100;
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const relativePosition = currentMinutes - timelineRange.startMinutes;
+    return (relativePosition / timelineRange.totalMinutes) * 100;
   };
 
-  // 检测任务是否重叠
-  const isOverlapping = (block1: TimeBlock, block2: TimeBlock) => {
-    return block1.startTime < block2.endTime && block1.endTime > block2.startTime;
+  // 计算时间轴的动态范围（基于事件驱动）
+  const calculateTimelineRange = () => {
+    if (timeBlocks.length === 0) {
+      // 如果没有任务，显示全天（00:00 - 24:00）
+      return {
+        startMinutes: 0,
+        endMinutes: 24 * 60,
+        totalMinutes: 24 * 60,
+      };
+    }
+
+    // 找到最早和最晚的时间
+    const startTimes = timeBlocks.map(b => b.startTime.getHours() * 60 + b.startTime.getMinutes());
+    const endTimes = timeBlocks.map(b => b.endTime.getHours() * 60 + b.endTime.getMinutes());
+    
+    const earliestStart = Math.min(...startTimes);
+    const latestEnd = Math.max(...endTimes);
+    
+    // 添加一些padding（前后各1小时）
+    const startMinutes = Math.max(0, earliestStart - 60);
+    const endMinutes = Math.min(24 * 60, latestEnd + 60);
+    
+    return {
+      startMinutes,
+      endMinutes,
+      totalMinutes: endMinutes - startMinutes,
+    };
   };
 
-  // 计算任务的列位置（避免重叠）
-  const calculateTaskColumns = (blocks: TimeBlock[]) => {
-    const columns: TimeBlock[][] = [];
-    const blockColumns = new Map<string, number>();
+  const timelineRange = calculateTimelineRange();
 
-    // 按开始时间排序
-    const sortedBlocks = [...blocks].sort((a, b) => 
-      a.startTime.getTime() - b.startTime.getTime()
-    );
-
-    sortedBlocks.forEach(block => {
-      // 找到第一个不重叠的列
-      let columnIndex = 0;
-      while (columnIndex < columns.length) {
-        const column = columns[columnIndex];
-        const hasOverlap = column.some(existingBlock => isOverlapping(block, existingBlock));
-        if (!hasOverlap) {
-          break;
-        }
-        columnIndex++;
-      }
-
-      // 如果所有列都重叠，创建新列
-      if (columnIndex === columns.length) {
-        columns.push([]);
-      }
-
-      columns[columnIndex].push(block);
-      blockColumns.set(block.id, columnIndex);
-    });
-
-    return { columns, blockColumns, totalColumns: columns.length };
-  };
-
-  // 计算相邻任务之间的间隔
+  // 计算相邻任务之间的间隔（垂直堆叠版本）
   const calculateGaps = () => {
     const gaps: Array<{
       id: string;
       startTime: Date;
       endTime: Date;
       durationMinutes: number;
-      position: number;
+      topPercent: number;
+      heightPercent: number;
     }> = [];
 
     const sortedBlocks = [...timeBlocks].sort((a, b) => 
@@ -249,12 +248,16 @@ export default function TimelineCalendar({
       if (currentEnd < nextStart) {
         const gapMinutes = (nextStart.getTime() - currentEnd.getTime()) / 60000;
         if (gapMinutes >= 15) { // 只显示15分钟以上的间隔
+          const gapStartMinutes = currentEnd.getHours() * 60 + currentEnd.getMinutes();
+          const gapEndMinutes = nextStart.getHours() * 60 + nextStart.getMinutes();
+          
           gaps.push({
             id: `gap-${i}`,
             startTime: currentEnd,
             endTime: nextStart,
             durationMinutes: gapMinutes,
-            position: (currentEnd.getHours() * 60 + currentEnd.getMinutes()) / (24 * 60) * 100,
+            topPercent: ((gapStartMinutes - timelineRange.startMinutes) / timelineRange.totalMinutes) * 100,
+            heightPercent: (gapMinutes / timelineRange.totalMinutes) * 100,
           });
         }
       }
@@ -262,8 +265,6 @@ export default function TimelineCalendar({
 
     return gaps;
   };
-
-  const { blockColumns, totalColumns } = calculateTaskColumns(timeBlocks);
 
   // 展开状态管理
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
@@ -282,29 +283,28 @@ export default function TimelineCalendar({
 
   const gaps = calculateGaps();
 
-  // 计算时间块样式（包含列位置）- 新版：卡片独立，高度自适应
+  // 计算时间块样式（垂直堆叠版本 - 不再使用列）
   const getBlockStyle = (block: TimeBlock) => {
     const startMinutes = block.startTime.getHours() * 60 + block.startTime.getMinutes();
     const endMinutes = block.endTime.getHours() * 60 + block.endTime.getMinutes();
-    const duration = Math.max(endMinutes - startMinutes, 5); // 最小5分钟
+    const duration = endMinutes - startMinutes;
 
-    // 顶部位置：严格对齐开始时间
-    const top = (startMinutes / (24 * 60)) * 100;
+    // 计算相对于时间轴范围的位置
+    const relativeStart = startMinutes - timelineRange.startMinutes;
+    const topPercent = (relativeStart / timelineRange.totalMinutes) * 100;
     
-    // 高度：基于时长，但不限制最大高度（允许内容撑开）
-    const timeBasedHeight = (duration / (24 * 60)) * 100;
+    // 计算高度百分比
+    const heightPercent = (duration / timelineRange.totalMinutes) * 100;
     
-    // 计算列位置（处理重叠）
-    const columnIndex = blockColumns.get(block.id) || 0;
-    const columnWidth = 100 / totalColumns;
-    const left = columnIndex * columnWidth;
+    // 最小高度：120px（确保内容完整显示）
+    const minHeightPx = 120;
 
     return {
-      top: `${top}%`,
-      minHeight: `${Math.max(timeBasedHeight, 5)}%`, // 最小高度5%（约72分钟）
-      left: `${left}%`,
-      width: `${columnWidth - 1}%`, // 留1%间距
-      borderColor: block.color,
+      top: `${topPercent}%`,
+      left: '0',
+      width: '100%', // 占满整个宽度，不再分列
+      minHeight: `${minHeightPx}px`,
+      height: `${Math.max(heightPercent, 8)}%`, // 最小8%高度
     };
   };
 
@@ -860,7 +860,7 @@ export default function TimelineCalendar({
           <div className="flex min-h-0">
             {/* 左侧时间刻度 */}
             <div className="w-20 flex-shrink-0 border-r" style={{ borderColor }}>
-              <div className="relative" style={{ height: `${(24 * 60 / timeScale) * 2}rem` }}>
+              <div className="relative" style={{ height: '100%', minHeight: '800px' }}>
                 {timeSlots.map((slot, index) => (
                   <div
                     key={index}
@@ -868,8 +868,7 @@ export default function TimelineCalendar({
                       slot.isHour ? 'font-semibold' : ''
                     }`}
                     style={{ 
-                      top: `${(slot.minutes / (24 * 60)) * 100}%`,
-                      height: `${(timeScale / (24 * 60)) * 100}%`,
+                      top: `${slot.topPercent}%`,
                       color: slot.isHour ? textColor : accentColor,
                     }}
                   >
@@ -883,8 +882,7 @@ export default function TimelineCalendar({
             <div 
               className="flex-1 relative"
               style={{ 
-                minHeight: `${(24 * 60 / timeScale) * 2}rem`,
-                height: `${(24 * 60 / timeScale) * 2}rem`
+                minHeight: '800px',
               }}
             >
               {/* 时间网格线 */}
@@ -893,7 +891,7 @@ export default function TimelineCalendar({
                   key={index}
                   className="absolute left-0 right-0"
                   style={{ 
-                    top: `${(slot.minutes / (24 * 60)) * 100}%`,
+                    top: `${slot.topPercent}%`,
                     borderTop: `${slot.isHour ? '2px' : '1px'} solid ${borderColor}`,
                   }}
                 />
@@ -1218,9 +1216,9 @@ export default function TimelineCalendar({
                     key={gap.id}
                     className="absolute left-0 right-0 z-10 flex items-center justify-center px-4"
                     style={{ 
-                      top: `${gap.position}%`,
-                      height: `${(gap.durationMinutes / (24 * 60)) * 100}%`,
-                      minHeight: '40px',
+                      top: `${gap.topPercent}%`,
+                      height: `${gap.heightPercent}%`,
+                      minHeight: '60px',
                     }}
                   >
                     {/* 悬浮的快速添加按钮 */}
