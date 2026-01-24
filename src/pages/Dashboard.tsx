@@ -4,11 +4,9 @@ import { useGrowthStore } from '@/stores/growthStore';
 import { X } from 'lucide-react';
 import NotificationContainer from '@/components/ui/NotificationContainer';
 import AIChat from '@/components/ai/AIChat';
-import FloatingAIChat from '@/components/ai/FloatingAIChat';
 import { AISmartInput } from '@/components/ai';
 import TimelineCalendar from '@/components/calendar/TimelineCalendar';
-import CustomizableDashboard from '@/components/dashboard/CustomizableDashboard';
-import { VoiceAssistant, VoiceTutorial } from '@/components/voice';
+import ResponsiveLayout from '@/components/layout/ResponsiveLayout';
 
 export default function Dashboard() {
   const { tasks, loadTasks, updateTask, createTask, deleteTask } = useTaskStore();
@@ -28,17 +26,8 @@ export default function Dashboard() {
       {/* 通知容器 */}
       <NotificationContainer />
 
-      {/* 可自定义仪表盘 */}
-      <CustomizableDashboard onOpenAISmart={() => setIsAISmartOpen(true)} />
-
-      {/* Kiki 宝宝语音助手 */}
-      <VoiceAssistant mode="float" />
-
-      {/* 浮动AI聊天 - 新的交互方式 */}
-      <FloatingAIChat />
-
-      {/* 语音助手教程 */}
-      <VoiceTutorial />
+      {/* 响应式布局 - 自动适配电脑端和手机端 */}
+      <ResponsiveLayout onOpenAISmart={() => setIsAISmartOpen(true)} />
 
       {/* 日历时间轴 */}
       {isCalendarOpen && (

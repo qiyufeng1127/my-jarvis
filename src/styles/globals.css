@@ -468,6 +468,112 @@ p, span, div, h1, h2, h3, h4, h5, h6, a, button, input, textarea, label {
 }
 
 /* ============================================
+   移动端专用样式
+   ============================================ */
+
+/* 安全区域适配（iPhone 刘海屏等）*/
+.safe-area-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-area-left {
+  padding-left: env(safe-area-inset-left);
+}
+
+.safe-area-right {
+  padding-right: env(safe-area-inset-right);
+}
+
+/* 移动端触摸优化 */
+@media (max-width: 768px) {
+  /* 增大触摸目标 */
+  button, a, input, select, textarea {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* 禁用文本选择（提升触摸体验）*/
+  .no-select {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+
+  /* 触摸反馈 */
+  button:active, a:active {
+    opacity: 0.7;
+    transform: scale(0.98);
+  }
+
+  /* 移除点击高亮 */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* 优化滚动 */
+  .overflow-y-auto, .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* 底部导航栏固定 */
+  .mobile-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+  }
+
+  /* 移动端模态框全屏 */
+  .mobile-modal {
+    position: fixed;
+    inset: 0;
+    margin: 0;
+    border-radius: 0;
+    max-width: 100%;
+    max-height: 100%;
+  }
+
+  /* 移动端输入框优化 */
+  input, textarea {
+    font-size: 16px !important; /* 防止 iOS 自动缩放 */
+  }
+}
+
+/* 横屏提示（强制竖屏使用）*/
+@media (max-width: 768px) and (orientation: landscape) {
+  .landscape-warning {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.95);
+    color: white;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    flex-direction: column;
+    padding: 2rem;
+    text-align: center;
+  }
+
+  .landscape-warning::before {
+    content: '📱';
+    font-size: 4rem;
+    margin-bottom: 1rem;
+  }
+
+  .landscape-warning::after {
+    content: '请将设备旋转至竖屏模式以获得最佳体验';
+    font-size: 1.2rem;
+  }
+}
+
+/* ============================================
    打印样式
    ============================================ */
 
