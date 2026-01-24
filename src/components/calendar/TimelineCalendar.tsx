@@ -164,53 +164,27 @@ export default function TimelineCalendar({
       };
     });
 
-  // 计算时间轴的动态范围（基于事件驱动）
-  const calculateTimelineRange = () => {
-    if (timeBlocks.length === 0) {
-      // 如果没有任务，显示全天（00:00 - 24:00）
-      return {
-        startMinutes: 0,
-        endMinutes: 24 * 60,
-        totalMinutes: 24 * 60,
-      };
-    }
+  // 时间轴常量：完整24小时
+  const TIMELINE_HOUR_HEIGHT = 60; // 每小时的像素高度
+  const TIMELINE_TOTAL_HEIGHT = 24 * TIMELINE_HOUR_HEIGHT; // 24小时总高度 = 1440px
 
-    // 找到最早和最晚的时间
-    const startTimes = timeBlocks.map(b => b.startTime.getHours() * 60 + b.startTime.getMinutes());
-    const endTimes = timeBlocks.map(b => b.endTime.getHours() * 60 + b.endTime.getMinutes());
-    
-    const earliestStart = Math.min(...startTimes);
-    const latestEnd = Math.max(...endTimes);
-    
-    // 添加一些padding（前后各1小时）
-    const startMinutes = Math.max(0, earliestStart - 60);
-    const endMinutes = Math.min(24 * 60, latestEnd + 60);
-    
-    return {
-      startMinutes,
-      endMinutes,
-      totalMinutes: endMinutes - startMinutes,
-    };
-  };
-
-  const timelineRange = calculateTimelineRange();
-
-  // 生成动态时间刻度（基于时间轴范围）
+  // 生成完整24小时时间刻度（00:00 - 24:00）
   const generateTimeSlots = () => {
     const slots = [];
-    const startMinutes = Math.floor(timelineRange.startMinutes / 30) * 30; // 对齐到30分钟
-    const endMinutes = Math.ceil(timelineRange.endMinutes / 30) * 30;
     
-    for (let minutes = startMinutes; minutes <= endMinutes; minutes += 30) {
+    // 生成00:00到24:00，每30分钟一个刻度
+    for (let minutes = 0; minutes <= 24 * 60; minutes += 30) {
       const hour = Math.floor(minutes / 60);
       const minute = minutes % 60;
-      const relativePosition = minutes - timelineRange.startMinutes;
+      
+      // 跳过24:30及以后（24:00是最后一个刻度）
+      if (hour > 24) break;
       
       slots.push({
         minutes,
         time: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
         isHour: minute === 0,
-        topPercent: (relativePosition / timelineRange.totalMinutes) * 100,
+        topPx: (minutes / 60) * TIMELINE_HOUR_HEIGHT, // 基于像素的绝对位置
       });
     }
     return slots;
@@ -218,15 +192,14 @@ export default function TimelineCalendar({
 
   const timeSlots = generateTimeSlots();
 
-  // 获取当前时间位置（基于动态时间范围）
+  // 获取当前时间位置（基于像素）
   const getCurrentTimePosition = () => {
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    const relativePosition = currentMinutes - timelineRange.startMinutes;
-    return (relativePosition / timelineRange.totalMinutes) * 100;
+    return (currentMinutes / 60) * TIMELINE_HOUR_HEIGHT; // 返回像素位置
   };
 
-  // 计算所有事件的垂直堆叠位置（瀑布流布局）
+  // 计算所有事件的垂直堆叠位置（基于完整24小时时间轴）
   const calculateStackedPositions = () => {
     // 按开始时间排序
     const sortedBlocks = [...timeBlocks].sort((a, b) => 
@@ -236,7 +209,7 @@ export default function TimelineCalendar({
     const positions: Record<string, {
       topPx: number;
       heightPx: number;
-      timeBasedTopPercent: number; // 保留时间轴上的理论位置（用于参考线）
+      timeBasedTopPx: number; // 保留时间轴上的理论位置（用于参考）
     }> = {};
 
     let currentBottomPx = 0; // 当前已占用的最底部位置（像素）
@@ -248,27 +221,22 @@ export default function TimelineCalendar({
       const endMinutes = block.endTime.getHours() * 60 + block.endTime.getMinutes();
       const duration = endMinutes - startMinutes;
 
-      // 计算基于时间的理论位置（百分比）
-      const relativeStart = startMinutes - timelineRange.startMinutes;
-      const timeBasedTopPercent = (relativeStart / timelineRange.totalMinutes) * 100;
+      // 计算基于时间的位置（像素）
+      const timeBasedTopPx = (startMinutes / 60) * TIMELINE_HOUR_HEIGHT;
       
       // 计算基于时间的高度（像素）
-      // 假设整个时间轴高度为 800px（可以根据实际调整）
-      const timelineHeightPx = 800;
-      const heightPercent = (duration / timelineRange.totalMinutes) * 100;
-      const timeBasedHeightPx = (heightPercent / 100) * timelineHeightPx;
+      const timeBasedHeightPx = (duration / 60) * TIMELINE_HOUR_HEIGHT;
       
       // 实际高度：取时间高度和最小高度的较大值
       const actualHeightPx = Math.max(timeBasedHeightPx, minHeightPx);
 
       // 计算实际top位置：如果与上一个卡片重叠，则放在上一个卡片下方
-      const timeBasedTopPx = (timeBasedTopPercent / 100) * timelineHeightPx;
       const actualTopPx = Math.max(timeBasedTopPx, currentBottomPx);
 
       positions[block.id] = {
         topPx: actualTopPx,
         heightPx: actualHeightPx,
-        timeBasedTopPercent, // 保留用于显示时间参考线
+        timeBasedTopPx, // 保留用于显示时间参考线
       };
 
       // 更新当前底部位置
@@ -925,7 +893,7 @@ export default function TimelineCalendar({
           <div className="flex min-h-0">
             {/* 左侧时间刻度 */}
             <div className="w-20 flex-shrink-0 border-r" style={{ borderColor }}>
-              <div className="relative" style={{ height: '100%', minHeight: '800px' }}>
+              <div className="relative" style={{ height: `${TIMELINE_TOTAL_HEIGHT}px` }}>
                 {timeSlots.map((slot, index) => (
                   <div
                     key={index}
@@ -933,7 +901,7 @@ export default function TimelineCalendar({
                       slot.isHour ? 'font-semibold' : ''
                     }`}
                     style={{ 
-                      top: `${slot.topPercent}%`,
+                      top: `${slot.topPx}px`,
                       color: slot.isHour ? textColor : accentColor,
                     }}
                   >
@@ -947,10 +915,7 @@ export default function TimelineCalendar({
             <div 
               className="flex-1 relative"
               style={{ 
-                minHeight: Math.max(
-                  800,
-                  ...Object.values(stackedPositions).map(pos => pos.topPx + pos.heightPx + 100)
-                ) + 'px',
+                height: `${TIMELINE_TOTAL_HEIGHT}px`,
               }}
             >
               {/* 时间网格线 */}
@@ -959,7 +924,7 @@ export default function TimelineCalendar({
                   key={index}
                   className="absolute left-0 right-0"
                   style={{ 
-                    top: `${slot.topPercent}%`,
+                    top: `${slot.topPx}px`,
                     borderTop: `${slot.isHour ? '2px' : '1px'} solid ${borderColor}`,
                   }}
                 />
@@ -968,7 +933,7 @@ export default function TimelineCalendar({
               {/* 当前时间指示线 */}
               <div
                 className="absolute left-0 right-0 z-30 pointer-events-none"
-                style={{ top: `${getCurrentTimePosition()}%` }}
+                style={{ top: `${getCurrentTimePosition()}px` }}
               >
                 <div className="relative">
                   <div className="absolute -left-2 -top-3 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded shadow-lg">
