@@ -107,7 +107,7 @@ export default function GoalForm({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col" style={{ backgroundColor: bgColor }}>
+      <div className="rounded-2xl shadow-2xl w-full max-w-3xl h-[80vh] overflow-hidden flex flex-col" style={{ backgroundColor: bgColor }}>
         {/* 头部 */}
         <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'rgba(0,0,0,0.1)', backgroundColor: bgColor }}>
           <div className="flex items-center space-x-3">
