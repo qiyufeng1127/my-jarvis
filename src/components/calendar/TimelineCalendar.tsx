@@ -819,9 +819,10 @@ export default function TimelineCalendar({
         {/* 时间轴主体区域 - 统一滚动容器 */}
         <div 
           ref={timelineRef}
-          className="flex-1 overflow-y-auto timeline-scrollbar"
+          className="flex-1 overflow-y-auto overflow-x-hidden"
           style={{
-            minHeight: `${timelineHeight - 100}px`,
+            maxHeight: `${timelineHeight - 100}px`,
+            WebkitOverflowScrolling: 'touch',
           }}
           onMouseMove={(e) => {
             if (draggedBlockId) handleDragMove(e);
@@ -836,14 +837,6 @@ export default function TimelineCalendar({
             handleResizeEnd();
           }}
         >
-          {/* 计算总内容高度 */}
-          {(() => {
-            const maxBottom = Math.max(
-              800, // 最小高度
-              ...Object.values(stackedPositions).map(pos => pos.topPx + pos.heightPx)
-            );
-            return null;
-          })()}
           {/* 全天概览卡片 - 固定在顶部 */}
           <div className="sticky top-0 z-30 mx-4 my-3">
             <div 
