@@ -886,10 +886,11 @@ export default function TimelineCalendar({
             </div>
           </div>
 
-          <div className="flex min-h-0">
+          {/* 时间轴内容区域 - 固定24小时高度 */}
+          <div className="flex" style={{ minHeight: `${TIMELINE_TOTAL_HEIGHT}px` }}>
             {/* 左侧时间刻度 */}
             <div className="w-20 flex-shrink-0 border-r" style={{ borderColor }}>
-              <div className="relative" style={{ height: `${TIMELINE_TOTAL_HEIGHT}px` }}>
+              <div className="relative" style={{ height: `${TIMELINE_TOTAL_HEIGHT}px`, minHeight: `${TIMELINE_TOTAL_HEIGHT}px` }}>
                 {timeSlots.map((slot, index) => (
                   <div
                     key={index}
@@ -912,6 +913,7 @@ export default function TimelineCalendar({
               className="flex-1 relative"
               style={{ 
                 height: `${TIMELINE_TOTAL_HEIGHT}px`,
+                minHeight: `${TIMELINE_TOTAL_HEIGHT}px`,
               }}
             >
               {/* 时间网格线 */}
