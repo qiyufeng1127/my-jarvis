@@ -282,25 +282,28 @@ export default function TimelineCalendar({
 
   const gaps = calculateGaps();
 
-  // 计算时间块样式（包含列位置）
+  // 计算时间块样式（包含列位置）- 新版：卡片独立，高度自适应
   const getBlockStyle = (block: TimeBlock) => {
     const startMinutes = block.startTime.getHours() * 60 + block.startTime.getMinutes();
     const endMinutes = block.endTime.getHours() * 60 + block.endTime.getMinutes();
-    const duration = Math.max(endMinutes - startMinutes, 15);
+    const duration = Math.max(endMinutes - startMinutes, 5); // 最小5分钟
 
+    // 顶部位置：严格对齐开始时间
     const top = (startMinutes / (24 * 60)) * 100;
-    const height = (duration / (24 * 60)) * 100;
-
-    // 计算列位置
+    
+    // 高度：基于时长，但不限制最大高度（允许内容撑开）
+    const timeBasedHeight = (duration / (24 * 60)) * 100;
+    
+    // 计算列位置（处理重叠）
     const columnIndex = blockColumns.get(block.id) || 0;
     const columnWidth = 100 / totalColumns;
     const left = columnIndex * columnWidth;
 
     return {
       top: `${top}%`,
-      height: `${Math.max(height, 2)}%`,
+      minHeight: `${Math.max(timeBasedHeight, 5)}%`, // 最小高度5%（约72分钟）
       left: `${left}%`,
-      width: `${columnWidth}%`,
+      width: `${columnWidth - 1}%`, // 留1%间距
       borderColor: block.color,
     };
   };
@@ -932,7 +935,7 @@ export default function TimelineCalendar({
                 return (
                   <div
                     key={block.id}
-                    className={`absolute rounded-2xl shadow-lg transition-all group cursor-move hover:shadow-2xl ${
+                    className={`absolute rounded-2xl shadow-lg transition-all group cursor-move hover:shadow-2xl overflow-visible ${
                       draggedBlockId === block.id ? 'scale-105 z-40 shadow-2xl' : 'z-20'
                     } ${
                       selectedBlockId === block.id ? 'ring-4 ring-white ring-opacity-50' : ''
@@ -940,8 +943,8 @@ export default function TimelineCalendar({
                     style={{
                       ...blockStyle,
                       backgroundColor: isCompleted ? '#9ca3af' : block.color,
-                      minHeight: isExpanded ? '120px' : '80px',
-                      position: 'relative',
+                      position: 'absolute',
+                      height: 'auto', // 允许内容撑开高度
                     }}
                     onMouseDown={(e) => handleDragStart(e, block.id)}
                     onClick={() => setSelectedBlockId(block.id)}
@@ -963,24 +966,26 @@ export default function TimelineCalendar({
                       </div>
                     )}
                     
-                    <div className="p-3 h-full flex flex-col text-white relative">
+                    <div className="p-4 flex flex-col text-white relative min-h-[120px]">
                       {/* 1. 顶部信息栏 */}
-                      <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-start justify-between mb-3 gap-2">
                         {/* 左侧：时间段和时长 */}
-                        <div className="flex items-center space-x-2">
-                          <span className="font-bold text-sm">
-                            {block.startTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-                            {' - '}
-                            {block.endTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                          <span className="px-2 py-0.5 rounded-full text-xs font-medium"
-                            style={{ backgroundColor: 'rgba(0,0,0,0.2)' }}
-                          >
-                            ({formatDuration(duration)})
-                          </span>
+                        <div className="flex flex-col space-y-1 flex-1">
+                          <div className="flex items-center space-x-2 flex-wrap">
+                            <span className="font-bold text-sm whitespace-nowrap">
+                              {block.startTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                              {' - '}
+                              {block.endTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap"
+                              style={{ backgroundColor: 'rgba(0,0,0,0.2)' }}
+                            >
+                              ({formatDuration(duration)})
+                            </span>
+                          </div>
                           {/* 完成时间戳 */}
                           {isCompleted && task?.completedAt && (
-                            <span className="px-2 py-0.5 rounded-full text-xs font-medium"
+                            <span className="px-2 py-0.5 rounded-full text-xs font-medium inline-block w-fit"
                               style={{ backgroundColor: 'rgba(255,255,255,0.3)' }}
                             >
                               ✓ {new Date(task.completedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
@@ -988,18 +993,83 @@ export default function TimelineCalendar({
                           )}
                         </div>
                         
-                        {/* 右侧：事件类型标签 */}
-                        <div className="px-2 py-0.5 rounded-md text-xs font-bold"
-                          style={{ backgroundColor: 'rgba(255,255,255,0.9)', color: block.color }}
-                        >
-                          [{taskTypeLabels[block.category] || block.category}]
+                        {/* 右侧：事件类型标签和按钮组 */}
+                        <div className="flex items-start space-x-2 flex-shrink-0">
+                          <div className="px-2 py-0.5 rounded-md text-xs font-bold whitespace-nowrap"
+                            style={{ backgroundColor: 'rgba(255,255,255,0.9)', color: block.color }}
+                          >
+                            [{taskTypeLabels[block.category] || block.category}]
+                          </div>
+                          
+                          {/* 交互按钮组（横向排列） */}
+                          <div className="flex items-center space-x-1">
+                            {/* AI拆解按钮 */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                console.log('AI拆解任务:', block.id);
+                              }}
+                              className="p-1.5 rounded-lg backdrop-blur-sm transition-all hover:scale-110"
+                              style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}
+                              title="AI拆解"
+                            >
+                              <span className="text-sm">✨</span>
+                            </button>
+                            
+                            {/* 任务验证/完成按钮 */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (block.status === 'pending') {
+                                  handleQuickAction('start', block.id);
+                                } else if (block.status === 'in-progress') {
+                                  handleQuickAction('complete', block.id);
+                                }
+                              }}
+                              className="p-1.5 rounded-lg backdrop-blur-sm transition-all hover:scale-110"
+                              style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}
+                              title={block.status === 'completed' ? '已完成' : '完成任务'}
+                            >
+                              {block.status === 'completed' ? (
+                                <Check className="w-3.5 h-3.5 text-green-600" />
+                              ) : (
+                                <span className="text-sm">⏱️</span>
+                              )}
+                            </button>
+                            
+                            {/* 编辑颜色按钮 */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleContextMenu(e, block.id);
+                              }}
+                              className="p-1.5 rounded-lg backdrop-blur-sm transition-all hover:scale-110"
+                              style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}
+                              title="更多选项"
+                            >
+                              <span className="text-sm">🎨</span>
+                            </button>
+                            
+                            {/* 展开/收起按钮 */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleCardExpand(block.id);
+                              }}
+                              className="p-1.5 rounded-lg backdrop-blur-sm transition-all hover:scale-110"
+                              style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}
+                              title={isExpanded ? '收起' : '展开'}
+                            >
+                              <span className="text-sm">{isExpanded ? '▲' : '▼'}</span>
+                            </button>
+                          </div>
                         </div>
                       </div>
 
                       {/* 2. 主信息区 */}
-                      <div className="flex-1 mb-2 pr-12">
+                      <div className="flex-1 mb-3">
                         {/* 事件标题 */}
-                        <h3 className="text-lg font-bold mb-1 leading-tight">
+                        <h3 className="text-base font-bold mb-1 leading-tight">
                           {block.title}
                         </h3>
                         
@@ -1018,108 +1088,88 @@ export default function TimelineCalendar({
                         )}
                       </div>
 
-                      {/* 3. 交互按钮栏（右侧垂直排列） */}
-                      <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex flex-col space-y-1">
-                        {/* AI拆解按钮 */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            console.log('AI拆解任务:', block.id);
-                          }}
-                          className="p-2 rounded-lg backdrop-blur-sm transition-all hover:scale-110"
-                          style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}
-                          title="AI拆解"
-                        >
-                          <span className="text-base">✨</span>
-                        </button>
-                        
-                        {/* 任务验证/完成按钮 */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (block.status === 'pending') {
-                              handleQuickAction('start', block.id);
-                            } else if (block.status === 'in-progress') {
-                              handleQuickAction('complete', block.id);
-                            }
-                          }}
-                          className="p-2 rounded-lg backdrop-blur-sm transition-all hover:scale-110"
-                          style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}
-                          title={block.status === 'completed' ? '已完成' : '完成任务'}
-                        >
-                          {block.status === 'completed' ? (
-                            <Check className="w-4 h-4 text-green-600" />
-                          ) : (
-                            <span className="text-base">⏱️</span>
+                      {/* 3. 底部信息栏（金币等） */}
+                      {!isExpanded && (block.rewards?.gold || task?.penaltyGold) && (
+                        <div className="flex items-center space-x-2 mb-2">
+                          {block.rewards && block.rewards.gold > 0 && (
+                            <span className="px-2 py-1 rounded-lg text-xs font-medium backdrop-blur-sm" 
+                              style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
+                            >
+                              💰 +{block.rewards.gold}
+                            </span>
                           )}
-                        </button>
-                        
-                        {/* 编辑颜色按钮 */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleContextMenu(e, block.id);
-                          }}
-                          className="p-2 rounded-lg backdrop-blur-sm transition-all hover:scale-110"
-                          style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}
-                          title="更多选项"
-                        >
-                          <span className="text-base">🎨</span>
-                        </button>
-                        
-                        {/* 展开/收起按钮 */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleCardExpand(block.id);
-                          }}
-                          className="p-2 rounded-lg backdrop-blur-sm transition-all hover:scale-110"
-                          style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}
-                          title={isExpanded ? '收起' : '展开'}
-                        >
-                          <span className="text-base">{isExpanded ? '▲' : '▼'}</span>
-                        </button>
-                      </div>
+                          {task?.penaltyGold && task.penaltyGold > 0 && (
+                            <span className="px-2 py-1 rounded-lg text-xs font-medium backdrop-blur-sm" 
+                              style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
+                            >
+                              💸 -{task.penaltyGold}
+                            </span>
+                          )}
+                        </div>
+                      )}
 
                       {/* 4. 可展开详情区 */}
                       {isExpanded && (
-                        <div className="mt-3 pt-3 border-t border-white border-opacity-30 space-y-2">
+                        <div className="pt-3 border-t border-white border-opacity-30 space-y-3">
+                          {/* 金币信息 */}
+                          {(block.rewards?.gold || task?.penaltyGold) && (
+                            <div className="flex items-center space-x-2">
+                              {block.rewards && block.rewards.gold > 0 && (
+                                <span className="px-2 py-1 rounded-lg text-xs font-medium backdrop-blur-sm" 
+                                  style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
+                                >
+                                  💰 +{block.rewards.gold}
+                                </span>
+                              )}
+                              {task?.penaltyGold && task.penaltyGold > 0 && (
+                                <span className="px-2 py-1 rounded-lg text-xs font-medium backdrop-blur-sm" 
+                                  style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
+                                >
+                                  💸 -{task.penaltyGold}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          
                           {/* 子任务列表 */}
                           {task?.subtasks && task.subtasks.length > 0 && (
-                            <div className="space-y-1">
-                              <p className="text-xs font-semibold opacity-80 mb-1">子任务：</p>
-                              {task.subtasks.map((subtask) => (
-                                <div key={subtask.id} className="flex items-center space-x-2 text-xs">
-                                  <input
-                                    type="checkbox"
-                                    checked={subtask.isCompleted}
-                                    onChange={() => {
-                                      // TODO: 更新子任务状态
-                                      console.log('Toggle subtask:', subtask.id);
-                                    }}
-                                    className="w-3 h-3 rounded"
-                                  />
-                                  <span className={subtask.isCompleted ? 'line-through opacity-60' : ''}>
-                                    {subtask.title}
-                                  </span>
-                                  {subtask.isCompleted && subtask.completedAt && (
-                                    <span className="opacity-60">
-                                      [完成于 {new Date(subtask.completedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}]
-                                    </span>
-                                  )}
-                                </div>
-                              ))}
+                            <div className="space-y-2">
+                              <p className="text-xs font-semibold opacity-90">📋 子任务：</p>
+                              <div className="space-y-1.5">
+                                {task.subtasks.map((subtask) => (
+                                  <div key={subtask.id} className="flex items-start space-x-2 text-xs bg-white bg-opacity-10 rounded-lg p-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={subtask.isCompleted}
+                                      onChange={() => {
+                                        console.log('Toggle subtask:', subtask.id);
+                                      }}
+                                      className="w-3.5 h-3.5 rounded mt-0.5 flex-shrink-0"
+                                    />
+                                    <div className="flex-1">
+                                      <span className={subtask.isCompleted ? 'line-through opacity-60' : ''}>
+                                        {subtask.title}
+                                      </span>
+                                      {subtask.isCompleted && subtask.completedAt && (
+                                        <div className="text-xs opacity-60 mt-0.5">
+                                          ✓ {new Date(subtask.completedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           )}
                           
                           {/* 图片/备注附件 */}
-                          <div className="flex items-center space-x-2">
+                          <div className="flex flex-wrap gap-2">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 console.log('添加图片');
                               }}
-                              className="px-2 py-1 rounded-lg text-xs backdrop-blur-sm"
+                              className="px-3 py-1.5 rounded-lg text-xs backdrop-blur-sm hover:bg-white hover:bg-opacity-30 transition-colors"
                               style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
                             >
                               📷 添加图片
@@ -1129,38 +1179,21 @@ export default function TimelineCalendar({
                                 e.stopPropagation();
                                 console.log('添加备注');
                               }}
-                              className="px-2 py-1 rounded-lg text-xs backdrop-blur-sm"
+                              className="px-3 py-1.5 rounded-lg text-xs backdrop-blur-sm hover:bg-white hover:bg-opacity-30 transition-colors"
                               style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
                             >
                               📝 添加备注
                             </button>
                           </div>
-                          
-                          {/* 金币信息 */}
-                          {(block.rewards?.gold || task?.penaltyGold) && (
-                            <div className="flex items-center space-x-2 text-xs">
-                              {block.rewards && block.rewards.gold > 0 && (
-                                <span className="px-2 py-1 rounded-lg backdrop-blur-sm" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>
-                                  💰 +{block.rewards.gold}
-                                </span>
-                              )}
-                              {task?.penaltyGold && task.penaltyGold > 0 && (
-                                <span className="px-2 py-1 rounded-lg backdrop-blur-sm" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>
-                                  💸 -{task.penaltyGold}
-                                </span>
-                              )}
-                            </div>
-                          )}
                         </div>
                       )}
 
                       {/* 调整大小手柄 */}
                       <div
-                        className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                        className="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-12 h-1 rounded-full opacity-0 group-hover:opacity-50 transition-opacity cursor-ns-resize"
+                        style={{ backgroundColor: 'rgba(255,255,255,0.8)' }}
                         onMouseDown={(e) => handleResizeStart(e, block.id)}
-                      >
-                        <div className="w-12 h-1 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.5)' }}></div>
-                      </div>
+                      ></div>
                     </div>
                   </div>
                 );
@@ -1170,25 +1203,27 @@ export default function TimelineCalendar({
               {gaps.map((gap) => {
                 const hours = Math.floor(gap.durationMinutes / 60);
                 const minutes = Math.round(gap.durationMinutes % 60);
-                let gapText = '间隔: ';
+                let gapText = '';
                 if (hours > 0) {
-                  gapText += `${hours}小时`;
+                  gapText += `${hours}h`;
                   if (minutes > 0) {
-                    gapText += `${minutes}分钟`;
+                    gapText += ` ${minutes}m`;
                   }
                 } else {
-                  gapText += `${minutes}分钟`;
+                  gapText += `${minutes}m`;
                 }
                 
                 return (
                   <div
                     key={gap.id}
-                    className="absolute left-4 right-4 z-10 flex items-center group"
-                    style={{ top: `${gap.position}%` }}
+                    className="absolute left-0 right-0 z-10 flex items-center justify-center px-4"
+                    style={{ 
+                      top: `${gap.position}%`,
+                      height: `${(gap.durationMinutes / (24 * 60)) * 100}%`,
+                      minHeight: '40px',
+                    }}
                   >
-                    <div className="flex-1 border-t-2 border-dashed transition-colors" 
-                      style={{ borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)' }}
-                    ></div>
+                    {/* 悬浮的快速添加按钮 */}
                     <button
                       onClick={() => {
                         const newTask = {
@@ -1200,21 +1235,29 @@ export default function TimelineCalendar({
                         };
                         onTaskCreate(newTask);
                       }}
-                      className="mx-2 px-3 py-1.5 rounded-full shadow-lg transition-all hover:scale-110 hover:shadow-xl flex items-center space-x-2"
+                      className="group/gap relative px-4 py-2 rounded-full shadow-lg transition-all hover:scale-105 hover:shadow-xl flex items-center space-x-2"
                       style={{ 
-                        backgroundColor: '#3b82f6',
-                        color: '#ffffff'
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.9)',
+                        backdropFilter: 'blur(10px)',
+                        border: `2px dashed ${isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)'}`,
                       }}
                       title="点击快速添加任务"
                     >
-                      <Plus className="w-4 h-4" />
-                      <span className="text-xs font-medium whitespace-nowrap">
-                        {gapText}
-                      </span>
+                      <div 
+                        className="w-8 h-8 rounded-full flex items-center justify-center transition-all group-hover/gap:rotate-90"
+                        style={{ backgroundColor: '#3b82f6' }}
+                      >
+                        <Plus className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="flex flex-col items-start">
+                        <span className="text-xs font-medium" style={{ color: isDark ? '#ffffff' : '#666666' }}>
+                          空闲时间
+                        </span>
+                        <span className="text-sm font-bold" style={{ color: isDark ? '#ffffff' : '#000000' }}>
+                          {gapText}
+                        </span>
+                      </div>
                     </button>
-                    <div className="flex-1 border-t-2 border-dashed transition-colors" 
-                      style={{ borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)' }}
-                    ></div>
                   </div>
                 );
               })}
