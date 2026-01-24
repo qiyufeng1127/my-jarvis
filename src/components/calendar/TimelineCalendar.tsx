@@ -819,15 +819,14 @@ export default function TimelineCalendar({
           </div>
         </div>
 
-        {/* 时间轴主体区域 - 统一滚动容器 */}
+        {/* 时间轴主体区域 - 固定高度滚动容器 */}
         <div 
           ref={timelineRef}
-          className="flex-1 overflow-y-auto overflow-x-hidden"
+          className="overflow-y-scroll overflow-x-hidden"
           style={{
-            minHeight: '500px',
-            maxHeight: '100%',
+            height: '600px', // 固定容器高度，可以调整
+            flexShrink: 0,
             WebkitOverflowScrolling: 'touch',
-            overflowY: 'auto', // 强制启用垂直滚动
           }}
           onMouseMove={(e) => {
             if (draggedBlockId) handleDragMove(e);
