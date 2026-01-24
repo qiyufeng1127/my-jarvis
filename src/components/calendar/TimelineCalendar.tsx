@@ -825,7 +825,9 @@ export default function TimelineCalendar({
           className="flex-1 overflow-y-auto overflow-x-hidden"
           style={{
             minHeight: '500px',
+            maxHeight: '100%',
             WebkitOverflowScrolling: 'touch',
+            overflowY: 'auto', // 强制启用垂直滚动
           }}
           onMouseMove={(e) => {
             if (draggedBlockId) handleDragMove(e);
