@@ -1,6 +1,7 @@
 import GrowthPanel from '@/components/growth/GrowthPanel';
 import { GoalsModule } from '@/components/growth/GoalsModule';
 import TimelineCalendar from '@/components/calendar/TimelineCalendar';
+import SyncCodeManager from '@/components/settings/SyncCodeManager';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
 import { TrendingUp, Target, CheckCircle, Clock, ShoppingBag, History, Plus } from 'lucide-react';
@@ -1451,6 +1452,9 @@ export function SettingsModule({ isDark = false }: { isDark?: boolean }) {
       {/* 云同步设置 */}
       {activeTab === 'sync' && (
         <div className="space-y-4">
+          {/* 云同步码管理器 */}
+          <SyncCodeManager isDark={isDark} bgColor={bgColor} />
+
           <h4 className="font-semibold text-base" style={{ color: textColor }}>☁️ 云同步设置</h4>
 
           {/* 同步状态 */}

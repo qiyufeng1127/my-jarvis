@@ -6,27 +6,17 @@ import FloatingAIChat from '@/components/ai/FloatingAIChat';
 import { VoiceAssistant, VoiceTutorial } from '@/components/voice';
 import {
   GoalsModule,
-  GoldModule,
-  HabitsModule,
-  ReportsModule,
-  SettingsModule,
-  KikiModule,
   TimelineModule,
 } from '@/components/dashboard/ModuleComponents';
 import JournalModule from '@/components/journal/JournalModule';
 import PanoramaMemory from '@/components/memory/PanoramaMemory';
 
-interface MobileLayoutProps {
-  children?: React.ReactNode;
-}
-
 type TabType = 'timeline' | 'goals' | 'journal' | 'memory' | 'more';
 
-export default function MobileLayout({ children }: MobileLayoutProps) {
+export default function MobileLayout() {
   const { loadTasks } = useTaskStore();
   const { loadGrowthData } = useGrowthStore();
   const [activeTab, setActiveTab] = useState<TabType>('timeline');
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   useEffect(() => {
     loadTasks();
@@ -53,46 +43,9 @@ export default function MobileLayout({ children }: MobileLayoutProps) {
         return (
           <div className="p-4 space-y-3">
             <h2 className="text-xl font-bold mb-4">更多功能</h2>
-            <button
-              onClick={() => setShowMoreMenu(false)}
-              className="w-full p-4 bg-white rounded-xl shadow-sm border border-neutral-200 flex items-center space-x-3"
-            >
-              <span className="text-2xl">💰</span>
-              <div className="flex-1 text-left">
-                <div className="font-semibold">金币经济</div>
-                <div className="text-sm text-neutral-500">查看金币余额和交易记录</div>
-              </div>
-            </button>
-            <button
-              onClick={() => setShowMoreMenu(false)}
-              className="w-full p-4 bg-white rounded-xl shadow-sm border border-neutral-200 flex items-center space-x-3"
-            >
-              <span className="text-2xl">⚠️</span>
-              <div className="flex-1 text-left">
-                <div className="font-semibold">坏习惯管理</div>
-                <div className="text-sm text-neutral-500">追踪和改善坏习惯</div>
-              </div>
-            </button>
-            <button
-              onClick={() => setShowMoreMenu(false)}
-              className="w-full p-4 bg-white rounded-xl shadow-sm border border-neutral-200 flex items-center space-x-3"
-            >
-              <span className="text-2xl">📈</span>
-              <div className="flex-1 text-left">
-                <div className="font-semibold">数据报告</div>
-                <div className="text-sm text-neutral-500">查看成长数据和统计</div>
-              </div>
-            </button>
-            <button
-              onClick={() => setShowMoreMenu(false)}
-              className="w-full p-4 bg-white rounded-xl shadow-sm border border-neutral-200 flex items-center space-x-3"
-            >
-              <span className="text-2xl">⚙️</span>
-              <div className="flex-1 text-left">
-                <div className="font-semibold">设置</div>
-                <div className="text-sm text-neutral-500">个性化设置和偏好</div>
-              </div>
-            </button>
+            <div className="text-center text-neutral-500 py-8">
+              <p>更多功能开发中...</p>
+            </div>
           </div>
         );
       default:
@@ -213,4 +166,3 @@ export default function MobileLayout({ children }: MobileLayoutProps) {
     </div>
   );
 }
-
