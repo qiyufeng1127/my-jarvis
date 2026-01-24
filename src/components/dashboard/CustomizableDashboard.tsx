@@ -860,7 +860,18 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                         className="w-4 h-4" 
                         style={{ color: isColorDark(module.color) ? '#ffffff' : '#000000' }}
                       />
-                      <div>{module.icon}</div>
+                      {/* 显示自定义图标或默认图标 */}
+                      <div className="w-8 h-8 flex items-center justify-center">
+                        {module.customIcon ? (
+                          <img 
+                            src={module.customIcon} 
+                            alt={module.title} 
+                            className="w-full h-full object-cover rounded"
+                          />
+                        ) : (
+                          <div>{module.icon}</div>
+                        )}
+                      </div>
                       <h3 
                         className="font-semibold"
                         style={{ color: isColorDark(module.color) ? '#ffffff' : '#000000' }}
