@@ -34,3 +34,4 @@ export default function ResponsiveLayout({ onOpenAISmart }: ResponsiveLayoutProp
   return <CustomizableDashboard onOpenAISmart={onOpenAISmart} />;
 }
 
+

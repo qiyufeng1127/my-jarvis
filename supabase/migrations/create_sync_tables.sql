@@ -64,3 +64,4 @@ CREATE POLICY "Users can delete their own devices"
 COMMENT ON TABLE sync_codes IS '云同步码表，用于多设备数据同步';
 COMMENT ON TABLE connected_devices IS '已连接设备表，记录使用同一同步码的所有设备';
 
+
