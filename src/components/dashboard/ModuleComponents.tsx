@@ -1377,7 +1377,7 @@ export function ReportsModule({ isDark = false }: { isDark?: boolean }) {
 }
 
 // 设置模块
-export function SettingsModule({ isDark = false }: { isDark?: boolean }) {
+export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: boolean; bgColor?: string }) {
   const [activeTab, setActiveTab] = useState<'growth' | 'identity' | 'procrastination' | 'economy' | 'appearance' | 'notification' | 'sync'>('sync');
   const [strictnessLevel, setStrictnessLevel] = useState(2); // 0=低, 1=中, 2=高
   

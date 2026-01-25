@@ -4,7 +4,7 @@ import { useGrowthStore } from '@/stores/growthStore';
 import { X, GripVertical, Settings } from 'lucide-react';
 import NotificationContainer from '@/components/ui/NotificationContainer';
 import FloatingAIChat from '@/components/ai/FloatingAIChat';
-import { VoiceAssistant, VoiceTutorial } from '@/components/voice';
+import VoiceAssistant from '@/components/voice/VoiceAssistant';
 import {
   GoalsModule,
   TimelineModule,
@@ -59,6 +59,8 @@ export default function MobileLayout() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingItems, setEditingItems] = useState<NavItem[]>([]);
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
+  const [navColor, setNavColor] = useState(() => localStorage.getItem('mobile_nav_color') || '#ffffff');
+  const [showColorPicker, setShowColorPicker] = useState(false);
 
   useEffect(() => {
     loadTasks();
@@ -72,9 +74,12 @@ export default function MobileLayout() {
 
   // 渲染当前激活的模块
   const renderActiveModule = () => {
+    // 从 localStorage 读取自定义颜色
+    const savedNavColor = localStorage.getItem('mobile_nav_color') || '#ffffff';
+    
     const moduleProps = {
       isDark: false,
-      bgColor: '#ffffff',
+      bgColor: savedNavColor,
     };
 
     const activeItem = ALL_NAV_ITEMS.find(item => item.id === activeTab);
@@ -195,7 +200,10 @@ export default function MobileLayout() {
       </div>
 
       {/* 底部导航栏 - 固定在底部 */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 px-2 py-2 safe-area-bottom z-40">
+      <div 
+        className="fixed bottom-0 left-0 right-0 border-t border-neutral-200 px-2 py-2 safe-area-bottom z-40"
+        style={{ backgroundColor: navColor }}
+      >
         <div className="flex items-center justify-around">
           {visibleNavItems.map((item) => (
             <button
@@ -290,12 +298,21 @@ export default function MobileLayout() {
             {/* 头部 */}
             <div className="flex items-center justify-between p-4 border-b border-neutral-200">
               <h3 className="text-lg font-bold">编辑导航栏</h3>
-              <button
-                onClick={() => setShowEditModal(false)}
-                className="p-2 rounded-lg bg-neutral-100 active:bg-neutral-200"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setShowColorPicker(!showColorPicker)}
+                  className="p-2 rounded-lg bg-neutral-100 active:bg-neutral-200"
+                  title="自定义颜色"
+                >
+                  🎨
+                </button>
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="p-2 rounded-lg bg-neutral-100 active:bg-neutral-200"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* 说明 */}
@@ -304,6 +321,59 @@ export default function MobileLayout() {
                 💡 拖拽调整顺序，最多显示4个在底部导航栏
               </p>
             </div>
+
+            {/* 颜色选择器 */}
+            {showColorPicker && (
+              <div className="p-4 bg-neutral-50 border-b border-neutral-200">
+                <h4 className="text-sm font-semibold mb-3">🎨 导航栏颜色</h4>
+                <div className="grid grid-cols-6 gap-2 mb-3">
+                  {[
+                    '#ffffff', '#f8f9fa', '#e9ecef', '#dee2e6',
+                    '#fef3c7', '#fde68a', '#fcd34d', '#fbbf24',
+                    '#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa',
+                    '#fce7f3', '#fbcfe8', '#f9a8d4', '#f472b6',
+                    '#d1fae5', '#a7f3d0', '#6ee7b7', '#34d399',
+                    '#e0e7ff', '#c7d2fe', '#a5b4fc', '#818cf8',
+                  ].map((color) => (
+                    <button
+                      key={color}
+                      onClick={() => {
+                        setNavColor(color);
+                        localStorage.setItem('mobile_nav_color', color);
+                      }}
+                      className="w-full aspect-square rounded-lg border-2 transition-all hover:scale-110"
+                      style={{
+                        backgroundColor: color,
+                        borderColor: navColor === color ? '#3b82f6' : '#e5e7eb',
+                      }}
+                    />
+                  ))}
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="color"
+                    value={navColor}
+                    onChange={(e) => {
+                      setNavColor(e.target.value);
+                      localStorage.setItem('mobile_nav_color', e.target.value);
+                    }}
+                    className="w-12 h-12 rounded-lg cursor-pointer"
+                  />
+                  <div className="flex-1">
+                    <input
+                      type="text"
+                      value={navColor}
+                      onChange={(e) => {
+                        setNavColor(e.target.value);
+                        localStorage.setItem('mobile_nav_color', e.target.value);
+                      }}
+                      className="w-full px-3 py-2 rounded-lg border border-neutral-300 text-sm font-mono"
+                      placeholder="#ffffff"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* 当前导航项 */}
             <div className="flex-1 overflow-y-auto p-4">
@@ -377,14 +447,15 @@ export default function MobileLayout() {
         </div>
       )}
 
-      {/* Kiki 宝宝语音助手 - 移动端优化位置 */}
-      <VoiceAssistant mode="float" />
+      {/* Kiki 宝宝语音助手 - 移动端优化位置，在更多/设置时隐藏 */}
+      {activeTab !== 'more' && activeTab !== 'settings' && !showMoreModal && (
+        <VoiceAssistant mode="float" />
+      )}
 
-      {/* 浮动AI聊天 - 移动端优化位置 */}
-      <FloatingAIChat />
-
-      {/* 语音助手教程 */}
-      <VoiceTutorial />
+      {/* 浮动AI聊天 - 移动端优化位置，在更多/设置时隐藏 */}
+      {activeTab !== 'more' && activeTab !== 'settings' && !showMoreModal && (
+        <FloatingAIChat />
+      )}
     </div>
   );
 }

@@ -116,10 +116,16 @@ export function GoalsModule({ isDark = false, bgColor = '#ffffff' }: GoalsModule
 
           <button
             onClick={async () => {
-              const newValue = goal.currentValue + 1;
-              await updateGoalProgress(goal.id, newValue);
+              try {
+                const newValue = goal.currentValue + 1;
+                await updateGoalProgress(goal.id, newValue);
+                alert('✅ 进展已记录！');
+              } catch (error) {
+                console.error('记录进展失败:', error);
+                alert('❌ 记录进展失败，请重试');
+              }
             }}
-            className="w-full py-3 rounded-lg font-semibold"
+            className="w-full py-3 rounded-lg font-semibold transition-all active:scale-95"
             style={{
               backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)',
               color: textColor,

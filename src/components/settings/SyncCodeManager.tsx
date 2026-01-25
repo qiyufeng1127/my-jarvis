@@ -207,15 +207,16 @@ export default function SyncCodeManager({ isDark = false, bgColor = '#ffffff' }:
       // 将当前用户ID关联到这个同步码
       const userId = getCurrentUserId();
       
-      // 更新当前用户的同步码
+      // 创建或更新当前用户的同步码记录
       const { error: updateError } = await supabase
         .from('sync_codes')
-        .update({
+        .upsert({
           user_id: userId,
           sync_code: data.sync_code,
           updated_at: new Date().toISOString(),
-        })
-        .eq('user_id', userId);
+        }, {
+          onConflict: 'user_id'
+        });
 
       if (updateError) {
         console.error('❌ 加入同步失败：', updateError);
