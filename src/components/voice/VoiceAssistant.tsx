@@ -233,7 +233,7 @@ export default function VoiceAssistant({
   if (mode === 'float') {
     return (
       <>
-        <div className="fixed bottom-8 right-8 z-50 flex items-center gap-4">
+        <div className="fixed md:bottom-8 md:right-8 bottom-24 right-20 z-50 flex items-center gap-4">
           {/* 语音识别文本显示 */}
           {(displayTranscript || lastCommand) && wakeState !== 'sleeping' && (
             <div className="absolute bottom-20 right-0 mb-2 p-4 bg-white dark:bg-neutral-800 rounded-xl shadow-2xl max-w-sm animate-slide-up border border-neutral-200 dark:border-neutral-700">

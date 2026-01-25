@@ -745,11 +745,11 @@ export default function FloatingAIChat() {
 
   return (
     <>
-      {/* 浮动按钮 - 只在未展开时显示 */}
+      {/* 浮动按钮 - 只在未展开时显示，手机端位置上移避免遮挡导航栏 */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-8 right-32 w-14 h-14 rounded-full bg-purple-600 text-white shadow-2xl hover:scale-110 transition-all z-50 flex items-center justify-center"
+          className="fixed w-14 h-14 rounded-full bg-purple-600 text-white shadow-2xl hover:scale-110 transition-all z-50 flex items-center justify-center md:bottom-8 md:right-32 bottom-24 right-4"
           title="AI助手"
         >
           <span className="text-2xl">🤖</span>

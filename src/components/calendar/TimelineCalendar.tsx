@@ -718,7 +718,7 @@ export default function TimelineCalendar({
               <button
                 key={index}
                 onClick={() => setSelectedDate(day.date)}
-                className={`${calendarView === 'month' ? 'aspect-square' : 'h-24'} rounded-lg border-2 p-2 transition-all hover:shadow-md`}
+                className={`aspect-square rounded-lg border-2 p-2 transition-all hover:shadow-md`}
                 style={{
                   borderColor: day.isSelected
                     ? '#3B82F6'
@@ -775,40 +775,29 @@ export default function TimelineCalendar({
 
       {/* 下半部分：时间轴视图 */}
       <div className="flex-1 flex flex-col min-h-0">
-        {/* 全天概览数据 - 移到顶部，无背景 */}
+        {/* 全天概览数据 - 移到顶部，无背景，只显示图标+数据 */}
         <div className="flex-shrink-0 px-6 py-3" style={{ backgroundColor: bgColor, borderBottom: `1px solid ${borderColor}` }}>
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-6">
               <div className="flex items-center space-x-2">
                 <span className="text-xl">📅</span>
-                <div>
-                  <div className="text-xs" style={{ color: accentColor }}>今日事件</div>
-                  <div className="text-sm font-bold" style={{ color: textColor }}>
-                    {timeBlocks.filter(b => b.status === 'completed').length} Meeting · 
-                    {timeBlocks.filter(b => b.status === 'in-progress').length} Task · 
-                    已完成: {timeBlocks.filter(b => b.status === 'completed').length}
-                  </div>
+                <div className="text-sm font-bold" style={{ color: textColor }}>
+                  {timeBlocks.filter(b => b.status === 'completed').length}/{timeBlocks.length}
                 </div>
               </div>
               
               <div className="flex items-center space-x-2">
                 <span className="text-xl">⏱️</span>
-                <div>
-                  <div className="text-xs" style={{ color: accentColor }}>总专注时长</div>
-                  <div className="text-sm font-bold" style={{ color: textColor }}>
-                    {Math.floor(timeBlocks.reduce((sum, b) => sum + (b.endTime.getTime() - b.startTime.getTime()), 0) / 3600000)}h 
-                    {Math.floor((timeBlocks.reduce((sum, b) => sum + (b.endTime.getTime() - b.startTime.getTime()), 0) % 3600000) / 60000)}m
-                  </div>
+                <div className="text-sm font-bold" style={{ color: textColor }}>
+                  {Math.floor(timeBlocks.reduce((sum, b) => sum + (b.endTime.getTime() - b.startTime.getTime()), 0) / 3600000)}h 
+                  {Math.floor((timeBlocks.reduce((sum, b) => sum + (b.endTime.getTime() - b.startTime.getTime()), 0) % 3600000) / 60000)}m
                 </div>
               </div>
               
               <div className="flex items-center space-x-2">
                 <span className="text-xl">💰</span>
-                <div>
-                  <div className="text-xs" style={{ color: accentColor }}>今日金币</div>
-                  <div className="text-sm font-bold text-yellow-600">
-                    +{timeBlocks.reduce((sum, b) => sum + (b.rewards?.gold || 0), 0)}
-                  </div>
+                <div className="text-sm font-bold text-yellow-600">
+                  +{timeBlocks.reduce((sum, b) => sum + (b.rewards?.gold || 0), 0)}
                 </div>
               </div>
             </div>
