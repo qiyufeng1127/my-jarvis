@@ -109,6 +109,14 @@ const availableModules: ModuleDefinition[] = [
     component: KikiModule,
   },
   {
+    id: 'ai-smart',
+    type: 'ai-smart',
+    title: 'AI智能输入',
+    icon: <span className="text-2xl">🤖</span>,
+    defaultColor: '#7C3AED',
+    component: AISmartModule,
+  },
+  {
     id: 'journal',
     type: 'journal',
     title: '成功&感恩日记',
