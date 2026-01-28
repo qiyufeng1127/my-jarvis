@@ -4,7 +4,7 @@ import { useGrowthStore } from '@/stores/growthStore';
 import { X } from 'lucide-react';
 import NotificationContainer from '@/components/ui/NotificationContainer';
 import AIChat from '@/components/ai/AIChat';
-import { AISmartInput } from '@/components/ai';
+import AISmartInput from '@/components/ai/AISmartInput';
 import TimelineCalendar from '@/components/calendar/TimelineCalendar';
 import ResponsiveLayout from '@/components/layout/ResponsiveLayout';
 
