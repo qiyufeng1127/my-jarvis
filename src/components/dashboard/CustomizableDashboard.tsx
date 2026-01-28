@@ -25,7 +25,6 @@ import {
 } from './ModuleComponents';
 import JournalModule from '@/components/journal/JournalModule';
 import PanoramaMemory from '@/components/memory/PanoramaMemory';
-import AISmartInput from '@/components/ai/AISmartInput';
 import { supabase, isSupabaseConfigured, getCurrentUserId } from '@/lib/supabase';
 
 interface Module {
@@ -181,7 +180,6 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
   const [longPressModule, setLongPressModule] = useState<string | null>(null);
-  const [showAISmartInput, setShowAISmartInput] = useState(false);
 
   // 坏习惯百分比（模拟数据）
   const [habitScore, setHabitScore] = useState(0); // 0-100，越高越差
@@ -1005,7 +1003,7 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                       React.createElement(moduleDefinition.component, { 
                         isDark: isColorDark(module.color),
                         bgColor: module.color,
-                        onOpen: module.type === 'ai-smart' ? () => setShowAISmartInput(true) : undefined
+                        onOpen: module.type === 'ai-smart' ? onOpenAISmart : undefined
                       })
                     }
                   </div>
@@ -1229,14 +1227,6 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
             </div>
           </div>
         )}
-
-        {/* AI智能输入弹窗 */}
-        <AISmartInput
-          isOpen={showAISmartInput}
-          onClose={() => setShowAISmartInput(false)}
-          isDark={false}
-          bgColor="#ffffff"
-        />
       </div>
     </div>
   );
