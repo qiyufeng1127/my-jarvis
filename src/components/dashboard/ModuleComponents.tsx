@@ -2056,127 +2056,122 @@ export function KikiModule({ isDark = false }: { isDark?: boolean }) {
   );
 }
 
-// AI智能助手模块
-export function AISmartModule({ isDark = false, onOpen }: { isDark?: boolean; onOpen?: () => void }) {
+// AI智能助手模块 - 嵌入式对话界面
+export function AISmartModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: boolean; bgColor?: string }) {
+  const [messages, setMessages] = useState<Array<{ id: string; role: 'user' | 'assistant'; content: string }>>([
+    {
+      id: 'welcome',
+      role: 'assistant',
+      content: '你好！我是你的AI助手 🤖\n\n我能帮你：\n• 智能分解任务\n• 自动计算金币\n• 生成标签分类\n• 操作时间轴\n• 记录心情\n\n直接输入你的需求吧！'
+    }
+  ]);
+  const [inputValue, setInputValue] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const messagesEndRef = useState<HTMLDivElement | null>(null);
+
   const textColor = isDark ? '#ffffff' : '#000000';
   const accentColor = isDark ? 'rgba(255,255,255,0.7)' : '#666666';
   const buttonBg = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)';
   const cardBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
 
+  const handleSend = async () => {
+    if (!inputValue.trim() || isProcessing) return;
+
+    const userMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user' as const,
+      content: inputValue
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInputValue('');
+    setIsProcessing(true);
+
+    // 模拟AI响应
+    setTimeout(() => {
+      const aiMessage = {
+        id: `ai-${Date.now()}`,
+        role: 'assistant' as const,
+        content: '好的，我已经理解了你的需求！正在为你处理...\n\n（这是演示版本，完整功能开发中）'
+      };
+      setMessages(prev => [...prev, aiMessage]);
+      setIsProcessing(false);
+    }, 1000);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
   return (
-    <div className="h-full overflow-auto p-6 space-y-4">
-      {/* 欢迎卡片 */}
-      <div className="rounded-lg p-6 text-center" style={{ backgroundColor: cardBg }}>
-        <div className="text-5xl mb-4">🤖</div>
-        <h3 className="text-xl font-bold mb-2" style={{ color: textColor }}>AI 智能助手</h3>
-        <p className="text-sm mb-4" style={{ color: accentColor }}>
-          用自然语言描述任务，AI 帮你智能分解和安排
-        </p>
-        <button 
-          onClick={onOpen}
-          className="px-6 py-3 rounded-lg font-semibold transition-all hover:scale-105" 
-          style={{ backgroundColor: buttonBg, color: textColor }}
-        >
-          开始对话
-        </button>
-      </div>
-
-      {/* 功能介绍 */}
-      <div className="space-y-3">
-        <h4 className="font-semibold text-sm" style={{ color: textColor }}>我能帮你：</h4>
-        
-        <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
-          <div className="flex items-start space-x-3">
-            <div className="text-2xl">📅</div>
-            <div className="flex-1">
-              <div className="font-medium text-sm mb-1" style={{ color: textColor }}>智能任务分解</div>
-              <div className="text-xs" style={{ color: accentColor }}>
-                说"5分钟后洗漱然后吃饭"，自动分解为结构化任务
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
-          <div className="flex items-start space-x-3">
-            <div className="text-2xl">💰</div>
-            <div className="flex-1">
-              <div className="font-medium text-sm mb-1" style={{ color: textColor }}>自动金币计算</div>
-              <div className="text-xs" style={{ color: accentColor }}>
-                根据任务类型和时长，智能计算金币奖励
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
-          <div className="flex items-start space-x-3">
-            <div className="text-2xl">🏷️</div>
-            <div className="flex-1">
-              <div className="font-medium text-sm mb-1" style={{ color: textColor }}>智能标签生成</div>
-              <div className="text-xs" style={{ color: accentColor }}>
-                自动为任务添加分类标签，方便搜索和管理
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
-          <div className="flex items-start space-x-3">
-            <div className="text-2xl">🕒</div>
-            <div className="flex-1">
-              <div className="font-medium text-sm mb-1" style={{ color: textColor }}>时间轴操作</div>
-              <div className="text-xs" style={{ color: accentColor }}>
-                说"把今天的任务复制到明天"，直接操作时间轴
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
-          <div className="flex items-start space-x-3">
-            <div className="text-2xl">📝</div>
-            <div className="flex-1">
-              <div className="font-medium text-sm mb-1" style={{ color: textColor }}>心情记录</div>
-              <div className="text-xs" style={{ color: accentColor }}>
-                记录你的心情和想法，AI 帮你分析和归档
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 示例指令 */}
-      <div className="space-y-3">
-        <h4 className="font-semibold text-sm" style={{ color: textColor }}>试试这些指令：</h4>
-        
-        <div className="space-y-2">
-          {[
-            '5分钟后洗漱然后吃早餐',
-            '明天上午9点学习2小时',
-            '把今天的任务复制到明天',
-            '今天心情很好',
-          ].map((example, index) => (
-            <div 
-              key={index}
-              className="rounded-lg p-3 text-sm cursor-pointer transition-all hover:scale-[1.02]"
-              style={{ backgroundColor: cardBg, color: textColor }}
-              onClick={onOpen}
+    <div className="h-full flex flex-col" style={{ backgroundColor: bgColor }}>
+      {/* 对话区域 */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {messages.map((message) => (
+          <div
+            key={message.id}
+            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+          >
+            <div
+              className="max-w-[80%] rounded-lg p-3"
+              style={{
+                backgroundColor: message.role === 'user' ? buttonBg : cardBg,
+                color: textColor,
+              }}
             >
-              💬 {example}
+              <div className="text-sm whitespace-pre-wrap">{message.content}</div>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
+        
+        {isProcessing && (
+          <div className="flex justify-start">
+            <div className="rounded-lg p-3" style={{ backgroundColor: cardBg }}>
+              <div className="flex items-center space-x-2">
+                <div className="flex space-x-1">
+                  <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: accentColor, animationDelay: '0ms' }} />
+                  <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: accentColor, animationDelay: '150ms' }} />
+                  <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: accentColor, animationDelay: '300ms' }} />
+                </div>
+                <span className="text-xs" style={{ color: accentColor }}>AI正在思考...</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* 底部按钮 */}
-      <button 
-        onClick={onOpen}
-        className="w-full py-3 rounded-lg font-semibold transition-all hover:scale-[1.02]" 
-        style={{ backgroundColor: buttonBg, color: textColor }}
-      >
-        🚀 立即开始
-      </button>
+      {/* 输入区域 */}
+      <div className="p-4 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
+        <div className="flex items-end space-x-2">
+          <textarea
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="对我说点什么..."
+            rows={2}
+            className="flex-1 px-3 py-2 rounded-lg resize-none focus:outline-none"
+            style={{
+              backgroundColor: cardBg,
+              color: textColor,
+              border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}`,
+            }}
+          />
+          <button
+            onClick={handleSend}
+            disabled={!inputValue.trim() || isProcessing}
+            className="px-4 py-2 rounded-lg transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ 
+              backgroundColor: buttonBg,
+              color: textColor 
+            }}
+          >
+            发送
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
