@@ -2056,43 +2056,42 @@ export function KikiModule({ isDark = false }: { isDark?: boolean }) {
   );
 }
 
-// AI智能助手模块 - 嵌入式对话界面
+// AI智能助手模块 - 嵌入式对话框
 export function AISmartModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: boolean; bgColor?: string }) {
-  const [messages, setMessages] = useState<Array<{ id: string; role: 'user' | 'assistant'; content: string }>>([
+  const [inputValue, setInputValue] = useState('');
+  const [messages, setMessages] = useState<Array<{id: string; role: 'user' | 'assistant'; content: string}>>([
     {
       id: 'welcome',
       role: 'assistant',
       content: '你好！我是你的AI助手 🤖\n\n我能帮你：\n• 智能分解任务\n• 自动计算金币\n• 生成标签分类\n• 操作时间轴\n• 记录心情\n\n直接输入你的需求吧！'
     }
   ]);
-  const [inputValue, setInputValue] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const messagesEndRef = useState<HTMLDivElement | null>(null);
-
+  
   const textColor = isDark ? '#ffffff' : '#000000';
   const accentColor = isDark ? 'rgba(255,255,255,0.7)' : '#666666';
   const buttonBg = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)';
   const cardBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
 
-  const handleSend = async () => {
+  const handleSend = () => {
     if (!inputValue.trim() || isProcessing) return;
-
+    
+    // 添加用户消息
     const userMessage = {
       id: `user-${Date.now()}`,
       role: 'user' as const,
       content: inputValue
     };
-
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
     setIsProcessing(true);
-
-    // 模拟AI响应
+    
+    // 模拟AI回复
     setTimeout(() => {
       const aiMessage = {
         id: `ai-${Date.now()}`,
         role: 'assistant' as const,
-        content: '好的，我已经理解了你的需求！正在为你处理...\n\n（这是演示版本，完整功能开发中）'
+        content: '收到！我正在处理你的请求... 🤔\n\n（这是演示版本，实际功能需要连接AI服务）'
       };
       setMessages(prev => [...prev, aiMessage]);
       setIsProcessing(false);
@@ -2122,7 +2121,7 @@ export function AISmartModule({ isDark = false, bgColor = '#ffffff' }: { isDark?
                 color: textColor,
               }}
             >
-              <div className="text-sm whitespace-pre-wrap">{message.content}</div>
+              <div className="whitespace-pre-wrap text-sm">{message.content}</div>
             </div>
           </div>
         ))}
@@ -2152,7 +2151,7 @@ export function AISmartModule({ isDark = false, bgColor = '#ffffff' }: { isDark?
             onKeyDown={handleKeyDown}
             placeholder="对我说点什么..."
             rows={2}
-            className="flex-1 px-3 py-2 rounded-lg resize-none focus:outline-none"
+            className="flex-1 px-3 py-2 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-opacity-50"
             style={{
               backgroundColor: cardBg,
               color: textColor,

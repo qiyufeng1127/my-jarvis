@@ -343,14 +343,6 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
 
   // 添加模块到主页
   const addModule = (moduleDefinition: ModuleDefinition) => {
-    // AI智能输入特殊处理：直接打开对话框，不添加模块
-    if (moduleDefinition.type === 'ai-smart') {
-      if (onOpenAISmart) {
-        onOpenAISmart();
-      }
-      return;
-    }
-    
     // 图片组件特殊处理：每次点击都添加新的
     if (moduleDefinition.type === 'image-widget') {
       const newModule: Module = {
@@ -1010,8 +1002,7 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                     {moduleDefinition?.component && 
                       React.createElement(moduleDefinition.component, { 
                         isDark: isColorDark(module.color),
-                        bgColor: module.color,
-                        onOpen: module.type === 'ai-smart' ? onOpenAISmart : undefined
+                        bgColor: module.color
                       })
                     }
                   </div>
