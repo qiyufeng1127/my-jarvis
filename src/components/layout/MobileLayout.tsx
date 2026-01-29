@@ -15,8 +15,9 @@ import {
 } from '@/components/dashboard/ModuleComponents';
 import JournalModule from '@/components/journal/JournalModule';
 import PanoramaMemory from '@/components/memory/PanoramaMemory';
+import TaskInbox from '@/components/inbox/TaskInbox';
 
-type TabType = 'timeline' | 'goals' | 'journal' | 'memory' | 'gold' | 'habits' | 'reports' | 'settings' | 'more';
+type TabType = 'timeline' | 'goals' | 'journal' | 'memory' | 'gold' | 'habits' | 'reports' | 'settings' | 'inbox' | 'more';
 
 interface NavItem {
   id: TabType;
@@ -28,6 +29,7 @@ interface NavItem {
 const ALL_NAV_ITEMS: NavItem[] = [
   { id: 'timeline', label: '时间轴', icon: '📅', component: TimelineModule },
   { id: 'goals', label: '目标', icon: '🎯', component: GoalsModule },
+  { id: 'inbox', label: '收集箱', icon: '📥', component: TaskInbox },
   { id: 'journal', label: '日记', icon: '📔', component: JournalModule },
   { id: 'memory', label: '记忆', icon: '🧠', component: PanoramaMemory },
   { id: 'gold', label: '金币', icon: '💰', component: GoldModule },
