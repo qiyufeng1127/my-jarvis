@@ -25,6 +25,7 @@ import {
 } from './ModuleComponents';
 import JournalModule from '@/components/journal/JournalModule';
 import PanoramaMemory from '@/components/memory/PanoramaMemory';
+import TaskInbox from '@/components/inbox/TaskInbox';
 import { supabase, isSupabaseConfigured, getCurrentUserId } from '@/lib/supabase';
 
 interface Module {
@@ -133,6 +134,14 @@ const availableModules: ModuleDefinition[] = [
     component: PanoramaMemory,
   },
   {
+    id: 'inbox',
+    type: 'inbox',
+    title: '收集箱',
+    icon: <span className="text-2xl">📥</span>,
+    defaultColor: '#06B6D4',
+    component: TaskInbox,
+  },
+  {
     id: 'image-widget',
     type: 'image-widget',
     title: '图片组件',
@@ -160,6 +169,7 @@ const moduleSpecificHeights: Record<string, number> = {
   'kiki': 400,           // Kiki宝宝 - 内容少
   'journal': 750,        // 成功&感恩日记
   'memory': 800,         // 全景记忆栏
+  'inbox': 600,          // 收集箱
 };
 
 interface CustomizableDashboardProps {
@@ -1002,7 +1012,8 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                     {moduleDefinition?.component && 
                       React.createElement(moduleDefinition.component, { 
                         isDark: isColorDark(module.color),
-                        bgColor: module.color
+                        bgColor: module.color,
+                        onOpen: module.type === 'ai-smart' ? onOpenAISmart : undefined
                       })
                     }
                   </div>

@@ -93,17 +93,12 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
     }
   }, [messages, isOpen]);
 
-  // 初始欢迎消息
+  // 不显示欢迎消息，直接进入对话
   useEffect(() => {
     if (!isOpen) return;
-    
+    // 清空消息，直接开始对话
     if (messages.length === 0) {
-      setMessages([{
-        id: 'welcome',
-        role: 'assistant',
-        content: '你好！我是你的AI助手，我能帮你：\n\n• 📅 智能分解任务和安排时间\n• 💰 自动分配金币和成长值\n• 🏷️ 自动打标签分类\n• 🕒 直接修改时间轴任务\n• 📝 记录心情和碎碎念\n\n点击麦克风图标开始语音输入，或直接输入文字。',
-        timestamp: new Date(),
-      }]);
+      // 不添加欢迎消息
     }
   }, [isOpen]);
 
@@ -258,6 +253,13 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
         await voiceFeedbackRef.current.provideFeedback('success', { action: '理解指令' });
       }
 
+      // 处理冲突选项
+      if (response.conflictDetected && response.conflictOptions) {
+        // 显示冲突选项，等待用户选择
+        // 不自动执行
+        return;
+      }
+
       // 自动执行操作（如果不需要确认）
       if (response.autoExecute && response.actions) {
         await executeActions(response.actions);
@@ -291,6 +293,9 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
   };
 
   const processWithAI = async (input: string) => {
+    // 获取现有任务（用于冲突检测）
+    const existingTasks = useTaskStore.getState().tasks || [];
+    
     // 构建请求上下文
     const request: AIProcessRequest = {
       user_input: input,
@@ -301,6 +306,7 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
         timeline_summary: {}, // TODO: 获取时间轴摘要
         user_preferences: {}, // TODO: 获取用户偏好
         conversation_history: messages.slice(-5), // 最近5条对话
+        existing_tasks: existingTasks, // 传入现有任务用于冲突检测
       },
     };
 
@@ -314,32 +320,59 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
     for (const action of actions) {
       switch (action.type) {
         case 'create_task':
-          // 解析时间信息
-          const scheduledStart = action.data.scheduled_time 
-            ? new Date(action.data.scheduled_time)
-            : new Date();
-          
-          // 创建任务并自动添加到时间轴
-          await createTask({
-            title: action.data.title,
-            description: action.data.description || '',
-            durationMinutes: action.data.estimated_duration || 60,
-            taskType: action.data.category || 'life',
-            scheduledStart: scheduledStart.toISOString(),
-            priority: action.data.priority || 'medium',
-            tags: action.data.tags || [],
-            status: 'pending',
-          });
-          
-          // 语音反馈
-          if (voiceFeedbackRef.current) {
-            const timeStr = scheduledStart.toLocaleTimeString('zh-CN', { 
-              hour: '2-digit', 
-              minute: '2-digit' 
+          // 批量创建任务
+          if (action.data.tasks && Array.isArray(action.data.tasks)) {
+            // 多任务批量创建
+            for (const task of action.data.tasks) {
+              const scheduledStart = task.scheduled_start_iso 
+                ? new Date(task.scheduled_start_iso)
+                : new Date();
+              
+              await createTask({
+                title: task.title,
+                description: task.description || '',
+                durationMinutes: task.estimated_duration || 30,
+                taskType: task.task_type || 'life',
+                scheduledStart: scheduledStart.toISOString(),
+                priority: task.priority || 'medium',
+                tags: task.tags || [],
+                status: 'pending',
+              });
+            }
+            
+            // 语音反馈
+            if (voiceFeedbackRef.current) {
+              await voiceFeedbackRef.current.provideFeedback('success', { 
+                action: `已为您创建${action.data.tasks.length}个任务` 
+              });
+            }
+          } else {
+            // 单任务创建
+            const scheduledStart = action.data.scheduled_time 
+              ? new Date(action.data.scheduled_time)
+              : new Date();
+            
+            await createTask({
+              title: action.data.title,
+              description: action.data.description || '',
+              durationMinutes: action.data.estimated_duration || 60,
+              taskType: action.data.task_type || 'life',
+              scheduledStart: scheduledStart.toISOString(),
+              priority: action.data.priority || 'medium',
+              tags: action.data.tags || [],
+              status: 'pending',
             });
-            await voiceFeedbackRef.current.provideFeedback('success', { 
-              action: `已为您创建${timeStr}的任务` 
-            });
+            
+            // 语音反馈
+            if (voiceFeedbackRef.current) {
+              const timeStr = scheduledStart.toLocaleTimeString('zh-CN', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              });
+              await voiceFeedbackRef.current.provideFeedback('success', { 
+                action: `已为您创建${timeStr}的任务` 
+              });
+            }
           }
           break;
           
@@ -371,6 +404,16 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
         case 'calculate_gold':
           // 计算金币
           console.log('金币计算:', action.data);
+          break;
+          
+        case 'add_to_inbox':
+          // 添加到收集箱
+          console.log('添加到收集箱:', action.data);
+          break;
+          
+        case 'smart_schedule':
+          // 智能分配
+          console.log('智能分配:', action.data);
           break;
       }
     }
@@ -507,14 +550,96 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
               >
                 <div className="whitespace-pre-wrap text-sm">{message.content}</div>
                 
-                {/* 操作按钮 */}
-                {message.actions && message.actions.length > 0 && (
-                  <div className="mt-3 space-y-2">
+                {/* 冲突选项 - 压缩格式（2x2网格） */}
+                {message.data?.conflictOptions && (
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    {message.data.conflictOptions.map((option: any) => (
+                      <button
+                        key={option.id}
+                        onClick={async () => {
+                          // 处理冲突选项
+                          if (option.action === 'inbox') {
+                            // 添加到收集箱
+                            const { InboxManager } = await import('@/services/aiSmartService');
+                            InboxManager.addToInbox({
+                              title: message.data.newTask.title,
+                              description: '',
+                              estimatedDuration: message.data.newTask.estimatedDuration,
+                              taskType: 'life',
+                              category: '待安排',
+                              tags: [],
+                              priority: 'medium',
+                            });
+                            
+                            const confirmMsg: AIMessage = {
+                              id: `confirm-${Date.now()}`,
+                              role: 'assistant',
+                              content: '✅ 已添加到收集箱，稍后可以手动安排时间。',
+                              timestamp: new Date(),
+                            };
+                            setMessages(prev => [...prev, confirmMsg]);
+                          } else if (option.action === 'postpone') {
+                            // 自动顺延
+                            await executeActions([{
+                              type: 'create_task',
+                              data: {
+                                title: message.data.newTask.title,
+                                scheduled_time: new Date(Date.now() + 60 * 60000).toISOString(), // 1小时后
+                                estimated_duration: message.data.newTask.estimatedDuration,
+                                task_type: 'life',
+                              },
+                              label: '顺延任务',
+                            }]);
+                            
+                            const confirmMsg: AIMessage = {
+                              id: `confirm-${Date.now()}`,
+                              role: 'assistant',
+                              content: '✅ 已自动顺延到下一个空闲时段。',
+                              timestamp: new Date(),
+                            };
+                            setMessages(prev => [...prev, confirmMsg]);
+                          } else if (option.action === 'replace') {
+                            // 替换现有任务
+                            // TODO: 删除冲突任务，添加新任务
+                            const confirmMsg: AIMessage = {
+                              id: `confirm-${Date.now()}`,
+                              role: 'assistant',
+                              content: '✅ 已替换原有任务。',
+                              timestamp: new Date(),
+                            };
+                            setMessages(prev => [...prev, confirmMsg]);
+                          } else if (option.action === 'cancel') {
+                            // 取消
+                            const confirmMsg: AIMessage = {
+                              id: `confirm-${Date.now()}`,
+                              role: 'assistant',
+                              content: '❌ 已取消添加任务。',
+                              timestamp: new Date(),
+                            };
+                            setMessages(prev => [...prev, confirmMsg]);
+                          }
+                        }}
+                        className="px-3 py-2 rounded-lg text-xs font-medium transition-all hover:scale-[1.02] text-left"
+                        style={{ 
+                          backgroundColor: buttonBg,
+                          color: textColor 
+                        }}
+                      >
+                        <div className="font-semibold mb-0.5">{option.label}</div>
+                        <div className="text-[10px] opacity-70">{option.description}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                
+                {/* 操作按钮 - 压缩格式 */}
+                {message.actions && message.actions.length > 0 && !message.data?.conflictOptions && (
+                  <div className="mt-3 space-y-1.5">
                     {message.actions.map((action, index) => (
                       <button
                         key={index}
                         onClick={() => executeActions([action])}
-                        className="w-full px-3 py-2 rounded-lg text-xs font-medium transition-all hover:scale-[1.02]"
+                        className="w-full px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-[1.02]"
                         style={{ 
                           backgroundColor: buttonBg,
                           color: textColor 
