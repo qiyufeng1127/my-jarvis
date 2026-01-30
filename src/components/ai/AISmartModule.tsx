@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Mic, MicOff, Sparkles } from 'lucide-react';
+import { Send, Mic, MicOff, Sparkles, Settings, X } from 'lucide-react';
 import { useTaskStore } from '@/stores/taskStore';
 import { AISmartProcessor } from '@/services/aiSmartService';
 import type { AIProcessRequest } from '@/services/aiSmartService';
@@ -35,11 +35,22 @@ export default function AISmartModule({
   const [isProcessing, setIsProcessing] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [messages, setMessages] = useState<AIMessage[]>([]);
+  const [showSettings, setShowSettings] = useState(false);
+  const [apiKey, setApiKey] = useState('');
+  const [apiEndpoint, setApiEndpoint] = useState('https://api.deepseek.com/v1/chat/completions');
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
   
   const { createTask } = useTaskStore();
+
+  // 从 localStorage 加载 API 配置
+  useEffect(() => {
+    const savedApiKey = localStorage.getItem('ai_api_key');
+    const savedEndpoint = localStorage.getItem('ai_api_endpoint');
+    if (savedApiKey) setApiKey(savedApiKey);
+    if (savedEndpoint) setApiEndpoint(savedEndpoint);
+  }, []);
 
   const cardBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
   const textColor = isDark ? '#ffffff' : '#000000';
@@ -171,6 +182,12 @@ export default function AISmartModule({
     }
   };
 
+  const saveApiSettings = () => {
+    localStorage.setItem('ai_api_key', apiKey);
+    localStorage.setItem('ai_api_endpoint', apiEndpoint);
+    setShowSettings(false);
+  };
+
   return (
     <div 
       className={`flex flex-col ${className}`}
@@ -186,7 +203,84 @@ export default function AISmartModule({
           <Sparkles className="w-4 h-4" style={{ color: textColor }} />
           <span className="font-semibold text-sm" style={{ color: textColor }}>AI智能助手</span>
         </div>
+        <button
+          onClick={() => setShowSettings(true)}
+          className="p-1.5 rounded-lg transition-all hover:scale-110"
+          style={{ backgroundColor: buttonBg }}
+        >
+          <Settings className="w-4 h-4" style={{ color: textColor }} />
+        </button>
       </div>
+
+      {/* API 设置弹窗 */}
+      {showSettings && (
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">API 设置</h3>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  API Key
+                </label>
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="输入你的 DeepSeek API Key"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  API 接口地址
+                </label>
+                <input
+                  type="text"
+                  value={apiEndpoint}
+                  onChange={(e) => setApiEndpoint(e.target.value)}
+                  placeholder="https://api.deepseek.com/v1/chat/completions"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-xs text-blue-800">
+                  💡 默认使用 DeepSeek API。你可以在 
+                  <a href="https://platform.deepseek.com" target="_blank" rel="noopener noreferrer" className="underline ml-1">
+                    DeepSeek 官网
+                  </a>
+                  获取 API Key。
+                </p>
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowSettings(false)}
+                  className="flex-1 px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={saveApiSettings}
+                  className="flex-1 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium transition-colors"
+                >
+                  保存
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 对话区域 - 可滚动，自动填充剩余空间，减少内边距 */}
       <div 
