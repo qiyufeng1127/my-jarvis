@@ -38,6 +38,8 @@ export default function AISmartModule({
   const [showSettings, setShowSettings] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [apiEndpoint, setApiEndpoint] = useState('https://api.deepseek.com/v1/chat/completions');
+  const [isConnected, setIsConnected] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
@@ -48,7 +50,11 @@ export default function AISmartModule({
   useEffect(() => {
     const savedApiKey = localStorage.getItem('ai_api_key');
     const savedEndpoint = localStorage.getItem('ai_api_endpoint');
-    if (savedApiKey) setApiKey(savedApiKey);
+    if (savedApiKey) {
+      setApiKey(savedApiKey);
+      // 自动测试连接
+      testConnection(savedApiKey, savedEndpoint || apiEndpoint);
+    }
     if (savedEndpoint) setApiEndpoint(savedEndpoint);
   }, []);
 
@@ -64,9 +70,62 @@ export default function AISmartModule({
     }
   }, [messages]);
 
+  // 测试API连接
+  const testConnection = async (key?: string, endpoint?: string) => {
+    const testKey = key || apiKey;
+    const testEndpoint = endpoint || apiEndpoint;
+    
+    if (!testKey) {
+      setIsConnected(false);
+      return false;
+    }
+
+    setIsTesting(true);
+    try {
+      const response = await fetch(testEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${testKey}`,
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [{ role: 'user', content: 'test' }],
+          max_tokens: 10,
+        }),
+      });
+
+      if (response.ok) {
+        setIsConnected(true);
+        return true;
+      } else {
+        setIsConnected(false);
+        return false;
+      }
+    } catch (error) {
+      console.error('API连接测试失败:', error);
+      setIsConnected(false);
+      return false;
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
   const handleSend = async (text?: string) => {
     const message = text || inputValue.trim();
     if (!message || isProcessing) return;
+
+    // 检查API配置
+    if (!apiKey) {
+      const errorMessage: AIMessage = {
+        id: `error-${Date.now()}`,
+        role: 'assistant',
+        content: '⚠️ 请先配置API Key。点击右上角设置按钮进行配置。',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      return;
+    }
 
     const userMessage: AIMessage = {
       id: `user-${Date.now()}`,
@@ -81,6 +140,51 @@ export default function AISmartModule({
 
     try {
       const existingTasks = useTaskStore.getState().tasks || [];
+      
+      // 构建系统提示词
+      const systemPrompt = `你是ManifestOS的AI助手，专门帮助用户管理任务和时间。
+
+核心功能：
+1. 任务分解：识别用户输入的多个任务（支持顿号、逗号、"然后"等分隔符）
+2. 时间安排：解析时间表达式（如"5分钟后"、"13:17"）
+3. 冲突检测：检查时间冲突并提供解决方案
+4. 智能估算：估算任务时长和金币奖励
+
+当前时间：${new Date().toLocaleString('zh-CN')}
+现有任务数：${existingTasks.length}
+
+请用简洁、友好的语气回复用户。`;
+
+      // 调用DeepSeek API
+      const response = await fetch(apiEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...messages.slice(-5).map(m => ({
+              role: m.role,
+              content: m.content,
+            })),
+            { role: 'user', content: message },
+          ],
+          temperature: 0.7,
+          max_tokens: 2000,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API请求失败: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const aiResponse = data.choices[0].message.content;
+
+      // 同时使用本地AI处理器分析任务
       const request: AIProcessRequest = {
         user_input: message,
         context: {
@@ -94,30 +198,33 @@ export default function AISmartModule({
         },
       };
 
-      const response = await AISmartProcessor.process(request);
+      const localResponse = await AISmartProcessor.process(request);
       
+      // 合并AI回复和本地处理结果
       const aiMessage: AIMessage = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        content: response.message,
-        data: response.data,
-        actions: response.actions,
+        content: localResponse.message || aiResponse,
+        data: localResponse.data,
+        actions: localResponse.actions,
         timestamp: new Date(),
       };
 
       setMessages(prev => [...prev, aiMessage]);
 
-      if (response.autoExecute && response.actions) {
-        await executeActions(response.actions);
+      if (localResponse.autoExecute && localResponse.actions) {
+        await executeActions(localResponse.actions);
       }
     } catch (error) {
+      console.error('AI处理错误:', error);
       const errorMessage: AIMessage = {
         id: `error-${Date.now()}`,
         role: 'assistant',
-        content: '抱歉，处理时出现了问题。请重试。',
+        content: '抱歉，处理时出现了问题。请检查API配置或重试。',
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMessage]);
+      setIsConnected(false);
     } finally {
       setIsProcessing(false);
     }
@@ -182,10 +289,15 @@ export default function AISmartModule({
     }
   };
 
-  const saveApiSettings = () => {
+  const saveApiSettings = async () => {
     localStorage.setItem('ai_api_key', apiKey);
     localStorage.setItem('ai_api_endpoint', apiEndpoint);
-    setShowSettings(false);
+    
+    // 保存后自动测试连接
+    const success = await testConnection();
+    if (success) {
+      setShowSettings(false);
+    }
   };
 
   return (
@@ -202,6 +314,15 @@ export default function AISmartModule({
         <div className="flex items-center space-x-2">
           <Sparkles className="w-4 h-4" style={{ color: textColor }} />
           <span className="font-semibold text-sm" style={{ color: textColor }}>AI智能助手</span>
+          {/* 连接状态指示器 */}
+          <div 
+            className="w-2 h-2 rounded-full"
+            style={{ 
+              backgroundColor: isConnected ? '#10B981' : '#EF4444',
+              boxShadow: isConnected ? '0 0 4px #10B981' : '0 0 4px #EF4444',
+            }}
+            title={isConnected ? 'API已连接' : 'API未连接'}
+          />
         </div>
         <button
           onClick={() => setShowSettings(true)}
@@ -271,8 +392,25 @@ export default function AISmartModule({
                   取消
                 </button>
                 <button
+                  onClick={async () => {
+                    setIsTesting(true);
+                    const success = await testConnection();
+                    setIsTesting(false);
+                    if (success) {
+                      alert('✅ 连接成功！API配置正确。');
+                    } else {
+                      alert('❌ 连接失败！请检查API Key和接口地址。');
+                    }
+                  }}
+                  disabled={!apiKey || isTesting}
+                  className="flex-1 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isTesting ? '测试中...' : '🔌 测试连接'}
+                </button>
+                <button
                   onClick={saveApiSettings}
-                  className="flex-1 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium transition-colors"
+                  disabled={!apiKey}
+                  className="flex-1 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   保存
                 </button>
