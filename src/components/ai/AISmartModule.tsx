@@ -650,8 +650,7 @@ export default function AISmartModule({ isDark = false, bgColor = '#ffffff' }: A
 
       {/* 快速指令 */}
       <div className="px-2 py-1.5 border-t flex-shrink-0" style={{ 
-        borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-        backgroundColor: cardBg 
+        borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
       }}>
         <div className="flex items-center space-x-1 overflow-x-auto">
           <span className="text-[9px] whitespace-nowrap" style={{ color: accentColor }}>快速：</span>
