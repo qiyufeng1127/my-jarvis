@@ -158,19 +158,19 @@ const moduleSizes = {
   large: { width: 800, height: 1000 },
 };
 
-// 不同模块类型的特定高度（根据实际内容）
-const moduleSpecificHeights: Record<string, number> = {
-  'goals': 700,          // 长期目标
-  'timeline': 600,       // 时间轴
-  'gold': 700,           // 金币经济
-  'habits': 800,         // 坏习惯
-  'reports': 700,        // 数据报告
-  'settings': 800,       // 设置
-  'kiki': 400,           // Kiki宝宝 - 内容少
-  'ai-smart': 500,       // AI智能输入 - 紧凑布局
-  'journal': 750,        // 成功&感恩日记
-  'memory': 800,         // 全景记忆栏
-  'inbox': 600,          // 收集箱
+// 不同模块类型的特定尺寸（宽度和高度）
+const moduleSpecificSizes: Record<string, { width?: number; height?: number }> = {
+  'goals': { height: 700 },          // 长期目标
+  'timeline': { height: 600 },       // 时间轴
+  'gold': { height: 700 },           // 金币经济
+  'habits': { height: 800 },         // 坏习惯
+  'reports': { height: 700 },        // 数据报告
+  'settings': { height: 800 },       // 设置
+  'kiki': { height: 400 },           // Kiki宝宝 - 内容少
+  'ai-smart': { width: 350, height: 500 },  // AI智能输入 - 竖长方形，长宽比约4:3（高:宽）
+  'journal': { height: 750 },        // 成功&感恩日记
+  'memory': { height: 800 },         // 全景记忆栏
+  'inbox': { height: 600 },          // 收集箱
 };
 
 interface CustomizableDashboardProps {
@@ -826,9 +826,12 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
             
             // 其他模块的原有逻辑
             const baseSize = moduleSizes[module.size];
-            // 使用模块特定高度，如果没有则使用默认高度
-            const specificHeight = moduleSpecificHeights[module.type] || baseSize.height;
-            const actualBaseSize = { width: baseSize.width, height: specificHeight };
+            // 使用模块特定尺寸，如果没有则使用默认尺寸
+            const specificSize = moduleSpecificSizes[module.type] || {};
+            const actualBaseSize = { 
+              width: specificSize.width || baseSize.width, 
+              height: specificSize.height || baseSize.height 
+            };
             const currentSize = module.customSize || actualBaseSize;
             
             // 计算缩放比例
