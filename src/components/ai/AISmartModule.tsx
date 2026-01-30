@@ -175,34 +175,27 @@ export default function AISmartModule({ isDark = false, bgColor = '#ffffff' }: A
       </div>
 
       {/* 对话区域 - 可滚动拉伸 */}
-      <div ref={conversationRef} className="flex-1 overflow-y-auto p-3 space-y-2">
-        {/* 空状态提示 */}
+      <div ref={conversationRef} className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
+        {/* 空状态提示 - 只显示示例按钮 */}
         {messages.length === 0 && (
-          <div className="flex flex-col items-center text-center">
-            <div className="text-3xl mb-2">🤖</div>
-            <h3 className="text-xs font-semibold mb-1" style={{ color: textColor }}>AI智能助手</h3>
-            <p className="text-[10px] mb-3" style={{ color: accentColor }}>
-              用自然语言描述任务，我来帮你智能分解和安排
-            </p>
-            <div className="space-y-1.5 w-full max-w-xs">
-              {[
-                '5分钟后洗漱然后吃早餐',
-                '明天上午9点学习2小时',
-                '今天心情很好',
-              ].map((example, index) => (
-                <button
-                  key={index}
-                  onClick={() => {
-                    setInputValue(example);
-                    textareaRef.current?.focus();
-                  }}
-                  className="w-full rounded-lg p-2 text-[10px] transition-all hover:scale-[1.02] text-left"
-                  style={{ backgroundColor: cardBg, color: textColor }}
-                >
-                  💬 {example}
-                </button>
-              ))}
-            </div>
+          <div className="space-y-1.5">
+            {[
+              '5分钟后洗漱然后吃早餐',
+              '明天上午9点学习2小时',
+              '今天心情很好',
+            ].map((example, index) => (
+              <button
+                key={index}
+                onClick={() => {
+                  setInputValue(example);
+                  textareaRef.current?.focus();
+                }}
+                className="w-full rounded-lg p-2 text-[10px] transition-all hover:scale-[1.02] text-left"
+                style={{ backgroundColor: cardBg, color: textColor }}
+              >
+                💬 {example}
+              </button>
+            ))}
           </div>
         )}
 
