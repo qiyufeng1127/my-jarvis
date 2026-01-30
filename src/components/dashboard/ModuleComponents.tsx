@@ -21,14 +21,14 @@ export function GrowthModule({ isDark = false, bgColor = '#ffffff' }: { isDark?:
 
 // 任务管理模块
 export function TasksModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: boolean; bgColor?: string }) {
-  const { tasks, updateTask, addTask, deleteTask } = useTaskStore();
+  const { tasks, updateTask, createTask, deleteTask } = useTaskStore();
   
   return (
     <div className="h-full overflow-auto" style={{ backgroundColor: bgColor }}>
       <TimelineCalendar 
         tasks={tasks}
         onTaskUpdate={updateTask}
-        onTaskCreate={addTask}
+        onTaskCreate={createTask}
         onTaskDelete={deleteTask}
       />
     </div>
@@ -2060,17 +2060,18 @@ export function KikiModule({ isDark = false }: { isDark?: boolean }) {
 export { default as AISmartModule } from '@/components/ai/AISmartModule';
 
 // 时间轴模块
-export function TimelineModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: boolean; bgColor?: string }) {
-  const { tasks, updateTask, addTask, deleteTask } = useTaskStore();
+export function TimelineModule({ isDark = false, bgColor = '#ffffff', moduleSize }: { isDark?: boolean; bgColor?: string; moduleSize?: { width: number; height: number } }) {
+  const { tasks, updateTask, createTask, deleteTask } = useTaskStore();
   
   return (
     <div className="h-full" style={{ backgroundColor: bgColor }}>
       <TimelineCalendar 
         tasks={tasks}
         onTaskUpdate={updateTask}
-        onTaskCreate={addTask}
+        onTaskCreate={createTask}
         onTaskDelete={deleteTask}
         bgColor={bgColor}
+        moduleSize={moduleSize}
       />
     </div>
   );

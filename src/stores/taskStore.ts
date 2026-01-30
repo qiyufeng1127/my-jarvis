@@ -102,10 +102,18 @@ export const useTaskStore = create<TaskState>()(
     try {
       const userId = getCurrentUserId();
       
-      // 🔥 关键修复：在创建任务前，先确保用户在 Supabase 中存在
-      if (isSupabaseConfigured()) {
-        await ensureUserExists(userId);
-      }
+      // 处理日期：如果是字符串就直接使用，如果是 Date 对象就转换
+      const scheduledStartStr = typeof taskData.scheduledStart === 'string' 
+        ? taskData.scheduledStart 
+        : taskData.scheduledStart instanceof Date 
+        ? taskData.scheduledStart.toISOString() 
+        : undefined;
+      
+      const scheduledEndStr = typeof taskData.scheduledEnd === 'string' 
+        ? taskData.scheduledEnd 
+        : taskData.scheduledEnd instanceof Date 
+        ? taskData.scheduledEnd.toISOString() 
+        : undefined;
       
       const newTask: Task = {
         id: crypto.randomUUID(),
@@ -115,8 +123,8 @@ export const useTaskStore = create<TaskState>()(
         taskType: taskData.taskType || 'work',
         priority: taskData.priority || 2,
         durationMinutes: taskData.durationMinutes || 30,
-        scheduledStart: taskData.scheduledStart,
-        scheduledEnd: taskData.scheduledEnd,
+        scheduledStart: scheduledStartStr ? new Date(scheduledStartStr) : undefined,
+        scheduledEnd: scheduledEndStr ? new Date(scheduledEndStr) : undefined,
         growthDimensions: taskData.growthDimensions || {},
         longTermGoals: taskData.longTermGoals || {},
         identityTags: taskData.identityTags || [],
@@ -129,35 +137,48 @@ export const useTaskStore = create<TaskState>()(
         updatedAt: new Date(),
       };
       
-      // 保存到 Supabase（如果已配置）
-      if (isSupabaseConfigured()) {
-        const { error } = await supabase.from(TABLES.TASKS).insert({
-          id: newTask.id,
-          user_id: newTask.userId,
-          title: newTask.title,
-          description: newTask.description,
-          task_type: newTask.taskType,
-          priority: newTask.priority,
-          duration_minutes: newTask.durationMinutes,
-          scheduled_start: newTask.scheduledStart?.toISOString(),
-          scheduled_end: newTask.scheduledEnd?.toISOString(),
-          status: newTask.status,
-          growth_dimensions: newTask.growthDimensions,
-          long_term_goals: newTask.longTermGoals,
-          identity_tags: newTask.identityTags,
-          enable_progress_check: newTask.enableProgressCheck,
-          progress_checks: newTask.progressChecks,
-          penalty_gold: newTask.penaltyGold,
-          gold_earned: newTask.goldEarned,
-        });
-        
-        if (error) throw error;
-      }
-      
+      // 先添加到本地状态
       set((state) => ({
         tasks: [...state.tasks, newTask],
         isLoading: false,
       }));
+      
+      // 尝试保存到 Supabase（如果已配置）
+      if (isSupabaseConfigured()) {
+        try {
+          // 确保用户存在
+          await ensureUserExists(userId);
+          
+          // 保存任务
+          const { error } = await supabase.from(TABLES.TASKS).insert({
+            id: newTask.id,
+            user_id: newTask.userId,
+            title: newTask.title,
+            description: newTask.description,
+            task_type: newTask.taskType,
+            priority: newTask.priority,
+            duration_minutes: newTask.durationMinutes,
+            scheduled_start: scheduledStartStr,
+            scheduled_end: scheduledEndStr,
+            status: newTask.status,
+            growth_dimensions: newTask.growthDimensions,
+            long_term_goals: newTask.longTermGoals,
+            identity_tags: newTask.identityTags,
+            enable_progress_check: newTask.enableProgressCheck,
+            progress_checks: newTask.progressChecks,
+            penalty_gold: newTask.penaltyGold,
+            gold_earned: newTask.goldEarned,
+          });
+          
+          if (error) {
+            console.warn('⚠️ 保存到 Supabase 失败，但任务已保存到本地:', error);
+          } else {
+            console.log('✅ 任务已保存到 Supabase');
+          }
+        } catch (error) {
+          console.warn('⚠️ Supabase 同步失败，但任务已保存到本地:', error);
+        }
+      }
       
       return newTask;
     } catch (error) {

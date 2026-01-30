@@ -161,7 +161,7 @@ const moduleSizes = {
 // 不同模块类型的特定尺寸（宽度和高度）
 const moduleSpecificSizes: Record<string, { width?: number; height?: number }> = {
   'goals': { height: 700 },          // 长期目标
-  'timeline': { height: 600 },       // 时间轴
+  'timeline': { width: 550, height: 2000 },  // 时间轴 - 增加到2000px
   'gold': { height: 700 },           // 金币经济
   'habits': { height: 800 },         // 坏习惯
   'reports': { height: 700 },        // 数据报告
@@ -834,11 +834,10 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
             };
             const currentSize = module.customSize || actualBaseSize;
             
-            // 计算缩放比例
-            const scale = Math.min(
-              currentSize.width / actualBaseSize.width,
-              currentSize.height / actualBaseSize.height
-            );
+            // 计算缩放比例 - 使用较大的缩放比例，保持等比例缩放
+            const scaleX = currentSize.width / actualBaseSize.width;
+            const scaleY = currentSize.height / actualBaseSize.height;
+            const scale = Math.max(scaleX, scaleY); // 使用较大的比例，确保内容填充
             
             const moduleDefinition = availableModules.find((m) => m.type === module.type);
 
@@ -1004,13 +1003,13 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                     </div>
                   </div>
 
-                  {/* 模块内容 - 固定高度，内部滚动 */}
+                  {/* 模块内容 - 使用 flex 布局，高度自适应 */}
                   <div 
                     style={{ 
                       backgroundColor: module.color,
                       color: isColorDark(module.color) ? '#ffffff' : '#000000',
                       height: `${actualBaseSize.height - 60}px`,
-                      overflow: 'hidden', // 隐藏溢出，让子组件内部处理滚动
+                      overflow: 'hidden',
                       display: 'flex',
                       flexDirection: 'column',
                     }}
@@ -1019,30 +1018,31 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                       React.createElement(moduleDefinition.component, { 
                         isDark: isColorDark(module.color),
                         bgColor: module.color,
-                        onOpen: module.type === 'ai-smart' ? onOpenAISmart : undefined
+                        onOpen: module.type === 'ai-smart' ? onOpenAISmart : undefined,
+                        moduleSize: currentSize, // 传递模块尺寸给子组件
                       })
                     }
                   </div>
+                </div>
 
-                  {/* 调整大小手柄 - 紧贴内容底部 */}
-                  <div
-                    className="absolute right-2 cursor-se-resize flex items-center justify-center"
-                    style={{
-                      bottom: '2px', // 紧贴底部
-                      width: '24px',
-                      height: '24px',
+                {/* 调整大小手柄 - 放在缩放包装器外面，紧贴容器底部 */}
+                <div
+                  className="absolute right-2 bottom-2 cursor-se-resize flex items-center justify-center"
+                  style={{
+                    width: '24px',
+                    height: '24px',
+                    zIndex: 10,
+                  }}
+                  onMouseDown={(e) => handleResizeStart(module.id, e)}
+                  title="拖拽缩放"
+                >
+                  <div 
+                    className="w-3 h-3 rounded-full" 
+                    style={{ 
+                      backgroundColor: isColorDark(module.color) ? '#ffffff' : '#000000',
+                      opacity: 0.5
                     }}
-                    onMouseDown={(e) => handleResizeStart(module.id, e)}
-                    title="拖拽缩放"
-                  >
-                    <div 
-                      className="w-3 h-3 rounded-full" 
-                      style={{ 
-                        backgroundColor: isColorDark(module.color) ? '#ffffff' : '#000000',
-                        opacity: 0.5
-                      }}
-                    />
-                  </div>
+                  />
                 </div>
               </div>
             );
