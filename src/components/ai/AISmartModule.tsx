@@ -22,9 +22,16 @@ interface AIAction {
 interface AISmartModuleProps {
   isDark?: boolean;
   bgColor?: string;
+  className?: string;
+  height?: string;
 }
 
-export default function AISmartModule({ isDark = false, bgColor = '#ffffff' }: AISmartModuleProps) {
+export default function AISmartModule({ 
+  isDark = false, 
+  bgColor = '#ffffff',
+  className = '',
+  height = '100%'
+}: AISmartModuleProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [messages, setMessages] = useState<AIMessage[]>([]);
@@ -165,7 +172,15 @@ export default function AISmartModule({ isDark = false, bgColor = '#ffffff' }: A
   };
 
   return (
-    <div className="h-full flex flex-col" style={{ backgroundColor: bgColor }}>
+    <div 
+      className={`flex flex-col h-full ${className}`}
+      style={{ 
+        backgroundColor: bgColor,
+        minHeight: '300px',
+        height: height === '100%' ? '100%' : undefined,
+        maxHeight: '100%',
+      }}
+    >
       {/* 头部 - 固定 */}
       <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
         <div className="flex items-center space-x-2">
@@ -175,7 +190,14 @@ export default function AISmartModule({ isDark = false, bgColor = '#ffffff' }: A
       </div>
 
       {/* 对话区域 - 可滚动拉伸 */}
-      <div ref={conversationRef} className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
+      <div 
+        ref={conversationRef} 
+        className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2"
+        style={{
+          overflowY: 'auto',
+          maxHeight: 'calc(100% - 120px)'
+        }}
+      >
         {/* 空状态提示 - 只显示示例按钮 */}
         {messages.length === 0 && (
           <div className="space-y-1.5">
