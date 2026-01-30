@@ -404,16 +404,16 @@ export default function AISmartModule({ isDark = false, bgColor = '#ffffff' }: A
       </div>
 
       {/* 对话区域 */}
-      <div ref={conversationRef} className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
+      <div ref={conversationRef} className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
         {/* 空状态提示 */}
         {messages.length === 0 && !isVoiceMode && (
-          <div className="flex flex-col items-center justify-center h-full text-center px-4">
-            <div className="text-4xl mb-3">🤖</div>
-            <h3 className="text-sm font-semibold mb-2" style={{ color: textColor }}>AI智能助手</h3>
-            <p className="text-xs mb-4" style={{ color: accentColor }}>
+          <div className="flex flex-col items-center text-center px-3 py-2">
+            <div className="text-3xl mb-2">🤖</div>
+            <h3 className="text-xs font-semibold mb-1" style={{ color: textColor }}>AI智能助手</h3>
+            <p className="text-[10px] mb-3" style={{ color: accentColor }}>
               用自然语言描述任务，我来帮你智能分解和安排
             </p>
-            <div className="space-y-1.5 w-full max-w-xs">
+            <div className="space-y-1.5 w-full">
               {[
                 '5分钟后洗漱然后吃早餐',
                 '明天上午9点学习2小时',
@@ -425,7 +425,7 @@ export default function AISmartModule({ isDark = false, bgColor = '#ffffff' }: A
                     setInputValue(example);
                     textareaRef.current?.focus();
                   }}
-                  className="w-full rounded-lg p-2 text-xs transition-all hover:scale-[1.02] text-left"
+                  className="w-full rounded-lg p-2 text-[10px] transition-all hover:scale-[1.02] text-left"
                   style={{ backgroundColor: cardBg, color: textColor }}
                 >
                   💬 {example}
@@ -497,13 +497,13 @@ export default function AISmartModule({ isDark = false, bgColor = '#ffffff' }: A
             className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[80%] rounded-lg p-3`}
+              className={`max-w-[80%] rounded-lg p-2`}
               style={{
                 backgroundColor: message.role === 'user' ? buttonBg : cardBg,
                 color: textColor,
               }}
             >
-              <div className="whitespace-pre-wrap text-xs">{message.content}</div>
+              <div className="whitespace-pre-wrap text-[10px]">{message.content}</div>
               
               {/* 冲突选项 */}
               {message.data?.conflictOptions && (
@@ -647,12 +647,12 @@ export default function AISmartModule({ isDark = false, bgColor = '#ffffff' }: A
       )}
 
       {/* 快速指令 */}
-      <div className="px-3 py-2 border-t" style={{ 
+      <div className="px-2 py-1.5 border-t flex-shrink-0" style={{ 
         borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
         backgroundColor: cardBg 
       }}>
-        <div className="flex items-center space-x-1.5 overflow-x-auto">
-          <span className="text-[10px] whitespace-nowrap" style={{ color: accentColor }}>快速：</span>
+        <div className="flex items-center space-x-1 overflow-x-auto">
+          <span className="text-[9px] whitespace-nowrap" style={{ color: accentColor }}>快速：</span>
           {[
             { key: 'decompose', label: '分解', icon: '📅' },
             { key: 'timeline', label: '时间轴', icon: '🕒' },
@@ -663,7 +663,7 @@ export default function AISmartModule({ isDark = false, bgColor = '#ffffff' }: A
             <button
               key={cmd.key}
               onClick={() => handleQuickCommand(cmd.key)}
-              className="px-2 py-1 rounded-full text-[10px] font-medium transition-all hover:scale-105 whitespace-nowrap"
+              className="px-1.5 py-0.5 rounded-full text-[9px] font-medium transition-all hover:scale-105 whitespace-nowrap"
               style={{ 
                 backgroundColor: buttonBg,
                 color: textColor 
@@ -676,11 +676,11 @@ export default function AISmartModule({ isDark = false, bgColor = '#ffffff' }: A
       </div>
 
       {/* 输入区域 */}
-      <div className="p-3 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
+      <div className="p-2 border-t flex-shrink-0" style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
         {isVoiceMode ? (
-          <div className="flex flex-col items-center space-y-2">
+          <div className="flex flex-col items-center space-y-1.5">
             <div className="text-center">
-              <div className="text-[10px] mb-2" style={{ color: accentColor }}>
+              <div className="text-[9px] mb-1.5" style={{ color: accentColor }}>
                 {wakeState === 'sleeping' && '点击麦克风开始语音输入'}
                 {wakeState === 'activated' && '正在激活...'}
                 {wakeState === 'listening' && '请说出你的指令'}
@@ -690,13 +690,13 @@ export default function AISmartModule({ isDark = false, bgColor = '#ffffff' }: A
               <button
                 onClick={wakeState === 'sleeping' ? handleVoiceWake : undefined}
                 disabled={wakeState !== 'sleeping'}
-                className="relative w-14 h-14 rounded-full flex items-center justify-center transition-all hover:scale-110 disabled:opacity-50"
+                className="relative w-12 h-12 rounded-full flex items-center justify-center transition-all hover:scale-110 disabled:opacity-50"
                 style={{ 
                   backgroundColor: wakeState === 'listening' ? '#3B82F6' : buttonBg,
                   boxShadow: wakeState === 'listening' ? '0 0 20px rgba(59, 130, 246, 0.5)' : 'none',
                 }}
               >
-                <Mic className="w-7 h-7" style={{ color: textColor }} />
+                <Mic className="w-6 h-6" style={{ color: textColor }} />
                 
                 {wakeState === 'listening' && (
                   <>
@@ -709,14 +709,14 @@ export default function AISmartModule({ isDark = false, bgColor = '#ffffff' }: A
             
             <button
               onClick={() => setIsVoiceMode(false)}
-              className="text-[10px] px-3 py-1.5 rounded-lg transition-all hover:scale-105"
+              className="text-[9px] px-2 py-1 rounded-lg transition-all hover:scale-105"
               style={{ backgroundColor: buttonBg, color: textColor }}
             >
               切换到文字输入
             </button>
           </div>
         ) : (
-          <div className="flex items-end space-x-2">
+          <div className="flex items-end space-x-1.5">
             <textarea
               ref={textareaRef}
               value={inputValue}
@@ -724,7 +724,7 @@ export default function AISmartModule({ isDark = false, bgColor = '#ffffff' }: A
               onKeyDown={handleKeyDown}
               placeholder="对我说点什么..."
               rows={2}
-              className="flex-1 px-3 py-2 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-opacity-50 text-xs"
+              className="flex-1 px-2 py-1.5 rounded-lg resize-none focus:outline-none focus:ring-1 focus:ring-opacity-50 text-[10px]"
               style={{
                 backgroundColor: cardBg,
                 color: textColor,
@@ -734,13 +734,13 @@ export default function AISmartModule({ isDark = false, bgColor = '#ffffff' }: A
             <button
               onClick={() => handleSend()}
               disabled={!inputValue.trim() || isProcessing}
-              className="p-2 rounded-lg transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-1.5 rounded-lg transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ 
                 backgroundColor: buttonBg,
                 color: textColor 
               }}
             >
-              <Send className="w-4 h-4" />
+              <Send className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
