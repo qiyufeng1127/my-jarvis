@@ -1021,17 +1021,22 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                     }
                   </div>
 
-                  {/* 调整大小手柄 - 简洁的小圆点 */}
+                  {/* 调整大小手柄 - 紧贴内容底部 */}
                   <div
-                    className="absolute bottom-0 right-0 w-8 h-8 cursor-se-resize flex items-center justify-center"
+                    className="absolute right-2 cursor-se-resize flex items-center justify-center"
+                    style={{
+                      bottom: '2px', // 紧贴底部
+                      width: '24px',
+                      height: '24px',
+                    }}
                     onMouseDown={(e) => handleResizeStart(module.id, e)}
                     title="拖拽缩放"
                   >
                     <div 
-                      className="w-2 h-2 rounded-full" 
+                      className="w-3 h-3 rounded-full" 
                       style={{ 
                         backgroundColor: isColorDark(module.color) ? '#ffffff' : '#000000',
-                        opacity: 0.3
+                        opacity: 0.5
                       }}
                     />
                   </div>

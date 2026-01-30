@@ -318,10 +318,13 @@ export default function AISmartModule({
           <button
             onClick={() => handleSend()}
             disabled={!inputValue.trim() || isProcessing}
-            className="p-1.5 rounded-lg transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-            style={{ backgroundColor: buttonBg, color: textColor }}
+            className="p-2 rounded-lg transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+            style={{ 
+              backgroundColor: '#10B981', // 绿色背景
+              color: '#ffffff' // 白色图标
+            }}
           >
-            <Send className="w-3.5 h-3.5" />
+            <Send className="w-5 h-5" />
           </button>
         </div>
       </div>
