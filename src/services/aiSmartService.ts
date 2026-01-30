@@ -251,7 +251,7 @@ export class AISmartProcessor {
       const minutes = parseInt(timeMatch[2]);
       const targetTime = new Date(now);
       targetTime.setHours(hours, minutes, 0, 0);
-      
+
       // 如果时间已过，设置为明天
       if (targetTime < now) {
         targetTime.setDate(targetTime.getDate() + 1);
@@ -347,12 +347,12 @@ export class AISmartProcessor {
     }
 
     // 无冲突，直接添加
-    return {
+      return {
       message: `✅ 已为你安排任务：\n\n📌 ${taskTitle}\n⏰ ${startTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} - ${endTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}\n💰 ${this.calculateGold({ estimated_duration: duration, task_type: 'life' })}金币`,
       actions: [
         {
           type: 'create_task',
-          data: {
+        data: {
             title: taskTitle,
             scheduled_time: startTime.toISOString(),
             estimated_duration: duration,
@@ -378,7 +378,7 @@ export class AISmartProcessor {
         message: '抱歉，我没有识别到任何任务。请重新输入。',
         autoExecute: false,
       };
-    }
+  }
 
     // 构建任务列表
     let currentTime = new Date(startTime);

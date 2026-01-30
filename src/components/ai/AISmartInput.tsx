@@ -348,30 +348,30 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
             }
           } else {
             // 单任务创建
-            const scheduledStart = action.data.scheduled_time 
-              ? new Date(action.data.scheduled_time)
-              : new Date();
-            
-            await createTask({
-              title: action.data.title,
-              description: action.data.description || '',
-              durationMinutes: action.data.estimated_duration || 60,
+          const scheduledStart = action.data.scheduled_time 
+            ? new Date(action.data.scheduled_time)
+            : new Date();
+          
+          await createTask({
+            title: action.data.title,
+            description: action.data.description || '',
+            durationMinutes: action.data.estimated_duration || 60,
               taskType: action.data.task_type || 'life',
-              scheduledStart: scheduledStart.toISOString(),
-              priority: action.data.priority || 'medium',
-              tags: action.data.tags || [],
-              status: 'pending',
+            scheduledStart: scheduledStart.toISOString(),
+            priority: action.data.priority || 'medium',
+            tags: action.data.tags || [],
+            status: 'pending',
+          });
+          
+          // 语音反馈
+          if (voiceFeedbackRef.current) {
+            const timeStr = scheduledStart.toLocaleTimeString('zh-CN', { 
+              hour: '2-digit', 
+              minute: '2-digit' 
             });
-            
-            // 语音反馈
-            if (voiceFeedbackRef.current) {
-              const timeStr = scheduledStart.toLocaleTimeString('zh-CN', { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-              });
-              await voiceFeedbackRef.current.provideFeedback('success', { 
-                action: `已为您创建${timeStr}的任务` 
-              });
+            await voiceFeedbackRef.current.provideFeedback('success', { 
+              action: `已为您创建${timeStr}的任务` 
+            });
             }
           }
           break;
