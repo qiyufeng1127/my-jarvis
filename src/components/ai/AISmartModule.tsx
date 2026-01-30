@@ -381,8 +381,8 @@ export default function AISmartModule({ isDark = false, bgColor = '#ffffff' }: A
   };
 
   return (
-    <div className="h-full flex flex-col" style={{ backgroundColor: bgColor }}>
-      {/* 头部 */}
+    <div className="h-full flex flex-col overflow-hidden" style={{ backgroundColor: bgColor }}>
+      {/* 头部 - 固定 */}
       <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0" style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
         <div className="flex items-center space-x-2">
           <Sparkles className="w-4 h-4" style={{ color: textColor }} />
@@ -403,9 +403,9 @@ export default function AISmartModule({ isDark = false, bgColor = '#ffffff' }: A
         </button>
       </div>
 
-      {/* 对话区域 - 使用flex-1和overflow来确保正确的滚动 */}
-      <div ref={conversationRef} className="flex-1 overflow-y-auto overflow-x-hidden p-3 min-h-0">
-        <div className="space-y-2">
+      {/* 对话区域 - 可滚动，自动拉伸 */}
+      <div ref={conversationRef} className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
+        <div className="p-3 space-y-2">
         {/* 空状态提示 */}
         {messages.length === 0 && !isVoiceMode && (
           <div className="flex flex-col items-center text-center px-3 py-2">
