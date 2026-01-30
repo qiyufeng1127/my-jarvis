@@ -153,9 +153,9 @@ const availableModules: ModuleDefinition[] = [
 
 // 模块尺寸配置 - 根据内容设置合适的尺寸
 const moduleSizes = {
-  small: { width: 450, height: 650 },
-  medium: { width: 600, height: 900 },
-  large: { width: 800, height: 1200 },
+  small: { width: 450, height: 500 },
+  medium: { width: 600, height: 700 },
+  large: { width: 800, height: 1000 },
 };
 
 // 不同模块类型的特定高度（根据实际内容）
@@ -167,6 +167,7 @@ const moduleSpecificHeights: Record<string, number> = {
   'reports': 700,        // 数据报告
   'settings': 800,       // 设置
   'kiki': 400,           // Kiki宝宝 - 内容少
+  'ai-smart': 500,       // AI智能输入 - 紧凑布局
   'journal': 750,        // 成功&感恩日记
   'memory': 800,         // 全景记忆栏
   'inbox': 600,          // 收集箱

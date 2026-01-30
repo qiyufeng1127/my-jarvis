@@ -180,26 +180,26 @@ export default function AISmartModule({
         width: '100%',
       }}
     >
-      {/* 头部 - 固定 */}
-      <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
+      {/* 头部 - 固定，减少内边距 */}
+      <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
         <div className="flex items-center space-x-2">
           <Sparkles className="w-4 h-4" style={{ color: textColor }} />
           <span className="font-semibold text-sm" style={{ color: textColor }}>AI智能助手</span>
         </div>
       </div>
 
-      {/* 对话区域 - 可滚动，自动填充剩余空间 */}
+      {/* 对话区域 - 可滚动，自动填充剩余空间，减少内边距 */}
       <div 
         ref={conversationRef} 
-        className="flex-1 overflow-y-auto p-3 space-y-2"
+        className="flex-1 overflow-y-auto p-2 space-y-1.5"
         style={{
           minHeight: 0,
           flex: '1 1 0',
         }}
       >
-        {/* 空状态提示 - 只显示示例按钮 */}
+        {/* 空状态提示 - 只显示示例按钮，减少间距 */}
         {messages.length === 0 && (
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             {[
               '5分钟后洗漱然后吃早餐',
               '明天上午9点学习2小时',
@@ -211,7 +211,7 @@ export default function AISmartModule({
                   setInputValue(example);
                   textareaRef.current?.focus();
                 }}
-                className="w-full rounded-lg p-2 text-[10px] transition-all hover:scale-[1.02] text-left"
+                className="w-full rounded-lg p-1.5 text-[10px] transition-all hover:scale-[1.02] text-left"
                 style={{ backgroundColor: cardBg, color: textColor }}
               >
                 💬 {example}
@@ -227,7 +227,7 @@ export default function AISmartModule({
             className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className="max-w-[80%] rounded-lg p-2"
+              className="max-w-[80%] rounded-lg p-1.5"
               style={{
                 backgroundColor: message.role === 'user' ? buttonBg : cardBg,
                 color: textColor,
@@ -237,7 +237,7 @@ export default function AISmartModule({
               
               {/* 操作按钮 */}
               {message.actions && message.actions.length > 0 && (
-                <div className="mt-2 space-y-1">
+                <div className="mt-1 space-y-1">
                   {message.actions.map((action, index) => (
                     <button
                       key={index}
@@ -251,7 +251,7 @@ export default function AISmartModule({
                 </div>
               )}
               
-              <div className="text-[9px] mt-1.5" style={{ color: accentColor }}>
+              <div className="text-[9px] mt-1" style={{ color: accentColor }}>
                 {message.timestamp.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
               </div>
             </div>
@@ -261,7 +261,7 @@ export default function AISmartModule({
         {/* 处理中状态 */}
         {isProcessing && (
           <div className="flex justify-start">
-            <div className="rounded-lg p-2" style={{ backgroundColor: cardBg }}>
+            <div className="rounded-lg p-1.5" style={{ backgroundColor: cardBg }}>
               <div className="flex items-center space-x-2">
                 <div className="flex space-x-1">
                   <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ backgroundColor: accentColor, animationDelay: '0ms' }} />
@@ -275,8 +275,8 @@ export default function AISmartModule({
         )}
       </div>
 
-      {/* 快速指令 - 固定 */}
-      <div className="flex-shrink-0 px-2 py-1.5 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
+      {/* 快速指令 - 固定，减少内边距 */}
+      <div className="flex-shrink-0 px-2 py-1 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
         <div className="flex items-center space-x-1 overflow-x-auto">
           <span className="text-[9px] whitespace-nowrap" style={{ color: accentColor }}>快速：</span>
           {[
@@ -298,8 +298,8 @@ export default function AISmartModule({
         </div>
       </div>
 
-      {/* 输入区域 - 固定在底部 */}
-      <div className="flex-shrink-0 p-2 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
+      {/* 输入区域 - 固定在底部，减少内边距 */}
+      <div className="flex-shrink-0 p-1.5 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
         <div className="flex items-end space-x-1.5">
           <textarea
             ref={textareaRef}
