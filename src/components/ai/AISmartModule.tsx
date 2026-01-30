@@ -404,7 +404,37 @@ export default function AISmartModule({ isDark = false, bgColor = '#ffffff' }: A
       </div>
 
       {/* 对话区域 */}
-      <div ref={conversationRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div ref={conversationRef} className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
+        {/* 空状态提示 */}
+        {messages.length === 0 && !isVoiceMode && (
+          <div className="flex flex-col items-center justify-center h-full text-center px-4">
+            <div className="text-4xl mb-3">🤖</div>
+            <h3 className="text-sm font-semibold mb-2" style={{ color: textColor }}>AI智能助手</h3>
+            <p className="text-xs mb-4" style={{ color: accentColor }}>
+              用自然语言描述任务，我来帮你智能分解和安排
+            </p>
+            <div className="space-y-1.5 w-full max-w-xs">
+              {[
+                '5分钟后洗漱然后吃早餐',
+                '明天上午9点学习2小时',
+                '今天心情很好',
+              ].map((example, index) => (
+                <button
+                  key={index}
+                  onClick={() => {
+                    setInputValue(example);
+                    textareaRef.current?.focus();
+                  }}
+                  className="w-full rounded-lg p-2 text-xs transition-all hover:scale-[1.02] text-left"
+                  style={{ backgroundColor: cardBg, color: textColor }}
+                >
+                  💬 {example}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* 语音状态提示 */}
         {isVoiceMode && wakeState !== 'sleeping' && (
           <div className="flex justify-center mb-3">
