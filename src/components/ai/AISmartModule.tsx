@@ -173,12 +173,11 @@ export default function AISmartModule({
 
   return (
     <div 
-      className={`flex flex-col h-full ${className}`}
+      className={`flex flex-col ${className}`}
       style={{ 
         backgroundColor: bgColor,
-        minHeight: '300px',
-        height: height === '100%' ? '100%' : undefined,
-        maxHeight: '100%',
+        height: '100%',
+        width: '100%',
       }}
     >
       {/* 头部 - 固定 */}
@@ -189,13 +188,13 @@ export default function AISmartModule({
         </div>
       </div>
 
-      {/* 对话区域 - 可滚动拉伸 */}
+      {/* 对话区域 - 可滚动，自动填充剩余空间 */}
       <div 
         ref={conversationRef} 
-        className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2"
+        className="flex-1 overflow-y-auto p-3 space-y-2"
         style={{
-          overflowY: 'auto',
-          maxHeight: 'calc(100% - 120px)'
+          minHeight: 0,
+          flex: '1 1 0',
         }}
       >
         {/* 空状态提示 - 只显示示例按钮 */}

@@ -1000,13 +1000,15 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                     </div>
                   </div>
 
-                  {/* 模块内容 - 自动高度，显示所有内容，不要滚动条 */}
+                  {/* 模块内容 - 固定高度，内部滚动 */}
                   <div 
                     style={{ 
                       backgroundColor: module.color,
                       color: isColorDark(module.color) ? '#ffffff' : '#000000',
-                      minHeight: `${actualBaseSize.height - 60}px`,
-                      overflow: 'visible', // 让内容可见，不裁剪
+                      height: `${actualBaseSize.height - 60}px`,
+                      overflow: 'hidden', // 隐藏溢出，让子组件内部处理滚动
+                      display: 'flex',
+                      flexDirection: 'column',
                     }}
                   >
                     {moduleDefinition?.component && 
