@@ -72,35 +72,35 @@ export const ensureUserExists = async (userId: string): Promise<void> => {
         syncPhotos: false,
       };
       
-      // 使用 upsert，以 local_user_id 作为冲突键
-      const { error } = await supabase.from(TABLES.USERS).upsert({
-        id: userId,
+      // 先检查用户是否已存在
+      const { data: existingUser } = await supabase
+        .from(TABLES.USERS)
+        .select('id')
+        .eq('local_user_id', userId)
+        .single();
+      
+      if (existingUser) {
+        // 用户已存在，无需创建
+        console.log('✅ 用户已存在于 Supabase:', userId);
+        return;
+      }
+      
+      // 用户不存在，创建新用户（让数据库自动生成 id）
+      const { error } = await supabase.from(TABLES.USERS).insert({
         local_user_id: userId,
         public_data: {},
         device_list: [],
         settings: defaultSettings,
-      }, {
-        onConflict: 'local_user_id',
-        ignoreDuplicates: true,
       });
       
       if (error) {
-        // 如果失败，尝试用 id 作为冲突键
-        const { error: error2 } = await supabase.from(TABLES.USERS).upsert({
-          id: userId,
-          local_user_id: userId,
-          public_data: {},
-          device_list: [],
-          settings: defaultSettings,
-        }, {
-          onConflict: 'id',
-          ignoreDuplicates: true,
-        });
-        
-        if (error2) {
-          console.error('确保用户存在失败:', error2);
-          throw error2;
+        // 如果是唯一性冲突错误（23505），说明用户已存在，忽略错误
+        if (error.code === '23505') {
+          console.log('✅ 用户已存在于 Supabase（并发创建）:', userId);
+          return;
         }
+        console.error('确保用户存在失败:', error);
+        throw error;
       }
       
       console.log('✅ 用户已确保存在于 Supabase:', userId);
