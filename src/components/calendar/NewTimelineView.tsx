@@ -14,6 +14,7 @@ import {
   type TaskVerification
 } from '@/services/taskVerificationService';
 import TaskVerificationDialog from './TaskVerificationDialog';
+import NowTimeline from './NowTimeline';
 
 interface NewTimelineViewProps {
   tasks: Task[];
@@ -750,7 +751,18 @@ export default function NewTimelineView({
   const timeUntilEnd = calculateTimeUntilEndOfDay();
 
   return (
-    <div className="space-y-3 pb-4">
+    <div className="space-y-3 pb-4 relative">
+      {/* NOW时间线 */}
+      <NowTimeline 
+        timeBlocks={timeBlocks.map(block => ({
+          id: block.id,
+          startTime: block.startTime,
+          endTime: block.endTime,
+          title: block.title,
+        }))}
+        isDark={isDark}
+      />
+      
       {/* 验证关键词编辑对话框 */}
       {editingVerification && taskVerifications[editingVerification] && (
         <TaskVerificationDialog
