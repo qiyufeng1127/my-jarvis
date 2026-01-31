@@ -365,11 +365,99 @@ export class AISmartProcessor {
     };
   }
 
-  // 处理任务分解（多任务识别）
+  // 使用 AI 智能分析任务（替代所有手动规则）
+  static async analyzeTaskWithAI(taskTitle: string, apiKey: string, apiEndpoint: string): Promise<{
+    tags: string[];
+    location: string;
+    duration: number;
+    taskType: string;
+    category: string;
+    color: string;
+  }> {
+    const prompt = `你是一个任务分析助手。请分析以下任务并返回JSON格式的结果。
+
+任务标题：${taskTitle}
+
+请返回以下信息（必须是有效的JSON格式）：
+{
+  "tags": ["标签1", "标签2", "标签3"],  // 3-5个具体的标签，如"拖地"、"铲猫砂"、"编程"等
+  "location": "位置",  // 可选：厕所、工作区、客厅、卧室、拍摄间、厨房、全屋、室外
+  "duration": 30,  // 预估时长（分钟）
+  "taskType": "life",  // 可选：work, study, health, life, finance, creative, rest
+  "category": "分类名称"  // 如：家务、工作、学习等
+}
+
+注意：
+1. 标签要具体，如"拖地"而不是"家务"
+2. 位置根据中国家庭实际情况判断
+3. 时长要合理（5-120分钟）
+4. 只返回JSON，不要其他文字`;
+
+    try {
+      const response = await fetch(apiEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [
+            { role: 'system', content: '你是一个任务分析助手，专门帮助用户分析任务并生成结构化数据。只返回JSON格式，不要其他内容。' },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.7,
+          max_tokens: 500,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('AI分析失败');
+      }
+
+      const data = await response.json();
+      const aiResponse = data.choices[0].message.content;
+      
+      // 提取JSON（处理可能的markdown代码块）
+      let jsonStr = aiResponse.trim();
+      if (jsonStr.startsWith('```json')) {
+        jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+      } else if (jsonStr.startsWith('```')) {
+        jsonStr = jsonStr.replace(/```\n?/g, '');
+      }
+      
+      const result = JSON.parse(jsonStr);
+      
+      // 根据第一个标签获取颜色
+      const color = this.getColorForTag(result.tags[0]);
+      
+      return {
+        tags: result.tags || ['日常'],
+        location: result.location || '全屋',
+        duration: result.duration || 30,
+        taskType: result.taskType || 'life',
+        category: result.category || '生活事务',
+        color: color,
+      };
+    } catch (error) {
+      console.error('AI分析失败，使用默认值:', error);
+      // 如果AI失败，返回默认值
+      return {
+        tags: ['日常', '待办'],
+        location: '全屋',
+        duration: 30,
+        taskType: 'life',
+        category: '生活事务',
+        color: '#6A7334',
+      };
+    }
+  }
+
+  // 处理任务分解（使用AI智能分析）
   static async handleTaskDecomposition(input: string, context: any): Promise<AIProcessResponse> {
     console.log('🔍 开始处理任务分解:', input);
     
-    // 解析时间起点 - 如果没有指定时间，默认5分钟后
+    // 解析时间起点
     let startTime = this.parseTimeExpression(input);
     if (!startTime) {
       startTime = new Date(Date.now() + 5 * 60000);
@@ -387,49 +475,54 @@ export class AISmartProcessor {
       };
     }
 
-    // 构建任务列表 - 保持用户输入的顺序，不重新排序
+    // 获取API配置
+    const apiKey = localStorage.getItem('ai_api_key') || '';
+    const apiEndpoint = localStorage.getItem('ai_api_endpoint') || 'https://api.deepseek.com/v1/chat/completions';
+
+    // 使用AI分析每个任务
+    const decomposedTasks = [];
     let currentTime = new Date(startTime);
-    const decomposedTasks = taskTitles.map((title, index) => {
-      const duration = this.estimateTaskDuration(title);
+    
+    for (let index = 0; index < taskTitles.length; index++) {
+      const title = taskTitles[index];
+      
+      // 使用AI智能分析任务
+      const aiAnalysis = await this.analyzeTaskWithAI(title, apiKey, apiEndpoint);
+      
       const start = new Date(currentTime);
-      const end = new Date(currentTime.getTime() + duration * 60000);
-      const location = this.inferLocation(title);
-      const tags = this.generateTags(title);
+      const end = new Date(currentTime.getTime() + aiAnalysis.duration * 60000);
       const goal = this.identifyGoal(title);
       
       const task = {
         sequence: index + 1,
         title: title,
         description: title,
-        estimated_duration: duration,
+        estimated_duration: aiAnalysis.duration,
         scheduled_start: start.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
         scheduled_end: end.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
         scheduled_start_iso: start.toISOString(),
-        task_type: this.inferTaskType(title),
-        category: this.inferCategory(title),
-        location: location,
-        tags: tags,
+        task_type: aiAnalysis.taskType,
+        category: aiAnalysis.category,
+        location: aiAnalysis.location,
+        tags: aiAnalysis.tags,
         goal: goal,
-        gold: this.calculateGold({ estimated_duration: duration, task_type: this.inferTaskType(title) }),
-        color: this.getTaskColor(tags), // 添加颜色
+        gold: this.calculateGold({ estimated_duration: aiAnalysis.duration, task_type: aiAnalysis.taskType }),
+        color: aiAnalysis.color,
       };
 
-      // 下一个任务开始时间 = 当前任务结束（无间隔）
-      currentTime = new Date(end.getTime());
+      decomposedTasks.push(task);
       
-      return task;
-    });
+      // 下一个任务开始时间
+      currentTime = new Date(end.getTime());
+    }
 
-    // 按位置分组（仅用于显示统计信息）
     const groupedByLocation = this.groupTasksByLocation(decomposedTasks);
+    console.log('✅ AI智能分析完成:', decomposedTasks);
 
-    console.log('✅ 最终任务列表（保持原顺序）:', decomposedTasks);
-
-    // 构建消息（按用户输入顺序显示）
-    let message = `✅ 已识别 ${decomposedTasks.length} 个任务，按你说的顺序排列：\n\n`;
+    // 构建消息
+    let message = `✅ AI已智能分析 ${decomposedTasks.length} 个任务：\n\n`;
     
     decomposedTasks.forEach((task, index) => {
-      // 任务信息（3行格式）
       message += `${task.sequence}. **${task.title}** 📍${task.location}\n`;
       message += `   ⏰ ${task.scheduled_start}-${task.scheduled_end} | ${task.estimated_duration}分钟 | 💰${task.gold}\n`;
       message += `   🏷️ ${task.tags.join(' ')}`;
@@ -444,11 +537,11 @@ export class AISmartProcessor {
 
     message += `📊 总计：${totalDuration}分钟 | 💰${totalGold}金币\n\n`;
     message += `💡 正在打开事件卡片编辑器，你可以：\n`;
-    message += `   • 双击任意字段进行编辑（名称、时长、金币、目标等）\n`;
+    message += `   • 双击任意字段进行编辑\n`;
     message += `   • 使用上下箭头调整任务顺序\n`;
     message += `   • 修改完成后点击"🚀 全部推送到时间轴"`;
 
-    const response = {
+    return {
       message,
       data: {
         decomposed_tasks: decomposedTasks,
@@ -466,9 +559,6 @@ export class AISmartProcessor {
       needsConfirmation: true,
       autoExecute: false,
     };
-
-    console.log('📤 返回响应:', response);
-    return response;
   }
 
   // 按位置分组任务
@@ -516,246 +606,6 @@ export class AISmartProcessor {
     return sorted;
   }
 
-  // 估算任务时长
-  static estimateTaskDuration(taskTitle: string): number {
-    const title = taskTitle.toLowerCase();
-    
-    // 快速任务（5-15分钟）
-    if (title.includes('洗漱') || title.includes('刷牙') || title.includes('洗脸')) {
-      return 10;
-    }
-    
-    // 短任务（15-30分钟）
-    if (title.includes('吃饭') || title.includes('午餐') || title.includes('晚餐') || title.includes('早餐')) {
-      return 20;
-    }
-    
-    // 中等任务（30-60分钟）
-    if (title.includes('会议') || title.includes('讨论') || title.includes('优化')) {
-      return 45;
-    }
-    
-    // 长任务（60-120分钟）
-    if (title.includes('写') || title.includes('设计') || title.includes('开发') || title.includes('文档')) {
-      return 90;
-    }
-    
-    // 默认30分钟
-    return 30;
-  }
-
-  // 推断任务类型
-  static inferTaskType(taskTitle: string): string {
-    const title = taskTitle.toLowerCase();
-    
-    if (title.includes('吃') || title.includes('餐') || title.includes('洗漱')) return 'life';
-    if (title.includes('运动') || title.includes('跑步') || title.includes('健身')) return 'sport';
-    if (title.includes('工作') || title.includes('会议') || title.includes('开发')) return 'work';
-    if (title.includes('学习') || title.includes('阅读') || title.includes('课程')) return 'learning';
-    if (title.includes('写') || title.includes('设计') || title.includes('创作')) return 'creative';
-    
-    return 'life';
-  }
-
-  // 推断任务分类
-  static inferCategory(taskTitle: string): string {
-    const title = taskTitle.toLowerCase();
-    
-    if (title.includes('吃') || title.includes('餐')) return '饮食';
-    if (title.includes('洗漱') || title.includes('洗澡')) return '个人护理';
-    if (title.includes('运动') || title.includes('健身')) return '运动健康';
-    if (title.includes('工作') || title.includes('会议')) return '工作事务';
-    if (title.includes('学习') || title.includes('阅读')) return '学习成长';
-    if (title.includes('写') || title.includes('设计')) return '创意工作';
-    
-    return '生活事务';
-  }
-
-  // 推断任务位置（根据用户家庭格局）
-  static inferLocation(taskTitle: string): string {
-    const title = taskTitle.toLowerCase();
-    
-    // 室外（外出相关）
-    if (title.includes('下楼') || title.includes('买菜') || title.includes('快递') || 
-        title.includes('超市') || title.includes('购物') || title.includes('外出') ||
-        title.includes('散步') || title.includes('遛') || title.includes('取') ||
-        title.includes('寄') || title.includes('邮局')) {
-      return '室外';
-    }
-    
-    // 厨房相关（猫咪相关任务都在厨房）
-    if (title.includes('猫粮') || title.includes('铲') || title.includes('猫砂') || 
-        title.includes('粑粑') || title.includes('猫') || title.includes('悠悠') ||
-        title.includes('做饭') || title.includes('煮') || title.includes('炒')) {
-      return '厨房';
-    }
-    
-    // 工作区（所有工作相关）
-    if (title.includes('工作') || title.includes('会议') || title.includes('开发') || 
-        title.includes('写代码') || title.includes('设计') || title.includes('优化') ||
-        title.includes('学习') || title.includes('写') || title.includes('编程')) {
-      return '工作区';
-    }
-    
-    // 厕所（个人护理）
-    if (title.includes('洗漱') || title.includes('洗澡') || title.includes('刷牙') || 
-        title.includes('洗脸') || title.includes('上厕所')) {
-      return '厕所';
-    }
-    
-    // 卧室（睡眠相关）
-    if (title.includes('睡觉') || title.includes('起床') || title.includes('叠被') || 
-        title.includes('休息') || title.includes('午睡')) {
-      return '卧室';
-    }
-    
-    // 拍摄间（拍摄、录制相关）
-    if (title.includes('拍摄') || title.includes('录制') || title.includes('视频') || 
-        title.includes('直播') || title.includes('拍照')) {
-      return '拍摄间';
-    }
-    
-    // 客厅（娱乐、休闲）
-    if (title.includes('看电视') || title.includes('看剧') || title.includes('聊天') || 
-        title.includes('休闲')) {
-      return '客厅';
-    }
-    
-    // 全屋（打扫、收拾等全屋性任务）
-    if (title.includes('打扫') || title.includes('拖地') || title.includes('扫地') || 
-        title.includes('收拾') || title.includes('整理') || title.includes('垃圾') ||
-        title.includes('清洁') || title.includes('卫生')) {
-      return '全屋';
-    }
-    
-    return '全屋';
-  }
-
-  // 智能生成标签（更详细和具体）
-  static generateTags(taskTitle: string): string[] {
-    const title = taskTitle.toLowerCase();
-    const tags: string[] = [];
-    
-    // 家务类 - 具体到动作
-    if (title.includes('拖地')) {
-      tags.push('拖地', '家务', '清洁');
-    } else if (title.includes('扫地')) {
-      tags.push('扫地', '家务', '清洁');
-    } else if (title.includes('洗衣')) {
-      tags.push('洗衣服', '家务', '日常');
-    } else if (title.includes('晾衣') || title.includes('晒衣')) {
-      tags.push('晾衣服', '家务', '日常');
-    } else if (title.includes('叠衣') || title.includes('收衣')) {
-      tags.push('叠衣服', '家务', '日常');
-    } else if (title.includes('洗碗') || title.includes('刷碗')) {
-      tags.push('洗碗', '家务', '日常');
-    } else if (title.includes('擦桌') || title.includes('擦台')) {
-      tags.push('擦桌子', '家务', '清洁');
-    } else if (title.includes('整理') && title.includes('房间')) {
-      tags.push('整理房间', '家务', '收纳');
-    } else if (title.includes('打扫')) {
-      tags.push('打扫卫生', '家务', '清洁');
-    }
-    // 猫咪相关
-    else if (title.includes('铲') && (title.includes('猫砂') || title.includes('粑粑'))) {
-      tags.push('铲猫砂', '猫咪', '家务');
-    } else if (title.includes('猫粮') || title.includes('喂猫')) {
-      tags.push('喂猫', '猫咪', '日常');
-    } else if (title.includes('猫') || title.includes('悠悠')) {
-      tags.push('猫咪', '宠物', '日常');
-    }
-    // 饮食类
-    else if (title.includes('做饭') || title.includes('煮饭')) {
-      tags.push('做饭', '饮食', '家务');
-    } else if (title.includes('炒菜')) {
-      tags.push('炒菜', '饮食', '家务');
-    } else if (title.includes('早餐')) {
-      tags.push('早餐', '饮食', '日常');
-    } else if (title.includes('午餐') || title.includes('中餐')) {
-      tags.push('午餐', '饮食', '日常');
-    } else if (title.includes('晚餐')) {
-      tags.push('晚餐', '饮食', '日常');
-    } else if (title.includes('吃饭')) {
-      tags.push('吃饭', '饮食', '日常');
-    }
-    // 个人护理
-    else if (title.includes('洗漱')) {
-      tags.push('洗漱', '个人护理', '日常');
-    } else if (title.includes('洗澡')) {
-      tags.push('洗澡', '个人护理', '日常');
-    } else if (title.includes('刷牙')) {
-      tags.push('刷牙', '个人护理', '日常');
-    } else if (title.includes('洗脸')) {
-      tags.push('洗脸', '个人护理', '日常');
-    } else if (title.includes('化妆')) {
-      tags.push('化妆', '个人护理', '美容');
-    } else if (title.includes('护肤')) {
-      tags.push('护肤', '个人护理', '美容');
-    }
-    // 工作类
-    else if (title.includes('会议')) {
-      tags.push('会议', '工作', '重要');
-    } else if (title.includes('开发') || title.includes('编程') || title.includes('写代码')) {
-      tags.push('编程', '工作', '技术');
-    } else if (title.includes('设计')) {
-      tags.push('设计', '工作', '创意');
-    } else if (title.includes('写文档') || title.includes('文档')) {
-      tags.push('文档', '工作', '整理');
-    } else if (title.includes('优化')) {
-      tags.push('优化', '工作', '改进');
-    } else if (title.includes('工作')) {
-      tags.push('工作', '职业', '重要');
-    }
-    // 学习类
-    else if (title.includes('学习')) {
-      tags.push('学习', '成长', '提升');
-    } else if (title.includes('阅读') || title.includes('读书')) {
-      tags.push('阅读', '学习', '成长');
-    } else if (title.includes('课程') || title.includes('上课')) {
-      tags.push('课程', '学习', '教育');
-    } else if (title.includes('练习')) {
-      tags.push('练习', '学习', '提升');
-    }
-    // 运动健康
-    else if (title.includes('跑步')) {
-      tags.push('跑步', '运动', '健康');
-    } else if (title.includes('健身')) {
-      tags.push('健身', '运动', '健康');
-    } else if (title.includes('瑜伽')) {
-      tags.push('瑜伽', '运动', '健康');
-    } else if (title.includes('运动')) {
-      tags.push('运动', '健康', '锻炼');
-    }
-    // 社交娱乐
-    else if (title.includes('聚会')) {
-      tags.push('聚会', '社交', '娱乐');
-    } else if (title.includes('朋友')) {
-      tags.push('朋友', '社交', '关系');
-    } else if (title.includes('看剧') || title.includes('看电影')) {
-      tags.push('看剧', '娱乐', '休闲');
-    } else if (title.includes('游戏')) {
-      tags.push('游戏', '娱乐', '休闲');
-    } else if (title.includes('社交')) {
-      tags.push('社交', '人际', '关系');
-    }
-    // 外出相关
-    else if (title.includes('买菜')) {
-      tags.push('买菜', '购物', '室外');
-    } else if (title.includes('快递')) {
-      tags.push('取快递', '外出', '室外');
-    } else if (title.includes('超市')) {
-      tags.push('超市', '购物', '室外');
-    } else if (title.includes('购物')) {
-      tags.push('购物', '消费', '室外');
-    }
-    // 默认标签
-    else {
-      tags.push('日常', '生活', '待办');
-    }
-    
-    return [...new Set(tags)]; // 去重
-  }
-
   // 根据标签获取颜色（使用用户提供的色号）
   static getColorForTag(tag: string): string {
     const colorMap: Record<string, string> = {
@@ -764,11 +614,17 @@ export class AISmartProcessor {
       '清洁': '#6A7334',
       '日常': '#6A7334',
       '猫咪': '#6A7334',
+      '拖地': '#6A7334',
+      '扫地': '#6A7334',
+      '洗衣服': '#6A7334',
+      '铲猫砂': '#6A7334',
       
       // 工作类 - Carolina Blue (卡罗莱纳蓝)
       '工作': '#A0BBEB',
       '重要': '#A0BBEB',
       '会议': '#A0BBEB',
+      '编程': '#A0BBEB',
+      '设计': '#A0BBEB',
       
       // 社交类 - Raspberry Rose (覆盆子玫瑰)
       '社交': '#B34568',
@@ -793,6 +649,9 @@ export class AISmartProcessor {
       // 饮食类 - Butter Yellow (奶油黄)
       '饮食': '#FFE288',
       '个人护理': '#F1E69F',
+      '早餐': '#FFE288',
+      '午餐': '#FFE288',
+      '晚餐': '#FFE288',
     };
     
     return colorMap[tag] || '#6A7334'; // 默认返回泥绿色
