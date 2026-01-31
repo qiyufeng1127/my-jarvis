@@ -46,30 +46,10 @@ export default function AISmartModule({
   
   const { createTask } = useTaskStore();
 
-  // 从 localStorage 加载 API 配置
-  useEffect(() => {
-    const savedApiKey = localStorage.getItem('ai_api_key');
-    const savedEndpoint = localStorage.getItem('ai_api_endpoint');
-    if (savedApiKey) {
-      setApiKey(savedApiKey);
-      // 自动测试连接
-      testConnection(savedApiKey, savedEndpoint || apiEndpoint);
-    }
-    if (savedEndpoint) setApiEndpoint(savedEndpoint);
-  }, []);
-
   const cardBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
   const textColor = isDark ? '#ffffff' : '#000000';
   const accentColor = isDark ? 'rgba(255,255,255,0.7)' : '#666666';
   const buttonBg = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)';
-
-  // 自动滚动到底部
-  useEffect(() => {
-    if (conversationRef.current) {
-      conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
-    }
-  }, [messages]);
-
 
   // 测试API连接
   const testConnection = async (key?: string, endpoint?: string) => {
@@ -111,6 +91,25 @@ export default function AISmartModule({
       setIsTesting(false);
     }
   };
+
+  // 从 localStorage 加载 API 配置
+  useEffect(() => {
+    const savedApiKey = localStorage.getItem('ai_api_key');
+    const savedEndpoint = localStorage.getItem('ai_api_endpoint');
+    if (savedApiKey) {
+      setApiKey(savedApiKey);
+      // 自动测试连接
+      testConnection(savedApiKey, savedEndpoint || apiEndpoint);
+    }
+    if (savedEndpoint) setApiEndpoint(savedEndpoint);
+  }, []);
+
+  // 自动滚动到底部
+  useEffect(() => {
+    if (conversationRef.current) {
+      conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
+    }
+  }, [messages]);
 
   const handleSend = async (text?: string) => {
     const message = text || inputValue.trim();
