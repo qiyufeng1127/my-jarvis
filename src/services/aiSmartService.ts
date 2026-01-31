@@ -411,6 +411,7 @@ export class AISmartProcessor {
         tags: tags,
         goal: goal,
         gold: this.calculateGold({ estimated_duration: duration, task_type: this.inferTaskType(title) }),
+        color: this.getTaskColor(tags), // 添加颜色
       };
 
       // 下一个任务开始时间 = 当前任务结束（无间隔）
@@ -650,11 +651,63 @@ export class AISmartProcessor {
       tags.push('学习', '成长');
     } else if (title.includes('运动') || title.includes('健身')) {
       tags.push('健康', '运动');
+    } else if (title.includes('社交') || title.includes('聚会') || title.includes('朋友')) {
+      tags.push('社交', '娱乐');
+    } else if (title.includes('娱乐') || title.includes('看剧') || title.includes('游戏')) {
+      tags.push('娱乐', '休闲');
     } else {
       tags.push('日常');
     }
     
     return [...new Set(tags)]; // 去重
+  }
+
+  // 根据标签获取颜色（使用用户提供的色号）
+  static getColorForTag(tag: string): string {
+    const colorMap: Record<string, string> = {
+      // 家务类 - Muddy Green (泥绿色)
+      '家务': '#6A7334',
+      '清洁': '#6A7334',
+      '日常': '#6A7334',
+      '猫咪': '#6A7334',
+      
+      // 工作类 - Carolina Blue (卡罗莱纳蓝)
+      '工作': '#A0BBEB',
+      '重要': '#A0BBEB',
+      '会议': '#A0BBEB',
+      
+      // 社交类 - Raspberry Rose (覆盆子玫瑰)
+      '社交': '#B34568',
+      '朋友': '#B34568',
+      '聚会': '#B34568',
+      
+      // 娱乐类 - Illusion (幻影粉)
+      '娱乐': '#FB9FC9',
+      '休闲': '#FB9FC9',
+      '游戏': '#FB9FC9',
+      
+      // 学习类 - Pastel Purple (淡紫色)
+      '学习': '#AA9FBE',
+      '成长': '#AA9FBE',
+      '阅读': '#AA9FBE',
+      
+      // 运动健康类 - Brass (黄铜色)
+      '运动': '#A6B13C',
+      '健康': '#A6B13C',
+      '健身': '#A6B13C',
+      
+      // 饮食类 - Butter Yellow (奶油黄)
+      '饮食': '#FFE288',
+      '个人护理': '#F1E69F',
+    };
+    
+    return colorMap[tag] || '#6A7334'; // 默认返回泥绿色
+  }
+
+  // 获取任务的主色调（基于第一个标签）
+  static getTaskColor(tags: string[]): string {
+    if (tags.length === 0) return '#6A7334';
+    return this.getColorForTag(tags[0]);
   }
 
   // 识别关联的长期目标

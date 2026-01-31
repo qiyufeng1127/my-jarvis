@@ -405,6 +405,7 @@ export default function AISmartModule({
       newTasks[index].task_type = AISmartProcessor.inferTaskType(value);
       newTasks[index].category = AISmartProcessor.inferCategory(value);
       newTasks[index].goal = AISmartProcessor.identifyGoal(value);
+      newTasks[index].color = AISmartProcessor.getTaskColor(newTasks[index].tags); // 更新颜色
       
       // 重新估算时长
       const newDuration = AISmartProcessor.estimateTaskDuration(value);
@@ -413,7 +414,7 @@ export default function AISmartModule({
       // 重新计算金币
       newTasks[index].gold = AISmartProcessor.calculateGold(newTasks[index]);
       
-      console.log(`🔄 自动更新: 位置=${newTasks[index].location}, 标签=${newTasks[index].tags.join(',')}, 时长=${newDuration}分钟, 金币=${newTasks[index].gold}`);
+      console.log(`🔄 自动更新: 位置=${newTasks[index].location}, 标签=${newTasks[index].tags.join(',')}, 颜色=${newTasks[index].color}, 时长=${newDuration}分钟, 金币=${newTasks[index].gold}`);
       
       // 从当前任务开始重新计算所有时间
       const recalculated = recalculateTaskTimes(newTasks, index);
@@ -737,13 +738,23 @@ export default function AISmartModule({
               {editingTasks.map((task, index) => (
                 <div
                   key={index}
-                  className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border-2 border-purple-200 shadow-sm hover:shadow-md transition-all"
+                  className="rounded-xl p-4 border-2 shadow-sm hover:shadow-md transition-all"
+                  style={{
+                    backgroundColor: `${task.color}15`, // 15% 透明度作为背景
+                    borderColor: task.color,
+                  }}
                 >
                   {/* 卡片头部：序号、位置、上下移动 */}
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center space-x-2">
-                      <span className="text-lg font-bold text-purple-600">#{index + 1}</span>
-                      <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                      <span className="text-lg font-bold" style={{ color: task.color }}>#{index + 1}</span>
+                      <span 
+                        className="px-2 py-1 rounded-full text-xs font-medium"
+                        style={{
+                          backgroundColor: `${task.color}30`,
+                          color: task.color,
+                        }}
+                      >
                         📍 {task.location}
                       </span>
                     </div>
@@ -751,18 +762,28 @@ export default function AISmartModule({
                       <button
                         onClick={() => moveTaskUp(index)}
                         disabled={index === 0}
-                        className="p-1 hover:bg-purple-100 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        style={{
+                          backgroundColor: `${task.color}20`,
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${task.color}40`}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = `${task.color}20`}
                         title="上移"
                       >
-                        <ChevronUp className="w-5 h-5 text-purple-600" />
+                        <ChevronUp className="w-5 h-5" style={{ color: task.color }} />
                       </button>
                       <button
                         onClick={() => moveTaskDown(index)}
                         disabled={index === editingTasks.length - 1}
-                        className="p-1 hover:bg-purple-100 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        style={{
+                          backgroundColor: `${task.color}20`,
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${task.color}40`}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = `${task.color}20`}
                         title="下移"
                       >
-                        <ChevronDown className="w-5 h-5 text-purple-600" />
+                        <ChevronDown className="w-5 h-5" style={{ color: task.color }} />
                       </button>
                     </div>
                   </div>
@@ -777,12 +798,19 @@ export default function AISmartModule({
                         onBlur={() => setEditingField(null)}
                         onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
                         autoFocus
-                        className="w-full px-3 py-2 text-lg font-bold border-2 border-purple-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        className="w-full px-3 py-2 text-lg font-bold rounded-lg focus:outline-none focus:ring-2"
+                        style={{
+                          border: `2px solid ${task.color}`,
+                          color: task.color,
+                        }}
                       />
                     ) : (
                       <div
                         onDoubleClick={() => setEditingField({ taskIndex: index, field: 'title' })}
-                        className="text-lg font-bold text-gray-900 cursor-pointer hover:bg-white/50 px-3 py-2 rounded-lg transition-colors"
+                        className="text-lg font-bold cursor-pointer px-3 py-2 rounded-lg transition-colors"
+                        style={{ color: task.color }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${task.color}10`}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                       >
                         {task.title}
                       </div>
@@ -792,8 +820,11 @@ export default function AISmartModule({
                   {/* 时间和时长 */}
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     {/* 时间显示 */}
-                    <div className="flex items-center space-x-2 bg-white/70 rounded-lg px-3 py-2">
-                      <Clock className="w-4 h-4 text-purple-600" />
+                    <div 
+                      className="flex items-center space-x-2 rounded-lg px-3 py-2"
+                      style={{ backgroundColor: `${task.color}20` }}
+                    >
+                      <Clock className="w-4 h-4" style={{ color: task.color }} />
                       <div className="text-sm">
                         <div className="font-semibold text-gray-900">{task.scheduled_start}</div>
                         <div className="text-xs text-gray-500">→ {task.scheduled_end}</div>
@@ -801,7 +832,10 @@ export default function AISmartModule({
                     </div>
 
                     {/* 时长 - 双击编辑 */}
-                    <div className="bg-white/70 rounded-lg px-3 py-2">
+                    <div 
+                      className="rounded-lg px-3 py-2"
+                      style={{ backgroundColor: `${task.color}20` }}
+                    >
                       {editingField?.taskIndex === index && editingField?.field === 'duration' ? (
                         <input
                           type="number"
@@ -810,12 +844,17 @@ export default function AISmartModule({
                           onBlur={() => setEditingField(null)}
                           onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
                           autoFocus
-                          className="w-full px-2 py-1 border-2 border-purple-400 rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          className="w-full px-2 py-1 rounded focus:outline-none focus:ring-2"
+                          style={{
+                            border: `2px solid ${task.color}`,
+                          }}
                         />
                       ) : (
                         <div
                           onDoubleClick={() => setEditingField({ taskIndex: index, field: 'duration' })}
-                          className="cursor-pointer hover:bg-white/80 px-2 py-1 rounded transition-colors"
+                          className="cursor-pointer px-2 py-1 rounded transition-colors"
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${task.color}30`}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                         >
                           <div className="text-xs text-gray-500">时长</div>
                           <div className="font-semibold text-gray-900">{task.estimated_duration} 分钟</div>
@@ -834,7 +873,7 @@ export default function AISmartModule({
                         onBlur={() => setEditingField(null)}
                         onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
                         autoFocus
-                        className="w-full px-3 py-2 border-2 border-purple-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        className="w-full px-3 py-2 border-2 border-yellow-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
                       />
                     ) : (
                       <div
@@ -853,16 +892,27 @@ export default function AISmartModule({
                       {task.tags.map((tag: string, tagIndex: number) => (
                         <span
                           key={tagIndex}
-                          className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium flex items-center gap-1"
+                          className="px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1"
+                          style={{
+                            backgroundColor: `${AISmartProcessor.getColorForTag(tag)}30`,
+                            color: AISmartProcessor.getColorForTag(tag),
+                          }}
                         >
                           🏷️ {tag}
                           <button
                             onClick={() => {
                               const newTasks = [...editingTasks];
                               newTasks[index].tags = newTasks[index].tags.filter((_: any, i: number) => i !== tagIndex);
+                              // 更新任务颜色
+                              newTasks[index].color = AISmartProcessor.getTaskColor(newTasks[index].tags);
                               setEditingTasks(newTasks);
                             }}
-                            className="hover:bg-purple-200 rounded-full p-0.5"
+                            className="rounded-full p-0.5"
+                            style={{
+                              backgroundColor: `${AISmartProcessor.getColorForTag(tag)}20`,
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${AISmartProcessor.getColorForTag(tag)}40`}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = `${AISmartProcessor.getColorForTag(tag)}20`}
                           >
                             <X className="w-3 h-3" />
                           </button>
@@ -874,10 +924,19 @@ export default function AISmartModule({
                           if (newTag) {
                             const newTasks = [...editingTasks];
                             newTasks[index].tags.push(newTag);
+                            // 更新任务颜色
+                            newTasks[index].color = AISmartProcessor.getTaskColor(newTasks[index].tags);
                             setEditingTasks(newTasks);
                           }
                         }}
-                        className="px-2 py-1 border border-dashed border-purple-300 rounded-full text-xs text-purple-600 hover:border-purple-500 hover:bg-purple-50"
+                        className="px-2 py-1 border border-dashed rounded-full text-xs hover:border-solid"
+                        style={{
+                          borderColor: task.color,
+                          color: task.color,
+                          backgroundColor: `${task.color}10`,
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${task.color}20`}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = `${task.color}10`}
                       >
                         + 标签
                       </button>
@@ -896,7 +955,7 @@ export default function AISmartModule({
                             onBlur={() => setEditingField(null)}
                             onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
                             autoFocus
-                            className="flex-1 px-3 py-2 border-2 border-purple-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            className="flex-1 px-3 py-2 border-2 border-green-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                           />
                           <button
                             onClick={() => {
@@ -930,7 +989,10 @@ export default function AISmartModule({
                           }
                           e.target.value = '';
                         }}
-                        className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 text-sm"
+                        style={{
+                          borderColor: task.color,
+                        }}
                       >
                         <option value="">🎯 点击添加目标...</option>
                         {goals.map((goal) => (
