@@ -115,30 +115,8 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
     return date.toLocaleTimeString('zh-CN', { 
       hour: '2-digit', 
       minute: '2-digit',
-      second: '2-digit',
       hour12: false 
     });
-  };
-
-  const getTimeRange = () => {
-    if (timeBlocks.length === 0) return '';
-    
-    const firstTask = timeBlocks[0];
-    const lastTask = timeBlocks[timeBlocks.length - 1];
-    
-    const startTime = firstTask.startTime.toLocaleTimeString('zh-CN', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: false 
-    });
-    
-    const endTime = lastTask.endTime.toLocaleTimeString('zh-CN', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: false 
-    });
-    
-    return `${startTime} - ${endTime}`;
   };
 
   return (
@@ -149,45 +127,26 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
       }}
     >
       {/* NOW线 */}
-      <div className="relative">
-        {/* 左上角时间信息 */}
+      <div className="relative flex items-center">
+        {/* 玫粉色线条 */}
         <div 
-          className="absolute left-4 -top-8 px-3 py-1.5 rounded-lg shadow-lg pointer-events-auto"
+          className="flex-1 h-0.5 shadow-lg"
+          style={{ 
+            backgroundColor: '#FB9FC9',
+            boxShadow: '0 0 8px rgba(251, 159, 201, 0.5)',
+          }}
+        />
+
+        {/* 右侧时间显示 */}
+        <div 
+          className="ml-2 px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap pointer-events-auto"
           style={{ 
             backgroundColor: '#FB9FC9',
             color: '#ffffff',
           }}
         >
-          <div className="text-xs font-bold mb-0.5">NOW</div>
-          <div className="text-sm font-bold">{formatTime(currentTime)}</div>
-          <div className="text-[10px] opacity-90 mt-0.5">{getTimeRange()}</div>
-          {currentTask && (
-            <div className="text-[10px] opacity-90 mt-1 border-t border-white/30 pt-1">
-              📍 {currentTask}
-            </div>
-          )}
+          {formatTime(currentTime)}
         </div>
-
-        {/* 玫粉色线条 */}
-        <div 
-          className="w-full h-1 shadow-lg"
-          style={{ 
-            backgroundColor: '#FB9FC9',
-            boxShadow: '0 0 10px rgba(251, 159, 201, 0.6)',
-          }}
-        />
-
-        {/* 右侧箭头 */}
-        <div 
-          className="absolute right-0 top-1/2 -translate-y-1/2"
-          style={{ 
-            width: 0,
-            height: 0,
-            borderTop: '6px solid transparent',
-            borderBottom: '6px solid transparent',
-            borderLeft: '10px solid #FB9FC9',
-          }}
-        />
       </div>
     </div>
   );
