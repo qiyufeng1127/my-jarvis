@@ -380,15 +380,24 @@ export class AISmartProcessor {
 
 请返回以下信息（必须是有效的JSON格式）：
 {
-  "tags": ["标签1", "标签2", "标签3"],  // 3-5个具体的标签，如"拖地"、"铲猫砂"、"编程"等
+  "tags": ["标签1", "标签2"],  // 2-3个标签，粒度适中（不要太具体如"擦桌子"，也不要太泛化如"日常"）
   "location": "位置",  // 可选：厕所、工作区、客厅、卧室、拍摄间、厨房、全屋、室外
   "duration": 30,  // 预估时长（分钟）
   "taskType": "life",  // 可选：work, study, health, life, finance, creative, rest
   "category": "分类名称"  // 如：家务、工作、学习等
 }
 
+标签示例（粒度适中）：
+- 家务类：家务、清洁、收纳、猫咪
+- 工作类：工作、会议、编程、设计
+- 学习类：学习、阅读、课程
+- 运动类：运动、健身、跑步
+- 饮食类：饮食、早餐、午餐、晚餐
+- 社交类：社交、朋友、聚会
+- 娱乐类：娱乐、休闲、游戏
+
 注意：
-1. 标签要具体，如"拖地"而不是"家务"
+1. 标签粒度适中，2-3个即可
 2. 位置根据中国家庭实际情况判断
 3. 时长要合理（5-120分钟）
 4. 只返回JSON，不要其他文字`;
@@ -430,6 +439,14 @@ export class AISmartProcessor {
       
       // 根据第一个标签获取颜色
       const color = this.getColorForTag(result.tags[0]);
+      
+      console.log('🤖 AI分析结果:', {
+        title: taskTitle,
+        tags: result.tags,
+        color: color,
+        location: result.location,
+        duration: result.duration,
+      });
       
       return {
         tags: result.tags || ['日常'],
@@ -618,6 +635,10 @@ export class AISmartProcessor {
       '扫地': '#6A7334',
       '洗衣服': '#6A7334',
       '铲猫砂': '#6A7334',
+      '收纳': '#6A7334',
+      '整理': '#6A7334',
+      '打扫': '#6A7334',
+      '卫生': '#6A7334',
       
       // 工作类 - Carolina Blue (卡罗莱纳蓝)
       '工作': '#A0BBEB',
@@ -625,26 +646,39 @@ export class AISmartProcessor {
       '会议': '#A0BBEB',
       '编程': '#A0BBEB',
       '设计': '#A0BBEB',
+      '开发': '#A0BBEB',
+      '技术': '#A0BBEB',
+      '文档': '#A0BBEB',
+      '职业': '#A0BBEB',
       
       // 社交类 - Raspberry Rose (覆盆子玫瑰)
       '社交': '#B34568',
       '朋友': '#B34568',
       '聚会': '#B34568',
+      '人际': '#B34568',
+      '关系': '#B34568',
       
       // 娱乐类 - Illusion (幻影粉)
       '娱乐': '#FB9FC9',
       '休闲': '#FB9FC9',
       '游戏': '#FB9FC9',
+      '放松': '#FB9FC9',
       
       // 学习类 - Pastel Purple (淡紫色)
       '学习': '#AA9FBE',
       '成长': '#AA9FBE',
       '阅读': '#AA9FBE',
+      '课程': '#AA9FBE',
+      '教育': '#AA9FBE',
+      '提升': '#AA9FBE',
       
       // 运动健康类 - Brass (黄铜色)
       '运动': '#A6B13C',
       '健康': '#A6B13C',
       '健身': '#A6B13C',
+      '跑步': '#A6B13C',
+      '锻炼': '#A6B13C',
+      '瑜伽': '#A6B13C',
       
       // 饮食类 - Butter Yellow (奶油黄)
       '饮食': '#FFE288',
@@ -652,6 +686,14 @@ export class AISmartProcessor {
       '早餐': '#FFE288',
       '午餐': '#FFE288',
       '晚餐': '#FFE288',
+      '做饭': '#FFE288',
+      '美容': '#F1E69F',
+      '护肤': '#F1E69F',
+      
+      // 外出类 - Muddy Green (泥绿色)
+      '购物': '#6A7334',
+      '室外': '#6A7334',
+      '外出': '#6A7334',
     };
     
     return colorMap[tag] || '#6A7334'; // 默认返回泥绿色
