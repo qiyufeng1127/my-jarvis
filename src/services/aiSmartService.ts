@@ -490,8 +490,8 @@ export class AISmartProcessor {
     const sorted: any[] = [];
     let currentTime = new Date();
     
-    // 位置优先级（按照家里的动线）
-    const locationPriority = ['卧室', '卫生间', '厨房', '客厅', '书房', '其他'];
+    // 位置优先级（按照用户家里的实际格局和动线）
+    const locationPriority = ['厕所', '工作区', '客厅', '卧室', '拍摄间', '厨房', '全屋'];
     
     locationPriority.forEach(location => {
       if (grouped[location]) {
@@ -506,8 +506,8 @@ export class AISmartProcessor {
           
           sorted.push(task);
           
-          // 下一个任务时间
-          currentTime = new Date(end.getTime() + 5 * 60000);
+          // 下一个任务时间（无间隔）
+          currentTime = new Date(end.getTime());
         });
       }
     });
@@ -570,37 +570,56 @@ export class AISmartProcessor {
     return '生活事务';
   }
 
-  // 推断任务位置
+  // 推断任务位置（根据用户家庭格局）
   static inferLocation(taskTitle: string): string {
     const title = taskTitle.toLowerCase();
     
-    // 厨房相关
-    if (title.includes('做饭') || title.includes('煮') || title.includes('炒') || 
-        title.includes('猫粮') || title.includes('铲') || title.includes('猫砂')) {
+    // 厨房相关（猫咪相关任务都在厨房）
+    if (title.includes('猫粮') || title.includes('铲') || title.includes('猫砂') || 
+        title.includes('粑粑') || title.includes('猫') || title.includes('悠悠') ||
+        title.includes('做饭') || title.includes('煮') || title.includes('炒')) {
       return '厨房';
     }
     
-    // 卧室相关
-    if (title.includes('睡觉') || title.includes('起床') || title.includes('叠被')) {
+    // 工作区（所有工作相关）
+    if (title.includes('工作') || title.includes('会议') || title.includes('开发') || 
+        title.includes('写代码') || title.includes('设计') || title.includes('优化') ||
+        title.includes('学习') || title.includes('写') || title.includes('编程')) {
+      return '工作区';
+    }
+    
+    // 厕所（个人护理）
+    if (title.includes('洗漱') || title.includes('洗澡') || title.includes('刷牙') || 
+        title.includes('洗脸') || title.includes('上厕所')) {
+      return '厕所';
+    }
+    
+    // 卧室（睡眠相关）
+    if (title.includes('睡觉') || title.includes('起床') || title.includes('叠被') || 
+        title.includes('休息') || title.includes('午睡')) {
       return '卧室';
     }
     
-    // 卫生间相关
-    if (title.includes('洗漱') || title.includes('洗澡') || title.includes('刷牙')) {
-      return '卫生间';
+    // 拍摄间（拍摄、录制相关）
+    if (title.includes('拍摄') || title.includes('录制') || title.includes('视频') || 
+        title.includes('直播') || title.includes('拍照')) {
+      return '拍摄间';
     }
     
-    // 客厅相关
-    if (title.includes('打扫') || title.includes('拖地') || title.includes('扫地')) {
+    // 客厅（娱乐、休闲）
+    if (title.includes('看电视') || title.includes('看剧') || title.includes('聊天') || 
+        title.includes('休闲')) {
       return '客厅';
     }
     
-    // 书房/工作区
-    if (title.includes('工作') || title.includes('学习') || title.includes('写')) {
-      return '书房';
+    // 全屋（打扫、收拾等全屋性任务）
+    if (title.includes('打扫') || title.includes('拖地') || title.includes('扫地') || 
+        title.includes('收拾') || title.includes('整理') || title.includes('垃圾') ||
+        title.includes('清洁') || title.includes('卫生')) {
+      return '全屋';
     }
     
-    return '其他';
+    return '全屋';
   }
 
   // 智能生成标签
