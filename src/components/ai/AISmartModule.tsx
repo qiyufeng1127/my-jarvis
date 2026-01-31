@@ -397,7 +397,10 @@ export default function AISmartModule({
     
     // 如果修改了时长，重新计算金币和后续任务时间
     if (field === 'estimated_duration') {
+      console.log(`⚡ 修改任务${index + 1}的时长为: ${value}分钟`);
       newTasks[index].gold = AISmartProcessor.calculateGold(newTasks[index]);
+      
+      // 从当前任务开始重新计算所有时间（包括当前任务的结束时间）
       const recalculated = recalculateTaskTimes(newTasks, index);
       setEditingTasks(recalculated);
     } else {
