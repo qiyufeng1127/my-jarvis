@@ -378,14 +378,17 @@ export class AISmartProcessor {
         message: '抱歉，我没有识别到任何任务。请重新输入。',
         autoExecute: false,
       };
-  }
+    }
 
-    // 构建任务列表
+    // 构建任务列表，按位置分组
     let currentTime = new Date(startTime);
     const decomposedTasks = taskTitles.map((title, index) => {
       const duration = this.estimateTaskDuration(title);
       const start = new Date(currentTime);
       const end = new Date(currentTime.getTime() + duration * 60000);
+      const location = this.inferLocation(title);
+      const tags = this.generateTags(title);
+      const goal = this.identifyGoal(title);
       
       const task = {
         sequence: index + 1,
@@ -397,6 +400,9 @@ export class AISmartProcessor {
         scheduled_start_iso: start.toISOString(),
         task_type: this.inferTaskType(title),
         category: this.inferCategory(title),
+        location: location,
+        tags: tags,
+        goal: goal,
         gold: this.calculateGold({ estimated_duration: duration, task_type: this.inferTaskType(title) }),
       };
 
@@ -406,38 +412,101 @@ export class AISmartProcessor {
       return task;
     });
 
-    // 构建消息（压缩格式，每个任务最多2行）
-    let message = `✅ 已识别 ${decomposedTasks.length} 个任务：\n\n`;
+    // 按位置分组排序
+    const groupedByLocation = this.groupTasksByLocation(decomposedTasks);
+    const sortedTasks = this.sortTasksByLocation(groupedByLocation);
+
+    // 构建消息（显示位置分组）
+    let message = `✅ 已识别 ${sortedTasks.length} 个任务，按位置智能分组：\n\n`;
     
-    decomposedTasks.forEach((task, index) => {
-      // 第一行：序号、标题、时间
-      message += `${index + 1}. **${task.title}** ⏰ ${task.scheduled_start}-${task.scheduled_end}\n`;
-      // 第二行：时长、金币、类型（压缩在一行）
-      message += `   ${task.estimated_duration}分钟 | 💰${task.gold} | 🏷️${task.category}\n\n`;
+    let currentLocation = '';
+    sortedTasks.forEach((task, index) => {
+      // 显示位置分组标题
+      if (task.location !== currentLocation) {
+        currentLocation = task.location;
+        message += `📍 **${currentLocation}**\n`;
+      }
+      
+      // 任务信息（3行格式）
+      message += `${task.sequence}. **${task.title}** ⏰ ${task.scheduled_start}-${task.scheduled_end}\n`;
+      message += `   ${task.estimated_duration}分钟 | 💰${task.gold} | 🏷️${task.tags.join(' ')}\n`;
+      if (task.goal) {
+        message += `   🎯 目标: ${task.goal}\n`;
+      } else {
+        message += `   🎯 [点击添加目标]\n`;
+      }
+      message += `\n`;
     });
 
-    const totalDuration = decomposedTasks.reduce((sum, t) => sum + t.estimated_duration, 0);
-    const totalGold = decomposedTasks.reduce((sum, t) => sum + t.gold, 0);
+    const totalDuration = sortedTasks.reduce((sum, t) => sum + t.estimated_duration, 0);
+    const totalGold = sortedTasks.reduce((sum, t) => sum + t.gold, 0);
 
-    message += `📊 总计：${totalDuration}分钟 | 💰${totalGold}金币`;
+    message += `📊 总计：${totalDuration}分钟 | 💰${totalGold}金币\n\n`;
+    message += `💡 提示：任务已按位置分组，相同位置的任务会连续安排。`;
 
     return {
       message,
       data: {
-        decomposed_tasks: decomposedTasks,
+        decomposed_tasks: sortedTasks,
         total_duration: totalDuration,
         total_gold: totalGold,
+        grouped_by_location: groupedByLocation,
       },
       actions: [
         {
           type: 'create_task',
-          data: { tasks: decomposedTasks },
-          label: '✅ 全部添加到时间轴',
+          data: { tasks: sortedTasks },
+          label: '✅ 确认并添加到时间轴',
         },
       ],
       needsConfirmation: true,
-      autoExecute: false,
+      autoExecute: false, // 改为需要手动确认
     };
+  }
+
+  // 按位置分组任务
+  static groupTasksByLocation(tasks: any[]): Record<string, any[]> {
+    const grouped: Record<string, any[]> = {};
+    
+    tasks.forEach(task => {
+      const location = task.location || '其他';
+      if (!grouped[location]) {
+        grouped[location] = [];
+      }
+      grouped[location].push(task);
+    });
+    
+    return grouped;
+  }
+
+  // 按位置排序任务（相同位置的任务连续安排）
+  static sortTasksByLocation(grouped: Record<string, any[]>): any[] {
+    const sorted: any[] = [];
+    let currentTime = new Date();
+    
+    // 位置优先级（按照家里的动线）
+    const locationPriority = ['卧室', '卫生间', '厨房', '客厅', '书房', '其他'];
+    
+    locationPriority.forEach(location => {
+      if (grouped[location]) {
+        grouped[location].forEach(task => {
+          // 重新计算时间
+          const start = new Date(currentTime);
+          const end = new Date(start.getTime() + task.estimated_duration * 60000);
+          
+          task.scheduled_start = start.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+          task.scheduled_end = end.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+          task.scheduled_start_iso = start.toISOString();
+          
+          sorted.push(task);
+          
+          // 下一个任务时间
+          currentTime = new Date(end.getTime() + 5 * 60000);
+        });
+      }
+    });
+    
+    return sorted;
   }
 
   // 估算任务时长
@@ -495,11 +564,91 @@ export class AISmartProcessor {
     return '生活事务';
   }
 
-  // 计算金币
+  // 推断任务位置
+  static inferLocation(taskTitle: string): string {
+    const title = taskTitle.toLowerCase();
+    
+    // 厨房相关
+    if (title.includes('做饭') || title.includes('煮') || title.includes('炒') || 
+        title.includes('猫粮') || title.includes('铲') || title.includes('猫砂')) {
+      return '厨房';
+    }
+    
+    // 卧室相关
+    if (title.includes('睡觉') || title.includes('起床') || title.includes('叠被')) {
+      return '卧室';
+    }
+    
+    // 卫生间相关
+    if (title.includes('洗漱') || title.includes('洗澡') || title.includes('刷牙')) {
+      return '卫生间';
+    }
+    
+    // 客厅相关
+    if (title.includes('打扫') || title.includes('拖地') || title.includes('扫地')) {
+      return '客厅';
+    }
+    
+    // 书房/工作区
+    if (title.includes('工作') || title.includes('学习') || title.includes('写')) {
+      return '书房';
+    }
+    
+    return '其他';
+  }
+
+  // 智能生成标签
+  static generateTags(taskTitle: string): string[] {
+    const title = taskTitle.toLowerCase();
+    const tags: string[] = [];
+    
+    // 基础分类标签
+    if (title.includes('打扫') || title.includes('拖地') || title.includes('扫地')) {
+      tags.push('日常', '家务', '清洁');
+    } else if (title.includes('猫') || title.includes('悠悠')) {
+      tags.push('猫咪', '家务', '日常');
+    } else if (title.includes('做饭') || title.includes('煮') || title.includes('炒')) {
+      tags.push('饮食', '家务', '日常');
+    } else if (title.includes('洗漱') || title.includes('洗澡')) {
+      tags.push('个人护理', '日常');
+    } else if (title.includes('工作') || title.includes('会议')) {
+      tags.push('工作', '重要');
+    } else if (title.includes('学习') || title.includes('阅读')) {
+      tags.push('学习', '成长');
+    } else if (title.includes('运动') || title.includes('健身')) {
+      tags.push('健康', '运动');
+    } else {
+      tags.push('日常');
+    }
+    
+    return [...new Set(tags)]; // 去重
+  }
+
+  // 识别关联的长期目标
+  static identifyGoal(taskTitle: string): string | null {
+    const title = taskTitle.toLowerCase();
+    
+    // 这里可以从 goalStore 中获取用户的长期目标列表
+    // 暂时返回一些常见的目标匹配
+    if (title.includes('健身') || title.includes('运动')) {
+      return '保持健康体魄';
+    }
+    if (title.includes('学习') || title.includes('阅读')) {
+      return '持续学习成长';
+    }
+    if (title.includes('工作') || title.includes('项目')) {
+      return '职业发展';
+    }
+    
+    return null;
+  }
+
+  // 计算金币（从用户设置中读取系数）
   static calculateGold(task: any): number {
     const duration = task.estimated_duration || 30;
     const taskType = task.task_type || 'life';
 
+    // 默认金币规则
     const goldRules: Record<string, { base: number; perMinute: number }> = {
       standing: { base: 20, perMinute: 10 },
       sitting: { base: 10, perMinute: 5 },
@@ -512,8 +661,42 @@ export class AISmartProcessor {
       work: { base: 20, perMinute: 8 },
     };
 
+    // 从 localStorage 读取用户设置
+    let baseMultiplier = 1.0;
+    let typeMultiplier = 1.0;
+    
+    try {
+      const userStorage = localStorage.getItem('user-storage');
+      if (userStorage) {
+        const userData = JSON.parse(userStorage);
+        const settings = userData.state?.user?.settings;
+        
+        if (settings) {
+          baseMultiplier = settings.goldRewardMultiplier || 1.0;
+          
+          // 任务类型系数（从设置中读取，如果没有则使用默认值）
+          const taskTypeCoefficients = settings.taskTypeCoefficients || {
+            work: 1.2,
+            learning: 1.5,
+            sport: 1.0,
+            life: 0.8,
+            creative: 1.3,
+            social: 0.9,
+            rest: 0.5,
+          };
+          
+          typeMultiplier = taskTypeCoefficients[taskType] || 1.0;
+        }
+      }
+    } catch (error) {
+      console.error('读取用户设置失败:', error);
+    }
+
     const rule = goldRules[taskType] || goldRules.life;
-    return Math.round(rule.base + duration * rule.perMinute);
+    const baseGold = rule.base + duration * rule.perMinute;
+    
+    // 应用系数
+    return Math.round(baseGold * baseMultiplier * typeMultiplier);
   }
 
   // 处理时间轴操作
