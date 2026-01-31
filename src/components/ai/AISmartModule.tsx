@@ -70,6 +70,7 @@ export default function AISmartModule({
     }
   }, [messages]);
 
+
   // 测试API连接
   const testConnection = async (key?: string, endpoint?: string) => {
     const testKey = key || apiKey;
