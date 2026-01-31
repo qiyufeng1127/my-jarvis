@@ -131,11 +131,24 @@ export const useTaskStore = create<TaskState>()(
         enableProgressCheck: taskData.enableProgressCheck || false,
         progressChecks: [],
         penaltyGold: 0,
-        status: 'pending',
+        status: taskData.status || 'pending',
         goldEarned: 0,
+        // AI 智能助手添加的字段
+        tags: taskData.tags || [],
+        color: taskData.color,
+        location: taskData.location,
+        goldReward: taskData.goldReward || 0,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
+      
+      console.log('💾 保存任务到本地:', {
+        title: newTask.title,
+        tags: newTask.tags,
+        color: newTask.color,
+        location: newTask.location,
+        goldReward: newTask.goldReward,
+      });
       
       // 先添加到本地状态
       set((state) => ({
@@ -168,6 +181,11 @@ export const useTaskStore = create<TaskState>()(
             progress_checks: newTask.progressChecks,
             penalty_gold: newTask.penaltyGold,
             gold_earned: newTask.goldEarned,
+            // AI 智能助手字段
+            tags: newTask.tags,
+            color: newTask.color,
+            location: newTask.location,
+            gold_reward: newTask.goldReward,
           });
           
           if (error) {

@@ -639,7 +639,7 @@ export class AISmartProcessor {
     // 基础分类标签
     if (title.includes('打扫') || title.includes('拖地') || title.includes('扫地')) {
       tags.push('日常', '家务', '清洁');
-    } else if (title.includes('猫') || title.includes('悠悠')) {
+    } else if (title.includes('猫') || title.includes('柚柚')) {
       tags.push('猫咪', '家务', '日常');
     } else if (title.includes('做饭') || title.includes('煮') || title.includes('炒')) {
       tags.push('饮食', '家务', '日常');

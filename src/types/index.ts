@@ -100,6 +100,12 @@ export interface Task {
   completionQuality?: 1 | 2 | 3 | 4 | 5;
   goldEarned: number;
   
+  // AI 智能助手添加的字段
+  tags?: string[]; // 任务标签
+  color?: string; // 任务颜色
+  location?: string; // 任务位置
+  goldReward?: number; // 预估金币奖励
+  
   createdAt: Date;
   updatedAt: Date;
 }

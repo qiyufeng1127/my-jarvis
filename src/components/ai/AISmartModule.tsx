@@ -274,6 +274,14 @@ export default function AISmartModule({
               ? new Date(task.scheduled_start_iso)
               : new Date();
             
+            console.log('📝 创建任务:', {
+              title: task.title,
+              tags: task.tags,
+              gold: task.gold,
+              color: task.color,
+              duration: task.estimated_duration,
+            });
+            
             await createTask({
               title: task.title,
               description: task.description || '',
@@ -283,6 +291,9 @@ export default function AISmartModule({
               priority: task.priority || 'medium',
               tags: task.tags || [],
               status: 'pending',
+              goldReward: task.gold || 0, // 传递金币
+              color: task.color, // 传递颜色
+              location: task.location, // 传递位置
             });
           }
         } else {
@@ -299,6 +310,9 @@ export default function AISmartModule({
             priority: action.data.priority || 'medium',
             tags: action.data.tags || [],
             status: 'pending',
+            goldReward: action.data.gold || 0,
+            color: action.data.color,
+            location: action.data.location,
           });
         }
       }
