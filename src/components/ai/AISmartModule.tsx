@@ -210,7 +210,31 @@ export default function AISmartModule({
       console.log('📋 Actions:', localResponse.actions);
       console.log('📊 Data:', localResponse.data);
       
-      // 合并AI回复和本地处理结果
+      // 如果是任务分解，直接打开编辑器，不显示按钮
+      if (localResponse.actions && localResponse.actions.length > 0) {
+        const taskAction = localResponse.actions.find(a => a.type === 'create_task' && a.data.tasks);
+        if (taskAction && taskAction.data.tasks) {
+          console.log('🎯 检测到任务分解，直接打开编辑器');
+          
+          // 显示AI消息（不带按钮）
+          const aiMessage: AIMessage = {
+            id: `ai-${Date.now()}`,
+            role: 'assistant',
+            content: localResponse.message || aiResponse,
+            data: localResponse.data,
+            actions: undefined, // 不显示按钮
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, aiMessage]);
+          
+          // 直接打开任务编辑器
+          setEditingTasks(taskAction.data.tasks);
+          setShowTaskEditor(true);
+          return;
+        }
+      }
+      
+      // 其他情况：正常显示消息和按钮
       const aiMessage: AIMessage = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
