@@ -339,24 +339,27 @@ export default function AISmartModule({
   const recalculateTaskTimes = (tasks: any[], startFromIndex: number = 0) => {
     const newTasks = [...tasks];
     
+    console.log('🔄 开始重新计算时间，从索引:', startFromIndex);
+    
     for (let i = startFromIndex; i < newTasks.length; i++) {
       if (i === 0) {
-        // 第一个任务保持原时间
+        // 第一个任务：保持开始时间，但更新结束时间（因为时长可能改了）
         const start = new Date(newTasks[i].scheduled_start_iso);
         const end = new Date(start.getTime() + newTasks[i].estimated_duration * 60000);
         newTasks[i].scheduled_start = start.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
         newTasks[i].scheduled_end = end.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        console.log(`✅ 任务${i + 1}: ${newTasks[i].scheduled_start} - ${newTasks[i].scheduled_end} (${newTasks[i].estimated_duration}分钟)`);
       } else {
-        // 后续任务基于前一个任务的结束时间 + 5分钟间隔
-        const prevEnd = new Date(newTasks[i - 1].scheduled_start_iso);
-        prevEnd.setMinutes(prevEnd.getMinutes() + newTasks[i - 1].estimated_duration + 5);
-        
-        const start = new Date(prevEnd);
+        // 后续任务：基于前一个任务的结束时间 + 5分钟间隔
+        const prevStart = new Date(newTasks[i - 1].scheduled_start_iso);
+        const prevEnd = new Date(prevStart.getTime() + newTasks[i - 1].estimated_duration * 60000);
+        const start = new Date(prevEnd.getTime() + 5 * 60000); // 前一个任务结束 + 5分钟
         const end = new Date(start.getTime() + newTasks[i].estimated_duration * 60000);
         
         newTasks[i].scheduled_start_iso = start.toISOString();
         newTasks[i].scheduled_start = start.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
         newTasks[i].scheduled_end = end.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        console.log(`✅ 任务${i + 1}: ${newTasks[i].scheduled_start} - ${newTasks[i].scheduled_end} (${newTasks[i].estimated_duration}分钟)`);
       }
     }
     
@@ -681,8 +684,8 @@ export default function AISmartModule({
 
       {/* 任务编辑器弹窗 - 事件卡片形式 */}
       {showTaskEditor && (
-        <div className="absolute inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[85vh] flex flex-col">
+        <div className="absolute inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-2">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full h-[95%] flex flex-col">
             {/* 头部 */}
             <div className="flex-shrink-0 border-b border-gray-200 px-6 py-4 flex items-center justify-between">
               <div>
