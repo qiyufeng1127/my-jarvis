@@ -10,11 +10,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
   },
-  realtime: {
-    params: {
-      eventsPerSecond: 10,
-    },
-  },
 });
 
 // 数据库表名常量
@@ -39,84 +34,6 @@ const isValidUUID = (uuid: string): boolean => {
   return uuidRegex.test(uuid);
 };
 
-// 用户创建 Promise 缓存，避免重复创建
-const userCreationPromises = new Map<string, Promise<void>>();
-
-// 确保用户在 Supabase 中存在（异步，返回 Promise）
-export const ensureUserExists = async (userId: string): Promise<void> => {
-  if (!isSupabaseConfigured()) return;
-  
-  // 如果已经有正在进行的创建请求，直接返回该 Promise
-  if (userCreationPromises.has(userId)) {
-    return userCreationPromises.get(userId)!;
-  }
-  
-  const promise = (async () => {
-    try {
-      const defaultSettings = {
-        verificationStrictness: 'medium',
-        enableProgressCheck: true,
-        goldRewardMultiplier: 1.0,
-        goldPenaltyMultiplier: 1.0,
-        enableNotifications: true,
-        notificationTimes: ['09:00', '14:00', '21:00'],
-        quietHours: { start: '22:00', end: '08:00' },
-        theme: 'auto',
-        primaryColor: '#991B1B',
-        fontSize: 'medium',
-        voiceType: 'default',
-        voiceSpeed: 1.0,
-        wakeWordSensitivity: 0.8,
-        autoSync: true,
-        syncInterval: 5,
-        syncPhotos: false,
-      };
-      
-      // 先检查用户是否已存在
-      const { data: existingUser } = await supabase
-        .from(TABLES.USERS)
-        .select('id')
-        .eq('local_user_id', userId)
-        .single();
-      
-      if (existingUser) {
-        // 用户已存在，无需创建
-        console.log('✅ 用户已存在于 Supabase:', userId);
-        return;
-      }
-      
-      // 用户不存在，创建新用户（让数据库自动生成 id）
-      const { error } = await supabase.from(TABLES.USERS).insert({
-        local_user_id: userId,
-        public_data: {},
-        device_list: [],
-        settings: defaultSettings,
-      });
-      
-      if (error) {
-        // 如果是唯一性冲突错误（23505），说明用户已存在，忽略错误
-        if (error.code === '23505') {
-          console.log('✅ 用户已存在于 Supabase（并发创建）:', userId);
-          return;
-        }
-        console.error('确保用户存在失败:', error);
-        throw error;
-      }
-      
-      console.log('✅ 用户已确保存在于 Supabase:', userId);
-    } catch (error) {
-      console.error('确保用户存在失败:', error);
-      throw error;
-    } finally {
-      // 完成后从缓存中移除
-      userCreationPromises.delete(userId);
-    }
-  })();
-  
-  userCreationPromises.set(userId, promise);
-  return promise;
-};
-
 // 获取当前用户 ID（同步）
 export const getCurrentUserId = (): string => {
   let localUserId = localStorage.getItem('manifestos_user_id');
@@ -131,3 +48,64 @@ export const getCurrentUserId = (): string => {
   return localUserId;
 };
 
+// 确保用户在 Supabase 中存在 - 简化版，不抛出错误
+export const ensureUserExists = async (userId: string): Promise<boolean> => {
+  if (!isSupabaseConfigured()) {
+    console.log('⚠️ Supabase 未配置');
+    return false;
+  }
+  
+  try {
+    // 1. 先检查用户是否已存在
+    const { data: existingUser, error: checkError } = await supabase
+      .from(TABLES.USERS)
+      .select('id')
+      .eq('local_user_id', userId)
+      .maybeSingle();
+    
+    if (checkError) {
+      console.error('❌ 检查用户失败:', checkError);
+      return false;
+    }
+    
+    if (existingUser) {
+      console.log('✅ 用户已存在');
+      return true;
+    }
+    
+    // 2. 用户不存在，创建新用户
+    const { error: insertError } = await supabase.from(TABLES.USERS).insert({
+      local_user_id: userId,
+      public_data: {},
+      device_list: [],
+      settings: {
+        goldRewardMultiplier: 1.0,
+        taskTypeCoefficients: {
+          work: 1.2,
+          learning: 1.5,
+          sport: 1.0,
+          life: 0.8,
+          creative: 1.3,
+          social: 0.9,
+          rest: 0.5,
+        },
+      },
+    });
+    
+    if (insertError) {
+      // 如果是唯一性冲突（用户已存在），也算成功
+      if (insertError.code === '23505') {
+        console.log('✅ 用户已存在（并发创建）');
+        return true;
+      }
+      console.error('❌ 创建用户失败:', insertError);
+      return false;
+    }
+    
+    console.log('✅ 用户创建成功');
+    return true;
+  } catch (error) {
+    console.error('❌ ensureUserExists 异常:', error);
+    return false;
+  }
+};

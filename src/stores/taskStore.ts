@@ -155,46 +155,52 @@ export const useTaskStore = create<TaskState>()(
         isLoading: false,
       }));
       
-      // 尝试保存到 Supabase（如果已配置）
+      // 异步保存到 Supabase（不阻塞，不抛出错误）
       if (isSupabaseConfigured()) {
-        try {
-          // 确保用户存在
-          await ensureUserExists(userId);
-          
-          // 保存任务
-          const { error } = await supabase.from(TABLES.TASKS).insert({
-            id: newTask.id,
-            user_id: newTask.userId,
-            title: newTask.title,
-            description: newTask.description,
-            task_type: newTask.taskType,
-            priority: newTask.priority,
-            duration_minutes: newTask.durationMinutes,
-            scheduled_start: scheduledStartStr,
-            scheduled_end: scheduledEndStr,
-            status: newTask.status,
-            growth_dimensions: newTask.growthDimensions,
-            long_term_goals: newTask.longTermGoals,
-            identity_tags: newTask.identityTags,
-            enable_progress_check: newTask.enableProgressCheck,
-            progress_checks: newTask.progressChecks,
-            penalty_gold: newTask.penaltyGold,
-            gold_earned: newTask.goldEarned,
-            // AI 智能助手字段
-            tags: newTask.tags,
-            color: newTask.color,
-            location: newTask.location,
-            gold_reward: newTask.goldReward,
-          });
-          
-          if (error) {
-            console.warn('⚠️ 保存到 Supabase 失败，但任务已保存到本地:', error);
-          } else {
-            console.log('✅ 任务已保存到 Supabase');
+        // 在后台异步执行，不等待结果
+        (async () => {
+          try {
+            // 1. 确保用户存在
+            const userExists = await ensureUserExists(userId);
+            if (!userExists) {
+              console.warn('⚠️ 用户不存在，跳过云端保存');
+              return;
+            }
+            
+            // 2. 保存任务
+            const { error } = await supabase.from(TABLES.TASKS).insert({
+              id: newTask.id,
+              user_id: newTask.userId,
+              title: newTask.title,
+              description: newTask.description,
+              task_type: newTask.taskType,
+              priority: newTask.priority,
+              duration_minutes: newTask.durationMinutes,
+              scheduled_start: scheduledStartStr,
+              scheduled_end: scheduledEndStr,
+              status: newTask.status,
+              growth_dimensions: newTask.growthDimensions,
+              long_term_goals: newTask.longTermGoals,
+              identity_tags: newTask.identityTags,
+              enable_progress_check: newTask.enableProgressCheck,
+              progress_checks: newTask.progressChecks,
+              penalty_gold: newTask.penaltyGold,
+              gold_earned: newTask.goldEarned,
+              tags: newTask.tags,
+              color: newTask.color,
+              location: newTask.location,
+              gold_reward: newTask.goldReward,
+            });
+            
+            if (error) {
+              console.warn('⚠️ 云端保存失败:', error.message);
+            } else {
+              console.log('✅ 已同步到云端');
+            }
+          } catch (error: any) {
+            console.warn('⚠️ 云端同步异常:', error?.message || error);
           }
-        } catch (error) {
-          console.warn('⚠️ Supabase 同步失败，但任务已保存到本地:', error);
-        }
+        })();
       }
       
       return newTask;
