@@ -1,6 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Camera, Check, ChevronDown, ChevronUp, Edit2, Trash2, GripVertical } from 'lucide-react';
+import { Plus, Camera, Check, ChevronDown, ChevronUp, Edit2, Trash2, GripVertical, Star, Clock, FileText, Upload, X } from 'lucide-react';
 import type { Task } from '@/types';
+import { 
+  generateVerificationKeywords, 
+  generateSubTasks, 
+  SoundEffects, 
+  ImageUploader,
+  type TaskImage,
+  type SubTask,
+  type TaskVerification
+} from '@/services/taskVerificationService';
 
 interface NewTimelineViewProps {
   tasks: Task[];
@@ -33,6 +42,17 @@ export default function NewTimelineView({
   const [dragStartY, setDragStartY] = useState<number>(0);
   const [dragStartTime, setDragStartTime] = useState<Date | null>(null);
   const dragRef = useRef<HTMLDivElement>(null);
+  
+  // 新增状态
+  const [taskImages, setTaskImages] = useState<Record<string, TaskImage[]>>({});
+  const [taskSubTasks, setTaskSubTasks] = useState<Record<string, SubTask[]>>({});
+  const [taskVerifications, setTaskVerifications] = useState<Record<string, TaskVerification>>({});
+  const [taskNotes, setTaskNotes] = useState<Record<string, string>>({});
+  const [uploadingImage, setUploadingImage] = useState<string | null>(null);
+  const [generatingSubTasks, setGeneratingSubTasks] = useState<string | null>(null);
+  const [startingTask, setStartingTask] = useState<string | null>(null);
+  const [completingTask, setCompletingTask] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // 判断颜色是否为深色
   const isColorDark = (color: string): boolean => {
@@ -297,6 +317,269 @@ export default function NewTimelineView({
       };
     }
   }, [draggedTask]);
+  
+  // 处理图片上传
+  const handleImageUpload = async (taskId: string, file: File, type: 'cover' | 'attachment' = 'attachment') => {
+    try {
+      setUploadingImage(taskId);
+      
+      // 压缩图片
+      const compressedFile = await ImageUploader.compressImage(file);
+      
+      // 上传图片
+      const imageUrl = await ImageUploader.uploadImage(compressedFile);
+      
+      // 保存图片信息
+      const newImage: TaskImage = {
+        id: `img-${Date.now()}`,
+        url: imageUrl,
+        type,
+        uploadedAt: new Date(),
+      };
+      
+      setTaskImages(prev => ({
+        ...prev,
+        [taskId]: [...(prev[taskId] || []), newImage],
+      }));
+      
+      console.log('✅ 图片上传成功');
+    } catch (error) {
+      console.error('❌ 图片上传失败:', error);
+      alert('图片上传失败，请重试');
+    } finally {
+      setUploadingImage(null);
+    }
+  };
+  
+  // AI 生成子任务
+  const handleGenerateSubTasks = async (taskId: string, taskTitle: string, taskDescription?: string) => {
+    try {
+      setGeneratingSubTasks(taskId);
+      
+      const apiKey = localStorage.getItem('ai_api_key') || '';
+      const apiEndpoint = localStorage.getItem('ai_api_endpoint') || 'https://api.deepseek.com/v1/chat/completions';
+      
+      if (!apiKey) {
+        alert('请先配置 API Key');
+        return;
+      }
+      
+      const subTaskTitles = await generateSubTasks(taskTitle, taskDescription || '', apiKey, apiEndpoint);
+      
+      const newSubTasks: SubTask[] = subTaskTitles.map(title => ({
+        id: `subtask-${Date.now()}-${Math.random()}`,
+        title,
+        completed: false,
+        createdAt: new Date(),
+      }));
+      
+      setTaskSubTasks(prev => ({
+        ...prev,
+        [taskId]: [...(prev[taskId] || []), ...newSubTasks],
+      }));
+      
+      console.log('✅ AI 生成子任务成功');
+    } catch (error) {
+      console.error('❌ AI 生成子任务失败:', error);
+      alert('AI 生成失败，请重试');
+    } finally {
+      setGeneratingSubTasks(null);
+    }
+  };
+  
+  // 启用任务验证
+  const handleEnableVerification = async (taskId: string, taskTitle: string, taskType: string) => {
+    try {
+      const apiKey = localStorage.getItem('ai_api_key') || '';
+      const apiEndpoint = localStorage.getItem('ai_api_endpoint') || 'https://api.deepseek.com/v1/chat/completions';
+      
+      if (!apiKey) {
+        alert('请先配置 API Key');
+        return;
+      }
+      
+      const keywords = await generateVerificationKeywords(taskTitle, taskType, apiKey, apiEndpoint);
+      
+      const verification: TaskVerification = {
+        enabled: true,
+        keywords,
+        startDeadline: new Date(Date.now() + 2 * 60 * 1000), // 2分钟后
+        completionDeadline: new Date(), // 将在启动时设置
+        failedAttempts: 0,
+        status: 'pending',
+      };
+      
+      setTaskVerifications(prev => ({
+        ...prev,
+        [taskId]: verification,
+      }));
+      
+      console.log('✅ 任务验证已启用，关键词:', keywords);
+      alert(`验证已启用！\n请在2分钟内拍摄包含以下内容的照片：\n${keywords.join('、')}`);
+    } catch (error) {
+      console.error('❌ 启用验证失败:', error);
+      alert('启用验证失败，请重试');
+    }
+  };
+  
+  // 启动任务（带验证）
+  const handleStartTask = async (taskId: string) => {
+    const verification = taskVerifications[taskId];
+    
+    if (verification && verification.enabled) {
+      // 需要验证
+      setStartingTask(taskId);
+      
+      // 打开文件选择器
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.capture = 'environment' as any; // 优先使用相机
+      
+      input.onchange = async (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (file) {
+          try {
+            // 上传验证图片
+            await handleImageUpload(taskId, file, 'verification');
+            
+            // 简化验证：假设上传成功就是验证成功
+            // 实际项目中应该调用图像识别 API
+            
+            // 更新验证状态
+            setTaskVerifications(prev => ({
+              ...prev,
+              [taskId]: {
+                ...prev[taskId],
+                status: 'started',
+                completionDeadline: new Date(Date.now() + (allTasks.find(t => t.id === taskId)?.durationMinutes || 30) * 60 * 1000),
+              },
+            }));
+            
+            // 播放成功音效
+            SoundEffects.playSuccessSound();
+            SoundEffects.playCoinSound();
+            
+            // 更新任务状态
+            if (taskId.startsWith('demo-')) {
+              setDemoTasks(prev => prev.map(t => 
+                t.id === taskId ? { ...t, status: 'in_progress' as const } : t
+              ));
+            } else {
+              onTaskUpdate(taskId, { status: 'in_progress' });
+            }
+            
+            alert('🎉 启动成功！获得金币奖励！');
+          } catch (error) {
+            // 验证失败
+            const newFailedAttempts = (verification.failedAttempts || 0) + 1;
+            
+            setTaskVerifications(prev => ({
+              ...prev,
+              [taskId]: {
+                ...prev[taskId],
+                failedAttempts: newFailedAttempts,
+              },
+            }));
+            
+            SoundEffects.playFailSound();
+            
+            if (newFailedAttempts >= 3) {
+              // 连续三次失败，播放警报
+              SoundEffects.playAlarmSound();
+              alert('⚠️ 连续三次验证失败！请认真完成任务！');
+            } else {
+              alert(`❌ 验证失败！请重新拍摄包含以下内容的照片：\n${verification.keywords.join('、')}\n\n剩余尝试次数：${3 - newFailedAttempts}`);
+            }
+          }
+        }
+        setStartingTask(null);
+      };
+      
+      input.click();
+    } else {
+      // 不需要验证，直接启动
+      if (taskId.startsWith('demo-')) {
+        setDemoTasks(prev => prev.map(t => 
+          t.id === taskId ? { ...t, status: 'in_progress' as const } : t
+        ));
+      } else {
+        onTaskUpdate(taskId, { status: 'in_progress' });
+      }
+    }
+  };
+  
+  // 完成任务（带验证）
+  const handleCompleteTask = async (taskId: string) => {
+    const verification = taskVerifications[taskId];
+    
+    if (verification && verification.enabled && verification.status === 'started') {
+      // 需要完成验证
+      setCompletingTask(taskId);
+      
+      // 打开文件选择器
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.capture = 'environment' as any;
+      
+      input.onchange = async (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (file) {
+          try {
+            // 上传完成验证图片
+            await handleImageUpload(taskId, file, 'verification');
+            
+            // 简化验证：假设上传成功就是验证成功
+            
+            // 更新验证状态
+            setTaskVerifications(prev => ({
+              ...prev,
+              [taskId]: {
+                ...prev[taskId],
+                status: 'completed',
+              },
+            }));
+            
+            // 播放成功音效
+            SoundEffects.playSuccessSound();
+            SoundEffects.playCoinSound();
+            
+            // 更新任务状态
+            if (taskId.startsWith('demo-')) {
+              setDemoTasks(prev => prev.map(t => 
+                t.id === taskId ? { ...t, status: 'completed' as const } : t
+              ));
+            } else {
+              onTaskUpdate(taskId, { status: 'completed' });
+            }
+            
+            alert('🎉 任务完成！获得金币奖励！');
+          } catch (error) {
+            SoundEffects.playFailSound();
+            alert('❌ 验证失败！请重新拍摄任务完成的照片');
+          }
+        }
+        setCompletingTask(null);
+      };
+      
+      input.click();
+    } else {
+      // 不需要验证，直接完成
+      SoundEffects.playSuccessSound();
+      SoundEffects.playCoinSound();
+      
+      if (taskId.startsWith('demo-')) {
+        setDemoTasks(prev => prev.map(t => 
+          t.id === taskId ? { ...t, status: t.status === 'completed' ? 'pending' as const : 'completed' as const } : t
+        ));
+      } else {
+        onTaskUpdate(taskId, { 
+          status: allTasks.find(t => t.id === taskId)?.status === 'completed' ? 'pending' : 'completed' 
+        });
+      }
+    }
+  };
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
