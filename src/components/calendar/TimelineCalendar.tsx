@@ -323,6 +323,7 @@ export default function TimelineCalendar({
             selectedDate={selectedDate}
             onTaskUpdate={onTaskUpdate}
             onTaskCreate={onTaskCreate}
+            onTaskDelete={onTaskDelete}
             bgColor={bgColor}
             textColor={textColor}
             accentColor={accentColor}

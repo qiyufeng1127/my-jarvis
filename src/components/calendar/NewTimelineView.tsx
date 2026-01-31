@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus, Camera, Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Plus, Camera, Check, ChevronDown, ChevronUp, Edit2, Trash2, GripVertical } from 'lucide-react';
 import type { Task } from '@/types';
 
 interface NewTimelineViewProps {
@@ -7,6 +7,7 @@ interface NewTimelineViewProps {
   selectedDate: Date;
   onTaskUpdate: (taskId: string, updates: Partial<Task>) => void;
   onTaskCreate: (task: Partial<Task>) => void;
+  onTaskDelete?: (taskId: string) => void;
   bgColor?: string;
   textColor: string;
   accentColor: string;
@@ -19,6 +20,7 @@ export default function NewTimelineView({
   selectedDate,
   onTaskUpdate,
   onTaskCreate,
+  onTaskDelete,
   bgColor = '#ffffff',
   textColor,
   accentColor,
@@ -26,6 +28,26 @@ export default function NewTimelineView({
   isDark,
 }: NewTimelineViewProps) {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [editingTask, setEditingTask] = useState<string | null>(null);
+  const [draggedTask, setDraggedTask] = useState<string | null>(null);
+  const [dragStartY, setDragStartY] = useState<number>(0);
+  const [dragStartTime, setDragStartTime] = useState<Date | null>(null);
+  const dragRef = useRef<HTMLDivElement>(null);
+  
+  // 判断颜色是否为深色
+  const isColorDark = (color: string): boolean => {
+    const hex = color.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    return brightness < 128;
+  };
+  
+  // 根据背景色获取文字颜色
+  const getTextColor = (bgColor: string): string => {
+    return isColorDark(bgColor) ? '#ffffff' : '#000000';
+  };
   
   // 🎨 示例任务数据（仅用于预览效果）
   const [demoTasks, setDemoTasks] = useState<Task[]>([
@@ -218,6 +240,63 @@ export default function NewTimelineView({
       return newSet;
     });
   };
+  
+  // 处理长按开始拖拽
+  const handleDragStart = (e: React.MouseEvent | React.TouchEvent, taskId: string, startTime: Date) => {
+    e.preventDefault();
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    setDraggedTask(taskId);
+    setDragStartY(clientY);
+    setDragStartTime(startTime);
+  };
+  
+  // 处理拖拽移动
+  const handleDragMove = (e: MouseEvent | TouchEvent) => {
+    if (!draggedTask || !dragStartTime) return;
+    
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const deltaY = clientY - dragStartY;
+    
+    // 每60px代表30分钟
+    const minutesChange = Math.round((deltaY / 60) * 30);
+    
+    if (Math.abs(minutesChange) >= 5) {
+      const newStartTime = new Date(dragStartTime.getTime() + minutesChange * 60000);
+      
+      // 更新任务时间
+      onTaskUpdate(draggedTask, {
+        scheduledStart: newStartTime,
+      });
+      
+      // 重置拖拽起点
+      setDragStartY(clientY);
+      setDragStartTime(newStartTime);
+    }
+  };
+  
+  // 处理拖拽结束
+  const handleDragEnd = () => {
+    setDraggedTask(null);
+    setDragStartY(0);
+    setDragStartTime(null);
+  };
+  
+  // 添加全局事件监听
+  useEffect(() => {
+    if (draggedTask) {
+      window.addEventListener('mousemove', handleDragMove);
+      window.addEventListener('mouseup', handleDragEnd);
+      window.addEventListener('touchmove', handleDragMove);
+      window.addEventListener('touchend', handleDragEnd);
+      
+      return () => {
+        window.removeEventListener('mousemove', handleDragMove);
+        window.removeEventListener('mouseup', handleDragEnd);
+        window.removeEventListener('touchmove', handleDragMove);
+        window.removeEventListener('touchend', handleDragEnd);
+      };
+    }
+  }, [draggedTask]);
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -255,6 +334,124 @@ export default function NewTimelineView({
 
   return (
     <div className="space-y-3 pb-4">
+      {/* 编辑任务弹窗 */}
+      {editingTask && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6" style={{ backgroundColor: bgColor, color: textColor }}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold">编辑任务</h3>
+              <button
+                onClick={() => setEditingTask(null)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            
+            {(() => {
+              const task = allTasks.find(t => t.id === editingTask);
+              if (!task) return null;
+              
+              return (
+                <div className="space-y-4">
+                  {/* 任务标题 */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">任务标题</label>
+                    <input
+                      type="text"
+                      defaultValue={task.title}
+                      className="w-full px-3 py-2 rounded-lg border"
+                      style={{ borderColor, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'white' }}
+                      onBlur={(e) => {
+                        if (task.id.startsWith('demo-')) {
+                          setDemoTasks(prev => prev.map(t => 
+                            t.id === editingTask ? { ...t, title: e.target.value } : t
+                          ));
+                        } else {
+                          onTaskUpdate(editingTask, { title: e.target.value });
+                        }
+                      }}
+                    />
+                  </div>
+                  
+                  {/* 时长 */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">时长（分钟）</label>
+                    <input
+                      type="number"
+                      defaultValue={task.durationMinutes}
+                      className="w-full px-3 py-2 rounded-lg border"
+                      style={{ borderColor, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'white' }}
+                      onBlur={(e) => {
+                        const minutes = parseInt(e.target.value);
+                        if (task.id.startsWith('demo-')) {
+                          setDemoTasks(prev => prev.map(t => 
+                            t.id === editingTask ? { ...t, durationMinutes: minutes } : t
+                          ));
+                        } else {
+                          onTaskUpdate(editingTask, { durationMinutes: minutes });
+                        }
+                      }}
+                    />
+                  </div>
+                  
+                  {/* 开始时间 */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">开始时间</label>
+                    <input
+                      type="time"
+                      defaultValue={task.scheduledStart ? new Date(task.scheduledStart).toTimeString().slice(0, 5) : ''}
+                      className="w-full px-3 py-2 rounded-lg border"
+                      style={{ borderColor, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'white' }}
+                      onBlur={(e) => {
+                        const [hours, minutes] = e.target.value.split(':');
+                        const newDate = new Date(task.scheduledStart || new Date());
+                        newDate.setHours(parseInt(hours), parseInt(minutes));
+                        
+                        if (task.id.startsWith('demo-')) {
+                          setDemoTasks(prev => prev.map(t => 
+                            t.id === editingTask ? { ...t, scheduledStart: newDate } : t
+                          ));
+                        } else {
+                          onTaskUpdate(editingTask, { scheduledStart: newDate });
+                        }
+                      }}
+                    />
+                  </div>
+                  
+                  {/* 按钮 */}
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      onClick={() => {
+                        if (task.id.startsWith('demo-')) {
+                          setDemoTasks(prev => prev.filter(t => t.id !== editingTask));
+                        } else if (onTaskDelete) {
+                          onTaskDelete(editingTask);
+                        }
+                        setEditingTask(null);
+                      }}
+                      className="flex-1 px-4 py-2 rounded-lg font-medium transition-colors"
+                      style={{ backgroundColor: '#EF4444', color: 'white' }}
+                    >
+                      <Trash2 className="w-4 h-4 inline mr-2" />
+                      删除任务
+                    </button>
+                    
+                    <button
+                      onClick={() => setEditingTask(null)}
+                      className="flex-1 px-4 py-2 rounded-lg font-medium transition-colors"
+                      style={{ backgroundColor: '#10B981', color: 'white' }}
+                    >
+                      完成
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+      
       {timeBlocks.map((block, index) => {
         const isExpanded = expandedCards.has(block.id);
         const gap = gaps.find(g => g.id === `gap-${index}`);
@@ -300,22 +497,45 @@ export default function NewTimelineView({
 
                 {/* 未展开：横向长条形布局 - 完全按照设计图 */}
                 {!isExpanded && (
-                  <div className="p-3 text-white">
-                    {/* 第一行：标签 + 时长 */}
+                  <div className="p-3 text-white" style={{ color: getTextColor(block.color) }}>
+                    {/* 第一行：拖拽手柄 + 标签 + 时长 + 编辑按钮 */}
                     <div className="flex items-center justify-between mb-2">
-                      <div className="flex gap-1.5">
-                        {block.tags.slice(0, 2).map((tag, idx) => (
-                          <span 
-                            key={idx}
-                            className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                            style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
-                          >
-                            {tag}
-                          </span>
-                        ))}
+                      <div className="flex items-center gap-2">
+                        {/* 拖拽手柄 */}
+                        <div
+                          className="cursor-move p-1 rounded hover:bg-white/20 transition-colors"
+                          onMouseDown={(e) => handleDragStart(e, block.id, block.startTime)}
+                          onTouchStart={(e) => handleDragStart(e, block.id, block.startTime)}
+                        >
+                          <GripVertical className="w-4 h-4 opacity-60" />
+                        </div>
+                        
+                        <div className="flex gap-1.5">
+                          {block.tags.slice(0, 2).map((tag, idx) => (
+                            <span 
+                              key={idx}
+                              className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                              style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                      <div className="text-sm font-bold" style={{ color: '#ff69b4' }}>
-                        *{block.duration} min
+                      
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-bold" style={{ color: '#ff69b4' }}>
+                          *{block.duration} min
+                        </div>
+                        
+                        {/* 编辑按钮 */}
+                        <button
+                          onClick={() => setEditingTask(block.id)}
+                          className="p-1.5 rounded-full hover:bg-white/20 transition-colors"
+                          title="编辑任务"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
 
@@ -403,24 +623,45 @@ export default function NewTimelineView({
 
                 {/* 展开：竖向长方形布局 */}
                 {isExpanded && (
-                  <div className="p-4 text-white">
-                    {/* 顶部：标签和时长 */}
+                  <div className="p-4 text-white" style={{ color: getTextColor(block.color) }}>
+                    {/* 顶部：拖拽手柄 + 标签和时长 + 编辑按钮 */}
                     <div className="flex items-start justify-between mb-2">
-                      <div className="flex gap-1.5 flex-wrap">
-                        {block.tags.map((tag, idx) => (
-                          <span 
-                            key={idx}
-                            className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                            style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
-                          >
-                            {tag}
-                          </span>
-                        ))}
+                      <div className="flex items-start gap-2">
+                        {/* 拖拽手柄 */}
+                        <div
+                          className="cursor-move p-1 rounded hover:bg-white/20 transition-colors mt-1"
+                          onMouseDown={(e) => handleDragStart(e, block.id, block.startTime)}
+                          onTouchStart={(e) => handleDragStart(e, block.id, block.startTime)}
+                        >
+                          <GripVertical className="w-4 h-4 opacity-60" />
+                        </div>
+                        
+                        <div className="flex gap-1.5 flex-wrap">
+                          {block.tags.map((tag, idx) => (
+                            <span 
+                              key={idx}
+                              className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                              style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                      <div className="text-right">
+                      
+                      <div className="flex items-center gap-2">
                         <span className="text-sm font-bold" style={{ color: '#ff69b4' }}>
                           *{block.duration} min
                         </span>
+                        
+                        {/* 编辑按钮 */}
+                        <button
+                          onClick={() => setEditingTask(block.id)}
+                          className="p-1.5 rounded-full hover:bg-white/20 transition-colors"
+                          title="编辑任务"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
 
