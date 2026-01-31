@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Mic, MicOff, Sparkles, Settings, X, Edit2, Plus } from 'lucide-react';
+import { Send, Mic, MicOff, Sparkles, Settings, X, Edit2, Plus, ChevronUp, ChevronDown, Clock, Coins } from 'lucide-react';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
 import { AISmartProcessor } from '@/services/aiSmartService';
@@ -43,6 +43,7 @@ export default function AISmartModule({
   const [isTesting, setIsTesting] = useState(false);
   const [showTaskEditor, setShowTaskEditor] = useState(false);
   const [editingTasks, setEditingTasks] = useState<any[]>([]);
+  const [editingField, setEditingField] = useState<{taskIndex: number, field: string} | null>(null);
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
@@ -301,6 +302,73 @@ export default function AISmartModule({
     const success = await testConnection();
     if (success) {
       setShowSettings(false);
+    }
+  };
+
+  // 重新计算所有任务的时间
+  const recalculateTaskTimes = (tasks: any[], startFromIndex: number = 0) => {
+    const newTasks = [...tasks];
+    
+    for (let i = startFromIndex; i < newTasks.length; i++) {
+      if (i === 0) {
+        // 第一个任务保持原时间
+        const start = new Date(newTasks[i].scheduled_start_iso);
+        const end = new Date(start.getTime() + newTasks[i].estimated_duration * 60000);
+        newTasks[i].scheduled_start = start.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        newTasks[i].scheduled_end = end.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+      } else {
+        // 后续任务基于前一个任务的结束时间 + 5分钟间隔
+        const prevEnd = new Date(newTasks[i - 1].scheduled_start_iso);
+        prevEnd.setMinutes(prevEnd.getMinutes() + newTasks[i - 1].estimated_duration + 5);
+        
+        const start = new Date(prevEnd);
+        const end = new Date(start.getTime() + newTasks[i].estimated_duration * 60000);
+        
+        newTasks[i].scheduled_start_iso = start.toISOString();
+        newTasks[i].scheduled_start = start.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        newTasks[i].scheduled_end = end.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+      }
+    }
+    
+    return newTasks;
+  };
+
+  // 上移任务
+  const moveTaskUp = (index: number) => {
+    if (index === 0) return;
+    
+    const newTasks = [...editingTasks];
+    [newTasks[index - 1], newTasks[index]] = [newTasks[index], newTasks[index - 1]];
+    
+    // 重新计算时间
+    const recalculated = recalculateTaskTimes(newTasks, 0);
+    setEditingTasks(recalculated);
+  };
+
+  // 下移任务
+  const moveTaskDown = (index: number) => {
+    if (index === editingTasks.length - 1) return;
+    
+    const newTasks = [...editingTasks];
+    [newTasks[index], newTasks[index + 1]] = [newTasks[index + 1], newTasks[index]];
+    
+    // 重新计算时间
+    const recalculated = recalculateTaskTimes(newTasks, 0);
+    setEditingTasks(recalculated);
+  };
+
+  // 更新任务字段
+  const updateTaskField = (index: number, field: string, value: any) => {
+    const newTasks = [...editingTasks];
+    newTasks[index][field] = value;
+    
+    // 如果修改了时长，重新计算金币和后续任务时间
+    if (field === 'estimated_duration') {
+      newTasks[index].gold = AISmartProcessor.calculateGold(newTasks[index]);
+      const recalculated = recalculateTaskTimes(newTasks, index);
+      setEditingTasks(recalculated);
+    } else {
+      setEditingTasks(newTasks);
     }
   };
 
@@ -573,12 +641,16 @@ export default function AISmartModule({
         </div>
       </div>
 
-      {/* 任务编辑器弹窗 */}
+      {/* 任务编辑器弹窗 - 事件卡片形式 */}
       {showTaskEditor && (
-        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-gray-900">编辑任务</h3>
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col">
+            {/* 头部 */}
+            <div className="flex-shrink-0 border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">编辑任务</h3>
+                <p className="text-sm text-gray-500 mt-1">双击任意字段进行编辑，拖动调整顺序</p>
+              </div>
               <button
                 onClick={() => setShowTaskEditor(false)}
                 className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
@@ -587,79 +659,130 @@ export default function AISmartModule({
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            {/* 任务卡片列表 - 可滚动 */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-3">
               {editingTasks.map((task, index) => (
-                <div key={index} className="border border-gray-200 rounded-lg p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-semibold text-gray-900">任务 {index + 1}</h4>
-                    <span className="text-sm text-gray-500">📍 {task.location}</span>
-                  </div>
-
-                  {/* 任务标题 */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      任务名称
-                    </label>
-                    <input
-                      type="text"
-                      value={task.title}
-                      onChange={(e) => {
-                        const newTasks = [...editingTasks];
-                        newTasks[index].title = e.target.value;
-                        setEditingTasks(newTasks);
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    />
-                  </div>
-
-                  {/* 时长和金币 */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        时长（分钟）
-                      </label>
-                      <input
-                        type="number"
-                        value={task.estimated_duration}
-                        onChange={(e) => {
-                          const newTasks = [...editingTasks];
-                          newTasks[index].estimated_duration = parseInt(e.target.value) || 0;
-                          // 重新计算金币
-                          newTasks[index].gold = AISmartProcessor.calculateGold(newTasks[index]);
-                          setEditingTasks(newTasks);
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      />
+                <div
+                  key={index}
+                  className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border-2 border-purple-200 shadow-sm hover:shadow-md transition-all"
+                >
+                  {/* 卡片头部：序号、位置、上下移动 */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-lg font-bold text-purple-600">#{index + 1}</span>
+                      <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                        📍 {task.location}
+                      </span>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        金币奖励
-                      </label>
+                    <div className="flex items-center space-x-1">
+                      <button
+                        onClick={() => moveTaskUp(index)}
+                        disabled={index === 0}
+                        className="p-1 hover:bg-purple-100 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        title="上移"
+                      >
+                        <ChevronUp className="w-5 h-5 text-purple-600" />
+                      </button>
+                      <button
+                        onClick={() => moveTaskDown(index)}
+                        disabled={index === editingTasks.length - 1}
+                        className="p-1 hover:bg-purple-100 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        title="下移"
+                      >
+                        <ChevronDown className="w-5 h-5 text-purple-600" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 任务名称 - 双击编辑 */}
+                  <div className="mb-3">
+                    {editingField?.taskIndex === index && editingField?.field === 'title' ? (
+                      <input
+                        type="text"
+                        value={task.title}
+                        onChange={(e) => updateTaskField(index, 'title', e.target.value)}
+                        onBlur={() => setEditingField(null)}
+                        onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
+                        autoFocus
+                        className="w-full px-3 py-2 text-lg font-bold border-2 border-purple-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    ) : (
+                      <div
+                        onDoubleClick={() => setEditingField({ taskIndex: index, field: 'title' })}
+                        className="text-lg font-bold text-gray-900 cursor-pointer hover:bg-white/50 px-3 py-2 rounded-lg transition-colors"
+                      >
+                        {task.title}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 时间和时长 */}
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    {/* 时间显示 */}
+                    <div className="flex items-center space-x-2 bg-white/70 rounded-lg px-3 py-2">
+                      <Clock className="w-4 h-4 text-purple-600" />
+                      <div className="text-sm">
+                        <div className="font-semibold text-gray-900">{task.scheduled_start}</div>
+                        <div className="text-xs text-gray-500">→ {task.scheduled_end}</div>
+                      </div>
+                    </div>
+
+                    {/* 时长 - 双击编辑 */}
+                    <div className="bg-white/70 rounded-lg px-3 py-2">
+                      {editingField?.taskIndex === index && editingField?.field === 'duration' ? (
+                        <input
+                          type="number"
+                          value={task.estimated_duration}
+                          onChange={(e) => updateTaskField(index, 'estimated_duration', parseInt(e.target.value) || 0)}
+                          onBlur={() => setEditingField(null)}
+                          onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
+                          autoFocus
+                          className="w-full px-2 py-1 border-2 border-purple-400 rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        />
+                      ) : (
+                        <div
+                          onDoubleClick={() => setEditingField({ taskIndex: index, field: 'duration' })}
+                          className="cursor-pointer hover:bg-white/80 px-2 py-1 rounded transition-colors"
+                        >
+                          <div className="text-xs text-gray-500">时长</div>
+                          <div className="font-semibold text-gray-900">{task.estimated_duration} 分钟</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 金币 - 双击编辑 */}
+                  <div className="mb-3">
+                    {editingField?.taskIndex === index && editingField?.field === 'gold' ? (
                       <input
                         type="number"
                         value={task.gold}
-                        onChange={(e) => {
-                          const newTasks = [...editingTasks];
-                          newTasks[index].gold = parseInt(e.target.value) || 0;
-                          setEditingTasks(newTasks);
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        onChange={(e) => updateTaskField(index, 'gold', parseInt(e.target.value) || 0)}
+                        onBlur={() => setEditingField(null)}
+                        onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
+                        autoFocus
+                        className="w-full px-3 py-2 border-2 border-purple-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                       />
-                    </div>
+                    ) : (
+                      <div
+                        onDoubleClick={() => setEditingField({ taskIndex: index, field: 'gold' })}
+                        className="flex items-center space-x-2 bg-yellow-50 rounded-lg px-3 py-2 cursor-pointer hover:bg-yellow-100 transition-colors"
+                      >
+                        <Coins className="w-4 h-4 text-yellow-600" />
+                        <span className="font-bold text-yellow-700">{task.gold} 金币</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* 标签 */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      标签
-                    </label>
+                  <div className="mb-3">
                     <div className="flex flex-wrap gap-2">
                       {task.tags.map((tag: string, tagIndex: number) => (
                         <span
                           key={tagIndex}
-                          className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs flex items-center gap-1"
+                          className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium flex items-center gap-1"
                         >
-                          {tag}
+                          🏷️ {tag}
                           <button
                             onClick={() => {
                               const newTasks = [...editingTasks];
@@ -681,80 +804,80 @@ export default function AISmartModule({
                             setEditingTasks(newTasks);
                           }
                         }}
-                        className="px-2 py-1 border border-dashed border-gray-300 rounded-full text-xs text-gray-500 hover:border-purple-500 hover:text-purple-500"
+                        className="px-2 py-1 border border-dashed border-purple-300 rounded-full text-xs text-purple-600 hover:border-purple-500 hover:bg-purple-50"
                       >
-                        + 添加标签
+                        + 标签
                       </button>
                     </div>
                   </div>
 
-                  {/* 关联目标 */}
+                  {/* 关联目标 - 双击编辑 */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      关联目标
-                    </label>
                     {task.goal ? (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={task.goal}
-                          onChange={(e) => {
-                            const newTasks = [...editingTasks];
-                            newTasks[index].goal = e.target.value;
-                            setEditingTasks(newTasks);
-                          }}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                        />
-                        <button
-                          onClick={() => {
-                            const newTasks = [...editingTasks];
-                            newTasks[index].goal = null;
-                            setEditingTasks(newTasks);
-                          }}
-                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                      editingField?.taskIndex === index && editingField?.field === 'goal' ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={task.goal}
+                            onChange={(e) => updateTaskField(index, 'goal', e.target.value)}
+                            onBlur={() => setEditingField(null)}
+                            onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
+                            autoFocus
+                            className="flex-1 px-3 py-2 border-2 border-purple-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          />
+                          <button
+                            onClick={() => {
+                              updateTaskField(index, 'goal', null);
+                              setEditingField(null);
+                            }}
+                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div
+                          onDoubleClick={() => setEditingField({ taskIndex: index, field: 'goal' })}
+                          className="flex items-center space-x-2 bg-green-50 rounded-lg px-3 py-2 cursor-pointer hover:bg-green-100 transition-colors"
                         >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
+                          <span className="text-sm">🎯 目标: {task.goal}</span>
+                        </div>
+                      )
                     ) : (
-                      <div className="space-y-2">
-                        <select
-                          onChange={(e) => {
-                            if (e.target.value === 'new') {
-                              const newGoal = prompt('输入新的长期目标：');
-                              if (newGoal) {
-                                const newTasks = [...editingTasks];
-                                newTasks[index].goal = newGoal;
-                                newTasks[index].isNewGoal = true;
-                                setEditingTasks(newTasks);
-                              }
-                            } else if (e.target.value) {
-                              const newTasks = [...editingTasks];
-                              newTasks[index].goal = e.target.value;
-                              setEditingTasks(newTasks);
+                      <select
+                        onChange={(e) => {
+                          if (e.target.value === 'new') {
+                            const newGoal = prompt('输入新的长期目标：');
+                            if (newGoal) {
+                              updateTaskField(index, 'goal', newGoal);
+                              updateTaskField(index, 'isNewGoal', true);
                             }
-                          }}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                        >
-                          <option value="">选择已有目标...</option>
-                          {goals.map((goal) => (
-                            <option key={goal.id} value={goal.title}>
-                              {goal.title}
-                            </option>
-                          ))}
-                          <option value="new">+ 创建新目标</option>
-                        </select>
-                      </div>
+                          } else if (e.target.value) {
+                            updateTaskField(index, 'goal', e.target.value);
+                          }
+                          e.target.value = '';
+                        }}
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                      >
+                        <option value="">🎯 点击添加目标...</option>
+                        {goals.map((goal) => (
+                          <option key={goal.id} value={goal.title}>
+                            {goal.title}
+                          </option>
+                        ))}
+                        <option value="new">+ 创建新目标</option>
+                      </select>
                     )}
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 flex space-x-3">
+            {/* 底部按钮 */}
+            <div className="flex-shrink-0 border-t border-gray-200 px-6 py-4 flex space-x-3">
               <button
                 onClick={() => setShowTaskEditor(false)}
-                className="flex-1 px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors"
+                className="flex-1 px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors"
               >
                 取消
               </button>
@@ -784,10 +907,11 @@ export default function AISmartModule({
                   }]);
                   
                   setShowTaskEditor(false);
+                  setEditingField(null);
                 }}
-                className="flex-1 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium transition-colors"
+                className="flex-1 px-4 py-3 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold transition-all transform hover:scale-105"
               >
-                确认并添加到时间轴
+                ✅ 确认并添加到时间轴
               </button>
             </div>
           </div>
