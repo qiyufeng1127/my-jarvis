@@ -315,6 +315,49 @@ export default function AISmartModule({
             location: action.data.location,
           });
         }
+      } else if (action.type === 'update_timeline') {
+        // 处理时间轴操作
+        const { operation, taskIds, delayMinutes } = action.data;
+        const { tasks, deleteTask, updateTask } = useTaskStore.getState();
+        
+        if (operation === 'delete') {
+          // 删除任务
+          console.log('🗑️ 删除任务:', taskIds);
+          for (const taskId of taskIds) {
+            await deleteTask(taskId);
+          }
+          
+          // 显示成功消息
+          const successMessage: AIMessage = {
+            id: `success-${Date.now()}`,
+            role: 'assistant',
+            content: `✅ 已成功删除 ${taskIds.length} 个任务！`,
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, successMessage]);
+        } else if (operation === 'delay') {
+          // 顺延任务
+          console.log('⏰ 顺延任务:', taskIds, '延迟:', delayMinutes, '分钟');
+          for (const taskId of taskIds) {
+            const task = tasks.find(t => t.id === taskId);
+            if (task && task.scheduledStart) {
+              const newStart = new Date(task.scheduledStart);
+              newStart.setMinutes(newStart.getMinutes() + delayMinutes);
+              await updateTask(taskId, {
+                scheduledStart: newStart.toISOString(),
+              });
+            }
+          }
+          
+          // 显示成功消息
+          const successMessage: AIMessage = {
+            id: `success-${Date.now()}`,
+            role: 'assistant',
+            content: `✅ 已成功将 ${taskIds.length} 个任务往后推 ${delayMinutes} 分钟！`,
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, successMessage]);
+        }
       }
     }
   };

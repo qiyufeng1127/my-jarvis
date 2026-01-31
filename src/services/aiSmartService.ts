@@ -176,6 +176,20 @@ export class AISmartProcessor {
   static analyzeInputType(input: string): string {
     const lowerInput = input.toLowerCase();
 
+    // 时间轴操作型（优先级最高）
+    if (
+      lowerInput.includes('删除') || 
+      lowerInput.includes('移动') || 
+      lowerInput.includes('修改') ||
+      lowerInput.includes('顺延') ||
+      lowerInput.includes('推迟') ||
+      lowerInput.includes('提前') ||
+      lowerInput.includes('清空') ||
+      lowerInput.includes('取消')
+    ) {
+      return 'timeline_operation';
+    }
+
     // 任务分解型（多个任务）
     if (
       lowerInput.includes('然后') || 
@@ -194,11 +208,6 @@ export class AISmartProcessor {
       lowerInput.includes('添加')
     ) {
       return 'scheduled_task';
-    }
-
-    // 时间轴操作型
-    if (lowerInput.includes('删除') || lowerInput.includes('复制') || lowerInput.includes('移动')) {
-      return 'timeline_operation';
     }
 
     // 心情记录型
@@ -780,12 +789,265 @@ export class AISmartProcessor {
     return Math.round(baseGold * baseMultiplier * typeMultiplier);
   }
 
+  // 使用AI智能解析时间轴操作指令
+  static async parseTimelineOperationWithAI(
+    input: string, 
+    apiKey: string, 
+    apiEndpoint: string,
+    existingTasks: any[]
+  ): Promise<{
+    operation: 'delete' | 'move' | 'modify' | 'add' | 'delay';
+    filters?: {
+      date?: string; // 'today' | 'yesterday' | 'tomorrow' | '2024-01-31'
+      timeRange?: { start: string; end: string }; // '15:00' - '18:00'
+      taskIds?: string[];
+      all?: boolean;
+    };
+    newTask?: {
+      title: string;
+      time: string;
+      duration: number;
+    };
+    delayMinutes?: number;
+  }> {
+    const tasksInfo = existingTasks.map(t => ({
+      id: t.id,
+      title: t.title,
+      start: t.scheduledStart ? new Date(t.scheduledStart).toLocaleString('zh-CN') : '',
+    }));
+
+    const prompt = `你是一个时间轴操作助手。请分析用户的指令并返回JSON格式的操作。
+
+用户指令：${input}
+
+当前时间：${new Date().toLocaleString('zh-CN')}
+
+现有任务列表：
+${tasksInfo.map((t, i) => `${i + 1}. ${t.title} (${t.start})`).join('\n')}
+
+请返回以下格式的JSON（必须是有效的JSON）：
+{
+  "operation": "delete",  // 操作类型：delete(删除) | move(移动) | modify(修改) | add(添加) | delay(顺延)
+  "filters": {
+    "date": "today",  // 日期过滤：today | yesterday | tomorrow | 具体日期
+    "timeRange": { "start": "15:00", "end": "18:00" },  // 时间范围（可选）
+    "all": true  // 是否全部（可选）
+  },
+  "newTask": {  // 如果是添加任务（可选）
+    "title": "任务名称",
+    "time": "15:40",
+    "duration": 30
+  },
+  "delayMinutes": 60  // 如果是顺延，延迟多少分钟（可选）
+}
+
+示例：
+1. "删除今天所有的任务" → {"operation": "delete", "filters": {"date": "today", "all": true}}
+2. "删除今天下午3点以后的任务" → {"operation": "delete", "filters": {"date": "today", "timeRange": {"start": "15:00", "end": "23:59"}}}
+3. "在今天下午3:40增加一个开会任务" → {"operation": "add", "newTask": {"title": "开会", "time": "15:40", "duration": 60}}
+4. "把今天的任务往后推1小时" → {"operation": "delay", "filters": {"date": "today"}, "delayMinutes": 60}
+
+只返回JSON，不要其他文字。`;
+
+    try {
+      const response = await fetch(apiEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [
+            { role: 'system', content: '你是一个时间轴操作助手，专门解析用户的时间轴操作指令。只返回JSON格式，不要其他内容。' },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.3,
+          max_tokens: 500,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('AI解析失败');
+      }
+
+      const data = await response.json();
+      const aiResponse = data.choices[0].message.content;
+      
+      // 提取JSON
+      let jsonStr = aiResponse.trim();
+      if (jsonStr.startsWith('```json')) {
+        jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+      } else if (jsonStr.startsWith('```')) {
+        jsonStr = jsonStr.replace(/```\n?/g, '');
+      }
+      
+      const result = JSON.parse(jsonStr);
+      
+      console.log('🤖 AI解析时间轴操作:', result);
+      
+      return result;
+    } catch (error) {
+      console.error('AI解析失败:', error);
+      throw new Error('无法理解你的指令，请重新描述');
+    }
+  }
+
   // 处理时间轴操作
   static async handleTimelineOperation(input: string, context: any): Promise<AIProcessResponse> {
-    return {
-      message: '我理解你想操作时间轴。这个功能正在开发中，敬请期待！',
-      autoExecute: false,
-    };
+    const apiKey = localStorage.getItem('ai_api_key') || '';
+    const apiEndpoint = localStorage.getItem('ai_api_endpoint') || 'https://api.deepseek.com/v1/chat/completions';
+    
+    if (!apiKey) {
+      return {
+        message: '⚠️ 请先配置API Key才能使用AI智能操作功能',
+        autoExecute: false,
+      };
+    }
+
+    try {
+      const existingTasks = context.existing_tasks || [];
+      const operation = await this.parseTimelineOperationWithAI(input, apiKey, apiEndpoint, existingTasks);
+      
+      // 根据操作类型执行不同的逻辑
+      if (operation.operation === 'delete') {
+        // 删除任务
+        const tasksToDelete = this.filterTasks(existingTasks, operation.filters);
+        
+        if (tasksToDelete.length === 0) {
+          return {
+            message: '❌ 没有找到符合条件的任务',
+            autoExecute: false,
+          };
+        }
+        
+        return {
+          message: `⚠️ 确认删除以下 ${tasksToDelete.length} 个任务？\n\n${tasksToDelete.map(t => `• ${t.title}`).join('\n')}`,
+          actions: [
+            {
+              type: 'update_timeline',
+              data: {
+                operation: 'delete',
+                taskIds: tasksToDelete.map(t => t.id),
+              },
+              label: '确认删除',
+            },
+          ],
+          needsConfirmation: true,
+          autoExecute: false,
+        };
+      } else if (operation.operation === 'add') {
+        // 添加任务
+        const newTask = operation.newTask!;
+        const today = new Date();
+        const [hours, minutes] = newTask.time.split(':');
+        const scheduledTime = new Date(today.setHours(parseInt(hours), parseInt(minutes), 0, 0));
+        
+        return {
+          message: `✅ 准备在 ${newTask.time} 添加任务：${newTask.title}`,
+          actions: [
+            {
+              type: 'create_task',
+              data: {
+                title: newTask.title,
+                scheduled_time: scheduledTime.toISOString(),
+                estimated_duration: newTask.duration,
+                task_type: 'work',
+              },
+              label: '确认添加',
+            },
+          ],
+          autoExecute: true,
+        };
+      } else if (operation.operation === 'delay') {
+        // 顺延任务
+        const tasksToDelay = this.filterTasks(existingTasks, operation.filters);
+        
+        if (tasksToDelay.length === 0) {
+          return {
+            message: '❌ 没有找到符合条件的任务',
+            autoExecute: false,
+          };
+        }
+        
+        const delayMinutes = operation.delayMinutes || 60;
+        
+        return {
+          message: `⏰ 准备将以下 ${tasksToDelay.length} 个任务往后推 ${delayMinutes} 分钟：\n\n${tasksToDelay.map(t => `• ${t.title}`).join('\n')}`,
+          actions: [
+            {
+              type: 'update_timeline',
+              data: {
+                operation: 'delay',
+                taskIds: tasksToDelay.map(t => t.id),
+                delayMinutes: delayMinutes,
+              },
+              label: '确认顺延',
+            },
+          ],
+          needsConfirmation: true,
+          autoExecute: false,
+        };
+      } else {
+        return {
+          message: '⚠️ 该操作类型暂不支持，敬请期待！',
+          autoExecute: false,
+        };
+      }
+    } catch (error: any) {
+      return {
+        message: `❌ ${error.message || '操作失败，请重新描述你的需求'}`,
+        autoExecute: false,
+      };
+    }
+  }
+
+  // 过滤任务
+  static filterTasks(tasks: any[], filters?: any): any[] {
+    if (!filters) return tasks;
+    
+    let filtered = [...tasks];
+    
+    // 日期过滤
+    if (filters.date) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const targetDate = new Date(today);
+      if (filters.date === 'yesterday') {
+        targetDate.setDate(targetDate.getDate() - 1);
+      } else if (filters.date === 'tomorrow') {
+        targetDate.setDate(targetDate.getDate() + 1);
+      }
+      
+      filtered = filtered.filter(task => {
+        if (!task.scheduledStart) return false;
+        const taskDate = new Date(task.scheduledStart);
+        taskDate.setHours(0, 0, 0, 0);
+        return taskDate.getTime() === targetDate.getTime();
+      });
+    }
+    
+    // 时间范围过滤
+    if (filters.timeRange) {
+      const { start, end } = filters.timeRange;
+      const [startHour, startMin] = start.split(':').map(Number);
+      const [endHour, endMin] = end.split(':').map(Number);
+      
+      filtered = filtered.filter(task => {
+        if (!task.scheduledStart) return false;
+        const taskTime = new Date(task.scheduledStart);
+        const taskHour = taskTime.getHours();
+        const taskMin = taskTime.getMinutes();
+        const taskMinutes = taskHour * 60 + taskMin;
+        const startMinutes = startHour * 60 + startMin;
+        const endMinutes = endHour * 60 + endMin;
+        
+        return taskMinutes >= startMinutes && taskMinutes <= endMinutes;
+      });
+    }
+    
+    return filtered;
   }
 
   // 处理心情记录

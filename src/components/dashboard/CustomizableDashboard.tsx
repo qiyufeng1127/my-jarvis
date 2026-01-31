@@ -857,181 +857,181 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                 }}
               >
                 {/* 模块头部 - 不缩放 */}
-                <div
-                  className="flex items-center justify-between p-4 cursor-move"
-                  onMouseDown={(e) => handleDragStart(module.id, e)}
-                  style={{ 
-                    backgroundColor: module.color,
-                    color: isColorDark(module.color) ? '#ffffff' : '#000000',
-                    height: '60px',
-                  }}
-                >
-                  <div className="flex items-center space-x-2">
-                    <GripVertical 
-                      className="w-4 h-4" 
-                      style={{ color: isColorDark(module.color) ? '#ffffff' : '#000000' }}
-                    />
-                    {/* 显示自定义图标或默认图标 */}
-                    <div className="w-8 h-8 flex items-center justify-center">
-                      {module.customIcon ? (
-                        <img 
-                          src={module.customIcon} 
-                          alt={module.title} 
-                          className="w-full h-full object-cover rounded"
-                        />
-                      ) : (
-                        <div>{module.icon}</div>
-                      )}
+                  <div
+                    className="flex items-center justify-between p-4 cursor-move"
+                    onMouseDown={(e) => handleDragStart(module.id, e)}
+                    style={{ 
+                      backgroundColor: module.color,
+                      color: isColorDark(module.color) ? '#ffffff' : '#000000',
+                      height: '60px',
+                    }}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <GripVertical 
+                        className="w-4 h-4" 
+                        style={{ color: isColorDark(module.color) ? '#ffffff' : '#000000' }}
+                      />
+                      {/* 显示自定义图标或默认图标 */}
+                      <div className="w-8 h-8 flex items-center justify-center">
+                        {module.customIcon ? (
+                          <img 
+                            src={module.customIcon} 
+                            alt={module.title} 
+                            className="w-full h-full object-cover rounded"
+                          />
+                        ) : (
+                          <div>{module.icon}</div>
+                        )}
+                      </div>
+                      <h3 
+                        className="font-semibold"
+                        style={{ color: isColorDark(module.color) ? '#ffffff' : '#000000' }}
+                      >
+                        {module.title}
+                      </h3>
                     </div>
-                    <h3 
-                      className="font-semibold"
-                      style={{ color: isColorDark(module.color) ? '#ffffff' : '#000000' }}
-                    >
-                      {module.title}
-                    </h3>
-                  </div>
 
-                  <div className="flex items-center space-x-2">
-                    {/* 颜色选择器 */}
-                    <div className="relative">
+                    <div className="flex items-center space-x-2">
+                      {/* 颜色选择器 */}
+                      <div className="relative">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowColorPicker(
+                              showColorPicker === module.id ? null : module.id
+                            );
+                          }}
+                          className="p-1 rounded transition-colors"
+                          style={{ 
+                            backgroundColor: isColorDark(module.color) ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'
+                          }}
+                          title="修改颜色"
+                        >
+                          <Palette 
+                            className="w-4 h-4" 
+                            style={{ color: isColorDark(module.color) ? '#ffffff' : '#000000' }}
+                          />
+                        </button>
+
+                        {showColorPicker === module.id && (
+                          <div 
+                            className="absolute right-0 top-8 bg-white rounded-lg shadow-xl p-4 z-50 border border-neutral-200"
+                            onClick={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                          style={{ minWidth: '280px' }}
+                          >
+                            {/* 复古颜色 - 第一排 */}
+                            <div className="mb-2">
+                              <div className="text-xs text-neutral-500 mb-2">复古配色</div>
+                              <div className="grid grid-cols-7 gap-2">
+                                {vintageColors.map((color) => (
+                                  <button
+                                    key={color}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      changeModuleColor(module.id, color);
+                                    }}
+                                    className="w-8 h-8 rounded-lg border-2 border-neutral-200 hover:scale-110 transition-transform"
+                                    style={{ backgroundColor: color }}
+                                    title={color}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* 预设颜色 - 第二排 */}
+                            <div className="mb-3">
+                              <div className="text-xs text-neutral-500 mb-2">预设颜色</div>
+                              <div className="grid grid-cols-7 gap-2">
+                                {presetColors.map((color) => (
+                                  <button
+                                    key={color}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      changeModuleColor(module.id, color);
+                                    }}
+                                    className="w-8 h-8 rounded-lg border-2 border-neutral-200 hover:scale-110 transition-transform"
+                                    style={{ backgroundColor: color }}
+                                    title={color}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* 自定义颜色选择器 */}
+                            <div>
+                              <div className="text-xs text-neutral-500 mb-2">自定义颜色</div>
+                              <input
+                                type="color"
+                                value={module.color}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  changeModuleColor(module.id, e.target.value);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-full h-10 rounded cursor-pointer"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 关闭按钮 */}
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowColorPicker(
-                            showColorPicker === module.id ? null : module.id
-                          );
-                        }}
+                        onClick={() => removeModule(module.id)}
                         className="p-1 rounded transition-colors"
                         style={{ 
                           backgroundColor: isColorDark(module.color) ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'
                         }}
-                        title="修改颜色"
+                        title="隐藏模块"
                       >
-                        <Palette 
+                        <X 
                           className="w-4 h-4" 
                           style={{ color: isColorDark(module.color) ? '#ffffff' : '#000000' }}
                         />
                       </button>
-
-                      {showColorPicker === module.id && (
-                        <div 
-                          className="absolute right-0 top-8 bg-white rounded-lg shadow-xl p-4 z-50 border border-neutral-200"
-                          onClick={(e) => e.stopPropagation()}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          style={{ minWidth: '280px' }}
-                        >
-                          {/* 复古颜色 - 第一排 */}
-                          <div className="mb-2">
-                            <div className="text-xs text-neutral-500 mb-2">复古配色</div>
-                            <div className="grid grid-cols-7 gap-2">
-                              {vintageColors.map((color) => (
-                                <button
-                                  key={color}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    changeModuleColor(module.id, color);
-                                  }}
-                                  className="w-8 h-8 rounded-lg border-2 border-neutral-200 hover:scale-110 transition-transform"
-                                  style={{ backgroundColor: color }}
-                                  title={color}
-                                />
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* 预设颜色 - 第二排 */}
-                          <div className="mb-3">
-                            <div className="text-xs text-neutral-500 mb-2">预设颜色</div>
-                            <div className="grid grid-cols-7 gap-2">
-                              {presetColors.map((color) => (
-                                <button
-                                  key={color}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    changeModuleColor(module.id, color);
-                                  }}
-                                  className="w-8 h-8 rounded-lg border-2 border-neutral-200 hover:scale-110 transition-transform"
-                                  style={{ backgroundColor: color }}
-                                  title={color}
-                                />
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* 自定义颜色选择器 */}
-                          <div>
-                            <div className="text-xs text-neutral-500 mb-2">自定义颜色</div>
-                            <input
-                              type="color"
-                              value={module.color}
-                              onChange={(e) => {
-                                e.stopPropagation();
-                                changeModuleColor(module.id, e.target.value);
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                              className="w-full h-10 rounded cursor-pointer"
-                            />
-                          </div>
-                        </div>
-                      )}
                     </div>
-
-                    {/* 关闭按钮 */}
-                    <button
-                      onClick={() => removeModule(module.id)}
-                      className="p-1 rounded transition-colors"
-                      style={{ 
-                        backgroundColor: isColorDark(module.color) ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'
-                      }}
-                      title="隐藏模块"
-                    >
-                      <X 
-                        className="w-4 h-4" 
-                        style={{ color: isColorDark(module.color) ? '#ffffff' : '#000000' }}
-                      />
-                    </button>
                   </div>
-                </div>
 
                 {/* 模块内容 - 可滚动，不缩放 */}
-                <div 
-                  style={{ 
-                    backgroundColor: module.color,
-                    color: isColorDark(module.color) ? '#ffffff' : '#000000',
+                  <div 
+                    style={{ 
+                      backgroundColor: module.color,
+                      color: isColorDark(module.color) ? '#ffffff' : '#000000',
                     height: `${currentSize.height - 60}px`,
                     overflow: 'auto',
                     display: 'flex',
                     flexDirection: 'column',
-                  }}
-                >
-                  {moduleDefinition?.component && 
-                    React.createElement(moduleDefinition.component, { 
-                      isDark: isColorDark(module.color),
-                      bgColor: module.color,
+                    }}
+                  >
+                    {moduleDefinition?.component && 
+                      React.createElement(moduleDefinition.component, { 
+                        isDark: isColorDark(module.color),
+                        bgColor: module.color,
                       onOpen: module.type === 'ai-smart' ? onOpenAISmart : undefined,
                       moduleSize: currentSize, // 传递模块尺寸给子组件
-                    })
-                  }
-                </div>
+                      })
+                    }
+                  </div>
 
                 {/* 调整大小手柄 - 放在缩放包装器外面，紧贴容器底部 */}
-                <div
+                  <div
                   className="absolute right-2 bottom-2 cursor-se-resize flex items-center justify-center"
                   style={{
                     width: '24px',
                     height: '24px',
                     zIndex: 10,
                   }}
-                  onMouseDown={(e) => handleResizeStart(module.id, e)}
-                  title="拖拽缩放"
-                >
-                  <div 
+                    onMouseDown={(e) => handleResizeStart(module.id, e)}
+                    title="拖拽缩放"
+                  >
+                    <div 
                     className="w-3 h-3 rounded-full" 
-                    style={{ 
-                      backgroundColor: isColorDark(module.color) ? '#ffffff' : '#000000',
+                      style={{ 
+                        backgroundColor: isColorDark(module.color) ? '#ffffff' : '#000000',
                       opacity: 0.5
-                    }}
-                  />
+                      }}
+                    />
                 </div>
               </div>
             );

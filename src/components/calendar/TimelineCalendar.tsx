@@ -329,8 +329,8 @@ export default function TimelineCalendar({
             borderColor={borderColor}
             isDark={isDark}
           />
-        </div>
-      </div>
+                </div>
+              </div>
 
     </div>
   );
