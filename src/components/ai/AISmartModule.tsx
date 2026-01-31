@@ -288,7 +288,7 @@ export default function AISmartModule({
               durationMinutes: task.estimated_duration || 30,
               taskType: task.task_type || 'life',
               scheduledStart: scheduledStart.toISOString(),
-              priority: task.priority || 'medium',
+              priority: task.priority || 2, // 1=低, 2=中, 3=高
               tags: task.tags || [],
               status: 'pending',
               goldReward: task.gold || 0, // 传递金币
@@ -307,7 +307,7 @@ export default function AISmartModule({
             durationMinutes: action.data.estimated_duration || 60,
             taskType: action.data.task_type || 'life',
             scheduledStart: scheduledStart.toISOString(),
-            priority: action.data.priority || 'medium',
+            priority: action.data.priority || 2, // 1=低, 2=中, 3=高
             tags: action.data.tags || [],
             status: 'pending',
             goldReward: action.data.gold || 0,
