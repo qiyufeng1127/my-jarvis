@@ -38,13 +38,18 @@ export const useTaskStore = create<TaskState>()(
       if (isSupabaseConfigured()) {
         // 从 Supabase 加载任务
         const userId = getCurrentUserId();
+        console.log('📥 从 Supabase 加载任务，用户ID:', userId);
+        
         const { data, error } = await supabase
           .from(TABLES.TASKS)
           .select('*')
           .eq('user_id', userId)
           .order('created_at', { ascending: false });
         
-        if (error) throw error;
+        if (error) {
+          console.error('❌ Supabase 加载失败:', error);
+          throw error;
+        }
         
         const tasks: Task[] = (data || []).map((row: any) => ({
           id: row.id,
@@ -66,33 +71,27 @@ export const useTaskStore = create<TaskState>()(
           progressChecks: row.progress_checks || [],
           penaltyGold: row.penalty_gold || 0,
           goldEarned: row.gold_earned || 0,
+          tags: row.tags || [],
+          color: row.color,
+          location: row.location,
+          goldReward: row.gold_reward || 0,
           createdAt: new Date(row.created_at),
           updatedAt: new Date(row.updated_at),
         }));
         
+        console.log('✅ 从 Supabase 加载了', tasks.length, '个任务');
         set({ tasks, isLoading: false });
       } else {
-        // 从 localStorage 加载（离线模式）
-        const savedTasks = localStorage.getItem('tasks-storage');
-        if (savedTasks) {
-          const parsed = JSON.parse(savedTasks);
-          const tasks = (parsed.state?.tasks || []).map((t: any) => ({
-            ...t,
-            scheduledStart: t.scheduledStart ? new Date(t.scheduledStart) : undefined,
-            scheduledEnd: t.scheduledEnd ? new Date(t.scheduledEnd) : undefined,
-            actualStart: t.actualStart ? new Date(t.actualStart) : undefined,
-            actualEnd: t.actualEnd ? new Date(t.actualEnd) : undefined,
-            createdAt: new Date(t.createdAt),
-            updatedAt: new Date(t.updatedAt),
-          }));
-          set({ tasks, isLoading: false });
-        } else {
-          set({ tasks: [], isLoading: false });
-        }
+        // Supabase 未配置，使用本地存储
+        console.log('⚠️ Supabase 未配置，使用本地存储');
+        // 不需要手动加载，persist 中间件会自动处理
+        set({ isLoading: false });
       }
     } catch (error) {
-      set({ error: '加载任务失败', isLoading: false });
-      console.error('加载任务失败:', error);
+      console.error('❌ 加载任务失败:', error);
+      // 如果 Supabase 加载失败，回退到本地存储
+      console.log('🔄 回退到本地存储');
+      set({ error: '从云端加载失败，使用本地数据', isLoading: false });
     }
   },
 
