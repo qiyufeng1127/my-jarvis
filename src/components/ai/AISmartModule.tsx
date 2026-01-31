@@ -649,7 +649,7 @@ export default function AISmartModule({
 
       {/* 输入区域 - 固定在底部，减少内边距 */}
       <div className="flex-shrink-0 p-1.5 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
-        <div className="flex items-end space-x-1.5">
+        <div className="flex items-stretch space-x-1.5">
           <textarea
             ref={textareaRef}
             value={inputValue}
@@ -667,10 +667,11 @@ export default function AISmartModule({
           <button
             onClick={() => handleSend()}
             disabled={!inputValue.trim() || isProcessing}
-            className="p-2 rounded-lg transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+            className="px-4 rounded-lg transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 flex items-center justify-center"
             style={{ 
               backgroundColor: '#10B981', // 绿色背景
-              color: '#ffffff' // 白色图标
+              color: '#ffffff', // 白色图标
+              minWidth: '60px',
             }}
           >
             <Send className="w-5 h-5" />
@@ -686,11 +687,16 @@ export default function AISmartModule({
             <div className="flex-shrink-0 border-b border-gray-200 px-6 py-4 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-bold text-gray-900">编辑任务</h3>
-                <p className="text-sm text-gray-500 mt-1">双击任意字段进行编辑，拖动调整顺序</p>
+                <p className="text-sm text-gray-500 mt-1">双击任意字段进行编辑，使用上下箭头调整顺序</p>
               </div>
               <button
-                onClick={() => setShowTaskEditor(false)}
-                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                onClick={() => {
+                  setShowTaskEditor(false);
+                  setEditingTasks([]);
+                  setEditingField(null);
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                title="关闭编辑器"
               >
                 <X className="w-5 h-5 text-gray-600" />
               </button>
@@ -913,10 +919,14 @@ export default function AISmartModule({
             {/* 底部按钮 */}
             <div className="flex-shrink-0 border-t border-gray-200 px-6 py-4 flex space-x-3">
               <button
-                onClick={() => setShowTaskEditor(false)}
-                className="flex-1 px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors"
+                onClick={() => {
+                  setShowTaskEditor(false);
+                  setEditingTasks([]);
+                  setEditingField(null);
+                }}
+                className="px-6 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors"
               >
-                取消
+                ❌ 取消
               </button>
               <button
                 onClick={async () => {
@@ -936,19 +946,31 @@ export default function AISmartModule({
                     }
                   }
 
-                  // 创建任务
+                  // 创建任务并推送到时间轴
+                  console.log('📤 开始推送任务到时间轴:', editingTasks);
                   await executeActions([{
                     type: 'create_task',
                     data: { tasks: editingTasks },
                     label: '确认',
                   }]);
                   
+                  // 关闭编辑器
                   setShowTaskEditor(false);
+                  setEditingTasks([]);
                   setEditingField(null);
+                  
+                  // 显示成功消息
+                  const successMessage: AIMessage = {
+                    id: `success-${Date.now()}`,
+                    role: 'assistant',
+                    content: `✅ 已成功添加 ${editingTasks.length} 个任务到时间轴！`,
+                    timestamp: new Date(),
+                  };
+                  setMessages(prev => [...prev, successMessage]);
                 }}
-                className="flex-1 px-4 py-3 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold transition-all transform hover:scale-105"
+                className="flex-1 px-4 py-3 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold transition-all transform hover:scale-105 shadow-lg"
               >
-                ✅ 确认并添加到时间轴
+                🚀 全部推送到时间轴
               </button>
             </div>
           </div>
