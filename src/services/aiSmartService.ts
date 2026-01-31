@@ -413,8 +413,8 @@ export class AISmartProcessor {
         gold: this.calculateGold({ estimated_duration: duration, task_type: this.inferTaskType(title) }),
       };
 
-      // 下一个任务开始时间 = 当前任务结束 + 5分钟间隔
-      currentTime = new Date(end.getTime() + 5 * 60000);
+      // 下一个任务开始时间 = 当前任务结束（无间隔）
+      currentTime = new Date(end.getTime());
       
       return task;
     });

@@ -350,10 +350,10 @@ export default function AISmartModule({
         newTasks[i].scheduled_end = end.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
         console.log(`✅ 任务${i + 1}: ${newTasks[i].scheduled_start} - ${newTasks[i].scheduled_end} (${newTasks[i].estimated_duration}分钟)`);
       } else {
-        // 后续任务：基于前一个任务的结束时间 + 5分钟间隔
+        // 后续任务：紧接着前一个任务的结束时间开始（无间隔）
         const prevStart = new Date(newTasks[i - 1].scheduled_start_iso);
         const prevEnd = new Date(prevStart.getTime() + newTasks[i - 1].estimated_duration * 60000);
-        const start = new Date(prevEnd.getTime() + 5 * 60000); // 前一个任务结束 + 5分钟
+        const start = new Date(prevEnd.getTime()); // 前一个任务结束时间，无间隔
         const end = new Date(start.getTime() + newTasks[i].estimated_duration * 60000);
         
         newTasks[i].scheduled_start_iso = start.toISOString();
