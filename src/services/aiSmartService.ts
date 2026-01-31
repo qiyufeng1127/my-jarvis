@@ -491,7 +491,7 @@ export class AISmartProcessor {
     let currentTime = new Date();
     
     // 位置优先级（按照用户家里的实际格局和动线）
-    const locationPriority = ['厕所', '工作区', '客厅', '卧室', '拍摄间', '厨房', '全屋'];
+    const locationPriority = ['厕所', '工作区', '客厅', '卧室', '拍摄间', '厨房', '全屋', '室外'];
     
     locationPriority.forEach(location => {
       if (grouped[location]) {
@@ -573,6 +573,14 @@ export class AISmartProcessor {
   // 推断任务位置（根据用户家庭格局）
   static inferLocation(taskTitle: string): string {
     const title = taskTitle.toLowerCase();
+    
+    // 室外（外出相关）
+    if (title.includes('下楼') || title.includes('买菜') || title.includes('快递') || 
+        title.includes('超市') || title.includes('购物') || title.includes('外出') ||
+        title.includes('散步') || title.includes('遛') || title.includes('取') ||
+        title.includes('寄') || title.includes('邮局')) {
+      return '室外';
+    }
     
     // 厨房相关（猫咪相关任务都在厨房）
     if (title.includes('猫粮') || title.includes('铲') || title.includes('猫砂') || 

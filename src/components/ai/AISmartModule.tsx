@@ -395,8 +395,32 @@ export default function AISmartModule({
     const newTasks = [...editingTasks];
     newTasks[index][field] = value;
     
+    // 如果修改了任务名称，自动重新计算所有相关属性
+    if (field === 'title') {
+      console.log(`✏️ 修改任务${index + 1}的名称为: ${value}`);
+      
+      // 重新推断所有属性
+      newTasks[index].location = AISmartProcessor.inferLocation(value);
+      newTasks[index].tags = AISmartProcessor.generateTags(value);
+      newTasks[index].task_type = AISmartProcessor.inferTaskType(value);
+      newTasks[index].category = AISmartProcessor.inferCategory(value);
+      newTasks[index].goal = AISmartProcessor.identifyGoal(value);
+      
+      // 重新估算时长
+      const newDuration = AISmartProcessor.estimateTaskDuration(value);
+      newTasks[index].estimated_duration = newDuration;
+      
+      // 重新计算金币
+      newTasks[index].gold = AISmartProcessor.calculateGold(newTasks[index]);
+      
+      console.log(`🔄 自动更新: 位置=${newTasks[index].location}, 标签=${newTasks[index].tags.join(',')}, 时长=${newDuration}分钟, 金币=${newTasks[index].gold}`);
+      
+      // 从当前任务开始重新计算所有时间
+      const recalculated = recalculateTaskTimes(newTasks, index);
+      setEditingTasks(recalculated);
+    }
     // 如果修改了时长，重新计算金币和后续任务时间
-    if (field === 'estimated_duration') {
+    else if (field === 'estimated_duration') {
       console.log(`⚡ 修改任务${index + 1}的时长为: ${value}分钟`);
       newTasks[index].gold = AISmartProcessor.calculateGold(newTasks[index]);
       
