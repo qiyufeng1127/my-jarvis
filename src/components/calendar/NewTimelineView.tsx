@@ -435,12 +435,27 @@ export default function NewTimelineView({
         enabled: true,
         startKeywords,
         completionKeywords,
-        startDeadline: new Date(scheduledStart.getTime() + 2 * 60 * 1000), // 开始时间 + 2分钟
+        startDeadline: new Date(scheduledStart.getTime() + 2 * 60 * 1000),
         completionDeadline: scheduledEnd,
-        failedAttempts: 0,
+        
+        // 启动验证追踪
+        startFailedAttempts: 0,
+        startTimeoutCount: 0,
+        startRetryDeadline: null,
+        
+        // 完成验证追踪
+        completionFailedAttempts: 0,
+        completionTimeoutCount: 0,
+        completionExtensionCount: 0,
+        
         status: 'pending',
         actualStartTime: null,
         actualCompletionTime: null,
+        
+        // 金币追踪
+        startGoldEarned: 0,
+        completionGoldEarned: 0,
+        totalGoldPenalty: 0,
       };
       
       setTaskVerifications(prev => ({
@@ -455,6 +470,7 @@ export default function NewTimelineView({
         scheduledStart,
         scheduledEnd,
         task.durationMinutes || 30,
+        task.goldReward || 100, // 任务总金币
         verification,
         () => {
           // 任务开始提醒回调
@@ -473,6 +489,36 @@ export default function NewTimelineView({
             [taskId]: {
               ...prev[taskId],
               status: 'waiting_completion',
+            },
+          }));
+        },
+        (timeoutCount, penalty) => {
+          // 启动超时回调
+          setTaskVerifications(prev => ({
+            ...prev,
+            [taskId]: {
+              ...prev[taskId],
+              startTimeoutCount: timeoutCount,
+              totalGoldPenalty: prev[taskId].totalGoldPenalty + penalty,
+              status: timeoutCount < 3 ? 'start_retry' : 'failed',
+              startRetryDeadline: timeoutCount < 3 
+                ? new Date(Date.now() + 2 * 60 * 1000) 
+                : null,
+            },
+          }));
+        },
+        (extensionCount, penalty) => {
+          // 完成超时回调
+          setTaskVerifications(prev => ({
+            ...prev,
+            [taskId]: {
+              ...prev[taskId],
+              completionExtensionCount: extensionCount,
+              totalGoldPenalty: prev[taskId].totalGoldPenalty + penalty,
+              status: extensionCount < 3 ? 'completion_extension' : 'failed',
+              completionDeadline: extensionCount < 3
+                ? new Date(Date.now() + 10 * 60 * 1000)
+                : null,
             },
           }));
         }
@@ -526,7 +572,7 @@ export default function NewTimelineView({
                 ...prev[taskId],
                 status: 'started',
                 actualStartTime: now,
-                failedAttempts: 0,
+                startFailedAttempts: 0,
               },
             }));
             
@@ -549,13 +595,13 @@ export default function NewTimelineView({
             console.log('✅ 任务启动验证成功');
           } catch (error) {
             // 验证失败
-            const newFailedAttempts = (verification.failedAttempts || 0) + 1;
+            const newFailedAttempts = (verification.startFailedAttempts || 0) + 1;
             
             setTaskVerifications(prev => ({
               ...prev,
               [taskId]: {
                 ...prev[taskId],
-                failedAttempts: newFailedAttempts,
+                startFailedAttempts: newFailedAttempts,
               },
             }));
             
@@ -624,7 +670,7 @@ export default function NewTimelineView({
                 ...prev[taskId],
                 status: 'completed',
                 actualCompletionTime: now,
-                failedAttempts: 0,
+                completionFailedAttempts: 0,
               },
             }));
             
@@ -679,13 +725,13 @@ export default function NewTimelineView({
             console.log('✅ 任务完成验证成功');
           } catch (error) {
             // 验证失败
-            const newFailedAttempts = (verification.failedAttempts || 0) + 1;
+            const newFailedAttempts = (verification.completionFailedAttempts || 0) + 1;
             
             setTaskVerifications(prev => ({
               ...prev,
               [taskId]: {
                 ...prev[taskId],
-                failedAttempts: newFailedAttempts,
+                completionFailedAttempts: newFailedAttempts,
               },
             }));
             

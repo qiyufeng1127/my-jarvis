@@ -8,10 +8,25 @@ export interface TaskVerification {
   completionKeywords: string[]; // 完成验证关键词（可手动修改）
   startDeadline: Date | null; // 启动截止时间（任务开始时间 + 2分钟）
   completionDeadline: Date | null; // 完成截止时间（任务结束时间）
-  failedAttempts: number; // 失败次数
-  status: 'pending' | 'waiting_start' | 'started' | 'waiting_completion' | 'completed' | 'failed';
+  
+  // 启动验证追踪
+  startFailedAttempts: number; // 启动失败次数（0-3）
+  startTimeoutCount: number; // 启动超时次数（用于计算惩罚）
+  startRetryDeadline: Date | null; // 启动重试截止时间
+  
+  // 完成验证追踪
+  completionFailedAttempts: number; // 完成失败次数（0-3）
+  completionTimeoutCount: number; // 完成超时次数（用于计算惩罚）
+  completionExtensionCount: number; // 完成延期次数
+  
+  status: 'pending' | 'waiting_start' | 'start_retry' | 'started' | 'waiting_completion' | 'completion_extension' | 'completed' | 'failed';
   actualStartTime: Date | null; // 实际启动时间
   actualCompletionTime: Date | null; // 实际完成时间
+  
+  // 金币追踪
+  startGoldEarned: number; // 启动获得的金币（40%）
+  completionGoldEarned: number; // 完成获得的金币（60%）
+  totalGoldPenalty: number; // 总共扣除的金币
 }
 
 export interface TaskImage {
@@ -26,6 +41,52 @@ export interface SubTask {
   title: string;
   completed: boolean;
   createdAt: Date;
+}
+
+// ============================================
+// 金币系统 - 奖励和惩罚
+// ============================================
+export class GoldSystem {
+  // 计算启动奖励（任务总金币的40%）
+  static calculateStartReward(totalGold: number): number {
+    return Math.round(totalGold * 0.4);
+  }
+  
+  // 计算完成奖励（任务总金币的60%）
+  static calculateCompletionReward(totalGold: number): number {
+    return Math.round(totalGold * 0.6);
+  }
+  
+  // 计算启动超时惩罚（梯度：200/300/400/600）
+  static calculateStartTimeoutPenalty(timeoutCount: number): number {
+    const penalties = [200, 300, 400];
+    if (timeoutCount >= 3) {
+      return 600; // 连续3次，扣600
+    }
+    return penalties[timeoutCount] || 0;
+  }
+  
+  // 计算完成超时惩罚（梯度：200/300/400/600）
+  static calculateCompletionTimeoutPenalty(timeoutCount: number): number {
+    const penalties = [200, 300, 400];
+    if (timeoutCount >= 3) {
+      return 600; // 连续3次，扣600
+    }
+    return penalties[timeoutCount] || 0;
+  }
+  
+  // 计算启动重试惩罚（第1次0，第2次400，第3次600）
+  static calculateStartRetryPenalty(retryCount: number): number {
+    if (retryCount === 0) return 0;
+    if (retryCount === 1) return 400;
+    return 600;
+  }
+  
+  // 计算完成延期惩罚（梯度：200/300/400）
+  static calculateCompletionExtensionPenalty(extensionCount: number): number {
+    const penalties = [200, 300, 400];
+    return penalties[extensionCount] || 400;
+  }
 }
 
 // ============================================
@@ -222,8 +283,32 @@ export class VoiceReminder {
   }
   
   // 启动超时提醒
-  static remindStartTimeout(taskTitle: string, penaltyGold: number) {
-    const text = `任务"${taskTitle}"启动超时，扣除${penaltyGold}金币。请尽快开始任务。`;
+  static remindStartTimeout(taskTitle: string, penaltyGold: number, timeoutCount: number) {
+    const text = `任务"${taskTitle}"启动超时第${timeoutCount}次，扣除${penaltyGold}金币。${timeoutCount < 3 ? '再给您2分钟重试机会。' : '连续3次超时，请认真对待任务！'}`;
+    this.speak(text);
+  }
+  
+  // 启动重试提醒
+  static remindStartRetry(taskTitle: string, retryCount: number, penaltyGold: number) {
+    const text = `任务"${taskTitle}"第${retryCount}次重试${penaltyGold > 0 ? `，扣除${penaltyGold}金币` : ''}。请在2分钟内完成启动验证。`;
+    this.speak(text);
+  }
+  
+  // 完成超时提醒
+  static remindCompletionTimeout(taskTitle: string, penaltyGold: number, extensionCount: number) {
+    const text = `任务"${taskTitle}"完成超时第${extensionCount}次，扣除${penaltyGold}金币。再给您10分钟延期时间。`;
+    this.speak(text);
+  }
+  
+  // 连续失败全屏警报
+  static remindCriticalFailure(taskTitle: string, totalPenalty: number) {
+    const text = `警告！任务"${taskTitle}"连续3次失败，总共扣除${totalPenalty}金币！请立即认真完成任务！`;
+    this.speak(text, 1.3); // 更快语速
+  }
+  
+  // 启动成功获得金币
+  static congratulateStartSuccess(taskTitle: string, goldEarned: number) {
+    const text = `太棒了！任务"${taskTitle}"启动成功，获得${goldEarned}金币（40%奖励）！`;
     this.speak(text);
   }
   
@@ -422,7 +507,7 @@ export class TaskTimeAdjuster {
   }
 }
 // ============================================
-// 任务监控系统 - 自动定时提醒
+// 任务监控系统 - 自动定时提醒（支持重试和延期）
 // ============================================
 export class TaskMonitor {
   private static timers: Map<string, NodeJS.Timeout[]> = new Map();
@@ -434,9 +519,12 @@ export class TaskMonitor {
     scheduledStart: Date,
     scheduledEnd: Date,
     durationMinutes: number,
+    totalGold: number,
     verification: TaskVerification | null,
     onStartRemind: () => void,
-    onEndRemind: () => void
+    onEndRemind: () => void,
+    onStartTimeout: (timeoutCount: number, penalty: number) => void,
+    onCompletionTimeout: (extensionCount: number, penalty: number) => void
   ) {
     // 清除旧的定时器
     this.stopMonitoring(taskId);
@@ -464,17 +552,15 @@ export class TaskMonitor {
           timers.push(urgentTimer);
         }
         
-        // 3. 启动超时（2分钟后）
-        const timeoutDelay = startDelay + 120 * 1000;
-        if (timeoutDelay > 0) {
-          const timeoutTimer = setTimeout(() => {
-            if (verification.status === 'waiting_start') {
-              VoiceReminder.remindStartTimeout(taskTitle, 50); // 扣50金币
-              SoundEffects.playAlarmSound();
-            }
-          }, timeoutDelay);
-          timers.push(timeoutTimer);
-        }
+        // 3. 启动超时处理（支持重试）
+        this.setupStartTimeoutHandlers(
+          taskId,
+          taskTitle,
+          startDelay,
+          verification,
+          onStartTimeout,
+          timers
+        );
       }
       
       // 4. 任务即将结束提醒
@@ -496,11 +582,115 @@ export class TaskMonitor {
           onEndRemind();
         }, endDelay);
         timers.push(endTimer);
+        
+        // 6. 完成超时处理（支持延期）
+        this.setupCompletionTimeoutHandlers(
+          taskId,
+          taskTitle,
+          endDelay,
+          verification,
+          onCompletionTimeout,
+          timers
+        );
       }
     }
     
     this.timers.set(taskId, timers);
     console.log(`🔔 开始监控任务 "${taskTitle}"，设置了 ${timers.length} 个定时器`);
+  }
+  
+  // 设置启动超时处理器（支持重试）
+  private static setupStartTimeoutHandlers(
+    taskId: string,
+    taskTitle: string,
+    startDelay: number,
+    verification: TaskVerification,
+    onStartTimeout: (timeoutCount: number, penalty: number) => void,
+    timers: NodeJS.Timeout[]
+  ) {
+    // 第1次超时（2分钟后）
+    const timeout1 = setTimeout(() => {
+      if (verification.status === 'waiting_start') {
+        const penalty = GoldSystem.calculateStartTimeoutPenalty(0);
+        VoiceReminder.remindStartTimeout(taskTitle, penalty, 1);
+        VoiceReminder.remindStartRetry(taskTitle, 1, 0); // 第1次重试不扣金币
+        SoundEffects.playFailSound();
+        onStartTimeout(1, penalty);
+      }
+    }, startDelay + 120 * 1000);
+    timers.push(timeout1);
+    
+    // 第2次超时（再2分钟后）
+    const timeout2 = setTimeout(() => {
+      if (verification.status === 'start_retry' && verification.startTimeoutCount === 1) {
+        const penalty = GoldSystem.calculateStartTimeoutPenalty(1);
+        const retryPenalty = GoldSystem.calculateStartRetryPenalty(1);
+        VoiceReminder.remindStartTimeout(taskTitle, penalty, 2);
+        VoiceReminder.remindStartRetry(taskTitle, 2, retryPenalty);
+        SoundEffects.playFailSound();
+        onStartTimeout(2, penalty + retryPenalty);
+      }
+    }, startDelay + 240 * 1000);
+    timers.push(timeout2);
+    
+    // 第3次超时（再2分钟后）- 触发全屏警报
+    const timeout3 = setTimeout(() => {
+      if (verification.status === 'start_retry' && verification.startTimeoutCount === 2) {
+        const penalty = GoldSystem.calculateStartTimeoutPenalty(2);
+        const retryPenalty = GoldSystem.calculateStartRetryPenalty(2);
+        const totalPenalty = penalty + retryPenalty;
+        
+        VoiceReminder.remindCriticalFailure(taskTitle, totalPenalty);
+        SoundEffects.playAlarmSound(); // 全屏警报
+        onStartTimeout(3, totalPenalty);
+      }
+    }, startDelay + 360 * 1000);
+    timers.push(timeout3);
+  }
+  
+  // 设置完成超时处理器（支持延期）
+  private static setupCompletionTimeoutHandlers(
+    taskId: string,
+    taskTitle: string,
+    endDelay: number,
+    verification: TaskVerification,
+    onCompletionTimeout: (extensionCount: number, penalty: number) => void,
+    timers: NodeJS.Timeout[]
+  ) {
+    // 第1次超时（任务结束时间）
+    const timeout1 = setTimeout(() => {
+      if (verification.status === 'started') {
+        const penalty = GoldSystem.calculateCompletionExtensionPenalty(0);
+        VoiceReminder.remindCompletionTimeout(taskTitle, penalty, 1);
+        SoundEffects.playFailSound();
+        onCompletionTimeout(1, penalty);
+      }
+    }, endDelay);
+    timers.push(timeout1);
+    
+    // 第2次超时（10分钟后）
+    const timeout2 = setTimeout(() => {
+      if (verification.status === 'completion_extension' && verification.completionExtensionCount === 1) {
+        const penalty = GoldSystem.calculateCompletionExtensionPenalty(1);
+        VoiceReminder.remindCompletionTimeout(taskTitle, penalty, 2);
+        SoundEffects.playFailSound();
+        onCompletionTimeout(2, penalty);
+      }
+    }, endDelay + 600 * 1000);
+    timers.push(timeout2);
+    
+    // 第3次超时（再10分钟后）- 触发全屏警报
+    const timeout3 = setTimeout(() => {
+      if (verification.status === 'completion_extension' && verification.completionExtensionCount === 2) {
+        const penalty = GoldSystem.calculateCompletionExtensionPenalty(2);
+        const totalPenalty = GoldSystem.calculateCompletionTimeoutPenalty(3);
+        
+        VoiceReminder.remindCriticalFailure(taskTitle, totalPenalty);
+        SoundEffects.playAlarmSound(); // 全屏警报
+        onCompletionTimeout(3, totalPenalty);
+      }
+    }, endDelay + 1200 * 1000);
+    timers.push(timeout3);
   }
   
   // 停止监控任务
