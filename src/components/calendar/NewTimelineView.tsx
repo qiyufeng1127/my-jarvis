@@ -969,6 +969,7 @@ export default function NewTimelineView({
 
               {/* 任务卡片主体 */}
               <div 
+                data-task-id={block.id}
                 className="flex-1 rounded-2xl shadow-lg overflow-hidden relative"
                 style={{ 
                   backgroundColor: block.isCompleted ? 'rgba(156, 163, 175, 0.5)' : block.color,
