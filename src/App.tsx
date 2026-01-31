@@ -6,6 +6,9 @@ import { useUserStore } from '@/stores/userStore';
 import Dashboard from '@/pages/Dashboard';
 import Welcome from '@/pages/Welcome';
 
+// 通知系统
+import NotificationToast from '@/components/notifications/NotificationToast';
+
 function App() {
   const { user, initializeUser } = useUserStore();
 
@@ -17,6 +20,9 @@ function App() {
   return (
     <Router>
       <div className="min-h-screen bg-neutral-50">
+        {/* 全局通知系统 */}
+        <NotificationToast />
+        
         <Routes>
           {/* 如果没有用户，显示欢迎页 */}
           {!user ? (

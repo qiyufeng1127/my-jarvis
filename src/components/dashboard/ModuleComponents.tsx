@@ -2,6 +2,7 @@ import GrowthPanel from '@/components/growth/GrowthPanel';
 import { GoalsModule } from '@/components/growth/GoalsModule';
 import TimelineCalendar from '@/components/calendar/TimelineCalendar';
 import SyncCodeManager from '@/components/settings/SyncCodeManager';
+import NotificationSettingsPanel from '@/components/settings/NotificationSettings';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
 import { TrendingUp, Target, CheckCircle, Clock, ShoppingBag, History, Plus } from 'lucide-react';
@@ -1913,122 +1914,7 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
 
       {/* 通知与语音 */}
       {activeTab === 'notification' && (
-        <div className="space-y-3">
-          <h4 className="font-semibold text-sm" style={{ color: textColor }}>通知设置</h4>
-          {[
-            { key: 'taskReminder', label: '任务提醒' },
-            { key: 'growthReminder', label: '成长提醒' },
-            { key: 'dailyReport', label: '每日报告' },
-            { key: 'habitWarning', label: '坏习惯警告' },
-            { key: 'goldChange', label: '金币变动' },
-          ].map((item) => (
-            <label key={item.key} className="flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all hover:scale-[1.01]" style={{ backgroundColor: cardBg }}>
-              <span className="text-sm" style={{ color: textColor }}>{item.label}</span>
-              <input 
-                type="checkbox" 
-                checked={notifications[item.key as keyof typeof notifications]}
-                onChange={(e) => setNotifications({ ...notifications, [item.key]: e.target.checked })}
-                className="w-4 h-4 cursor-pointer" 
-              />
-            </label>
-          ))}
-
-          <h4 className="font-semibold text-sm mt-4" style={{ color: textColor }}>免打扰时段</h4>
-          <div className="rounded-lg p-3" style={{ backgroundColor: cardBg }}>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm" style={{ color: textColor }}>开始时间</span>
-              <input 
-                type="time" 
-                value={quietHours.start}
-                onChange={(e) => setQuietHours({ ...quietHours, start: e.target.value })}
-                className="px-3 py-1.5 rounded text-xs cursor-pointer" 
-                style={{ backgroundColor: buttonBg, color: textColor, border: 'none' }} 
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm" style={{ color: textColor }}>结束时间</span>
-              <input 
-                type="time" 
-                value={quietHours.end}
-                onChange={(e) => setQuietHours({ ...quietHours, end: e.target.value })}
-                className="px-3 py-1.5 rounded text-xs cursor-pointer" 
-                style={{ backgroundColor: buttonBg, color: textColor, border: 'none' }} 
-              />
-            </div>
-          </div>
-
-          <h4 className="font-semibold text-sm mt-4" style={{ color: textColor }}>语音设置</h4>
-          <div className="rounded-lg p-3" style={{ backgroundColor: cardBg }}>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm" style={{ color: textColor }}>AI语音类型</span>
-              <select 
-                value={voiceType}
-                onChange={(e) => setVoiceType(e.target.value)}
-                className="px-3 py-1.5 rounded text-xs cursor-pointer" 
-                style={{ backgroundColor: buttonBg, color: textColor, border: 'none' }}
-              >
-                <option value="gentle_female">温柔女声</option>
-                <option value="energetic_female">活力女声</option>
-                <option value="calm_male">沉稳男声</option>
-                <option value="sunny_male">阳光男声</option>
-              </select>
-            </div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm" style={{ color: textColor }}>语速</span>
-              <select 
-                value={voiceSpeed}
-                onChange={(e) => setVoiceSpeed(e.target.value as any)}
-                className="px-3 py-1.5 rounded text-xs cursor-pointer" 
-                style={{ backgroundColor: buttonBg, color: textColor, border: 'none' }}
-              >
-                <option value="slow">慢速</option>
-                <option value="normal">标准</option>
-                <option value="fast">快速</option>
-              </select>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm" style={{ color: textColor }}>唤醒词灵敏度</span>
-              <select 
-                value={wakeSensitivity}
-                onChange={(e) => setWakeSensitivity(e.target.value as any)}
-                className="px-3 py-1.5 rounded text-xs cursor-pointer" 
-                style={{ backgroundColor: buttonBg, color: textColor, border: 'none' }}
-              >
-                <option value="low">低</option>
-                <option value="medium">中</option>
-                <option value="high">高</option>
-              </select>
-            </div>
-          </div>
-
-          {/* 当前设置预览 */}
-          <div className="rounded-lg p-4 mt-4" style={{ backgroundColor: cardBg }}>
-            <h4 className="text-sm font-semibold mb-2" style={{ color: textColor }}>当前设置</h4>
-            <div className="space-y-1 text-xs" style={{ color: accentColor }}>
-              <div>已启用通知: {Object.values(notifications).filter(Boolean).length}/5</div>
-              <div>免打扰: {quietHours.start} - {quietHours.end}</div>
-              <div>语音类型: {
-                voiceType === 'gentle_female' ? '温柔女声' :
-                voiceType === 'energetic_female' ? '活力女声' :
-                voiceType === 'calm_male' ? '沉稳男声' : '阳光男声'
-              }</div>
-              <div>语速: {voiceSpeed === 'slow' ? '慢速' : voiceSpeed === 'normal' ? '标准' : '快速'}</div>
-              <div>唤醒灵敏度: {wakeSensitivity === 'low' ? '低' : wakeSensitivity === 'medium' ? '中' : '高'}</div>
-            </div>
-          </div>
-
-          {/* 保存按钮 */}
-          <button 
-            onClick={() => {
-              // 这里应该保存到 userStore
-              alert('设置已保存！');
-            }}
-            className="w-full py-3 rounded-lg text-sm font-semibold transition-all hover:scale-[1.02]" 
-            style={{ backgroundColor: buttonBg, color: textColor }}
-          >
-            💾 保存设置
-          </button>
-        </div>
+        <NotificationSettingsPanel isDark={isDark} accentColor={primaryColor} />
       )}
     </div>
   );

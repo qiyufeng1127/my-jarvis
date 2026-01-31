@@ -2,6 +2,8 @@
 // 任务验证和启动系统
 // ============================================
 
+import { notificationManager } from './notificationService';
+
 export interface TaskVerification {
   enabled: boolean;
   startKeywords: string[]; // 启动验证关键词（可手动修改）
@@ -250,90 +252,70 @@ export async function generateSubTasks(
 }
 
 // ============================================
-// 语音提醒系统
+// 语音提醒系统（已废弃，使用 notificationManager 代替）
+// 保留此类以保持向后兼容，但所有方法都转发到 notificationManager
 // ============================================
 export class VoiceReminder {
-  private static synth = window.speechSynthesis;
-  
-  // 播放语音
-  static speak(text: string, rate: number = 1.0) {
-    // 取消之前的语音
-    this.synth.cancel();
-    
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'zh-CN';
-    utterance.rate = rate;
-    utterance.pitch = 1.0;
-    utterance.volume = 1.0;
-    
-    this.synth.speak(utterance);
-    console.log('🔊 语音播报:', text);
-  }
-  
   // 任务开始提醒
   static remindTaskStart(taskTitle: string, keywords: string[]) {
-    const text = `您的任务"${taskTitle}"现在开始，请拍摄包含以下内容的照片：${keywords.join('、')}。两分钟倒计时开始。`;
-    this.speak(text);
+    notificationManager.notifyTaskStart(taskTitle, keywords);
   }
   
   // 10秒倒计时提醒
   static remindStartUrgent(taskTitle: string) {
-    const text = `注意！任务"${taskTitle}"启动还剩10秒，不要拖延了，快快快！`;
-    this.speak(text, 1.2); // 加快语速
+    notificationManager.notifyVerificationUrgent(taskTitle, 10);
   }
   
   // 启动超时提醒
   static remindStartTimeout(taskTitle: string, penaltyGold: number, timeoutCount: number) {
-    const text = `任务"${taskTitle}"启动超时第${timeoutCount}次，扣除${penaltyGold}金币。${timeoutCount < 3 ? '再给您2分钟重试机会。' : '连续3次超时，请认真对待任务！'}`;
-    this.speak(text);
+    notificationManager.notifyVerificationTimeout(taskTitle, penaltyGold, timeoutCount, true);
   }
   
   // 启动重试提醒
   static remindStartRetry(taskTitle: string, retryCount: number, penaltyGold: number) {
-    const text = `任务"${taskTitle}"第${retryCount}次重试${penaltyGold > 0 ? `，扣除${penaltyGold}金币` : ''}。请在2分钟内完成启动验证。`;
-    this.speak(text);
+    notificationManager.notify({
+      type: 'verification_retry',
+      title: '启动重试',
+      message: `任务"${taskTitle}"第${retryCount}次重试${penaltyGold > 0 ? `，扣除${penaltyGold}金币` : ''}。请在2分钟内完成启动验证。`,
+      taskTitle,
+      goldAmount: penaltyGold > 0 ? -penaltyGold : undefined,
+      priority: 'high',
+    });
   }
   
   // 完成超时提醒
   static remindCompletionTimeout(taskTitle: string, penaltyGold: number, extensionCount: number) {
-    const text = `任务"${taskTitle}"完成超时第${extensionCount}次，扣除${penaltyGold}金币。再给您10分钟延期时间。`;
-    this.speak(text);
+    notificationManager.notifyVerificationTimeout(taskTitle, penaltyGold, extensionCount, false);
   }
   
   // 连续失败全屏警报
   static remindCriticalFailure(taskTitle: string, totalPenalty: number) {
-    const text = `警告！任务"${taskTitle}"连续3次失败，总共扣除${totalPenalty}金币！请立即认真完成任务！`;
-    this.speak(text, 1.3); // 更快语速
+    notificationManager.notifyCriticalFailure(taskTitle, totalPenalty);
   }
   
   // 启动成功获得金币
   static congratulateStartSuccess(taskTitle: string, goldEarned: number) {
-    const text = `太棒了！任务"${taskTitle}"启动成功，获得${goldEarned}金币（40%奖励）！`;
-    this.speak(text);
+    notificationManager.notifyVerificationSuccess(taskTitle, goldEarned, true);
   }
   
   // 任务即将结束提醒（前1分钟或前10分钟）
   static remindTaskEnding(taskTitle: string, minutesLeft: number) {
-    const text = `您的任务"${taskTitle}"还有${minutesLeft}分钟结束，准备收尾了哟。`;
-    this.speak(text);
+    notificationManager.notifyTaskEnding(taskTitle, minutesLeft);
   }
   
   // 任务完成提醒
   static remindTaskCompletion(taskTitle: string, keywords: string[]) {
-    const text = `任务"${taskTitle}"时间到，请拍摄完成验证照片，需要包含：${keywords.join('、')}。`;
-    this.speak(text);
+    notificationManager.notifyTaskEnd(taskTitle, keywords);
   }
   
   // 提前完成祝贺
   static congratulateEarlyCompletion(taskTitle: string, goldEarned: number) {
-    const text = `恭喜！任务"${taskTitle}"提前完成，获得${goldEarned}金币奖励！`;
-    this.speak(text);
+    notificationManager.notifyVerificationSuccess(taskTitle, goldEarned, false);
   }
   
   // 任务完成祝贺
   static congratulateCompletion(taskTitle: string, goldEarned: number) {
-    const text = `太棒了！任务"${taskTitle}"已完成，获得${goldEarned}金币！`;
-    this.speak(text);
+    notificationManager.notifyVerificationSuccess(taskTitle, goldEarned, false);
   }
 }
 export class SoundEffects {
