@@ -6,10 +6,14 @@ import {
   generateSubTasks, 
   SoundEffects, 
   ImageUploader,
+  VoiceReminder,
+  TaskMonitor,
+  TaskTimeAdjuster,
   type TaskImage,
   type SubTask,
   type TaskVerification
 } from '@/services/taskVerificationService';
+import TaskVerificationDialog from './TaskVerificationDialog';
 
 interface NewTimelineViewProps {
   tasks: Task[];
@@ -52,6 +56,7 @@ export default function NewTimelineView({
   const [generatingSubTasks, setGeneratingSubTasks] = useState<string | null>(null);
   const [startingTask, setStartingTask] = useState<string | null>(null);
   const [completingTask, setCompletingTask] = useState<string | null>(null);
+  const [editingVerification, setEditingVerification] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // 判断颜色是否为深色
@@ -318,6 +323,13 @@ export default function NewTimelineView({
     }
   }, [draggedTask]);
   
+  // 组件卸载时清理所有定时器
+  useEffect(() => {
+    return () => {
+      TaskMonitor.stopAll();
+    };
+  }, []);
+  
   // 处理图片上传
   const handleImageUpload = async (taskId: string, file: File, type: 'cover' | 'attachment' = 'attachment') => {
     try {
@@ -387,7 +399,7 @@ export default function NewTimelineView({
     }
   };
   
-  // 启用任务验证
+  // 启用任务验证（点击立即生成关键词）
   const handleEnableVerification = async (taskId: string, taskTitle: string, taskType: string) => {
     try {
       const apiKey = localStorage.getItem('ai_api_key') || '';
@@ -398,15 +410,36 @@ export default function NewTimelineView({
         return;
       }
       
-      const keywords = await generateVerificationKeywords(taskTitle, taskType, apiKey, apiEndpoint);
+      // 立即生成启动和完成验证关键词
+      const { startKeywords, completionKeywords } = await generateVerificationKeywords(
+        taskTitle, 
+        taskType, 
+        apiKey, 
+        apiEndpoint
+      );
+      
+      // 获取任务的开始和结束时间
+      const task = allTasks.find(t => t.id === taskId);
+      if (!task || !task.scheduledStart) {
+        alert('任务缺少时间信息');
+        return;
+      }
+      
+      const scheduledStart = new Date(task.scheduledStart);
+      const scheduledEnd = task.scheduledEnd 
+        ? new Date(task.scheduledEnd) 
+        : new Date(scheduledStart.getTime() + (task.durationMinutes || 30) * 60 * 1000);
       
       const verification: TaskVerification = {
         enabled: true,
-        keywords,
-        startDeadline: new Date(Date.now() + 2 * 60 * 1000), // 2分钟后
-        completionDeadline: new Date(), // 将在启动时设置
+        startKeywords,
+        completionKeywords,
+        startDeadline: new Date(scheduledStart.getTime() + 2 * 60 * 1000), // 开始时间 + 2分钟
+        completionDeadline: scheduledEnd,
         failedAttempts: 0,
         status: 'pending',
+        actualStartTime: null,
+        actualCompletionTime: null,
       };
       
       setTaskVerifications(prev => ({
@@ -414,8 +447,42 @@ export default function NewTimelineView({
         [taskId]: verification,
       }));
       
-      console.log('✅ 任务验证已启用，关键词:', keywords);
-      alert(`验证已启用！\n请在2分钟内拍摄包含以下内容的照片：\n${keywords.join('、')}`);
+      // 开始监控任务
+      TaskMonitor.startMonitoring(
+        taskId,
+        taskTitle,
+        scheduledStart,
+        scheduledEnd,
+        task.durationMinutes || 30,
+        verification,
+        () => {
+          // 任务开始提醒回调
+          setTaskVerifications(prev => ({
+            ...prev,
+            [taskId]: {
+              ...prev[taskId],
+              status: 'waiting_start',
+            },
+          }));
+        },
+        () => {
+          // 任务结束提醒回调
+          setTaskVerifications(prev => ({
+            ...prev,
+            [taskId]: {
+              ...prev[taskId],
+              status: 'waiting_completion',
+            },
+          }));
+        }
+      );
+      
+      console.log('✅ 任务验证已启用');
+      console.log('启动关键词:', startKeywords);
+      console.log('完成关键词:', completionKeywords);
+      
+      // 打开编辑对话框
+      setEditingVerification(taskId);
     } catch (error) {
       console.error('❌ 启用验证失败:', error);
       alert('启用验证失败，请重试');
@@ -425,9 +492,12 @@ export default function NewTimelineView({
   // 启动任务（带验证）
   const handleStartTask = async (taskId: string) => {
     const verification = taskVerifications[taskId];
+    const task = allTasks.find(t => t.id === taskId);
+    
+    if (!task) return;
     
     if (verification && verification.enabled) {
-      // 需要验证
+      // 需要验证 - 拍照验证启动
       setStartingTask(taskId);
       
       // 打开文件选择器
@@ -446,19 +516,25 @@ export default function NewTimelineView({
             // 简化验证：假设上传成功就是验证成功
             // 实际项目中应该调用图像识别 API
             
+            const now = new Date();
+            
             // 更新验证状态
             setTaskVerifications(prev => ({
               ...prev,
               [taskId]: {
                 ...prev[taskId],
                 status: 'started',
-                completionDeadline: new Date(Date.now() + (allTasks.find(t => t.id === taskId)?.durationMinutes || 30) * 60 * 1000),
+                actualStartTime: now,
+                failedAttempts: 0,
               },
             }));
             
             // 播放成功音效
             SoundEffects.playSuccessSound();
             SoundEffects.playCoinSound();
+            
+            // 语音祝贺
+            VoiceReminder.congratulateCompletion(task.title, 10);
             
             // 更新任务状态
             if (taskId.startsWith('demo-')) {
@@ -469,7 +545,7 @@ export default function NewTimelineView({
               onTaskUpdate(taskId, { status: 'in_progress' });
             }
             
-            alert('🎉 启动成功！获得金币奖励！');
+            console.log('✅ 任务启动验证成功');
           } catch (error) {
             // 验证失败
             const newFailedAttempts = (verification.failedAttempts || 0) + 1;
@@ -487,9 +563,10 @@ export default function NewTimelineView({
             if (newFailedAttempts >= 3) {
               // 连续三次失败，播放警报
               SoundEffects.playAlarmSound();
-              alert('⚠️ 连续三次验证失败！请认真完成任务！');
+              VoiceReminder.speak('连续三次验证失败！扣除50金币！请认真完成任务！');
+              alert('⚠️ 连续三次验证失败！扣除50金币！');
             } else {
-              alert(`❌ 验证失败！请重新拍摄包含以下内容的照片：\n${verification.keywords.join('、')}\n\n剩余尝试次数：${3 - newFailedAttempts}`);
+              alert(`❌ 验证失败！请重新拍摄包含以下内容的照片：\n${verification.startKeywords.join('、')}\n\n剩余尝试次数：${3 - newFailedAttempts}`);
             }
           }
         }
@@ -498,7 +575,7 @@ export default function NewTimelineView({
       
       input.click();
     } else {
-      // 不需要验证，直接启动
+      // 无需验证，直接启动
       if (taskId.startsWith('demo-')) {
         setDemoTasks(prev => prev.map(t => 
           t.id === taskId ? { ...t, status: 'in_progress' as const } : t
@@ -512,9 +589,12 @@ export default function NewTimelineView({
   // 完成任务（带验证）
   const handleCompleteTask = async (taskId: string) => {
     const verification = taskVerifications[taskId];
+    const task = allTasks.find(t => t.id === taskId);
+    
+    if (!task) return;
     
     if (verification && verification.enabled && verification.status === 'started') {
-      // 需要完成验证
+      // 需要完成验证 - 拍照验证完成
       setCompletingTask(taskId);
       
       // 打开文件选择器
@@ -527,10 +607,14 @@ export default function NewTimelineView({
         const file = (e.target as HTMLInputElement).files?.[0];
         if (file) {
           try {
-            // 上传完成验证图片
+            // 上传验证图片
             await handleImageUpload(taskId, file, 'verification');
             
-            // 简化验证：假设上传成功就是验证成功
+            const now = new Date();
+            const scheduledEnd = task.scheduledEnd ? new Date(task.scheduledEnd) : null;
+            
+            // 检查是否提前完成
+            const isEarlyCompletion = scheduledEnd && now < scheduledEnd;
             
             // 更新验证状态
             setTaskVerifications(prev => ({
@@ -538,6 +622,8 @@ export default function NewTimelineView({
               [taskId]: {
                 ...prev[taskId],
                 status: 'completed',
+                actualCompletionTime: now,
+                failedAttempts: 0,
               },
             }));
             
@@ -545,19 +631,72 @@ export default function NewTimelineView({
             SoundEffects.playSuccessSound();
             SoundEffects.playCoinSound();
             
-            // 更新任务状态
-            if (taskId.startsWith('demo-')) {
-              setDemoTasks(prev => prev.map(t => 
-                t.id === taskId ? { ...t, status: 'completed' as const } : t
-              ));
+            // 语音祝贺
+            if (isEarlyCompletion) {
+              VoiceReminder.congratulateEarlyCompletion(task.title, 20);
             } else {
-              onTaskUpdate(taskId, { status: 'completed' });
+              VoiceReminder.congratulateCompletion(task.title, 10);
             }
             
-            alert('🎉 任务完成！获得金币奖励！');
+            // 更新任务状态为已完成
+            if (taskId.startsWith('demo-')) {
+              setDemoTasks(prev => prev.map(t => 
+                t.id === taskId ? { 
+                  ...t, 
+                  status: 'completed' as const,
+                  scheduledEnd: isEarlyCompletion ? now : t.scheduledEnd,
+                } : t
+              ));
+            } else {
+              onTaskUpdate(taskId, { 
+                status: 'completed',
+                scheduledEnd: isEarlyCompletion ? now : task.scheduledEnd,
+              });
+            }
+            
+            // 如果提前完成，自动调整后续任务时间
+            if (isEarlyCompletion && scheduledEnd) {
+              TaskTimeAdjuster.adjustFollowingTasks(
+                taskId,
+                now,
+                allTasks,
+                (id, updates) => {
+                  if (id.startsWith('demo-')) {
+                    setDemoTasks(prev => prev.map(t => 
+                      t.id === id ? { ...t, ...updates } : t
+                    ));
+                  } else {
+                    onTaskUpdate(id, updates);
+                  }
+                }
+              );
+            }
+            
+            // 停止监控
+            TaskMonitor.stopMonitoring(taskId);
+            
+            console.log('✅ 任务完成验证成功');
           } catch (error) {
+            // 验证失败
+            const newFailedAttempts = (verification.failedAttempts || 0) + 1;
+            
+            setTaskVerifications(prev => ({
+              ...prev,
+              [taskId]: {
+                ...prev[taskId],
+                failedAttempts: newFailedAttempts,
+              },
+            }));
+            
             SoundEffects.playFailSound();
-            alert('❌ 验证失败！请重新拍摄任务完成的照片');
+            
+            if (newFailedAttempts >= 3) {
+              SoundEffects.playAlarmSound();
+              VoiceReminder.speak('连续三次验证失败！扣除50金币！请认真完成任务！');
+              alert('⚠️ 连续三次验证失败！扣除50金币！');
+            } else {
+              alert(`❌ 验证失败！请重新拍摄包含以下内容的照片：\n${verification.completionKeywords.join('、')}\n\n剩余尝试次数：${3 - newFailedAttempts}`);
+            }
           }
         }
         setCompletingTask(null);
@@ -565,18 +704,13 @@ export default function NewTimelineView({
       
       input.click();
     } else {
-      // 不需要验证，直接完成
-      SoundEffects.playSuccessSound();
-      SoundEffects.playCoinSound();
-      
+      // 无需验证，直接完成
       if (taskId.startsWith('demo-')) {
         setDemoTasks(prev => prev.map(t => 
-          t.id === taskId ? { ...t, status: t.status === 'completed' ? 'pending' as const : 'completed' as const } : t
+          t.id === taskId ? { ...t, status: 'completed' as const } : t
         ));
       } else {
-        onTaskUpdate(taskId, { 
-          status: allTasks.find(t => t.id === taskId)?.status === 'completed' ? 'pending' : 'completed' 
-        });
+        onTaskUpdate(taskId, { status: 'completed' });
       }
     }
   };
@@ -617,6 +751,24 @@ export default function NewTimelineView({
 
   return (
     <div className="space-y-3 pb-4">
+      {/* 验证关键词编辑对话框 */}
+      {editingVerification && taskVerifications[editingVerification] && (
+        <TaskVerificationDialog
+          taskId={editingVerification}
+          taskTitle={allTasks.find(t => t.id === editingVerification)?.title || ''}
+          verification={taskVerifications[editingVerification]}
+          onClose={() => setEditingVerification(null)}
+          onUpdate={(verification) => {
+            setTaskVerifications(prev => ({
+              ...prev,
+              [editingVerification]: verification,
+            }));
+          }}
+          isDark={isDark}
+          accentColor={accentColor}
+        />
+      )}
+      
       {/* 编辑任务弹窗 */}
       {editingTask && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -850,21 +1002,44 @@ export default function NewTimelineView({
                     <div className="flex items-center justify-between">
                       {/* 左侧：三个圆形按钮 */}
                       <div className="flex items-center gap-2">
+                        {/* AI拆解子任务 */}
                         <button
-                          className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                          onClick={() => handleGenerateSubTasks(block.id, block.title, block.description)}
+                          disabled={generatingSubTasks === block.id}
+                          className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 disabled:opacity-50"
                           style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
+                          title="AI拆解子任务"
                         >
-                          <span className="text-base">⭐</span>
+                          <span className="text-base">{generatingSubTasks === block.id ? '⏳' : '⭐'}</span>
                         </button>
+                        
+                        {/* 启用/编辑验证 */}
                         <button
+                          onClick={() => {
+                            const verification = taskVerifications[block.id];
+                            if (verification && verification.enabled) {
+                              setEditingVerification(block.id);
+                            } else {
+                              handleEnableVerification(block.id, block.title, block.taskType || 'work');
+                            }
+                          }}
                           className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110"
-                          style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
+                          style={{ 
+                            backgroundColor: taskVerifications[block.id]?.enabled 
+                              ? 'rgba(34,197,94,0.4)' 
+                              : 'rgba(255,255,255,0.25)' 
+                          }}
+                          title={taskVerifications[block.id]?.enabled ? '编辑验证关键词' : '启用拖延验证'}
                         >
                           <span className="text-base">⏱️</span>
                         </button>
+                        
+                        {/* 笔记和附件 */}
                         <button
+                          onClick={() => toggleExpand(block.id)}
                           className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110"
                           style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
+                          title="笔记和附件"
                         >
                           <span className="text-base">📝</span>
                         </button>
@@ -877,19 +1052,35 @@ export default function NewTimelineView({
                           <span className="text-sm font-bold">{block.goldReward}</span>
                         </div>
 
-                        {!block.isCompleted && (
+                        {!block.isCompleted && block.status !== 'in_progress' && (
                           <button
-                            onClick={() => {
-                              onTaskUpdate(block.id, { status: 'in_progress' });
-                            }}
-                            className="px-4 py-1.5 rounded-full font-bold text-sm transition-all hover:scale-105"
+                            onClick={() => handleStartTask(block.id)}
+                            disabled={startingTask === block.id}
+                            className="px-4 py-1.5 rounded-full font-bold text-sm transition-all hover:scale-105 disabled:opacity-50"
                             style={{ 
                               backgroundColor: 'rgba(255,255,255,0.95)',
                               color: block.color,
                             }}
+                            title={
+                              taskVerifications[block.id]?.enabled 
+                                ? '拍照验证启动' 
+                                : '开始任务'
+                            }
                           >
-                            *start
+                            {startingTask === block.id ? '⏳' : '*start'}
                           </button>
+                        )}
+                        
+                        {block.status === 'in_progress' && (
+                          <div 
+                            className="px-3 py-1 rounded-full font-bold text-xs"
+                            style={{ 
+                              backgroundColor: 'rgba(34,197,94,0.3)',
+                              color: 'rgba(255,255,255,0.95)',
+                            }}
+                          >
+                            进行中
+                          </div>
                         )}
 
                         <button
@@ -984,21 +1175,46 @@ export default function NewTimelineView({
                     <div className="flex items-center justify-between mb-2">
                       {/* 左侧功能图标 */}
                       <div className="flex items-center gap-1.5">
+                        {/* AI拆解子任务 */}
                         <button
-                          className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                          onClick={() => handleGenerateSubTasks(block.id, block.title, block.description)}
+                          disabled={generatingSubTasks === block.id}
+                          className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110 disabled:opacity-50"
                           style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
+                          title="AI拆解子任务"
                         >
-                          <span className="text-sm">⭐</span>
+                          <span className="text-sm">{generatingSubTasks === block.id ? '⏳' : '⭐'}</span>
                         </button>
+                        
+                        {/* 启用/编辑验证 */}
                         <button
+                          onClick={() => {
+                            const verification = taskVerifications[block.id];
+                            if (verification && verification.enabled) {
+                              // 已启用，打开编辑对话框
+                              setEditingVerification(block.id);
+                            } else {
+                              // 未启用，启用验证
+                              handleEnableVerification(block.id, block.title, block.taskType || 'work');
+                            }
+                          }}
                           className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
-                          style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
+                          style={{ 
+                            backgroundColor: taskVerifications[block.id]?.enabled 
+                              ? 'rgba(34,197,94,0.4)' 
+                              : 'rgba(255,255,255,0.25)' 
+                          }}
+                          title={taskVerifications[block.id]?.enabled ? '编辑验证关键词' : '启用拖延验证'}
                         >
                           <span className="text-sm">⏱️</span>
                         </button>
+                        
+                        {/* 笔记和附件 */}
                         <button
+                          onClick={() => toggleExpand(block.id)}
                           className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
                           style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
+                          title="笔记和附件"
                         >
                           <span className="text-sm">📝</span>
                         </button>
@@ -1011,46 +1227,61 @@ export default function NewTimelineView({
                           <span className="text-xs font-bold">{block.goldReward}</span>
                         </div>
 
+                        {/* 完成验证按钮 */}
                         <button
-                          onClick={() => {
-                            // 如果是示例任务，直接从本地删除
-                            if (block.id.startsWith('demo-')) {
-                              setDemoTasks(prev => prev.filter(t => t.id !== block.id));
-                            } else {
-                              // 真实任务，调用更新回调
-                              onTaskUpdate(block.id, { 
-                                status: block.isCompleted ? 'pending' : 'completed' 
-                              });
-                            }
-                          }}
-                          className="w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all hover:scale-110"
+                          onClick={() => handleCompleteTask(block.id)}
+                          disabled={completingTask === block.id}
+                          className="w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all hover:scale-110 disabled:opacity-50"
                           style={{ 
                             backgroundColor: block.isCompleted ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.2)',
                             borderColor: 'rgba(255,255,255,0.8)',
                           }}
+                          title={
+                            taskVerifications[block.id]?.enabled 
+                              ? '拍照验证完成' 
+                              : '标记完成'
+                          }
                         >
-                          {block.isCompleted && (
+                          {completingTask === block.id ? (
+                            <span className="text-sm">⏳</span>
+                          ) : block.isCompleted ? (
                             <Check className="w-5 h-5" style={{ color: block.color }} />
-                          )}
+                          ) : null}
                         </button>
                       </div>
                     </div>
 
                     {/* Start按钮和收起按钮 */}
                     <div className="flex items-center justify-end gap-2">
-                      {!block.isCompleted && (
+                      {!block.isCompleted && block.status !== 'in_progress' && (
                         <button
-                          onClick={() => {
-                            onTaskUpdate(block.id, { status: 'in_progress' });
-                          }}
-                          className="px-5 py-1.5 rounded-full font-bold text-sm transition-all hover:scale-105"
+                          onClick={() => handleStartTask(block.id)}
+                          disabled={startingTask === block.id}
+                          className="px-4 py-1.5 rounded-full font-bold text-sm transition-all hover:scale-105 disabled:opacity-50"
                           style={{ 
                             backgroundColor: 'rgba(255,255,255,0.95)',
                             color: block.color,
                           }}
+                          title={
+                            taskVerifications[block.id]?.enabled 
+                              ? '拍照验证启动' 
+                              : '开始任务'
+                          }
                         >
-                          *start
+                          {startingTask === block.id ? '⏳' : '*start'}
                         </button>
+                      )}
+                      
+                      {block.status === 'in_progress' && (
+                        <div 
+                          className="px-4 py-1.5 rounded-full font-bold text-sm"
+                          style={{ 
+                            backgroundColor: 'rgba(34,197,94,0.3)',
+                            color: 'rgba(255,255,255,0.95)',
+                          }}
+                        >
+                          进行中...
+                        </div>
                       )}
                       
                       <button

@@ -4,11 +4,14 @@
 
 export interface TaskVerification {
   enabled: boolean;
-  keywords: string[]; // AI生成的关键词
-  startDeadline: Date; // 启动截止时间（2分钟）
-  completionDeadline: Date; // 完成截止时间
+  startKeywords: string[]; // 启动验证关键词（可手动修改）
+  completionKeywords: string[]; // 完成验证关键词（可手动修改）
+  startDeadline: Date | null; // 启动截止时间（任务开始时间 + 2分钟）
+  completionDeadline: Date | null; // 完成截止时间（任务结束时间）
   failedAttempts: number; // 失败次数
-  status: 'pending' | 'started' | 'completed' | 'failed';
+  status: 'pending' | 'waiting_start' | 'started' | 'waiting_completion' | 'completed' | 'failed';
+  actualStartTime: Date | null; // 实际启动时间
+  actualCompletionTime: Date | null; // 实际完成时间
 }
 
 export interface TaskImage {
@@ -26,31 +29,43 @@ export interface SubTask {
 }
 
 // ============================================
-// AI 生成验证关键词
+// AI 生成启动和完成验证关键词
 // ============================================
 export async function generateVerificationKeywords(
   taskTitle: string,
   taskType: string,
   apiKey: string,
   apiEndpoint: string
-): Promise<string[]> {
-  const prompt = `你是一个任务验证助手。请为以下任务生成3-5个验证关键词，用于图片识别验证。
+): Promise<{ startKeywords: string[]; completionKeywords: string[] }> {
+  const prompt = `你是一个任务验证助手。请为以下任务生成启动验证和完成验证的关键词。
 
 任务标题：${taskTitle}
 任务类型：${taskType}
 
 要求：
-1. 关键词应该是具体的、可视化的物体或场景
-2. 关键词应该与任务完成状态相关
-3. 返回JSON数组格式：["关键词1", "关键词2", "关键词3"]
+1. 启动验证关键词：用于验证任务是否真正开始（3-4个）
+2. 完成验证关键词：用于验证任务是否真正完成（3-4个）
+3. 关键词应该是具体的、可视化的物体或场景
+4. 返回JSON格式：
+{
+  "startKeywords": ["关键词1", "关键词2", "关键词3"],
+  "completionKeywords": ["关键词1", "关键词2", "关键词3"]
+}
 
 示例：
-- 任务"洗碗" → ["洗干净的碗", "水槽", "洗洁精", "干净的厨房"]
-- 任务"跑步" → ["运动鞋", "室外", "跑道", "运动服"]
-- 任务"学习" → ["书本", "笔记", "电脑屏幕", "书桌"]
-- 任务"整理桌面" → ["整洁的桌面", "收纳盒", "干净的桌子"]
+- 任务"洗碗"：
+  启动验证：["脏碗", "水槽", "洗洁精", "准备洗碗"]
+  完成验证：["洗干净的碗", "干净的水槽", "碗架上的碗", "整洁的厨房"]
 
-只返回JSON数组，不要其他文字。`;
+- 任务"跑步"：
+  启动验证：["运动鞋", "运动服", "室外", "准备跑步"]
+  完成验证：["出汗", "运动后", "疲惫", "完成跑步"]
+
+- 任务"学习"：
+  启动验证：["书本", "笔记本", "电脑", "学习环境"]
+  完成验证：["笔记", "完成的作业", "学习成果", "整理好的书桌"]
+
+只返回JSON，不要其他文字。`;
 
   try {
     const response = await fetch(apiEndpoint, {
@@ -62,11 +77,11 @@ export async function generateVerificationKeywords(
       body: JSON.stringify({
         model: 'deepseek-chat',
         messages: [
-          { role: 'system', content: '你是一个任务验证助手，专门生成任务验证关键词。只返回JSON数组。' },
+          { role: 'system', content: '你是一个任务验证助手，专门生成任务验证关键词。只返回JSON格式。' },
           { role: 'user', content: prompt }
         ],
         temperature: 0.7,
-        max_tokens: 200,
+        max_tokens: 300,
       }),
     });
 
@@ -85,14 +100,20 @@ export async function generateVerificationKeywords(
       jsonStr = jsonStr.replace(/```\n?/g, '');
     }
     
-    const keywords = JSON.parse(jsonStr);
-    console.log('🔑 AI生成验证关键词:', keywords);
+    const result = JSON.parse(jsonStr);
+    console.log('🔑 AI生成验证关键词:', result);
     
-    return keywords;
+    return {
+      startKeywords: result.startKeywords || ['任务开始'],
+      completionKeywords: result.completionKeywords || ['任务完成'],
+    };
   } catch (error) {
     console.error('AI生成关键词失败:', error);
     // 返回默认关键词
-    return ['任务相关物品', '工作场景', '完成状态'];
+    return {
+      startKeywords: ['任务开始', '准备工作', '开始执行'],
+      completionKeywords: ['任务完成', '完成状态', '收尾工作'],
+    };
   }
 }
 
@@ -168,8 +189,68 @@ export async function generateSubTasks(
 }
 
 // ============================================
-// 音效播放
+// 语音提醒系统
 // ============================================
+export class VoiceReminder {
+  private static synth = window.speechSynthesis;
+  
+  // 播放语音
+  static speak(text: string, rate: number = 1.0) {
+    // 取消之前的语音
+    this.synth.cancel();
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'zh-CN';
+    utterance.rate = rate;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+    
+    this.synth.speak(utterance);
+    console.log('🔊 语音播报:', text);
+  }
+  
+  // 任务开始提醒
+  static remindTaskStart(taskTitle: string, keywords: string[]) {
+    const text = `您的任务"${taskTitle}"现在开始，请拍摄包含以下内容的照片：${keywords.join('、')}。两分钟倒计时开始。`;
+    this.speak(text);
+  }
+  
+  // 10秒倒计时提醒
+  static remindStartUrgent(taskTitle: string) {
+    const text = `注意！任务"${taskTitle}"启动还剩10秒，不要拖延了，快快快！`;
+    this.speak(text, 1.2); // 加快语速
+  }
+  
+  // 启动超时提醒
+  static remindStartTimeout(taskTitle: string, penaltyGold: number) {
+    const text = `任务"${taskTitle}"启动超时，扣除${penaltyGold}金币。请尽快开始任务。`;
+    this.speak(text);
+  }
+  
+  // 任务即将结束提醒（前1分钟或前10分钟）
+  static remindTaskEnding(taskTitle: string, minutesLeft: number) {
+    const text = `您的任务"${taskTitle}"还有${minutesLeft}分钟结束，准备收尾了哟。`;
+    this.speak(text);
+  }
+  
+  // 任务完成提醒
+  static remindTaskCompletion(taskTitle: string, keywords: string[]) {
+    const text = `任务"${taskTitle}"时间到，请拍摄完成验证照片，需要包含：${keywords.join('、')}。`;
+    this.speak(text);
+  }
+  
+  // 提前完成祝贺
+  static congratulateEarlyCompletion(taskTitle: string, goldEarned: number) {
+    const text = `恭喜！任务"${taskTitle}"提前完成，获得${goldEarned}金币奖励！`;
+    this.speak(text);
+  }
+  
+  // 任务完成祝贺
+  static congratulateCompletion(taskTitle: string, goldEarned: number) {
+    const text = `太棒了！任务"${taskTitle}"已完成，获得${goldEarned}金币！`;
+    this.speak(text);
+  }
+}
 export class SoundEffects {
   private static audioContext: AudioContext | null = null;
 
@@ -283,8 +364,165 @@ export class SoundEffects {
 }
 
 // ============================================
-// 图片上传和处理
+// 任务时间自动调整
 // ============================================
+export class TaskTimeAdjuster {
+  // 提前完成任务，自动调整后续任务时间
+  static adjustFollowingTasks(
+    completedTaskId: string,
+    actualEndTime: Date,
+    allTasks: any[],
+    onTaskUpdate: (taskId: string, updates: any) => void
+  ) {
+    // 找到已完成任务
+    const completedTask = allTasks.find(t => t.id === completedTaskId);
+    if (!completedTask || !completedTask.scheduledEnd) return;
+    
+    const originalEndTime = new Date(completedTask.scheduledEnd);
+    const timeSaved = originalEndTime.getTime() - actualEndTime.getTime();
+    
+    if (timeSaved <= 0) return; // 没有提前完成
+    
+    console.log(`⏰ 任务提前完成，节省了 ${Math.round(timeSaved / 60000)} 分钟`);
+    
+    // 找到所有在原定结束时间之后的任务
+    const followingTasks = allTasks
+      .filter(t => {
+        if (!t.scheduledStart) return false;
+        const taskStart = new Date(t.scheduledStart);
+        return taskStart >= originalEndTime;
+      })
+      .sort((a, b) => new Date(a.scheduledStart).getTime() - new Date(b.scheduledStart).getTime());
+    
+    // 将所有后续任务往前移
+    followingTasks.forEach(task => {
+      const oldStart = new Date(task.scheduledStart);
+      const newStart = new Date(oldStart.getTime() - timeSaved);
+      
+      const oldEnd = task.scheduledEnd ? new Date(task.scheduledEnd) : null;
+      const newEnd = oldEnd ? new Date(oldEnd.getTime() - timeSaved) : null;
+      
+      console.log(`📅 调整任务 "${task.title}": ${oldStart.toLocaleTimeString()} → ${newStart.toLocaleTimeString()}`);
+      
+      onTaskUpdate(task.id, {
+        scheduledStart: newStart,
+        scheduledEnd: newEnd,
+      });
+    });
+    
+    if (followingTasks.length > 0) {
+      VoiceReminder.speak(`已自动调整${followingTasks.length}个后续任务的时间，全部提前${Math.round(timeSaved / 60000)}分钟。`);
+    }
+  }
+  
+  // 计算提醒时间（短任务前1分钟，长任务前10分钟）
+  static getRemindTime(taskDuration: number, taskEndTime: Date): Date {
+    const remindMinutes = taskDuration <= 5 ? 1 : 10;
+    return new Date(taskEndTime.getTime() - remindMinutes * 60 * 1000);
+  }
+}
+// ============================================
+// 任务监控系统 - 自动定时提醒
+// ============================================
+export class TaskMonitor {
+  private static timers: Map<string, NodeJS.Timeout[]> = new Map();
+  
+  // 开始监控任务
+  static startMonitoring(
+    taskId: string,
+    taskTitle: string,
+    scheduledStart: Date,
+    scheduledEnd: Date,
+    durationMinutes: number,
+    verification: TaskVerification | null,
+    onStartRemind: () => void,
+    onEndRemind: () => void
+  ) {
+    // 清除旧的定时器
+    this.stopMonitoring(taskId);
+    
+    const timers: NodeJS.Timeout[] = [];
+    const now = new Date();
+    
+    // 如果启用了验证
+    if (verification && verification.enabled) {
+      // 1. 任务开始时间到达 - 开始启动倒计时
+      const startDelay = scheduledStart.getTime() - now.getTime();
+      if (startDelay > 0) {
+        const startTimer = setTimeout(() => {
+          VoiceReminder.remindTaskStart(taskTitle, verification.startKeywords);
+          onStartRemind();
+        }, startDelay);
+        timers.push(startTimer);
+        
+        // 2. 启动倒计时最后10秒提醒
+        const urgentDelay = startDelay + 110 * 1000; // 开始后1分50秒
+        if (urgentDelay > 0) {
+          const urgentTimer = setTimeout(() => {
+            VoiceReminder.remindStartUrgent(taskTitle);
+          }, urgentDelay);
+          timers.push(urgentTimer);
+        }
+        
+        // 3. 启动超时（2分钟后）
+        const timeoutDelay = startDelay + 120 * 1000;
+        if (timeoutDelay > 0) {
+          const timeoutTimer = setTimeout(() => {
+            if (verification.status === 'waiting_start') {
+              VoiceReminder.remindStartTimeout(taskTitle, 50); // 扣50金币
+              SoundEffects.playAlarmSound();
+            }
+          }, timeoutDelay);
+          timers.push(timeoutTimer);
+        }
+      }
+      
+      // 4. 任务即将结束提醒
+      const remindTime = TaskTimeAdjuster.getRemindTime(durationMinutes, scheduledEnd);
+      const remindDelay = remindTime.getTime() - now.getTime();
+      if (remindDelay > 0) {
+        const remindMinutes = durationMinutes <= 5 ? 1 : 10;
+        const remindTimer = setTimeout(() => {
+          VoiceReminder.remindTaskEnding(taskTitle, remindMinutes);
+        }, remindDelay);
+        timers.push(remindTimer);
+      }
+      
+      // 5. 任务结束时间到达 - 提醒完成验证
+      const endDelay = scheduledEnd.getTime() - now.getTime();
+      if (endDelay > 0) {
+        const endTimer = setTimeout(() => {
+          VoiceReminder.remindTaskCompletion(taskTitle, verification.completionKeywords);
+          onEndRemind();
+        }, endDelay);
+        timers.push(endTimer);
+      }
+    }
+    
+    this.timers.set(taskId, timers);
+    console.log(`🔔 开始监控任务 "${taskTitle}"，设置了 ${timers.length} 个定时器`);
+  }
+  
+  // 停止监控任务
+  static stopMonitoring(taskId: string) {
+    const timers = this.timers.get(taskId);
+    if (timers) {
+      timers.forEach(timer => clearTimeout(timer));
+      this.timers.delete(taskId);
+      console.log(`🔕 停止监控任务 ${taskId}`);
+    }
+  }
+  
+  // 停止所有监控
+  static stopAll() {
+    this.timers.forEach((timers, taskId) => {
+      timers.forEach(timer => clearTimeout(timer));
+    });
+    this.timers.clear();
+    console.log('🔕 停止所有任务监控');
+  }
+}
+
 export class ImageUploader {
   // 上传图片到本地存储（实际项目中应该上传到服务器）
   static async uploadImage(file: File): Promise<string> {
