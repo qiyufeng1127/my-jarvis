@@ -229,8 +229,8 @@ export class AISmartProcessor {
 
   // 智能分割任务（支持多种分隔符）
   static splitTasks(input: string): string[] {
-    // 移除时间前缀（如"5分钟后"）
-    let cleanInput = input.replace(/^\d+分钟[后之]后?/i, '').trim();
+    // 移除开头的时间前缀（如"5分钟后"、"五分钟之后"）
+    let cleanInput = input.replace(/^[一二三四五六七八九十\d]+分钟[后之]后?/i, '').trim();
     
     // 按多种分隔符分割
     const tasks = cleanInput
@@ -238,7 +238,13 @@ export class AISmartProcessor {
       .map(t => t.trim())
       .filter(Boolean);
     
-    return tasks;
+    // 清理每个任务标题：移除末尾的时长信息（如"20分钟"）
+    const cleanedTasks = tasks.map(task => {
+      // 移除末尾的时长（如"处理微信的客户问题吧照片处理了并且寄出去20分钟"）
+      return task.replace(/\d+分钟$/i, '').trim();
+    });
+    
+    return cleanedTasks.filter(Boolean);
   }
 
   // 解析时间表达式
@@ -373,8 +379,18 @@ export class AISmartProcessor {
     };
   }
 
+  // 从任务描述中提取时长信息
+  static extractDurationFromTask(taskTitle: string): number | null {
+    // 匹配各种时长表达（20分钟、10分钟、40分钟等）
+    const durationMatch = taskTitle.match(/(\d+)分钟/);
+    if (durationMatch) {
+      return parseInt(durationMatch[1]);
+    }
+    return null;
+  }
+
   // 使用 AI 智能分析任务（替代所有手动规则）
-  static async analyzeTaskWithAI(taskTitle: string, apiKey: string, apiEndpoint: string): Promise<{
+  static async analyzeTaskWithAI(taskTitle: string, apiKey: string, apiEndpoint: string, extractedDuration?: number): Promise<{
     tags: string[];
     location: string;
     duration: number;
@@ -385,12 +401,13 @@ export class AISmartProcessor {
     const prompt = `你是一个任务分析助手。请分析以下任务并返回JSON格式的结果。
 
 任务标题：${taskTitle}
+${extractedDuration ? `用户指定时长：${extractedDuration}分钟` : ''}
 
 请返回以下信息（必须是有效的JSON格式）：
 {
   "tags": ["标签1", "标签2"],  // 2-3个标签，粒度适中（不要太具体如"擦桌子"，也不要太泛化如"日常"）
   "location": "位置",  // 可选：厕所、工作区、客厅、卧室、拍摄间、厨房、全屋、室外
-  "duration": 30,  // 预估时长（分钟）
+  "duration": ${extractedDuration || 30},  // 预估时长（分钟），如果用户指定了时长，必须使用用户指定的时长
   "taskType": "life",  // 可选：work, study, health, life, finance, creative, rest
   "category": "分类名称"  // 如：家务、工作、学习等
 }
@@ -489,11 +506,16 @@ export class AISmartProcessor {
     }
     console.log('⏰ 起始时间:', startTime.toLocaleString('zh-CN'));
     
-    // 分割任务
-    const taskTitles = this.splitTasks(input);
-    console.log('📋 分割后的任务:', taskTitles);
+    // 分割任务（原始输入，包含时长信息）
+    const rawInput = input.replace(/^[一二三四五六七八九十\d]+分钟[后之]后?/i, '').trim();
+    const rawTasks = rawInput
+      .split(/[、，,]|然后|之后|接着/)
+      .map(t => t.trim())
+      .filter(Boolean);
     
-    if (taskTitles.length === 0) {
+    console.log('📋 原始任务列表:', rawTasks);
+    
+    if (rawTasks.length === 0) {
       return {
         message: '抱歉，我没有识别到任何任务。请重新输入。',
         autoExecute: false,
@@ -508,20 +530,28 @@ export class AISmartProcessor {
     const decomposedTasks = [];
     let currentTime = new Date(startTime);
     
-    for (let index = 0; index < taskTitles.length; index++) {
-      const title = taskTitles[index];
+    for (let index = 0; index < rawTasks.length; index++) {
+      const rawTask = rawTasks[index];
       
-      // 使用AI智能分析任务
-      const aiAnalysis = await this.analyzeTaskWithAI(title, apiKey, apiEndpoint);
+      // 提取时长信息
+      const extractedDuration = this.extractDurationFromTask(rawTask);
+      
+      // 清理任务标题（移除时长）
+      const cleanTitle = rawTask.replace(/\d+分钟$/i, '').trim();
+      
+      console.log(`📝 任务 ${index + 1}: "${cleanTitle}", 指定时长: ${extractedDuration || '无'}`);
+      
+      // 使用AI智能分析任务（传入提取的时长）
+      const aiAnalysis = await this.analyzeTaskWithAI(cleanTitle, apiKey, apiEndpoint, extractedDuration || undefined);
       
       const start = new Date(currentTime);
       const end = new Date(currentTime.getTime() + aiAnalysis.duration * 60000);
-      const goal = this.identifyGoal(title);
+      const goal = this.identifyGoal(cleanTitle);
       
       const task = {
         sequence: index + 1,
-        title: title,
-        description: title,
+        title: cleanTitle,
+        description: cleanTitle,
         estimated_duration: aiAnalysis.duration,
         scheduled_start: start.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
         scheduled_end: end.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
