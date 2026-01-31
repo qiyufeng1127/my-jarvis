@@ -631,32 +631,126 @@ export class AISmartProcessor {
     return '全屋';
   }
 
-  // 智能生成标签
+  // 智能生成标签（更详细和具体）
   static generateTags(taskTitle: string): string[] {
     const title = taskTitle.toLowerCase();
     const tags: string[] = [];
     
-    // 基础分类标签
-    if (title.includes('打扫') || title.includes('拖地') || title.includes('扫地')) {
-      tags.push('日常', '家务', '清洁');
-    } else if (title.includes('猫') || title.includes('柚柚')) {
-      tags.push('猫咪', '家务', '日常');
-    } else if (title.includes('做饭') || title.includes('煮') || title.includes('炒')) {
-      tags.push('饮食', '家务', '日常');
-    } else if (title.includes('洗漱') || title.includes('洗澡')) {
-      tags.push('个人护理', '日常');
-    } else if (title.includes('工作') || title.includes('会议')) {
-      tags.push('工作', '重要');
-    } else if (title.includes('学习') || title.includes('阅读')) {
-      tags.push('学习', '成长');
-    } else if (title.includes('运动') || title.includes('健身')) {
-      tags.push('健康', '运动');
-    } else if (title.includes('社交') || title.includes('聚会') || title.includes('朋友')) {
-      tags.push('社交', '娱乐');
-    } else if (title.includes('娱乐') || title.includes('看剧') || title.includes('游戏')) {
-      tags.push('娱乐', '休闲');
-    } else {
-      tags.push('日常');
+    // 家务类 - 具体到动作
+    if (title.includes('拖地')) {
+      tags.push('拖地', '家务', '清洁');
+    } else if (title.includes('扫地')) {
+      tags.push('扫地', '家务', '清洁');
+    } else if (title.includes('洗衣')) {
+      tags.push('洗衣服', '家务', '日常');
+    } else if (title.includes('晾衣') || title.includes('晒衣')) {
+      tags.push('晾衣服', '家务', '日常');
+    } else if (title.includes('叠衣') || title.includes('收衣')) {
+      tags.push('叠衣服', '家务', '日常');
+    } else if (title.includes('洗碗') || title.includes('刷碗')) {
+      tags.push('洗碗', '家务', '日常');
+    } else if (title.includes('擦桌') || title.includes('擦台')) {
+      tags.push('擦桌子', '家务', '清洁');
+    } else if (title.includes('整理') && title.includes('房间')) {
+      tags.push('整理房间', '家务', '收纳');
+    } else if (title.includes('打扫')) {
+      tags.push('打扫卫生', '家务', '清洁');
+    }
+    // 猫咪相关
+    else if (title.includes('铲') && (title.includes('猫砂') || title.includes('粑粑'))) {
+      tags.push('铲猫砂', '猫咪', '家务');
+    } else if (title.includes('猫粮') || title.includes('喂猫')) {
+      tags.push('喂猫', '猫咪', '日常');
+    } else if (title.includes('猫') || title.includes('悠悠')) {
+      tags.push('猫咪', '宠物', '日常');
+    }
+    // 饮食类
+    else if (title.includes('做饭') || title.includes('煮饭')) {
+      tags.push('做饭', '饮食', '家务');
+    } else if (title.includes('炒菜')) {
+      tags.push('炒菜', '饮食', '家务');
+    } else if (title.includes('早餐')) {
+      tags.push('早餐', '饮食', '日常');
+    } else if (title.includes('午餐') || title.includes('中餐')) {
+      tags.push('午餐', '饮食', '日常');
+    } else if (title.includes('晚餐')) {
+      tags.push('晚餐', '饮食', '日常');
+    } else if (title.includes('吃饭')) {
+      tags.push('吃饭', '饮食', '日常');
+    }
+    // 个人护理
+    else if (title.includes('洗漱')) {
+      tags.push('洗漱', '个人护理', '日常');
+    } else if (title.includes('洗澡')) {
+      tags.push('洗澡', '个人护理', '日常');
+    } else if (title.includes('刷牙')) {
+      tags.push('刷牙', '个人护理', '日常');
+    } else if (title.includes('洗脸')) {
+      tags.push('洗脸', '个人护理', '日常');
+    } else if (title.includes('化妆')) {
+      tags.push('化妆', '个人护理', '美容');
+    } else if (title.includes('护肤')) {
+      tags.push('护肤', '个人护理', '美容');
+    }
+    // 工作类
+    else if (title.includes('会议')) {
+      tags.push('会议', '工作', '重要');
+    } else if (title.includes('开发') || title.includes('编程') || title.includes('写代码')) {
+      tags.push('编程', '工作', '技术');
+    } else if (title.includes('设计')) {
+      tags.push('设计', '工作', '创意');
+    } else if (title.includes('写文档') || title.includes('文档')) {
+      tags.push('文档', '工作', '整理');
+    } else if (title.includes('优化')) {
+      tags.push('优化', '工作', '改进');
+    } else if (title.includes('工作')) {
+      tags.push('工作', '职业', '重要');
+    }
+    // 学习类
+    else if (title.includes('学习')) {
+      tags.push('学习', '成长', '提升');
+    } else if (title.includes('阅读') || title.includes('读书')) {
+      tags.push('阅读', '学习', '成长');
+    } else if (title.includes('课程') || title.includes('上课')) {
+      tags.push('课程', '学习', '教育');
+    } else if (title.includes('练习')) {
+      tags.push('练习', '学习', '提升');
+    }
+    // 运动健康
+    else if (title.includes('跑步')) {
+      tags.push('跑步', '运动', '健康');
+    } else if (title.includes('健身')) {
+      tags.push('健身', '运动', '健康');
+    } else if (title.includes('瑜伽')) {
+      tags.push('瑜伽', '运动', '健康');
+    } else if (title.includes('运动')) {
+      tags.push('运动', '健康', '锻炼');
+    }
+    // 社交娱乐
+    else if (title.includes('聚会')) {
+      tags.push('聚会', '社交', '娱乐');
+    } else if (title.includes('朋友')) {
+      tags.push('朋友', '社交', '关系');
+    } else if (title.includes('看剧') || title.includes('看电影')) {
+      tags.push('看剧', '娱乐', '休闲');
+    } else if (title.includes('游戏')) {
+      tags.push('游戏', '娱乐', '休闲');
+    } else if (title.includes('社交')) {
+      tags.push('社交', '人际', '关系');
+    }
+    // 外出相关
+    else if (title.includes('买菜')) {
+      tags.push('买菜', '购物', '室外');
+    } else if (title.includes('快递')) {
+      tags.push('取快递', '外出', '室外');
+    } else if (title.includes('超市')) {
+      tags.push('超市', '购物', '室外');
+    } else if (title.includes('购物')) {
+      tags.push('购物', '消费', '室外');
+    }
+    // 默认标签
+    else {
+      tags.push('日常', '生活', '待办');
     }
     
     return [...new Set(tags)]; // 去重

@@ -152,18 +152,31 @@ export default function NewTimelineView({
         '使用换好衣服的模特换背景和动作',
       ] : [];
       
+      // 使用任务自带的颜色、标签、金币，如果没有则使用默认值
+      const taskColor = task.color || categoryColors[task.taskType] || categoryColors.other;
+      const taskTags = task.tags && task.tags.length > 0 ? task.tags : getTaskTags(task.taskType, task.title);
+      const taskGold = task.goldReward || Math.floor((task.durationMinutes || 60) * 0.8);
+      
+      console.log('🎨 任务显示信息:', {
+        title: task.title,
+        color: taskColor,
+        tags: taskTags,
+        goldReward: taskGold,
+        原始任务: task,
+      });
+      
       return {
         id: task.id,
         title: task.title,
         startTime,
         endTime,
         duration: task.durationMinutes || 60,
-        color: categoryColors[task.taskType] || categoryColors.other,
+        color: taskColor, // 使用任务的颜色
         category: task.taskType,
         description: task.description,
         isCompleted: task.status === 'completed',
-        goldReward: Math.floor((task.durationMinutes || 60) * 0.8),
-        tags: getTaskTags(task.taskType, task.title),
+        goldReward: taskGold, // 使用任务的金币
+        tags: taskTags, // 使用任务的标签
         goalText: getGoalText(task.title, task.description),
         emoji: getTaskEmoji(task.title),
         subtasks: task.subtasks?.map(st => st.title) || defaultSubtasks,
