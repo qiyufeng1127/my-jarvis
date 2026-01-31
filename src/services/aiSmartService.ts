@@ -369,9 +369,12 @@ export class AISmartProcessor {
   static async handleTaskDecomposition(input: string, context: any): Promise<AIProcessResponse> {
     console.log('🔍 开始处理任务分解:', input);
     
-    // 解析时间起点
-    const startTime = this.parseTimeExpression(input) || new Date(Date.now() + 5 * 60000);
-    console.log('⏰ 起始时间:', startTime);
+    // 解析时间起点 - 如果没有指定时间，默认5分钟后
+    let startTime = this.parseTimeExpression(input);
+    if (!startTime) {
+      startTime = new Date(Date.now() + 5 * 60000);
+    }
+    console.log('⏰ 起始时间:', startTime.toLocaleString('zh-CN'));
     
     // 分割任务
     const taskTitles = this.splitTasks(input);
@@ -384,7 +387,7 @@ export class AISmartProcessor {
       };
     }
 
-    // 构建任务列表，按位置分组
+    // 构建任务列表 - 保持用户输入的顺序，不重新排序
     let currentTime = new Date(startTime);
     const decomposedTasks = taskTitles.map((title, index) => {
       const duration = this.estimateTaskDuration(title);
@@ -416,47 +419,38 @@ export class AISmartProcessor {
       return task;
     });
 
-    // 按位置分组排序
+    // 按位置分组（仅用于显示统计信息）
     const groupedByLocation = this.groupTasksByLocation(decomposedTasks);
-    const sortedTasks = this.sortTasksByLocation(groupedByLocation);
 
-    console.log('✅ 最终任务列表:', sortedTasks);
+    console.log('✅ 最终任务列表（保持原顺序）:', decomposedTasks);
 
-    // 构建消息（显示位置分组）
-    let message = `✅ 已识别 ${sortedTasks.length} 个任务，按位置智能分组：\n\n`;
+    // 构建消息（按用户输入顺序显示）
+    let message = `✅ 已识别 ${decomposedTasks.length} 个任务，按你说的顺序排列：\n\n`;
     
-    let currentLocation = '';
-    sortedTasks.forEach((task, index) => {
-      // 显示位置分组标题
-      if (task.location !== currentLocation) {
-        currentLocation = task.location;
-        message += `📍 **${currentLocation}**\n`;
-      }
-      
+    decomposedTasks.forEach((task, index) => {
       // 任务信息（3行格式）
-      message += `${task.sequence}. **${task.title}** ⏰ ${task.scheduled_start}-${task.scheduled_end}\n`;
-      message += `   ${task.estimated_duration}分钟 | 💰${task.gold} | 🏷️${task.tags.join(' ')}\n`;
+      message += `${task.sequence}. **${task.title}** 📍${task.location}\n`;
+      message += `   ⏰ ${task.scheduled_start}-${task.scheduled_end} | ${task.estimated_duration}分钟 | 💰${task.gold}\n`;
+      message += `   🏷️ ${task.tags.join(' ')}`;
       if (task.goal) {
-        message += `   🎯 目标: ${task.goal}\n`;
-      } else {
-        message += `   🎯 [点击添加目标]\n`;
+        message += ` | 🎯 ${task.goal}`;
       }
-      message += `\n`;
+      message += `\n\n`;
     });
 
-    const totalDuration = sortedTasks.reduce((sum, t) => sum + t.estimated_duration, 0);
-    const totalGold = sortedTasks.reduce((sum, t) => sum + t.gold, 0);
+    const totalDuration = decomposedTasks.reduce((sum, t) => sum + t.estimated_duration, 0);
+    const totalGold = decomposedTasks.reduce((sum, t) => sum + t.gold, 0);
 
     message += `📊 总计：${totalDuration}分钟 | 💰${totalGold}金币\n\n`;
     message += `💡 正在打开事件卡片编辑器，你可以：\n`;
     message += `   • 双击任意字段进行编辑（名称、时长、金币、目标等）\n`;
     message += `   • 使用上下箭头调整任务顺序\n`;
-    message += `   • 修改完成后点击"确认并添加到时间轴"`;
+    message += `   • 修改完成后点击"🚀 全部推送到时间轴"`;
 
     const response = {
       message,
       data: {
-        decomposed_tasks: sortedTasks,
+        decomposed_tasks: decomposedTasks,
         total_duration: totalDuration,
         total_gold: totalGold,
         grouped_by_location: groupedByLocation,
@@ -464,7 +458,7 @@ export class AISmartProcessor {
       actions: [
         {
           type: 'create_task' as const,
-          data: { tasks: sortedTasks },
+          data: { tasks: decomposedTasks },
           label: '✅ 确认并添加到时间轴',
         },
       ],
