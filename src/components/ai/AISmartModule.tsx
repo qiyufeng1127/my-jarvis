@@ -205,6 +205,11 @@ export default function AISmartModule({
 
       const localResponse = await AISmartProcessor.process(request);
       
+      // 调试日志
+      console.log('🔍 AI处理结果:', localResponse);
+      console.log('📋 Actions:', localResponse.actions);
+      console.log('📊 Data:', localResponse.data);
+      
       // 合并AI回复和本地处理结果
       const aiMessage: AIMessage = {
         id: `ai-${Date.now()}`,
@@ -215,6 +220,7 @@ export default function AISmartModule({
         timestamp: new Date(),
       };
 
+      console.log('💬 最终消息:', aiMessage);
       setMessages(prev => [...prev, aiMessage]);
 
       if (localResponse.autoExecute && localResponse.actions) {
@@ -546,11 +552,18 @@ export default function AISmartModule({
                     <button
                       key={index}
                       onClick={() => {
+                        console.log('🖱️ 按钮点击:', action);
+                        console.log('📋 Action type:', action.type);
+                        console.log('📊 Action data:', action.data);
+                        console.log('✅ Has tasks?', action.data?.tasks);
+                        
                         // 如果是创建任务，打开编辑器
                         if (action.type === 'create_task' && action.data.tasks) {
+                          console.log('🎯 打开任务编辑器，任务数量:', action.data.tasks.length);
                           setEditingTasks(action.data.tasks);
                           setShowTaskEditor(true);
                         } else {
+                          console.log('⚡ 直接执行操作');
                           executeActions([action]);
                         }
                       }}

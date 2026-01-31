@@ -367,11 +367,15 @@ export class AISmartProcessor {
 
   // 处理任务分解（多任务识别）
   static async handleTaskDecomposition(input: string, context: any): Promise<AIProcessResponse> {
+    console.log('🔍 开始处理任务分解:', input);
+    
     // 解析时间起点
     const startTime = this.parseTimeExpression(input) || new Date(Date.now() + 5 * 60000);
+    console.log('⏰ 起始时间:', startTime);
     
     // 分割任务
     const taskTitles = this.splitTasks(input);
+    console.log('📋 分割后的任务:', taskTitles);
     
     if (taskTitles.length === 0) {
       return {
@@ -416,6 +420,8 @@ export class AISmartProcessor {
     const groupedByLocation = this.groupTasksByLocation(decomposedTasks);
     const sortedTasks = this.sortTasksByLocation(groupedByLocation);
 
+    console.log('✅ 最终任务列表:', sortedTasks);
+
     // 构建消息（显示位置分组）
     let message = `✅ 已识别 ${sortedTasks.length} 个任务，按位置智能分组：\n\n`;
     
@@ -442,9 +448,9 @@ export class AISmartProcessor {
     const totalGold = sortedTasks.reduce((sum, t) => sum + t.gold, 0);
 
     message += `📊 总计：${totalDuration}分钟 | 💰${totalGold}金币\n\n`;
-    message += `💡 提示：任务已按位置分组，相同位置的任务会连续安排。`;
+    message += `💡 提示：点击下方按钮打开事件卡片编辑器，可以双击编辑任意字段。`;
 
-    return {
+    const response = {
       message,
       data: {
         decomposed_tasks: sortedTasks,
@@ -454,14 +460,17 @@ export class AISmartProcessor {
       },
       actions: [
         {
-          type: 'create_task',
+          type: 'create_task' as const,
           data: { tasks: sortedTasks },
           label: '✅ 确认并添加到时间轴',
         },
       ],
       needsConfirmation: true,
-      autoExecute: false, // 改为需要手动确认
+      autoExecute: false,
     };
+
+    console.log('📤 返回响应:', response);
+    return response;
   }
 
   // 按位置分组任务
