@@ -46,7 +46,7 @@ export interface TaskInInbox {
   taskType: string;
   category: string;
   tags: string[];
-  priority: 'low' | 'medium' | 'high';
+  priority: number; // 1=低, 2=中, 3=高
   createdAt: Date;
 }
 
@@ -86,10 +86,9 @@ export class InboxManager {
     const inboxTasks = this.getInboxTasks();
     const scheduledTasks: any[] = [];
     
-    // 按优先级排序
+    // 按优先级排序（priority 是数字：1=低, 2=中, 3=高）
     const sortedTasks = [...inboxTasks].sort((a, b) => {
-      const priorityOrder = { high: 3, medium: 2, low: 1 };
-      return priorityOrder[b.priority] - priorityOrder[a.priority];
+      return b.priority - a.priority;
     });
 
     // 找到可用时间段
