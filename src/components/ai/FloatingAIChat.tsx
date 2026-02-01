@@ -26,6 +26,11 @@ import {
   LOCATION_ICONS,
 } from '@/utils/taskUtils';
 
+interface FloatingAIChatProps {
+  isFullScreen?: boolean;
+  onClose?: () => void;
+}
+
 interface DecomposedTask {
   id: string;
   title: string;
@@ -66,7 +71,7 @@ interface Message {
   isThinkingExpanded?: boolean;
 }
 
-export default function FloatingAIChat() {
+export default function FloatingAIChat({ isFullScreen = false, onClose }: FloatingAIChatProps = {}) {
   const { addMemory } = useMemoryStore();
   const { isConfigured } = useAIStore();
   const { createTask, updateTask, tasks, getTodayTasks } = useTaskStore();
@@ -743,6 +748,329 @@ export default function FloatingAIChat() {
     }
   };
 
+  // 全屏模式处理
+  if (isFullScreen) {
+    return (
+      <div className="h-full flex flex-col bg-white">
+        {/* 头部 */}
+        <div className="px-4 py-3 flex items-center justify-between border-b border-neutral-200 bg-white">
+          <div className="flex items-center space-x-2">
+            <span className="text-2xl">🤖</span>
+            <div>
+              <div className="font-semibold text-gray-900">AI助手</div>
+              <div className="text-xs text-gray-500">智能任务分析</div>
+            </div>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setShowConfigModal(true)}
+              className="p-2 rounded-lg bg-neutral-100 active:bg-neutral-200"
+              title="AI配置"
+            >
+              <Settings className="w-5 h-5 text-gray-700" />
+            </button>
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="p-2 rounded-lg bg-neutral-100 active:bg-neutral-200"
+                title="关闭"
+              >
+                <X className="w-5 h-5 text-gray-700" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* 对话区域 */}
+        <div ref={conversationRef} className="flex-1 overflow-y-auto p-4 space-y-3 bg-neutral-50">
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            >
+              <div
+                className={`max-w-[85%] rounded-lg p-3 ${
+                  message.role === 'user'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-gray-900 shadow-sm'
+                }`}
+              >
+                <div className="whitespace-pre-wrap text-sm">{message.content}</div>
+                
+                {/* 显示AI思考过程 */}
+                {message.role === 'assistant' && message.thinkingProcess && message.thinkingProcess.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <button
+                      onClick={() => toggleThinkingExpanded(message.id)}
+                      className="flex items-center space-x-2 text-xs font-semibold text-blue-600 hover:text-blue-700"
+                    >
+                      {message.isThinkingExpanded ? (
+                        <ChevronUp className="w-4 h-4" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4" />
+                      )}
+                      <span>💭 AI思考过程 ({message.thinkingProcess.length} 步)</span>
+                    </button>
+                    
+                    {message.isThinkingExpanded && (
+                      <div className="mt-2 space-y-1 pl-2 border-l-2 border-blue-200">
+                        {message.thinkingProcess.map((step, index) => (
+                          <div key={index} className="text-xs flex items-start space-x-2 text-gray-600">
+                            <span className="opacity-50">{index + 1}.</span>
+                            <span>{step}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {/* 显示用户消息的标签 */}
+                {message.role === 'user' && message.tags && (message.tags.emotions.length > 0 || message.tags.categories.length > 0) && (
+                  <div className="mt-2 pt-2 border-t border-blue-500">
+                    <div className="flex flex-wrap gap-1">
+                      {message.tags.emotions.map(emotionId => {
+                        const tag = EMOTION_TAGS.find(t => t.id === emotionId);
+                        return tag ? (
+                          <span key={emotionId} className="text-xs px-2 py-0.5 rounded-full bg-blue-500">
+                            {tag.emoji} {tag.label}
+                          </span>
+                        ) : null;
+                      })}
+                      {message.tags.categories.map(categoryId => {
+                        const tag = CATEGORY_TAGS.find(t => t.id === categoryId);
+                        return tag ? (
+                          <span key={categoryId} className="text-xs px-2 py-0.5 rounded-full bg-blue-500">
+                            {tag.emoji} {tag.label}
+                          </span>
+                        ) : null;
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 显示奖励 */}
+                {message.rewards && (message.rewards.gold > 0 || message.rewards.growth > 0) && (
+                  <div className="mt-2 pt-2 border-t border-gray-200">
+                    <div className="flex items-center space-x-2 text-xs">
+                      {message.rewards.gold > 0 && <span className="text-yellow-500">💰 +{message.rewards.gold}</span>}
+                      {message.rewards.growth > 0 && <span className="text-green-500">⭐ +{message.rewards.growth}</span>}
+                    </div>
+                  </div>
+                )}
+                
+                {/* 显示目标匹配结果 */}
+                {message.goalMatches && message.goalMatches.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <div className="text-xs font-semibold mb-2 text-blue-600">🎯 关联的目标：</div>
+                    <div className="space-y-2">
+                      {message.goalMatches.map((match, index) => (
+                        <div key={match.goalId} className="flex items-center justify-between p-2 rounded bg-gray-50">
+                          <span className="text-xs font-medium text-gray-900">
+                            {index + 1}. {match.goalName}
+                          </span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-green-500 text-white">
+                            {Math.round(match.confidence * 100)}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 显示分解的任务列表 */}
+                {message.decomposedTasks && message.decomposedTasks.length > 0 && !message.showTaskEditor && (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <div className="text-xs font-semibold mb-2 text-blue-600">📋 分解的任务：</div>
+                    <div className="space-y-2">
+                      {message.decomposedTasks.map((task, index) => (
+                        <div key={index} className="p-2 rounded text-xs bg-gray-50">
+                          <div className="font-medium text-gray-900">{task.title}</div>
+                          <div className="mt-1 text-gray-600">
+                            ⏱️ {task.duration}分钟
+                            {task.startTime && ` | 🕐 ${task.startTime}`}
+                            {task.location && ` | 📍 ${task.location}`}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                <div className="text-xs mt-1 opacity-70">
+                  {message.timestamp.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+            </div>
+          ))}
+          
+          {/* 任务编辑器 */}
+          {editingMessageId && editingTasks.length > 0 && (
+            <div className="rounded-lg shadow-lg p-4 border-2 border-purple-500 bg-white">
+              <div className="flex items-center justify-between mb-3">
+                <div className="font-semibold text-gray-900">✏️ 任务编辑器</div>
+                <button onClick={cancelEditing} className="text-xs text-gray-500">取消</button>
+              </div>
+              
+              <div className="space-y-2 max-h-96 overflow-y-auto mb-3">
+                {editingTasks.map((task, index) => (
+                  <div key={task.id} className="rounded-lg p-3 border border-gray-200 bg-gray-50">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center space-x-2 flex-1">
+                        <span className="text-sm font-medium text-blue-600">#{index + 1}</span>
+                        <input
+                          type="text"
+                          value={task.title}
+                          onChange={(e) => handleTaskTitleChange(task.id, e.target.value)}
+                          className="flex-1 text-sm px-2 py-1 rounded border border-gray-300 focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                      <button onClick={() => handleDeleteTask(task.id)} className="ml-2 text-xs text-red-500">
+                        🗑️
+                      </button>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2 text-xs text-gray-600">
+                      <span>⏱️</span>
+                      <input
+                        type="number"
+                        value={task.duration}
+                        onChange={(e) => handleTaskDurationChange(task.id, parseInt(e.target.value) || 0)}
+                        className="w-16 px-2 py-1 rounded border border-gray-300 focus:outline-none focus:border-blue-500"
+                        min="1"
+                      />
+                      <span>分钟</span>
+                      
+                      {task.startTime && (
+                        <>
+                          <span className="ml-2">🕐</span>
+                          <span>{task.startTime}</span>
+                        </>
+                      )}
+                      
+                      {task.location && (
+                        <>
+                          <span className="ml-2">📍</span>
+                          <span>{task.location}</span>
+                        </>
+                      )}
+                    </div>
+                    
+                    <div className="flex items-center space-x-2 mt-2">
+                      <button
+                        onClick={() => index > 0 && handleTaskReorder(index, index - 1)}
+                        disabled={index === 0}
+                        className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700 disabled:opacity-50"
+                      >
+                        ⬆️ 上移
+                      </button>
+                      <button
+                        onClick={() => index < editingTasks.length - 1 && handleTaskReorder(index, index + 1)}
+                        disabled={index === editingTasks.length - 1}
+                        className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700 disabled:opacity-50"
+                      >
+                        ⬇️ 下移
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <button
+                onClick={handlePushToTimeline}
+                disabled={isProcessing || editingTasks.length === 0}
+                className="w-full py-2 px-3 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50"
+              >
+                🚀 推送到时间轴 ({editingTasks.length} 个任务)
+              </button>
+            </div>
+          )}
+          
+          {/* 处理中状态 */}
+          {isProcessing && (
+            <div className="flex justify-start">
+              <div className="shadow-md rounded-lg p-3 max-w-[85%] bg-white">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Hourglass className="w-4 h-4 animate-spin text-blue-600" />
+                  <span className="text-xs font-semibold text-blue-600">AI正在思考...</span>
+                </div>
+                
+                {thinkingSteps.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {thinkingSteps.map((step, index) => (
+                      <div key={index} className="text-xs flex items-start space-x-2 text-gray-600 animate-fade-in">
+                        <span className="opacity-50">•</span>
+                        <span>{step}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 快速指令 */}
+        <div className="px-3 py-2 border-t border-neutral-200 bg-white">
+          <div className="flex items-center space-x-2 overflow-x-auto">
+            <span className="text-xs whitespace-nowrap text-gray-500">快速：</span>
+            {[
+              { label: '帮我安排', icon: '🎯', action: 'smart_schedule' },
+              { label: '推荐任务', icon: '💡', action: 'recommend_task' },
+              { label: '优化时间', icon: '⚡', action: 'optimize_time' },
+              { label: '查看进度', icon: '📊', action: 'check_progress' },
+            ].map((cmd) => (
+              <button
+                key={cmd.label}
+                onClick={() => {
+                  if (cmd.action === 'smart_schedule') {
+                    setInputValue('根据我的习惯和当前时间，帮我智能安排接下来要做的任务');
+                  } else if (cmd.action === 'recommend_task') {
+                    setInputValue('根据我现在的状态和时间，推荐几个适合现在做的任务');
+                  } else if (cmd.action === 'optimize_time') {
+                    setInputValue('帮我优化今天的任务安排，让时间利用更高效');
+                  } else if (cmd.action === 'check_progress') {
+                    setInputValue('查看今天的任务');
+                  }
+                  handleSend();
+                }}
+                className="px-2 py-1 rounded-full text-xs font-medium bg-neutral-100 text-gray-700 active:bg-neutral-200 whitespace-nowrap"
+              >
+                {cmd.icon} {cmd.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 输入区域 */}
+        <div className="p-3 border-t border-neutral-200 bg-white pb-safe">
+          <div className="flex items-end space-x-2">
+            <textarea
+              ref={textareaRef}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="对我说点什么..."
+              rows={2}
+              className="flex-1 px-3 py-2 rounded-lg resize-none focus:outline-none text-sm border border-gray-300 focus:border-blue-500"
+            />
+            <button
+              onClick={handleSend}
+              disabled={!inputValue.trim() || isProcessing}
+              className="p-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50"
+            >
+              {isProcessing ? <Hourglass className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+
+        {/* AI配置弹窗 */}
+        <AIConfigModal isOpen={showConfigModal} onClose={() => setShowConfigModal(false)} />
+      </div>
+    );
+  }
+
   return (
     <>
       {/* 浮动按钮 - 只在未展开时显示，手机端位置上移避免遮挡导航栏 */}
@@ -772,6 +1100,7 @@ export default function FloatingAIChat() {
           }}
           onClick={() => setShowColorPicker(false)}
         >
+          {/* 原有的浮动窗口内容 */}
           {/* 头部 - 可拖拽 */}
           <div
             className="px-4 py-3 flex items-center justify-between cursor-move"

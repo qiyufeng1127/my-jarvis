@@ -33,7 +33,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { id: 'money', label: '副业', icon: '💰', component: MoneyModule },
   { id: 'inbox', label: '收集箱', icon: '📥', component: TaskInbox },
   { id: 'journal', label: '日记', icon: '📔', component: JournalModule },
-  { id: 'ai', label: 'AI助手', icon: '🤖' }, // AI助手特殊处理，不需要component
+  // AI助手已移除，改为浮动按钮
   { id: 'memory', label: '记忆', icon: '🧠', component: PanoramaMemory },
   { id: 'gold', label: '金币', icon: '💎', component: GoldModule },
   { id: 'habits', label: '习惯', icon: '⚠️', component: HabitsModule },
@@ -66,6 +66,7 @@ export default function MobileLayout() {
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
   const [navColor, setNavColor] = useState(() => localStorage.getItem('mobile_nav_color') || '#ffffff');
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showAIChat, setShowAIChat] = useState(false); // AI 对话框状态
 
   useEffect(() => {
     loadTasks();
@@ -79,15 +80,6 @@ export default function MobileLayout() {
 
   // 渲染当前激活的模块
   const renderActiveModule = () => {
-    // AI助手特殊处理
-    if (activeTab === 'ai') {
-      return (
-        <div className="h-full flex flex-col bg-white">
-          <FloatingAIChat isFullScreen={true} />
-        </div>
-      );
-    }
-
     // 从 localStorage 读取自定义颜色
     const savedNavColor = localStorage.getItem('mobile_nav_color') || '#ffffff';
     
@@ -209,9 +201,30 @@ export default function MobileLayout() {
       </div>
 
       {/* 主内容区域 - 可滚动，底部留出导航栏空间 */}
-      <div className="flex-1 overflow-y-auto pb-20">
+      <div className="flex-1 overflow-y-auto pb-20 relative">
         {renderActiveModule()}
+        
+        {/* 浮动 AI 按钮 - 只在时间轴页面显示 */}
+        {activeTab === 'timeline' && (
+          <button
+            onClick={() => setShowAIChat(true)}
+            className="fixed bottom-24 right-4 w-14 h-14 rounded-full shadow-lg flex items-center justify-center z-30 active:scale-95 transition-transform"
+            style={{
+              backgroundColor: '#FFD700',
+              boxShadow: '0 4px 12px rgba(255, 215, 0, 0.4)',
+            }}
+          >
+            <span className="text-white text-3xl font-bold">+</span>
+          </button>
+        )}
       </div>
+
+      {/* AI 对话框 */}
+      {showAIChat && (
+        <div className="fixed inset-0 z-50 bg-white">
+          <FloatingAIChat isFullScreen={true} onClose={() => setShowAIChat(false)} />
+        </div>
+      )}
 
       {/* 底部导航栏 - 固定在底部 */}
       <div 

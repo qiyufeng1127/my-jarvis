@@ -195,7 +195,7 @@ export default function TaskInbox({ isDark = false, bgColor = '#ffffff' }: TaskI
   };
 
   return (
-    <div className="h-full flex flex-col md:flex-row gap-3 p-3 pb-24 md:pb-3" style={{ backgroundColor: bgColor }}>
+    <div className="h-full flex flex-col md:flex-row gap-3 p-3 pb-32 md:pb-3" style={{ backgroundColor: bgColor }}>
       {/* 左侧：收集箱 */}
       <div className="flex-1 flex flex-col min-w-0">
         <h2 className="text-base font-semibold mb-2 flex items-center gap-2" style={{ color: textColor }}>
