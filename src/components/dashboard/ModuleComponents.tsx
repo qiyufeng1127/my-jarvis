@@ -52,11 +52,7 @@ export function GoldModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: b
   const [showHistory, setShowHistory] = useState(false);
   const [showAddReward, setShowAddReward] = useState(false);
   const [shopCategory, setShopCategory] = useState<'utility' | 'privilege' | 'reward'>('utility');
-  const [customRewards, setCustomRewards] = useState<any[]>([
-    { id: 7, name: '休息1小时', price: 150, icon: '☕', desc: '自定义奖励' },
-    { id: 8, name: '看电影', price: 300, icon: '🎬', desc: '自定义奖励' },
-    { id: 9, name: '买零食', price: 100, icon: '🍿', desc: '自定义奖励' },
-  ]);
+  const [customRewards, setCustomRewards] = useState<any[]>([]);
   const [newReward, setNewReward] = useState({
     name: '',
     price: 100,
@@ -147,13 +143,7 @@ export function GoldModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: b
   };
 
   // 交易记录
-  const transactions = [
-    { id: 1, title: '完成任务：写工作报告', amount: 120, type: 'income', time: '14:30', balance: 5280 },
-    { id: 2, title: '完成任务：学习英语', amount: 80, type: 'income', time: '16:00', balance: 5160 },
-    { id: 3, title: '兑换：深色主题', amount: -50, type: 'expense', time: '19:00', balance: 5080 },
-    { id: 4, title: '连续完成奖励', amount: 50, type: 'income', time: '昨天', balance: 5130 },
-    { id: 5, title: '购买：免监控券', amount: -200, type: 'expense', time: '昨天', balance: 4930 },
-  ];
+  const transactions: any[] = [];
 
   // 添加奖励弹窗
   if (showAddReward) {
@@ -282,7 +272,7 @@ export function GoldModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: b
         {/* 余额显示 */}
         <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
           <div className="text-sm" style={{ color: accentColor }}>当前余额</div>
-          <div className="text-2xl font-bold" style={{ color: textColor }}>5,280 💰</div>
+          <div className="text-2xl font-bold" style={{ color: textColor }}>0 💰</div>
         </div>
 
         {/* 分类标签 */}
@@ -390,35 +380,8 @@ export function GoldModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: b
         </div>
 
         {/* 交易列表 */}
-        <div className="space-y-2">
-          {transactions.map((trans) => (
-            <div
-              key={trans.id}
-              className="rounded-lg p-3"
-              style={{ backgroundColor: cardBg }}
-            >
-              <div className="flex items-start justify-between mb-2">
-                <div className="flex-1">
-                  <div className="text-sm font-medium" style={{ color: textColor }}>{trans.title}</div>
-                  <div className="text-xs mt-1" style={{ color: accentColor }}>{trans.time}</div>
-                </div>
-                <div
-                  className="text-lg font-bold"
-                  style={{
-                    color: trans.type === 'income'
-                      ? (isDark ? '#4ade80' : '#16a34a')
-                      : (isDark ? '#f87171' : '#dc2626')
-                  }}
-                >
-                  {trans.amount > 0 ? '+' : ''}{trans.amount}
-                </div>
-              </div>
-              <div className="flex justify-between text-xs" style={{ color: accentColor }}>
-                <span>{trans.type === 'income' ? '收入' : '支出'}</span>
-                <span>余额: {trans.balance}</span>
-              </div>
-            </div>
-          ))}
+        <div className="rounded-lg p-4 text-center" style={{ backgroundColor: cardBg }}>
+          <div className="text-sm" style={{ color: accentColor }}>暂无交易记录</div>
         </div>
       </div>
     );
@@ -429,15 +392,15 @@ export function GoldModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: b
       {/* 金币余额卡片 */}
       <div className="rounded-lg p-6" style={{ backgroundColor: cardBg }}>
         <div className="text-sm mb-2" style={{ color: accentColor }}>金币余额</div>
-        <div className="text-4xl font-bold mb-4" style={{ color: textColor }}>5,280 💰</div>
+        <div className="text-4xl font-bold mb-4" style={{ color: textColor }}>0 💰</div>
         <div className="flex justify-between text-sm">
           <div>
             <div style={{ color: accentColor }}>今日收入</div>
-            <div className="font-semibold" style={{ color: textColor }}>+320</div>
+            <div className="font-semibold" style={{ color: textColor }}>+0</div>
           </div>
           <div>
             <div style={{ color: accentColor }}>今日支出</div>
-            <div className="font-semibold" style={{ color: textColor }}>-50</div>
+            <div className="font-semibold" style={{ color: textColor }}>-0</div>
           </div>
         </div>
       </div>
@@ -465,29 +428,8 @@ export function GoldModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: b
       {/* 最近交易 */}
       <div className="space-y-2">
         <h4 className="font-semibold text-sm" style={{ color: textColor }}>最近交易</h4>
-        <div className="space-y-2">
-          {transactions.slice(0, 3).map((trans) => (
-            <div
-              key={trans.id}
-              className="flex items-center justify-between p-3 rounded-lg"
-              style={{ backgroundColor: cardBg }}
-            >
-              <div>
-                <div className="text-sm font-medium" style={{ color: textColor }}>{trans.title}</div>
-                <div className="text-xs" style={{ color: accentColor }}>{trans.time}</div>
-              </div>
-              <div
-                className="font-semibold"
-                style={{
-                  color: trans.type === 'income'
-                    ? (isDark ? '#4ade80' : '#16a34a')
-                    : (isDark ? '#f87171' : '#dc2626')
-                }}
-              >
-                {trans.amount > 0 ? '+' : ''}{trans.amount}
-              </div>
-            </div>
-          ))}
+        <div className="rounded-lg p-4 text-center" style={{ backgroundColor: cardBg }}>
+          <div className="text-sm" style={{ color: accentColor }}>暂无交易记录</div>
         </div>
       </div>
     </div>
@@ -500,54 +442,9 @@ export function HabitsModule({ isDark = false }: { isDark?: boolean }) {
   const [selectedHabit, setSelectedHabit] = useState<any>(null);
   const [showAddRecord, setShowAddRecord] = useState(false);
   
-  const habits = [
-    { 
-      id: 1, 
-      name: '拖延', 
-      count: 3, 
-      severity: 6,
-      dots: 2,
-      color: '#AC0327',
-      consecutiveDays: 2,
-      lastOccurrence: '2小时前',
-      improvementPlan: { active: true, progress: 45, phase: '调整期' }
-    },
-    { 
-      id: 2, 
-      name: '熬夜', 
-      count: 1, 
-      severity: 3,
-      dots: 1,
-      color: '#DD617C',
-      consecutiveDays: 5,
-      lastOccurrence: '5天前',
-      improvementPlan: { active: true, progress: 70, phase: '巩固期' }
-    },
-    { 
-      id: 3, 
-      name: '低效率', 
-      count: 2, 
-      severity: 4,
-      dots: 2,
-      color: '#E8C259',
-      consecutiveDays: 0,
-      lastOccurrence: '今天',
-      improvementPlan: null
-    },
-    { 
-      id: 4, 
-      name: '起床晚', 
-      count: 1, 
-      severity: 2,
-      dots: 1,
-      color: '#6D9978',
-      consecutiveDays: 3,
-      lastOccurrence: '3天前',
-      improvementPlan: null
-    },
-  ];
+  const habits: any[] = [];
 
-  const purity = Math.max(0, 100 - habits.reduce((sum, h) => sum + h.count * 3, 0));
+  const purity = 100;
 
   const cardBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
   const textColor = isDark ? '#ffffff' : '#000000';
@@ -927,7 +824,7 @@ export function HabitsModule({ isDark = false }: { isDark?: boolean }) {
           </div>
         </div>
         <div className="text-xs" style={{ color: accentColor }}>
-          {purity >= 80 ? '状态优秀！' : purity >= 60 ? '继续努力' : '需要改进'}
+          {purity >= 80 ? '保持纯净状态！' : purity >= 60 ? '继续努力' : '需要改进'}
         </div>
       </div>
 
@@ -943,53 +840,9 @@ export function HabitsModule({ isDark = false }: { isDark?: boolean }) {
             +
           </button>
         </div>
-        <div className="space-y-2">
-          {habits.map((habit) => (
-            <div
-              key={habit.id}
-              onClick={() => {
-                setSelectedHabit(habit);
-                setView('detail');
-              }}
-              className="rounded-lg p-3 cursor-pointer transition-all hover:scale-[1.02]"
-              style={{ backgroundColor: cardBg }}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <div className="flex">
-                    {Array.from({ length: habit.dots }).map((_, i) => (
-                      <div
-                        key={i}
-                        className="w-2 h-2 rounded-full mr-1"
-                        style={{ backgroundColor: habit.color }}
-                      />
-                    ))}
-                  </div>
-                  <span className="font-medium text-sm" style={{ color: textColor }}>
-                    {habit.name} ({habit.count}次，严重度{habit.severity}/10)
-                  </span>
-                </div>
-              </div>
-              
-              {habit.improvementPlan && (
-                <div className="mt-2">
-                  <div className="flex items-center justify-between text-xs mb-1" style={{ color: accentColor }}>
-                    <span>{habit.improvementPlan.phase}</span>
-                    <span>{habit.improvementPlan.progress}%</span>
-                  </div>
-                  <div className="w-full rounded-full h-1.5" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
-                    <div
-                      className="h-1.5 rounded-full"
-                      style={{
-                        width: `${habit.improvementPlan.progress}%`,
-                        backgroundColor: '#7C3AED',
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
+        <div className="rounded-lg p-4 text-center" style={{ backgroundColor: cardBg }}>
+          <div className="text-sm" style={{ color: accentColor }}>暂无坏习惯记录</div>
+          <div className="text-xs mt-1" style={{ color: accentColor }}>点击 + 添加记录</div>
         </div>
       </div>
 
@@ -1034,26 +887,26 @@ export function ReportsModule({ isDark = false }: { isDark?: boolean }) {
     const storyContent = {
       daily: {
         title: '今日成长故事',
-        subtitle: '2024年1月23日',
-        content: '今天是充实的一天。你完成了8个任务，专注工作了6小时24分钟。在处理工作报告时，你展现出了极高的专注力，一气呵成完成了这项挑战。\n\n虽然晚上效率有所下降，但你及时调整了状态，没有让拖延习惯占据上风。这种自我觉察能力正是成长的关键。\n\n明天，继续保持这份专注，你会变得更好。',
+        subtitle: new Date().toLocaleDateString('zh-CN'),
+        content: '暂无数据。开始完成任务，记录你的成长故事吧！',
         emoji: '🌟',
       },
       weekly: {
         title: '本周叙事',
-        subtitle: '第3周 · 2024年1月',
-        content: '这一周，你经历了从迷茫到清晰的转变。周一的低效让你意识到需要改变，于是你开始调整作息，优化任务安排。\n\n到了周三，你已经找到了节奏。连续三天完成所有任务，这不是偶然，而是你努力的结果。\n\n周末，你没有放松警惕，反而更加专注。这种持续性，正是卓越的基础。',
+        subtitle: '本周',
+        content: '暂无数据。坚持一周，你的故事将在这里展开。',
         emoji: '📖',
       },
       monthly: {
         title: '月度史诗',
-        subtitle: '2024年1月',
-        content: '一月，是觉醒的月份。你从新年的迷茫中走出，开始认真对待每一天。\n\n你建立了新的习惯系统，虽然偶尔会失败，但你从未放弃。拖延习惯从每周5次降到了3次，这是巨大的进步。\n\n你的成长值增长了350点，金币积累了2000多。但更重要的是，你找到了属于自己的节奏。\n\n二月，继续前行。',
+        subtitle: new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' }),
+        content: '暂无数据。用一个月的时间，书写属于你的史诗篇章。',
         emoji: '🎭',
       },
       yearly: {
         title: '年度传记',
-        subtitle: '2024年',
-        content: '这一年，你完成了蜕变。从一个拖延者，成长为一个行动者。\n\n你完成了2847个任务，积累了15000+成长值。但数字背后，是你每一天的坚持。\n\n你战胜了拖延，克服了熬夜，建立了高效的工作习惯。你不再是那个总是说"明天开始"的人。\n\n2025年，你会更强大。',
+        subtitle: new Date().getFullYear() + '年',
+        content: '暂无数据。用一整年的努力，完成你的年度传记。',
         emoji: '📚',
       },
     };
@@ -1167,7 +1020,7 @@ export function ReportsModule({ isDark = false }: { isDark?: boolean }) {
             解锁后可查看详细的{unlockType === 'weekly' ? '周度' : '月度'}分析报告
           </div>
           <div className="text-xs" style={{ color: accentColor }}>
-            当前余额：5,280 金币
+            当前余额：0 金币
           </div>
         </div>
 
@@ -1223,20 +1076,20 @@ export function ReportsModule({ isDark = false }: { isDark?: boolean }) {
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-lg p-3" style={{ backgroundColor: cardBg }}>
             <div className="text-xs mb-1" style={{ color: accentColor }}>任务完成</div>
-            <div className="text-2xl font-bold" style={{ color: textColor }}>8/10</div>
-            <div className="text-xs" style={{ color: accentColor }}>80%</div>
+            <div className="text-2xl font-bold" style={{ color: textColor }}>0/0</div>
+            <div className="text-xs" style={{ color: accentColor }}>0%</div>
           </div>
           <div className="rounded-lg p-3" style={{ backgroundColor: cardBg }}>
             <div className="text-xs mb-1" style={{ color: accentColor }}>总用时</div>
-            <div className="text-2xl font-bold" style={{ color: textColor }}>6h24m</div>
+            <div className="text-2xl font-bold" style={{ color: textColor }}>0h0m</div>
           </div>
           <div className="rounded-lg p-3" style={{ backgroundColor: cardBg }}>
             <div className="text-xs mb-1" style={{ color: accentColor }}>金币收支</div>
-            <div className="text-2xl font-bold" style={{ color: '#4ade80' }}>+270</div>
+            <div className="text-2xl font-bold" style={{ color: textColor }}>+0</div>
           </div>
           <div className="rounded-lg p-3" style={{ backgroundColor: cardBg }}>
             <div className="text-xs mb-1" style={{ color: accentColor }}>成长值</div>
-            <div className="text-2xl font-bold" style={{ color: textColor }}>+35</div>
+            <div className="text-2xl font-bold" style={{ color: textColor }}>+0</div>
           </div>
         </div>
 
@@ -1245,11 +1098,7 @@ export function ReportsModule({ isDark = false }: { isDark?: boolean }) {
           <h4 className="text-sm font-semibold mb-2 flex items-center" style={{ color: textColor }}>
             🏆 今日亮点
           </h4>
-          <ul className="space-y-1 text-sm" style={{ color: accentColor }}>
-            <li>• 连续3天完成所有任务</li>
-            <li>• 专注时长超过目标1小时</li>
-            <li>• 成功控制拖延习惯</li>
-          </ul>
+          <div className="text-sm text-center py-2" style={{ color: accentColor }}>暂无数据</div>
         </div>
 
         {/* 待改进 */}
@@ -1257,10 +1106,7 @@ export function ReportsModule({ isDark = false }: { isDark?: boolean }) {
           <h4 className="text-sm font-semibold mb-2 flex items-center" style={{ color: textColor }}>
             ⚠️ 待改进
           </h4>
-          <ul className="space-y-1 text-sm" style={{ color: accentColor }}>
-            <li>• 晚上效率较低，建议调整作息</li>
-            <li>• 低效率习惯出现2次</li>
-          </ul>
+          <div className="text-sm text-center py-2" style={{ color: accentColor }}>暂无数据</div>
         </div>
 
         {/* 明日建议 */}
@@ -1268,11 +1114,7 @@ export function ReportsModule({ isDark = false }: { isDark?: boolean }) {
           <h4 className="text-sm font-semibold mb-2 flex items-center" style={{ color: textColor }}>
             💡 明日建议
           </h4>
-          <ul className="space-y-1 text-sm" style={{ color: accentColor }}>
-            <li>• 优先处理高优先级任务</li>
-            <li>• 在9-11点安排重要工作</li>
-            <li>• 设置晚上8点提醒避免拖延</li>
-          </ul>
+          <div className="text-sm text-center py-2" style={{ color: accentColor }}>暂无数据</div>
         </div>
 
         {/* 导出按钮 */}
@@ -1305,19 +1147,19 @@ export function ReportsModule({ isDark = false }: { isDark?: boolean }) {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-sm" style={{ color: accentColor }}>🎯 今日完成</span>
-            <span className="font-semibold" style={{ color: textColor }}>8/10 任务 (80%)</span>
+            <span className="font-semibold" style={{ color: textColor }}>0/0 任务 (0%)</span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-sm" style={{ color: accentColor }}>⏰ 总用时</span>
-            <span className="font-semibold" style={{ color: textColor }}>6小时24分钟</span>
+            <span className="font-semibold" style={{ color: textColor }}>0小时0分钟</span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-sm" style={{ color: accentColor }}>💰 金币收支</span>
-            <span className="font-semibold" style={{ color: '#4ade80' }}>+270</span>
+            <span className="font-semibold" style={{ color: textColor }}>+0</span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-sm" style={{ color: accentColor }}>⭐ 成长值</span>
-            <span className="font-semibold" style={{ color: textColor }}>+35 点</span>
+            <span className="font-semibold" style={{ color: textColor }}>+0 点</span>
           </div>
         </div>
       </div>
@@ -1326,15 +1168,15 @@ export function ReportsModule({ isDark = false }: { isDark?: boolean }) {
       <div className="space-y-2">
         <div className="rounded-lg p-3" style={{ backgroundColor: cardBg }}>
           <div className="text-sm font-medium mb-1" style={{ color: textColor }}>🏆 今日亮点</div>
-          <div className="text-xs" style={{ color: accentColor }}>连续3天完成所有任务</div>
+          <div className="text-xs" style={{ color: accentColor }}>暂无数据</div>
         </div>
         <div className="rounded-lg p-3" style={{ backgroundColor: cardBg }}>
           <div className="text-sm font-medium mb-1" style={{ color: textColor }}>⚠️ 待改进</div>
-          <div className="text-xs" style={{ color: accentColor }}>晚上效率较低，建议调整作息</div>
+          <div className="text-xs" style={{ color: accentColor }}>暂无数据</div>
         </div>
         <div className="rounded-lg p-3" style={{ backgroundColor: cardBg }}>
           <div className="text-sm font-medium mb-1" style={{ color: textColor }}>💡 明日建议</div>
-          <div className="text-xs" style={{ color: accentColor }}>优先处理高优先级任务</div>
+          <div className="text-xs" style={{ color: accentColor }}>暂无数据</div>
         </div>
       </div>
 
@@ -1642,30 +1484,10 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
       {activeTab === 'growth' && (
         <div className="space-y-3">
           <h4 className="font-semibold text-sm" style={{ color: textColor }}>自定义成长维度</h4>
-          {[
-            { name: '工作效率', value: 85, color: '#DD617C', weight: 30 },
-            { name: '学习进步', value: 72, color: '#6D9978', weight: 25 },
-            { name: '健康生活', value: 68, color: '#E8C259', weight: 20 },
-            { name: '社交关系', value: 55, color: '#AC0327', weight: 15 },
-            { name: '个人成长', value: 90, color: '#D1CBBA', weight: 10 },
-          ].map((dimension, index) => (
-            <div key={index} className="rounded-lg p-3" style={{ backgroundColor: cardBg }}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: dimension.color }} />
-                  <span className="text-sm font-medium" style={{ color: textColor }}>{dimension.name}</span>
-                </div>
-                <button className="text-xs px-2 py-1 rounded" style={{ backgroundColor: buttonBg, color: textColor }}>
-                  编辑
-                </button>
-              </div>
-              <div className="flex items-center space-x-2 text-xs" style={{ color: accentColor }}>
-                <span>权重: {dimension.weight}%</span>
-                <span>•</span>
-                <span>当前: {dimension.value}</span>
-              </div>
-            </div>
-          ))}
+          <div className="rounded-lg p-4 text-center" style={{ backgroundColor: cardBg }}>
+            <div className="text-sm" style={{ color: accentColor }}>暂无成长维度</div>
+            <div className="text-xs mt-1" style={{ color: accentColor }}>点击下方按钮添加</div>
+          </div>
           <button className="w-full py-2 rounded-lg text-sm font-medium" style={{ backgroundColor: buttonBg, color: textColor }}>
             + 添加新维度 (最多10个)
           </button>
@@ -1678,13 +1500,13 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
           <h4 className="font-semibold text-sm" style={{ color: textColor }}>身份层级管理</h4>
           <div className="rounded-lg p-3" style={{ backgroundColor: cardBg }}>
             <div className="text-sm font-medium mb-1" style={{ color: textColor }}>当前层级</div>
-            <div className="text-2xl font-bold mb-1" style={{ color: textColor }}>🌟 成长者</div>
-            <div className="text-xs" style={{ color: accentColor }}>成长值: 650 / 1000</div>
+            <div className="text-2xl font-bold mb-1" style={{ color: textColor }}>🌱 萌芽</div>
+            <div className="text-xs" style={{ color: accentColor }}>成长值: 0 / 200</div>
           </div>
           {[
-            { name: '🌱 萌芽', range: '0-200', unlocked: true },
-            { name: '🌿 探索者', range: '200-500', unlocked: true },
-            { name: '🌟 成长者', range: '500-1000', unlocked: true, current: true },
+            { name: '🌱 萌芽', range: '0-200', unlocked: true, current: true },
+            { name: '🌿 探索者', range: '200-500', unlocked: false },
+            { name: '🌟 成长者', range: '500-1000', unlocked: false },
             { name: '⭐ 实践家', range: '1000-2000', unlocked: false },
             { name: '💫 大师', range: '2000-5000', unlocked: false },
           ].map((level, index) => (
