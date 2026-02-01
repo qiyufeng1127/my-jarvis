@@ -82,6 +82,9 @@ export interface Task {
   longTermGoals: Record<string, number>; // goalId -> contribution percentage
   identityTags: string[];
   
+  // 副业关联
+  sideHustleId?: string; // 关联的副业ID
+  
   // 防拖延设置
   verificationStart?: VerificationConfig;
   verificationComplete?: VerificationConfig;
@@ -492,6 +495,84 @@ export interface Notification {
   };
   duration?: number;
   createdAt: Date;
+}
+
+// ============================================
+// 副业追踪相关类型
+// ============================================
+export interface SideHustle {
+  id: string;
+  userId: string;
+  name: string; // 副业名称，例如：ins穿搭账号
+  icon: string; // 图标
+  color: string; // 颜色
+  
+  // 时间信息
+  startDate?: Date; // 开始日期（可选）
+  totalHours: number; // 总时长（小时）
+  
+  // 财务信息
+  totalIncome: number; // 总收入
+  totalExpense: number; // 总支出
+  profit: number; // 利润 = 收入 - 支出
+  
+  // 效率指标
+  hourlyRate: number; // 时薪 = 收入 / 时长
+  roi: number; // ROI = (收入 - 支出) / 支出
+  
+  // 目标关联
+  goalId?: string; // 关联的长期目标ID
+  
+  // AI 分析
+  aiAnalysis?: {
+    feasibility: number; // 可行性评分 0-100
+    expectedIncome: number; // 预期收入
+    recommendation: string; // AI 建议
+    risks: string[]; // 风险提示
+  };
+  
+  status: 'active' | 'idea'; // 活跃 | 想法
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface IncomeRecord {
+  id: string;
+  sideHustleId: string; // 关联的副业ID
+  amount: number; // 金额
+  description?: string; // 备注
+  date: Date; // 日期
+  createdAt: Date;
+}
+
+export interface ExpenseRecord {
+  id: string;
+  sideHustleId: string; // 关联的副业ID
+  amount: number; // 金额
+  description?: string; // 备注
+  date: Date; // 日期
+  createdAt: Date;
+}
+
+export interface TimeRecord {
+  id: string;
+  sideHustleId: string; // 关联的副业ID
+  duration: number; // 时长（分钟）
+  date: Date; // 日期
+  taskId: string; // 关联的待办任务ID
+  taskTitle: string; // 任务标题
+  createdAt: Date;
+}
+
+export interface DebtRecord {
+  id: string;
+  userId: string;
+  amount: number; // 欠债金额
+  description: string; // 描述
+  dueDate?: Date; // 还款日期
+  isPaid: boolean; // 是否已还
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 // ============================================

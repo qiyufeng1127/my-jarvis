@@ -12,12 +12,13 @@ import {
   HabitsModule,
   ReportsModule,
   SettingsModule,
+  MoneyModule,
 } from '@/components/dashboard/ModuleComponents';
 import JournalModule from '@/components/journal/JournalModule';
 import PanoramaMemory from '@/components/memory/PanoramaMemory';
 import TaskInbox from '@/components/inbox/TaskInbox';
 
-type TabType = 'timeline' | 'goals' | 'journal' | 'memory' | 'gold' | 'habits' | 'reports' | 'settings' | 'inbox' | 'ai' | 'more';
+type TabType = 'timeline' | 'goals' | 'journal' | 'memory' | 'gold' | 'habits' | 'reports' | 'settings' | 'inbox' | 'ai' | 'more' | 'money';
 
 interface NavItem {
   id: TabType;
@@ -29,11 +30,12 @@ interface NavItem {
 const ALL_NAV_ITEMS: NavItem[] = [
   { id: 'timeline', label: '时间轴', icon: '📅', component: TimelineModule },
   { id: 'goals', label: '目标', icon: '🎯', component: GoalsModule },
+  { id: 'money', label: '副业', icon: '💰', component: MoneyModule },
   { id: 'inbox', label: '收集箱', icon: '📥', component: TaskInbox },
   { id: 'journal', label: '日记', icon: '📔', component: JournalModule },
   { id: 'ai', label: 'AI助手', icon: '🤖' }, // AI助手特殊处理，不需要component
   { id: 'memory', label: '记忆', icon: '🧠', component: PanoramaMemory },
-  { id: 'gold', label: '金币', icon: '💰', component: GoldModule },
+  { id: 'gold', label: '金币', icon: '💎', component: GoldModule },
   { id: 'habits', label: '习惯', icon: '⚠️', component: HabitsModule },
   { id: 'reports', label: '报告', icon: '📈', component: ReportsModule },
   { id: 'settings', label: '设置', icon: '⚙️', component: SettingsModule },

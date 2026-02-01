@@ -3,6 +3,7 @@ import { GoalsModule } from '@/components/growth/GoalsModule';
 import TimelineCalendar from '@/components/calendar/TimelineCalendar';
 import SyncCodeManager from '@/components/settings/SyncCodeManager';
 import NotificationSettingsPanel from '@/components/settings/NotificationSettings';
+import { MoneyTracker } from '@/components/money';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
 import { TrendingUp, Target, CheckCircle, Clock, ShoppingBag, History, Plus } from 'lucide-react';
@@ -10,6 +11,15 @@ import { useState } from 'react';
 
 // 重新导出 GoalsModule
 export { GoalsModule } from '@/components/growth/GoalsModule';
+
+// 副业追踪模块
+export function MoneyModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: boolean; bgColor?: string }) {
+  return (
+    <div className="h-full overflow-auto" style={{ backgroundColor: bgColor }}>
+      <MoneyTracker isDark={isDark} bgColor={bgColor} />
+    </div>
+  );
+}
 
 // 成长系统模块
 export function GrowthModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: boolean; bgColor?: string }) {

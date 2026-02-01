@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Send, Mic, X, Sparkles, MicOff } from 'lucide-react';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
+import { useSideHustleStore } from '@/stores/sideHustleStore';
 import { AISmartProcessor } from '@/services/aiSmartService';
 import type { AIProcessRequest } from '@/services/aiSmartService';
 import { 
@@ -21,7 +22,7 @@ interface AIMessage {
 }
 
 interface AIAction {
-  type: 'create_task' | 'update_timeline' | 'add_tags' | 'record_memory' | 'calculate_gold';
+  type: 'create_task' | 'update_timeline' | 'add_tags' | 'record_memory' | 'calculate_gold' | 'add_income' | 'add_expense' | 'create_side_hustle' | 'add_debt';
   data: any;
   label: string;
 }
@@ -57,6 +58,13 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
   
   const { createTask } = useTaskStore();
   const { dimensions } = useGrowthStore();
+  const { 
+    getActiveSideHustles, 
+    addIncome, 
+    addExpense, 
+    createSideHustle, 
+    addDebt 
+  } = useSideHustleStore();
 
   const cardBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
   const textColor = isDark ? '#ffffff' : '#000000';
@@ -296,6 +304,9 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
     // 获取现有任务（用于冲突检测）
     const existingTasks = useTaskStore.getState().tasks || [];
     
+    // 获取现有副业（用于副业追踪）
+    const existingSideHustles = getActiveSideHustles();
+    
     // 构建请求上下文
     const request: AIProcessRequest = {
       user_input: input,
@@ -307,6 +318,7 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
         user_preferences: {}, // TODO: 获取用户偏好
         conversation_history: messages.slice(-5), // 最近5条对话
         existing_tasks: existingTasks, // 传入现有任务用于冲突检测
+        existing_side_hustles: existingSideHustles, // 传入现有副业用于副业追踪
       },
     };
 
@@ -414,6 +426,98 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
         case 'smart_schedule':
           // 智能分配
           console.log('智能分配:', action.data);
+          break;
+          
+        // ============================================
+        // 副业追踪相关操作
+        // ============================================
+        
+        case 'add_income':
+          // 添加收入
+          await addIncome({
+            sideHustleId: action.data.sideHustleId,
+            amount: action.data.amount,
+            description: action.data.description,
+            date: action.data.date || new Date(),
+          });
+          
+          // 语音反馈
+          if (voiceFeedbackRef.current) {
+            await voiceFeedbackRef.current.provideFeedback('success', { 
+              action: `已记录收入¥${action.data.amount}` 
+            });
+          }
+          break;
+          
+        case 'add_expense':
+          // 添加支出
+          await addExpense({
+            sideHustleId: action.data.sideHustleId,
+            amount: action.data.amount,
+            description: action.data.description,
+            date: action.data.date || new Date(),
+          });
+          
+          // 语音反馈
+          if (voiceFeedbackRef.current) {
+            await voiceFeedbackRef.current.provideFeedback('success', { 
+              action: `已记录支出¥${action.data.amount}` 
+            });
+          }
+          break;
+          
+        case 'create_side_hustle':
+          // 创建副业
+          const newHustle = await createSideHustle({
+            name: action.data.name,
+            icon: action.data.icon || '💰',
+            color: action.data.color || '#10b981',
+            status: action.data.status || 'active',
+            startDate: action.data.startDate,
+          });
+          
+          // 如果有后续操作（创建后添加收入/支出）
+          if (action.data.thenAddIncome) {
+            await addIncome({
+              sideHustleId: newHustle.id,
+              amount: action.data.thenAddIncome.amount,
+              description: action.data.thenAddIncome.description,
+              date: new Date(),
+            });
+          }
+          
+          if (action.data.thenAddExpense) {
+            await addExpense({
+              sideHustleId: newHustle.id,
+              amount: action.data.thenAddExpense.amount,
+              description: action.data.thenAddExpense.description,
+              date: new Date(),
+            });
+          }
+          
+          // 语音反馈
+          if (voiceFeedbackRef.current) {
+            await voiceFeedbackRef.current.provideFeedback('success', { 
+              action: `已创建副业：${action.data.name}` 
+            });
+          }
+          break;
+          
+        case 'add_debt':
+          // 添加负债
+          await addDebt({
+            amount: action.data.amount,
+            description: action.data.description,
+            dueDate: action.data.dueDate,
+            isPaid: action.data.isPaid || false,
+          });
+          
+          // 语音反馈
+          if (voiceFeedbackRef.current) {
+            await voiceFeedbackRef.current.provideFeedback('success', { 
+              action: `已记录欠债¥${action.data.amount}` 
+            });
+          }
           break;
       }
     }

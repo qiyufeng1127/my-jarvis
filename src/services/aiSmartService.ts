@@ -2,6 +2,8 @@
 // AI 智能处理服务 - 完整版
 // ============================================
 
+import { MoneyAIProcessor } from './moneyAIService';
+
 export interface AIProcessRequest {
   user_input: string;
   context: {
@@ -12,6 +14,7 @@ export interface AIProcessRequest {
     user_preferences?: any;
     conversation_history?: any[];
     existing_tasks?: any[]; // 现有任务列表，用于冲突检测
+    existing_side_hustles?: any[]; // 现有副业列表
   };
 }
 
@@ -26,7 +29,7 @@ export interface AIProcessResponse {
 }
 
 export interface AIAction {
-  type: 'create_task' | 'update_timeline' | 'add_tags' | 'record_memory' | 'calculate_gold' | 'add_to_inbox' | 'smart_schedule';
+  type: 'create_task' | 'update_timeline' | 'add_tags' | 'record_memory' | 'calculate_gold' | 'add_to_inbox' | 'smart_schedule' | 'add_income' | 'add_expense' | 'create_side_hustle' | 'add_debt';
   data: any;
   label: string;
 }
@@ -174,6 +177,20 @@ export class AISmartProcessor {
   // 分析输入类型
   static analyzeInputType(input: string): string {
     const lowerInput = input.toLowerCase();
+
+    // 副业追踪相关（优先级最高）
+    if (
+      lowerInput.includes('赚了') ||
+      lowerInput.includes('收入') ||
+      lowerInput.includes('花了') ||
+      lowerInput.includes('支出') ||
+      lowerInput.includes('买了') ||
+      lowerInput.includes('欠了') ||
+      lowerInput.includes('副业') ||
+      (lowerInput.includes('新建') && (lowerInput.includes('项目') || lowerInput.includes('副业')))
+    ) {
+      return 'money_tracking';
+    }
 
     // 时间轴操作型（优先级最高）
     if (
@@ -1119,11 +1136,42 @@ ${tasksInfo.map((t, i) => `${i + 1}. ${t.title} (${t.start})`).join('\n')}
     };
   }
 
+  // 处理副业追踪
+  static async handleMoneyTracking(input: string, context: any): Promise<AIProcessResponse> {
+    try {
+      const moneyResponse = await MoneyAIProcessor.process({
+        user_input: input,
+        context: {
+          user_id: context.user_id,
+          current_time: context.current_time,
+          current_date: context.current_date,
+          existing_side_hustles: context.existing_side_hustles || [],
+        },
+      });
+
+      // 转换 MoneyAIResponse 到 AIProcessResponse
+      return {
+        message: moneyResponse.message,
+        data: moneyResponse.data,
+        actions: moneyResponse.actions as any[],
+        autoExecute: moneyResponse.autoExecute,
+        needsConfirmation: moneyResponse.needsConfirmation,
+      };
+    } catch (error: any) {
+      return {
+        message: `❌ ${error.message || '处理失败'}`,
+        autoExecute: false,
+      };
+    }
+  }
+
   // 主处理函数
   static async process(request: AIProcessRequest): Promise<AIProcessResponse> {
     const inputType = this.analyzeInputType(request.user_input);
 
     switch (inputType) {
+      case 'money_tracking':
+        return await this.handleMoneyTracking(request.user_input, request.context);
       case 'scheduled_task':
         return await this.handleScheduledTask(request.user_input, request.context);
       case 'task_decomposition':

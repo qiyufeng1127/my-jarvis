@@ -22,6 +22,7 @@ import {
   KikiModule,
   AISmartModule,
   TimelineModule,
+  MoneyModule,
 } from './ModuleComponents';
 import JournalModule from '@/components/journal/JournalModule';
 import PanoramaMemory from '@/components/memory/PanoramaMemory';
@@ -116,6 +117,14 @@ const availableModules: ModuleDefinition[] = [
     icon: <span className="text-2xl">🤖</span>,
     defaultColor: '#7C3AED',
     component: AISmartModule,
+  },
+  {
+    id: 'money',
+    type: 'money',
+    title: '副业追踪',
+    icon: <span className="text-2xl">💰</span>,
+    defaultColor: '#10b981',
+    component: MoneyModule,
   },
   {
     id: 'journal',
