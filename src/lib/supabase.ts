@@ -9,6 +9,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storage: window.localStorage,
+    storageKey: 'supabase.auth.token',
   },
 });
 
@@ -36,16 +39,48 @@ const isValidUUID = (uuid: string): boolean => {
 
 // 获取当前用户 ID（同步）
 export const getCurrentUserId = (): string => {
+  // 优先使用 Supabase Auth 的用户 ID
+  const authUserId = localStorage.getItem('supabase.auth.token');
+  if (authUserId) {
+    try {
+      const authData = JSON.parse(authUserId);
+      if (authData?.currentSession?.user?.id) {
+        console.log('✅ 使用 Supabase Auth 用户 ID:', authData.currentSession.user.id);
+        return authData.currentSession.user.id;
+      }
+    } catch (e) {
+      // 解析失败，继续使用本地 ID
+    }
+  }
+  
+  // 如果没有 Auth 用户，使用本地 ID
   let localUserId = localStorage.getItem('manifestos_user_id');
   
   // 如果没有用户 ID 或格式不正确，生成一个新的 UUID
   if (!localUserId || !isValidUUID(localUserId)) {
     localUserId = crypto.randomUUID();
     localStorage.setItem('manifestos_user_id', localUserId);
-    console.log('✅ 生成新的用户 ID:', localUserId);
+    console.log('✅ 生成新的本地用户 ID:', localUserId);
   }
   
   return localUserId;
+};
+
+// 获取当前认证用户 ID（异步，推荐使用）
+export const getAuthUserId = async (): Promise<string | null> => {
+  if (!isSupabaseConfigured()) return null;
+  
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user?.id) {
+      console.log('✅ 获取到认证用户 ID:', session.user.id);
+      return session.user.id;
+    }
+    return null;
+  } catch (error) {
+    console.error('❌ 获取认证用户 ID 失败:', error);
+    return null;
+  }
 };
 
 // 确保用户在 Supabase 中存在 - 简化版，不抛出错误

@@ -42,8 +42,14 @@ export default function AuthPanel({ isDark = false, bgColor = '#ffffff' }: AuthP
     if (!isSupabaseConfigured()) return;
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
+      // 先检查 session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUser(session.user);
+        console.log('✅ 已登录用户:', session.user.email, 'ID:', session.user.id);
+      } else {
+        console.log('ℹ️ 未登录');
+      }
     } catch (error) {
       console.error('❌ 检查用户状态失败：', error);
     }
@@ -56,6 +62,11 @@ export default function AuthPanel({ isDark = false, bgColor = '#ffffff' }: AuthP
       return;
     }
 
+    if (password.trim().length < 6) {
+      alert('密码至少需要6位字符');
+      return;
+    }
+
     if (!isSupabaseConfigured()) {
       alert('❌ Supabase 未配置');
       return;
@@ -63,37 +74,55 @@ export default function AuthPanel({ isDark = false, bgColor = '#ffffff' }: AuthP
 
     setIsLoading(true);
     try {
+      console.log('🔐 尝试登录:', email.trim());
+      
       // 先尝试登录
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password: password.trim(),
       });
 
       if (signInError) {
-        // 如果登录失败，尝试注册
-        if (signInError.message.includes('Invalid login credentials')) {
+        console.log('⚠️ 登录失败:', signInError.message);
+        
+        // 只有在用户不存在时才注册
+        if (signInError.message.includes('Invalid login credentials') || 
+            signInError.message.includes('Email not confirmed')) {
+          
+          console.log('📝 尝试注册新用户...');
+          
           const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-            email: email.trim(),
+            email: email.trim().toLowerCase(),
             password: password.trim(),
             options: {
               emailRedirectTo: window.location.origin,
+              data: {
+                email: email.trim().toLowerCase(),
+              }
             }
           });
 
           if (signUpError) {
             console.error('❌ 注册失败：', signUpError);
-            alert(`注册失败：${signUpError.message}`);
+            
+            // 如果是因为用户已存在而失败，提示用户检查密码
+            if (signUpError.message.includes('already registered')) {
+              alert('该邮箱已注册，请检查密码是否正确');
+            } else {
+              alert(`注册失败：${signUpError.message}`);
+            }
           } else if (signUpData.user) {
+            console.log('✅ 注册成功! 用户ID:', signUpData.user.id);
             setUser(signUpData.user);
-            alert('✅ 注册成功！已自动登录');
+            alert('✅ 注册成功！已自动登录\n您的数据将自动同步到云端');
             setEmail('');
             setPassword('');
           }
         } else {
-          console.error('❌ 登录失败：', signInError);
           alert(`登录失败：${signInError.message}`);
         }
       } else if (signInData.user) {
+        console.log('✅ 登录成功! 用户ID:', signInData.user.id);
         setUser(signInData.user);
         alert('✅ 登录成功！');
         setEmail('');
