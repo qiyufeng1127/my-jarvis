@@ -38,21 +38,39 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
 
   // 计算NOW线的精确位置（像素值）
   useEffect(() => {
+    const now = currentTime.getTime();
+    
+    // 如果没有任务，显示在顶部
     if (timeBlocks.length === 0) {
-      setTopPosition(null);
+      setTopPosition(0);
       return;
     }
 
-    const now = currentTime.getTime();
     const firstTask = timeBlocks[0];
     const lastTask = timeBlocks[timeBlocks.length - 1];
     
     const dayStart = firstTask.startTime.getTime();
     const dayEnd = lastTask.endTime.getTime();
 
-    // 如果当前时间在任务范围之外，不显示
-    if (now < dayStart || now > dayEnd) {
-      setTopPosition(null);
+    // 如果当前时间在第一个任务之前，显示在顶部
+    if (now < dayStart) {
+      setTopPosition(0);
+      return;
+    }
+
+    // 如果当前时间在最后一个任务之后，显示在底部
+    if (now > dayEnd) {
+      // 计算所有任务卡片的总高度
+      let totalHeight = 0;
+      timeBlocks.forEach((block, index) => {
+        const cardElement = document.querySelector(`[data-task-id="${block.id}"]`);
+        const actualCardHeight = cardElement ? cardElement.getBoundingClientRect().height : 120;
+        totalHeight += actualCardHeight + 12;
+        if (index < timeBlocks.length - 1) {
+          totalHeight += 40; // 间隔高度
+        }
+      });
+      setTopPosition(totalHeight);
       return;
     }
 
@@ -106,10 +124,16 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
       }
     }
     
-    setTopPosition(null);
+    // 如果没有找到合适的位置，默认显示在顶部
+    if (topPosition === null) {
+      setTopPosition(0);
+    }
   }, [currentTime, timeBlocks]);
 
-  if (topPosition === null) return null;
+  // 始终显示 NOW 线
+  if (topPosition === null) {
+    return null;
+  }
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('zh-CN', { 
