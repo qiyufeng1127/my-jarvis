@@ -204,6 +204,23 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
   // 坏习惯百分比（模拟数据）
   const [habitScore, setHabitScore] = useState(0); // 0-100，越高越差
 
+  // 顶部状态栏元素的位置和拖动状态
+  const [topBarItems, setTopBarItems] = useState<Array<{
+    id: string;
+    type: 'identity' | 'growth' | 'weekly' | 'habits' | 'gold' | 'image';
+    position: { x: number; y: number };
+    imageUrl?: string;
+    customSize?: { width: number; height: number };
+  }>>([
+    { id: 'identity', type: 'identity', position: { x: 0, y: 0 } },
+    { id: 'growth', type: 'growth', position: { x: 220, y: 0 } },
+    { id: 'weekly', type: 'weekly', position: { x: 440, y: 0 } },
+    { id: 'habits', type: 'habits', position: { x: 580, y: 0 } },
+    { id: 'gold', type: 'gold', position: { x: 1100, y: 0 } },
+  ]);
+  const [draggingTopBarItem, setDraggingTopBarItem] = useState<string | null>(null);
+  const [topBarDragOffset, setTopBarDragOffset] = useState({ x: 0, y: 0 });
+
   // 从 Supabase 加载模块配置
   useEffect(() => {
     const loadModules = async () => {
@@ -530,6 +547,69 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
     reader.readAsDataURL(file);
   };
 
+  // 顶部状态栏拖动处理
+  const handleTopBarDragStart = (itemId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const item = topBarItems.find((i) => i.id === itemId);
+    if (!item) return;
+
+    setDraggingTopBarItem(itemId);
+    setTopBarDragOffset({
+      x: e.clientX - item.position.x,
+      y: e.clientY - item.position.y,
+    });
+  };
+
+  const handleTopBarDrag = (e: React.MouseEvent) => {
+    if (!draggingTopBarItem) return;
+
+    const newX = e.clientX - topBarDragOffset.x;
+    const newY = e.clientY - topBarDragOffset.y;
+
+    // 限制只能在顶部状态栏区域移动（y 坐标限制在 -20 到 20 之间）
+    const constrainedY = Math.max(-20, Math.min(20, newY));
+
+    setTopBarItems(
+      topBarItems.map((item) =>
+        item.id === draggingTopBarItem
+          ? { ...item, position: { x: Math.max(0, newX), y: constrainedY } }
+          : item
+      )
+    );
+  };
+
+  const handleTopBarDragEnd = () => {
+    setDraggingTopBarItem(null);
+  };
+
+  // 添加图片组件到顶部状态栏
+  const addImageToTopBar = () => {
+    const newImageItem = {
+      id: `topbar-image-${Date.now()}`,
+      type: 'image' as const,
+      position: { x: 700, y: 0 },
+      customSize: { width: 60, height: 60 },
+    };
+    setTopBarItems([...topBarItems, newImageItem]);
+  };
+
+  // 上传图片到顶部状态栏
+  const handleTopBarImageUpload = (itemId: string, file: File) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      setTopBarItems(topBarItems.map((item) => 
+        item.id === itemId ? { ...item, imageUrl: result } : item
+      ));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // 删除顶部状态栏元素
+  const removeTopBarItem = (itemId: string) => {
+    setTopBarItems(topBarItems.filter((item) => item.id !== itemId));
+  };
+
   // 上传自定义图标
   const handleIconUpload = (moduleType: string, file: File) => {
     const reader = new FileReader();
@@ -700,65 +780,207 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
           style={{
             backgroundColor: 'transparent', // 透明背景
             borderBottom: '1px solid rgba(0,0,0,0.05)',
+            height: '80px',
           }}
+          onMouseMove={handleTopBarDrag}
+          onMouseUp={handleTopBarDragEnd}
         >
-          <div className="flex items-center justify-between max-w-7xl mx-auto">
-            {/* 左侧：身份等级 */}
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => setShowHistoryModal('identity')}
-                className="flex items-center space-x-3 px-4 py-2 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100/50 shadow-sm hover:scale-105 transition-transform cursor-pointer"
-              >
-                <div className="text-2xl">👑</div>
-                <div>
-                  <div className="text-sm text-black font-semibold tracking-wide">IDENTITY</div>
-                  <div className="text-base font-bold text-black">萌芽新手 Lv.1</div>
-                </div>
-              </button>
-              
-              {/* 成长值进度 */}
-              <button
-                onClick={() => setShowHistoryModal('growth')}
-                className="flex items-center space-x-3 px-4 py-2 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100/50 shadow-sm hover:scale-105 transition-transform cursor-pointer"
-              >
-                <div className="text-2xl">📊</div>
-                <div>
-                  <div className="text-sm text-black font-semibold tracking-wide">GROWTH</div>
-                  <div className="flex items-center space-x-2">
-                    <div className="text-base font-bold text-black">0/200</div>
-                    <div className="text-sm text-black">(0%)</div>
+          <div className="relative max-w-7xl mx-auto h-full">
+            {/* 可拖动的状态栏元素 */}
+            {topBarItems.map((item) => {
+              if (item.type === 'identity') {
+                return (
+                  <div
+                    key={item.id}
+                    className="absolute"
+                    style={{
+                      left: item.position.x,
+                      top: item.position.y,
+                      cursor: draggingTopBarItem === item.id ? 'grabbing' : 'grab',
+                    }}
+                    onMouseDown={(e) => handleTopBarDragStart(item.id, e)}
+                  >
+                    <button
+                      onClick={() => setShowHistoryModal('identity')}
+                      className="flex items-center space-x-3 px-4 py-2 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100/50 shadow-sm hover:scale-105 transition-transform"
+                    >
+                      <div className="text-2xl">👑</div>
+                      <div>
+                        <div className="text-sm text-black font-semibold tracking-wide">IDENTITY</div>
+                        <div className="text-base font-bold text-black">萌芽新手 Lv.1</div>
+                      </div>
+                    </button>
                   </div>
-                </div>
-              </button>
-              
-              {/* 本周成长 */}
-              <div className="flex items-center space-x-2 px-3 py-2 rounded-xl bg-green-50 border border-green-100/50">
-                <div className="text-lg">⚡</div>
-                <div className="text-sm text-black font-semibold">+0 本周</div>
-              </div>
+                );
+              }
 
-              {/* 坏习惯指示器 */}
-              <button
-                onClick={() => setShowHistoryModal('habits')}
-                className="flex items-center space-x-2 px-3 py-2 rounded-xl bg-yellow-50 border border-yellow-100/50 hover:scale-105 transition-transform cursor-pointer"
-              >
-                <div className="relative">
-                  <div className="text-lg">⚠️</div>
-                </div>
-                <div className="text-sm text-black font-semibold">{habitScore}%</div>
-              </button>
-            </div>
+              if (item.type === 'growth') {
+                return (
+                  <div
+                    key={item.id}
+                    className="absolute"
+                    style={{
+                      left: item.position.x,
+                      top: item.position.y,
+                      cursor: draggingTopBarItem === item.id ? 'grabbing' : 'grab',
+                    }}
+                    onMouseDown={(e) => handleTopBarDragStart(item.id, e)}
+                  >
+                    <button
+                      onClick={() => setShowHistoryModal('growth')}
+                      className="flex items-center space-x-3 px-4 py-2 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100/50 shadow-sm hover:scale-105 transition-transform"
+                    >
+                      <div className="text-2xl">📊</div>
+                      <div>
+                        <div className="text-sm text-black font-semibold tracking-wide">GROWTH</div>
+                        <div className="flex items-center space-x-2">
+                          <div className="text-base font-bold text-black">0/200</div>
+                          <div className="text-sm text-black">(0%)</div>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                );
+              }
 
-            {/* 右侧：金币余额 */}
+              if (item.type === 'weekly') {
+                return (
+                  <div
+                    key={item.id}
+                    className="absolute"
+                    style={{
+                      left: item.position.x,
+                      top: item.position.y,
+                      cursor: draggingTopBarItem === item.id ? 'grabbing' : 'grab',
+                    }}
+                    onMouseDown={(e) => handleTopBarDragStart(item.id, e)}
+                  >
+                    <div className="flex items-center space-x-2 px-3 py-2 rounded-xl bg-green-50 border border-green-100/50">
+                      <div className="text-lg">⚡</div>
+                      <div className="text-sm text-black font-semibold">+0 本周</div>
+                    </div>
+                  </div>
+                );
+              }
+
+              if (item.type === 'habits') {
+                return (
+                  <div
+                    key={item.id}
+                    className="absolute"
+                    style={{
+                      left: item.position.x,
+                      top: item.position.y,
+                      cursor: draggingTopBarItem === item.id ? 'grabbing' : 'grab',
+                    }}
+                    onMouseDown={(e) => handleTopBarDragStart(item.id, e)}
+                  >
+                    <button
+                      onClick={() => setShowHistoryModal('habits')}
+                      className="flex items-center space-x-2 px-3 py-2 rounded-xl bg-yellow-50 border border-yellow-100/50 hover:scale-105 transition-transform"
+                    >
+                      <div className="relative">
+                        <div className="text-lg">⚠️</div>
+                      </div>
+                      <div className="text-sm text-black font-semibold">{habitScore}%</div>
+                    </button>
+                  </div>
+                );
+              }
+
+              if (item.type === 'gold') {
+                return (
+                  <div
+                    key={item.id}
+                    className="absolute"
+                    style={{
+                      left: item.position.x,
+                      top: item.position.y,
+                      cursor: draggingTopBarItem === item.id ? 'grabbing' : 'grab',
+                    }}
+                    onMouseDown={(e) => handleTopBarDragStart(item.id, e)}
+                  >
+                    <button
+                      onClick={() => setShowHistoryModal('gold')}
+                      className="flex items-center space-x-3 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-100/50 shadow-sm hover:scale-105 transition-transform"
+                    >
+                      <div className="text-2xl">💰</div>
+                      <div>
+                        <div className="text-sm text-black font-semibold tracking-wide">BALANCE</div>
+                        <div className="text-xl font-bold text-black">0</div>
+                      </div>
+                    </button>
+                  </div>
+                );
+              }
+
+              if (item.type === 'image') {
+                const size = item.customSize || { width: 60, height: 60 };
+                return (
+                  <div
+                    key={item.id}
+                    className="absolute group"
+                    style={{
+                      left: item.position.x,
+                      top: item.position.y,
+                      width: size.width,
+                      height: size.height,
+                      cursor: draggingTopBarItem === item.id ? 'grabbing' : 'grab',
+                    }}
+                    onMouseDown={(e) => handleTopBarDragStart(item.id, e)}
+                  >
+                    {item.imageUrl ? (
+                      <div className="relative w-full h-full">
+                        <img 
+                          src={item.imageUrl} 
+                          alt="Top bar widget" 
+                          className="w-full h-full object-cover rounded-lg shadow-sm"
+                        />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeTopBarItem(item.id);
+                          }}
+                          className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <label 
+                        htmlFor={`topbar-image-upload-${item.id}`}
+                        className="w-full h-full flex items-center justify-center bg-neutral-100 rounded-lg cursor-pointer hover:bg-neutral-200 transition-colors border border-neutral-200"
+                      >
+                        <div className="text-center">
+                          <div className="text-2xl">🖼️</div>
+                        </div>
+                        <input
+                          id={`topbar-image-upload-${item.id}`}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleTopBarImageUpload(item.id, file);
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                );
+              }
+
+              return null;
+            })}
+
+            {/* 添加图片组件按钮 */}
             <button
-              onClick={() => setShowHistoryModal('gold')}
-              className="flex items-center space-x-3 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-100/50 shadow-sm hover:scale-105 transition-transform cursor-pointer"
+              onClick={addImageToTopBar}
+              className="absolute right-0 top-0 px-3 py-2 rounded-lg bg-neutral-100 hover:bg-neutral-200 transition-colors text-sm flex items-center gap-2"
+              title="添加图片组件到顶部"
             >
-              <div className="text-2xl">💰</div>
-              <div>
-                <div className="text-sm text-black font-semibold tracking-wide">BALANCE</div>
-                <div className="text-xl font-bold text-black">0</div>
-              </div>
+              <span>🖼️</span>
+              <span className="text-xs">添加图片</span>
             </button>
           </div>
         </div>
