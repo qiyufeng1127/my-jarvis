@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Send, Mic, MicOff, Sparkles, Settings, X, Edit2, Plus, ChevronUp, ChevronDown, Clock, Coins } from 'lucide-react';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
+import { useAIStore } from '@/stores/aiStore';
 import { AISmartProcessor } from '@/services/aiSmartService';
 import type { AIProcessRequest } from '@/services/aiSmartService';
 
@@ -37,9 +38,6 @@ export default function AISmartModule({
   const [inputValue, setInputValue] = useState('');
   const [messages, setMessages] = useState<AIMessage[]>([]);
   const [showSettings, setShowSettings] = useState(false);
-  const [apiKey, setApiKey] = useState('');
-  const [apiEndpoint, setApiEndpoint] = useState('https://api.deepseek.com/v1/chat/completions');
-  const [isConnected, setIsConnected] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [showTaskEditor, setShowTaskEditor] = useState(false);
   const [editingTasks, setEditingTasks] = useState<any[]>([]);
@@ -50,6 +48,7 @@ export default function AISmartModule({
   
   const { createTask } = useTaskStore();
   const { goals, addGoal } = useGrowthStore();
+  const { config, setApiKey, setApiEndpoint, isConfigured } = useAIStore();
 
   const cardBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
   const textColor = isDark ? '#ffffff' : '#000000';
@@ -57,57 +56,34 @@ export default function AISmartModule({
   const buttonBg = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)';
 
   // 测试API连接
-  const testConnection = async (key?: string, endpoint?: string) => {
-    const testKey = key || apiKey;
-    const testEndpoint = endpoint || apiEndpoint;
-    
-    if (!testKey) {
-      setIsConnected(false);
+  const testConnection = async () => {
+    if (!config.apiKey) {
       return false;
     }
 
     setIsTesting(true);
     try {
-      const response = await fetch(testEndpoint, {
+      const response = await fetch(config.apiEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${testKey}`,
+          'Authorization': `Bearer ${config.apiKey}`,
         },
         body: JSON.stringify({
-          model: 'deepseek-chat',
+          model: config.model,
           messages: [{ role: 'user', content: 'test' }],
           max_tokens: 10,
         }),
       });
 
-      if (response.ok) {
-        setIsConnected(true);
-        return true;
-      } else {
-        setIsConnected(false);
-        return false;
-      }
+      return response.ok;
     } catch (error) {
       console.error('API连接测试失败:', error);
-      setIsConnected(false);
       return false;
     } finally {
       setIsTesting(false);
     }
   };
-
-  // 从 localStorage 加载 API 配置
-  useEffect(() => {
-    const savedApiKey = localStorage.getItem('ai_api_key');
-    const savedEndpoint = localStorage.getItem('ai_api_endpoint');
-    if (savedApiKey) {
-      setApiKey(savedApiKey);
-      // 自动测试连接
-      testConnection(savedApiKey, savedEndpoint || apiEndpoint);
-    }
-    if (savedEndpoint) setApiEndpoint(savedEndpoint);
-  }, []);
 
   // 自动滚动到底部
   useEffect(() => {
@@ -120,8 +96,8 @@ export default function AISmartModule({
     const message = text || inputValue.trim();
     if (!message || isProcessing) return;
 
-    // 检查API配置
-    if (!apiKey) {
+    // 检查API配置 - 使用 AI Store
+    if (!isConfigured()) {
       const errorMessage: AIMessage = {
         id: `error-${Date.now()}`,
         role: 'assistant',
@@ -160,15 +136,15 @@ export default function AISmartModule({
 
 请用简洁、友好的语气回复用户。`;
 
-      // 调用DeepSeek API
-      const response = await fetch(apiEndpoint, {
+      // 调用DeepSeek API - 使用 AI Store 配置
+      const response = await fetch(config.apiEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
+          'Authorization': `Bearer ${config.apiKey}`,
         },
         body: JSON.stringify({
-          model: 'deepseek-chat',
+          model: config.model,
           messages: [
             { role: 'system', content: systemPrompt },
             ...messages.slice(-5).map(m => ({
@@ -177,8 +153,8 @@ export default function AISmartModule({
             })),
             { role: 'user', content: message },
           ],
-          temperature: 0.7,
-          max_tokens: 2000,
+          temperature: config.temperature,
+          max_tokens: config.maxTokens,
         }),
       });
 
@@ -259,7 +235,6 @@ export default function AISmartModule({
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMessage]);
-      setIsConnected(false);
     } finally {
       setIsProcessing(false);
     }
@@ -382,13 +357,13 @@ export default function AISmartModule({
   };
 
   const saveApiSettings = async () => {
-    localStorage.setItem('ai_api_key', apiKey);
-    localStorage.setItem('ai_api_endpoint', apiEndpoint);
-    
     // 保存后自动测试连接
     const success = await testConnection();
     if (success) {
       setShowSettings(false);
+      alert('✅ API 配置已保存并测试成功！');
+    } else {
+      alert('⚠️ API 配置已保存，但连接测试失败。请检查配置是否正确。');
     }
   };
 
@@ -508,10 +483,10 @@ export default function AISmartModule({
           <div 
             className="w-2 h-2 rounded-full"
             style={{ 
-              backgroundColor: isConnected ? '#10B981' : '#EF4444',
-              boxShadow: isConnected ? '0 0 4px #10B981' : '0 0 4px #EF4444',
+              backgroundColor: isConfigured() ? '#10B981' : '#EF4444',
+              boxShadow: isConfigured() ? '0 0 4px #10B981' : '0 0 4px #EF4444',
             }}
-            title={isConnected ? 'API已连接' : 'API未连接'}
+            title={isConfigured() ? 'API已配置' : 'API未配置'}
           />
         </div>
         <button
@@ -544,9 +519,9 @@ export default function AISmartModule({
                 </label>
                 <input
                   type="password"
-                  value={apiKey}
+                  value={config.apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="输入你的 DeepSeek API Key"
+                  placeholder="输入你的 API Key"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
               </div>
@@ -557,20 +532,16 @@ export default function AISmartModule({
                 </label>
                 <input
                   type="text"
-                  value={apiEndpoint}
+                  value={config.apiEndpoint}
                   onChange={(e) => setApiEndpoint(e.target.value)}
-                  placeholder="https://api.deepseek.com/v1/chat/completions"
+                  placeholder="https://api.openai.com/v1/chat/completions"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
               </div>
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <p className="text-xs text-blue-800">
-                  💡 默认使用 DeepSeek API。你可以在 
-                  <a href="https://platform.deepseek.com" target="_blank" rel="noopener noreferrer" className="underline ml-1">
-                    DeepSeek 官网
-                  </a>
-                  获取 API Key。
+                  💡 支持 OpenAI、DeepSeek 等兼容 API。配置后将在所有 AI 功能中生效（收集箱、智能分析等）。
                 </p>
               </div>
 
@@ -592,14 +563,14 @@ export default function AISmartModule({
                       alert('❌ 连接失败！请检查API Key和接口地址。');
                     }
                   }}
-                  disabled={!apiKey || isTesting}
+                  disabled={!config.apiKey || isTesting}
                   className="flex-1 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isTesting ? '测试中...' : '🔌 测试连接'}
                 </button>
                 <button
                   onClick={saveApiSettings}
-                  disabled={!apiKey}
+                  disabled={!config.apiKey}
                   className="flex-1 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   保存
