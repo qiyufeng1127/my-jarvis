@@ -26,14 +26,10 @@ export default function SyncCodeManager({ isDark = false, bgColor = '#ffffff' }:
     loadConnectedDevices();
   }, []);
 
-  // 生成随机同步码（8位字母数字组合）
+  // 生成随机同步码（6位纯数字）
   const generateSyncCode = (): string => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 去除易混淆字符
-    let code = '';
-    for (let i = 0; i < 8; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
-      if (i === 3) code += '-'; // 中间加连字符，便于阅读
-    }
+    // 生成 100000 到 999999 之间的随机数字
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
     return code;
   };
 
@@ -264,7 +260,7 @@ export default function SyncCodeManager({ isDark = false, bgColor = '#ffffff' }:
       <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
         <div className="text-sm mb-2" style={{ color: textColor }}>💡 什么是云同步码？</div>
         <div className="text-xs leading-relaxed" style={{ color: accentColor }}>
-          云同步码是一个唯一的8位代码，用于在多个设备间同步数据。生成同步码后，在其他设备上输入相同的同步码，即可实现数据同步。
+          云同步码是一个唯一的6位数字代码，用于在多个设备间同步数据。生成同步码后，在其他设备上输入相同的同步码，即可实现数据同步。
         </div>
       </div>
 
@@ -427,8 +423,8 @@ export default function SyncCodeManager({ isDark = false, bgColor = '#ffffff' }:
                 type="text"
                 value={inputCode}
                 onChange={(e) => setInputCode(e.target.value.toUpperCase())}
-                placeholder="例如：ABCD-1234"
-                maxLength={9}
+                placeholder="例如：123456"
+                maxLength={6}
                 className="w-full px-4 py-3 rounded-lg text-center text-lg font-mono tracking-wider"
                 style={{
                   backgroundColor: cardBg,
@@ -437,7 +433,7 @@ export default function SyncCodeManager({ isDark = false, bgColor = '#ffffff' }:
                 }}
               />
               <div className="text-xs mt-2" style={{ color: accentColor }}>
-                💡 输入其他设备上显示的8位同步码
+                💡 输入其他设备上显示的6位数字同步码
               </div>
             </div>
 
