@@ -116,9 +116,10 @@ export default function TaskInbox({ isDark = false, bgColor = '#ffffff' }: TaskI
       return;
     }
 
+    // 使用 AI Store 的配置检查
     const hasAI = isConfigured();
     if (!hasAI) {
-      alert('AI 功能需要配置 API Key 才能使用智能分配。\n\n请在设置中配置 API Key 后再试。');
+      alert('AI 功能需要配置 API Key 才能使用智能分配。\n\n请在 AI 智能助手的设置中配置 API Key 后再试。');
       return;
     }
 
