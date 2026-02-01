@@ -61,55 +61,75 @@ class AIService {
     }
   }
 
-  // 智能分析消息类型和标签
-  async analyzeMessage(message: string): Promise<{
-    type?: 'mood' | 'thought' | 'todo' | 'success' | 'gratitude';
+  // 智能识别内容类型并决定分配目标
+  async classifyContent(message: string): Promise<{
+    contentType: 'task' | 'mood' | 'thought' | 'gratitude' | 'success' | 'startup' | 'timeline_control';
+    targetComponent: 'timeline' | 'memory' | 'journal' | 'sidehustle' | 'none';
     emotionTags: string[];
     categoryTags: string[];
     confidence: number;
+    reason: string;
   }> {
-    const systemPrompt = `你是一个智能助手，负责分析用户输入的内容。
+    const systemPrompt = `你是一个智能内容分类助手，负责分析用户输入并决定应该分配到哪个组件。
 
 请分析以下内容，返回JSON格式：
 {
-  "type": "类型（mood/thought/todo/success/gratitude之一，如果不确定则不返回）",
+  "contentType": "内容类型",
+  "targetComponent": "目标组件",
   "emotionTags": ["情绪标签数组"],
   "categoryTags": ["分类标签数组"],
-  "confidence": 0.0-1.0的置信度
+  "confidence": 0.0-1.0的置信度,
+  "reason": "分类理由（简短说明）"
 }
 
-可用的情绪标签：
-- happy（开心）
-- excited（兴奋）
-- calm（平静）
-- grateful（感恩）
-- proud（自豪）
-- anxious（焦虑）
-- sad（难过）
-- angry（生气）
-- frustrated（沮丧）
-- tired（疲惫）
+**内容类型（contentType）：**
+- task: 待办任务、计划、安排（例如："明天要开会"、"学习英语1小时"、"去健身房"）
+- mood: 心情记录（例如："今天很开心"、"感觉有点累"、"心情不错"）
+- thought: 碎碎念、想法、灵感（例如："突然想到一个点子"、"今天的天气真好"）
+- gratitude: 感恩内容（例如："感谢朋友的帮助"、"很庆幸遇到你"）
+- success: 成功日记（例如："今天完成了项目"、"成功减肥5斤"）
+- startup: 创业想法、商业计划（例如："想做一个APP"、"新的商业模式"、"产品创意"）
+- timeline_control: 时间轴控制指令（例如："删除今天的任务"、"修改任务时间"、"查看明天的安排"）
 
-可用的分类标签：
-- work（工作）
-- study（学习）
-- life（生活）
-- housework（家务）
-- health（健康）
-- social（社交）
-- hobby（爱好）
-- startup（创业）
-- finance（财务）
-- family（家庭）
+**目标组件（targetComponent）：**
+- timeline: 时间轴（用于 task 和 timeline_control）
+- memory: 全景记忆栏（用于 mood、thought）
+- journal: 成功&感恩日记（用于 gratitude、success）
+- sidehustle: 副业追踪（用于 startup）
+- none: 不分配（无法识别或不适合任何组件）
 
-类型说明：
-- mood: 表达心情、感受、情绪的内容
-- thought: 想法、灵感、碎碎念
-- todo: 待办事项、计划、安排
-- success: 成功、完成、达成的事情
-- gratitude: 感恩、感谢的内容
+**情绪标签（emotionTags）：**
+happy, excited, calm, grateful, proud, anxious, sad, angry, frustrated, tired
 
-只返回JSON，不要其他内容。`;
+**分类标签（categoryTags）：**
+work, study, life, housework, health, social, hobby, startup, finance, family
+
+**分类规则：**
+1. 如果包含明确的时间、地点、动作 → task → timeline
+2. 如果表达心情、感受 → mood → memory
+3. 如果是随意的想法、碎碎念 → thought → memory
+4. 如果表达感恩、感谢 → gratitude → journal
+5. 如果记录成功、成就 → success → journal
+6. 如果是创业想法、商业计划、产品创意 → startup → sidehustle
+7. 如果是控制时间轴的指令 → timeline_control → timeline
+
+**示例：**
+输入："明天下午2点开会"
+输出：{"contentType": "task", "targetComponent": "timeline", "emotionTags": [], "categoryTags": ["work"], "confidence": 0.95, "reason": "明确的任务安排"}
+
+输入："今天心情不错，阳光很好"
+输出：{"contentType": "mood", "targetComponent": "memory", "emotionTags": ["happy", "calm"], "categoryTags": ["life"], "confidence": 0.9, "reason": "表达心情感受"}
+
+输入："突然想到可以做一个帮助用户管理时间的APP"
+输出：{"contentType": "startup", "targetComponent": "sidehustle", "emotionTags": [], "categoryTags": ["startup"], "confidence": 0.92, "reason": "创业产品想法"}
+
+输入："感谢朋友今天的帮助"
+输出：{"contentType": "gratitude", "targetComponent": "journal", "emotionTags": ["grateful"], "categoryTags": ["social"], "confidence": 0.95, "reason": "表达感恩"}
+
+输入："今天成功完成了项目，很有成就感"
+输出：{"contentType": "success", "targetComponent": "journal", "emotionTags": ["proud", "happy"], "categoryTags": ["work"], "confidence": 0.93, "reason": "记录成功成就"}
+
+**只返回JSON，不要其他内容。**`;
 
     const response = await this.chat([
       { role: 'system', content: systemPrompt },
@@ -119,28 +139,75 @@ class AIService {
     if (!response.success || !response.content) {
       // 如果AI调用失败，返回默认值
       return {
+        contentType: 'thought',
+        targetComponent: 'memory',
         emotionTags: [],
         categoryTags: [],
         confidence: 0,
+        reason: 'AI分析失败，默认分类为碎碎念',
       };
     }
 
     try {
-      const result = JSON.parse(response.content);
+      let jsonContent = response.content.trim();
+      
+      // 提取JSON
+      const jsonMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (jsonMatch) {
+        jsonContent = jsonMatch[1].trim();
+      } else {
+        const braceMatch = jsonContent.match(/(\{[\s\S]*\})/);
+        if (braceMatch) {
+          jsonContent = braceMatch[1];
+        }
+      }
+      
+      const result = JSON.parse(jsonContent);
       return {
-        type: result.type,
+        contentType: result.contentType || 'thought',
+        targetComponent: result.targetComponent || 'memory',
         emotionTags: result.emotionTags || [],
         categoryTags: result.categoryTags || [],
         confidence: result.confidence || 0,
+        reason: result.reason || '',
       };
     } catch (error) {
       console.error('解析AI响应失败:', error);
       return {
+        contentType: 'thought',
+        targetComponent: 'memory',
         emotionTags: [],
         categoryTags: [],
         confidence: 0,
+        reason: '解析失败，默认分类为碎碎念',
       };
     }
+  }
+
+  // 智能分析消息类型和标签（保留旧方法以兼容）
+  async analyzeMessage(message: string): Promise<{
+    type?: 'mood' | 'thought' | 'todo' | 'success' | 'gratitude';
+    emotionTags: string[];
+    categoryTags: string[];
+    confidence: number;
+  }> {
+    // 使用新的 classifyContent 方法
+    const result = await this.classifyContent(message);
+    
+    // 转换为旧格式
+    let type: 'mood' | 'thought' | 'todo' | 'success' | 'gratitude' | undefined;
+    if (result.contentType === 'task') type = 'todo';
+    else if (result.contentType === 'mood') type = 'mood';
+    else if (result.contentType === 'thought') type = 'thought';
+    else if (result.contentType === 'success') type = 'success';
+    else if (result.contentType === 'gratitude') type = 'gratitude';
+    
+    return {
+      type,
+      emotionTags: result.emotionTags,
+      categoryTags: result.categoryTags,
+      confidence: result.confidence,
+    };
   }
 
   // 智能对话
