@@ -194,8 +194,8 @@ export default function MobileLayout() {
       {/* 通知容器 */}
       <NotificationContainer />
 
-      {/* 高级欢迎界面 */}
-      <PremiumWelcome />
+      {/* 高级欢迎界面 - 暂时禁用 */}
+      {/* <PremiumWelcome /> */}
 
       {/* 用户指南 */}
       <UserGuide 

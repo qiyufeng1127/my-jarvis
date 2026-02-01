@@ -8,6 +8,7 @@ interface WelcomeStep {
   subtitle: string;
   description: string;
   gradient: string;
+
   iconName: 'sparkles' | 'zap' | 'message' | 'check';
   animation: string;
 }
