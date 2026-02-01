@@ -94,51 +94,8 @@ export default function NewTimelineView({
     return isColorDark(bgColor) ? '#ffffff' : '#000000';
   };
   
-  // 🎨 示例任务数据（仅用于预览效果）
-  const [demoTasks, setDemoTasks] = useState<Task[]>([
-    {
-      id: 'demo-1',
-      userId: 'demo',
-      title: '起床穿好衣服',
-      description: '早起第一件事',
-      scheduledStart: new Date(new Date().setHours(9, 0, 0, 0)),
-      durationMinutes: 5,
-      taskType: 'life',
-      status: 'pending',
-      priority: 3,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
-    {
-      id: 'demo-2',
-      userId: 'demo',
-      title: '做好两套ins穿搭图',
-      description: '@ins穿搭账号100天1w粉丝',
-      scheduledStart: new Date(new Date().setHours(9, 30, 0, 0)), // 改为9:30，制造间隔
-      durationMinutes: 60,
-      taskType: 'work',
-      status: 'pending',
-      priority: 2,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
-    {
-      id: 'demo-3',
-      userId: 'demo',
-      title: '发照相馆小红书',
-      description: '@坚持100天每天发照相馆小红书 @月入5w',
-      scheduledStart: new Date(new Date().setHours(11, 0, 0, 0)), // 改为11:00，制造间隔
-      durationMinutes: 30,
-      taskType: 'creative',
-      status: 'pending',
-      priority: 2,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
-  ]);
-  
-  // 合并真实任务和示例任务
-  const allTasks = [...tasks, ...demoTasks];
+  // 使用真实任务（不再需要示范任务）
+  const allTasks = tasks;
 
   // 任务类别颜色（根据设计图）
   const categoryColors: Record<string, string> = {
@@ -671,13 +628,7 @@ export default function NewTimelineView({
             VoiceReminder.congratulateCompletion(task.title, 10);
             
             // 更新任务状态
-            if (taskId.startsWith('demo-')) {
-              setDemoTasks(prev => prev.map(t => 
-                t.id === taskId ? { ...t, status: 'in_progress' as const } : t
-              ));
-            } else {
-              onTaskUpdate(taskId, { status: 'in_progress' });
-            }
+            onTaskUpdate(taskId, { status: 'in_progress' });
             
             console.log('✅ 任务启动验证成功');
           } catch (error) {
@@ -710,13 +661,7 @@ export default function NewTimelineView({
       input.click();
     } else {
       // 无需验证，直接启动
-      if (taskId.startsWith('demo-')) {
-        setDemoTasks(prev => prev.map(t => 
-          t.id === taskId ? { ...t, status: 'in_progress' as const } : t
-        ));
-      } else {
-        onTaskUpdate(taskId, { status: 'in_progress' });
-      }
+      onTaskUpdate(taskId, { status: 'in_progress' });
     }
   };
   
@@ -730,13 +675,7 @@ export default function NewTimelineView({
     // 如果任务已完成，点击取消完成
     if (task.status === 'completed') {
       if (confirm('确定要取消完成这个任务吗？')) {
-        if (taskId.startsWith('demo-')) {
-          setDemoTasks(prev => prev.map(t => 
-            t.id === taskId ? { ...t, status: 'in_progress' as const } : t
-          ));
-        } else {
-          onTaskUpdate(taskId, { status: 'in_progress' });
-        }
+        onTaskUpdate(taskId, { status: 'in_progress' });
         
         // 更新验证状态
         if (verification && verification.enabled) {
@@ -808,20 +747,10 @@ export default function NewTimelineView({
             }
             
             // 更新任务状态为已完成
-            if (taskId.startsWith('demo-')) {
-              setDemoTasks(prev => prev.map(t => 
-                t.id === taskId ? { 
-                  ...t, 
-                  status: 'completed' as const,
-                  scheduledEnd: isEarlyCompletion ? now : t.scheduledEnd,
-                } : t
-              ));
-            } else {
-              onTaskUpdate(taskId, { 
-                status: 'completed',
-                scheduledEnd: isEarlyCompletion ? now : task.scheduledEnd,
-              });
-            }
+            onTaskUpdate(taskId, { 
+              status: 'completed',
+              scheduledEnd: isEarlyCompletion ? now : task.scheduledEnd,
+            });
             
             // 如果提前完成，自动调整后续任务时间
             if (isEarlyCompletion && scheduledEnd) {
@@ -830,13 +759,7 @@ export default function NewTimelineView({
                 now,
                 allTasks,
                 (id, updates) => {
-                  if (id.startsWith('demo-')) {
-                    setDemoTasks(prev => prev.map(t => 
-                      t.id === id ? { ...t, ...updates } : t
-                    ));
-                  } else {
-                    onTaskUpdate(id, updates);
-                  }
+                  onTaskUpdate(id, updates);
                 }
               );
             }
@@ -874,13 +797,7 @@ export default function NewTimelineView({
       input.click();
     } else {
       // 无需验证，直接完成
-      if (taskId.startsWith('demo-')) {
-        setDemoTasks(prev => prev.map(t => 
-          t.id === taskId ? { ...t, status: 'completed' as const } : t
-        ));
-      } else {
-        onTaskUpdate(taskId, { status: 'completed' });
-      }
+      onTaskUpdate(taskId, { status: 'completed' });
     }
   };
 
@@ -978,13 +895,7 @@ export default function NewTimelineView({
                       className="w-full px-3 py-2 rounded-lg border"
                       style={{ borderColor, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'white' }}
                       onBlur={(e) => {
-                        if (task.id.startsWith('demo-')) {
-                          setDemoTasks(prev => prev.map(t => 
-                            t.id === editingTask ? { ...t, title: e.target.value } : t
-                          ));
-                        } else {
-                          onTaskUpdate(editingTask, { title: e.target.value });
-                        }
+                        onTaskUpdate(editingTask, { title: e.target.value });
                       }}
                     />
                   </div>
@@ -999,13 +910,7 @@ export default function NewTimelineView({
                       style={{ borderColor, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'white' }}
                       onBlur={(e) => {
                         const minutes = parseInt(e.target.value);
-                        if (task.id.startsWith('demo-')) {
-                          setDemoTasks(prev => prev.map(t => 
-                            t.id === editingTask ? { ...t, durationMinutes: minutes } : t
-                          ));
-                        } else {
-                          onTaskUpdate(editingTask, { durationMinutes: minutes });
-                        }
+                        onTaskUpdate(editingTask, { durationMinutes: minutes });
                       }}
                     />
                   </div>
@@ -1023,13 +928,7 @@ export default function NewTimelineView({
                         const newDate = new Date(task.scheduledStart || new Date());
                         newDate.setHours(parseInt(hours), parseInt(minutes));
                         
-                        if (task.id.startsWith('demo-')) {
-                          setDemoTasks(prev => prev.map(t => 
-                            t.id === editingTask ? { ...t, scheduledStart: newDate } : t
-                          ));
-                        } else {
-                          onTaskUpdate(editingTask, { scheduledStart: newDate });
-                        }
+                        onTaskUpdate(editingTask, { scheduledStart: newDate });
                       }}
                     />
                   </div>
@@ -1038,9 +937,7 @@ export default function NewTimelineView({
                   <div className="flex gap-3 pt-4">
                     <button
                       onClick={() => {
-                        if (task.id.startsWith('demo-')) {
-                          setDemoTasks(prev => prev.filter(t => t.id !== editingTask));
-                        } else if (onTaskDelete) {
+                        if (onTaskDelete) {
                           onTaskDelete(editingTask);
                         }
                         setEditingTask(null);
