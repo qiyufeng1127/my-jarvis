@@ -24,8 +24,8 @@ export const useAIStore = create<AIStore>()(
     (set, get) => ({
       config: {
         apiKey: '',
-        apiEndpoint: 'https://api.openai.com/v1/chat/completions',
-        model: 'gpt-4',
+        apiEndpoint: 'https://api.deepseek.com/v1/chat/completions',
+        model: 'deepseek-chat',
         temperature: 0.7,
         maxTokens: 2000,
       },

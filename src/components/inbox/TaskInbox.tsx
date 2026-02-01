@@ -127,15 +127,54 @@ export default function TaskInbox({ isDark = false, bgColor = '#ffffff' }: TaskI
 
     try {
       const itemsToAnalyze = inboxItems.filter(item => selectedItems.includes(item.id));
+      
+      // 使用 AISmartProcessor 处理（与 AI 智能助手相同的逻辑）
       const results: Array<{
         item: InboxItem;
         classification: any;
       }> = [];
 
-      // 逐个分析
       for (const item of itemsToAnalyze) {
-        const classification = await aiService.classifyContent(item.content);
-        results.push({ item, classification });
+        // 调用 AISmartProcessor 进行分类
+        const request = {
+          user_input: item.content,
+          context: {
+            user_id: 'current-user',
+            current_time: new Date().toLocaleTimeString('zh-CN'),
+            current_date: new Date().toLocaleDateString('zh-CN'),
+            timeline_summary: {},
+            user_preferences: {},
+            conversation_history: [],
+            existing_tasks: [],
+          },
+        };
+
+        const response = await InboxManager.process(request);
+        
+        // 根据响应判断分类
+        let contentType = 'unknown';
+        let targetComponent = 'none';
+        
+        if (response.actions && response.actions.length > 0) {
+          const action = response.actions[0];
+          if (action.type === 'create_task') {
+            contentType = 'task';
+            targetComponent = 'timeline';
+          } else if (action.type === 'record_memory') {
+            contentType = 'thought';
+            targetComponent = 'memory';
+          }
+        }
+        
+        results.push({
+          item,
+          classification: {
+            contentType,
+            targetComponent,
+            emotionTags: [],
+            categoryTags: [],
+          },
+        });
       }
 
       // 按目标组件分组
@@ -162,41 +201,53 @@ export default function TaskInbox({ isDark = false, bgColor = '#ffffff' }: TaskI
         for (const { item, classification } of grouped.timeline) {
           message += `• ${item.content}\n`;
           
-          // 如果是任务，调用任务分解
-          if (classification.contentType === 'task') {
-            try {
-              const decomposeResult = await aiService.decomposeTask(item.content, new Date());
-              if (decomposeResult.success && decomposeResult.tasks) {
-                // 创建任务
-                for (const task of decomposeResult.tasks) {
-                  const scheduledStart = task.startTime ? (() => {
-                    const [hours, minutes] = task.startTime.split(':');
-                    const date = new Date();
-                    date.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-                    return date;
-                  })() : new Date();
+          // 使用 AISmartProcessor 分解任务（与 AI 智能助手相同）
+          try {
+            const request = {
+              user_input: item.content,
+              context: {
+                user_id: 'current-user',
+                current_time: new Date().toLocaleTimeString('zh-CN'),
+                current_date: new Date().toLocaleDateString('zh-CN'),
+                timeline_summary: {},
+                user_preferences: {},
+                conversation_history: [],
+                existing_tasks: useTaskStore.getState().tasks || [],
+              },
+            };
 
-                  const scheduledEnd = new Date(scheduledStart);
-                  scheduledEnd.setMinutes(scheduledEnd.getMinutes() + task.duration);
-
-                  await createTask({
-                    title: task.title,
-                    description: '',
-                    durationMinutes: task.duration,
-                    goldReward: Math.floor(task.duration * 1.5),
-                    scheduledStart,
-                    scheduledEnd,
-                    taskType: task.category as any,
-                    priority: task.priority === 'high' ? 1 : task.priority === 'medium' ? 2 : 3,
-                    tags: task.location ? [task.location] : [],
-                    status: 'pending',
-                  });
+            const response = await InboxManager.process(request);
+            
+            // 如果有任务创建动作，执行创建
+            if (response.actions && response.actions.length > 0) {
+              for (const action of response.actions) {
+                if (action.type === 'create_task' && action.data.tasks) {
+                  for (const task of action.data.tasks) {
+                    const scheduledStart = task.scheduled_start_iso 
+                      ? new Date(task.scheduled_start_iso)
+                      : new Date();
+                    
+                    await createTask({
+                      title: task.title,
+                      description: task.description || '',
+                      durationMinutes: task.estimated_duration || 30,
+                      goldReward: task.gold || Math.floor((task.estimated_duration || 30) * 1.5),
+                      scheduledStart,
+                      scheduledEnd: new Date(scheduledStart.getTime() + (task.estimated_duration || 30) * 60000),
+                      taskType: task.task_type || 'life',
+                      priority: task.priority === 'high' ? 1 : task.priority === 'medium' ? 2 : 3,
+                      tags: task.tags || [],
+                      status: 'pending',
+                      color: task.color,
+                      location: task.location,
+                    });
+                  }
+                  successCount++;
                 }
-                successCount++;
               }
-            } catch (error) {
-              console.error('创建任务失败:', error);
             }
+          } catch (error) {
+            console.error('创建任务失败:', error);
           }
         }
         message += '\n';
