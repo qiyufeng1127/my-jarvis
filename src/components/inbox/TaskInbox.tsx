@@ -198,54 +198,30 @@ export default function TaskInbox({ isDark = false, bgColor = '#ffffff' }: TaskI
       // 处理任务（分配到时间轴）
       if (grouped.timeline.length > 0) {
         message += `📅 **时间轴任务** (${grouped.timeline.length}个):\n`;
-        for (const { item, classification } of grouped.timeline) {
+        for (const { item } of grouped.timeline) {
           message += `• ${item.content}\n`;
           
-          // 使用 AISmartProcessor 分解任务（与 AI 智能助手相同）
+          // 直接创建任务（简化逻辑）
           try {
-            const request = {
-              user_input: item.content,
-              context: {
-                user_id: 'current-user',
-                current_time: new Date().toLocaleTimeString('zh-CN'),
-                current_date: new Date().toLocaleDateString('zh-CN'),
-                timeline_summary: {},
-                user_preferences: {},
-                conversation_history: [],
-                existing_tasks: useTaskStore.getState().tasks || [],
-              },
-            };
-
-            const response = await AISmartProcessor.process(request);
+            const now = new Date();
+            const scheduledStart = new Date(now.getTime() + 5 * 60000); // 5分钟后
+            const durationMinutes = 30; // 默认30分钟
             
-            // 如果有任务创建动作，执行创建
-            if (response.actions && response.actions.length > 0) {
-              for (const action of response.actions) {
-                if (action.type === 'create_task' && action.data.tasks) {
-                  for (const task of action.data.tasks) {
-                    const scheduledStart = task.scheduled_start_iso 
-                      ? new Date(task.scheduled_start_iso)
-                      : new Date();
-                    
-                    await createTask({
-                      title: task.title,
-                      description: task.description || '',
-                      durationMinutes: task.estimated_duration || 30,
-                      goldReward: task.gold || Math.floor((task.estimated_duration || 30) * 1.5),
-                      scheduledStart,
-                      scheduledEnd: new Date(scheduledStart.getTime() + (task.estimated_duration || 30) * 60000),
-                      taskType: task.task_type || 'life',
-                      priority: task.priority === 'high' ? 1 : task.priority === 'medium' ? 2 : 3,
-                      tags: task.tags || [],
-                      status: 'pending',
-                      color: task.color,
-                      location: task.location,
-                    });
-                  }
-                  successCount++;
-                }
-              }
-            }
+            await createTask({
+              title: item.content,
+              description: '',
+              durationMinutes,
+              goldReward: Math.floor(durationMinutes * 1.5),
+              scheduledStart,
+              scheduledEnd: new Date(scheduledStart.getTime() + durationMinutes * 60000),
+              taskType: 'life',
+              priority: 2,
+              tags: ['收集箱'],
+              status: 'pending',
+              color: '#6A7334',
+              location: '全屋',
+            });
+            successCount++;
           } catch (error) {
             console.error('创建任务失败:', error);
           }
