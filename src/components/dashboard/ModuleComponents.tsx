@@ -2,6 +2,7 @@ import GrowthPanel from '@/components/growth/GrowthPanel';
 import { GoalsModule } from '@/components/growth/GoalsModule';
 import TimelineCalendar from '@/components/calendar/TimelineCalendar';
 import SyncCodeManager from '@/components/settings/SyncCodeManager';
+import AuthPanel from '@/components/settings/AuthPanel';
 import NotificationSettingsPanel from '@/components/settings/NotificationSettings';
 import { MoneyTracker } from '@/components/money';
 import { useTaskStore } from '@/stores/taskStore';
@@ -1231,7 +1232,7 @@ export function ReportsModule({ isDark = false }: { isDark?: boolean }) {
 
 // 设置模块
 export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: boolean; bgColor?: string }) {
-  const [activeTab, setActiveTab] = useState<'growth' | 'identity' | 'procrastination' | 'economy' | 'appearance' | 'notification' | 'sync'>('sync');
+  const [activeTab, setActiveTab] = useState<'auth' | 'sync' | 'growth' | 'identity' | 'procrastination' | 'economy' | 'appearance' | 'notification'>('auth');
   const [strictnessLevel, setStrictnessLevel] = useState(2); // 0=低, 1=中, 2=高
   
   // 外观设置状态
@@ -1272,6 +1273,7 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
   const buttonBg = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)';
 
   const tabs = [
+    { id: 'auth', label: '邮箱登录', icon: '🔐' },
     { id: 'sync', label: '云同步', icon: '☁️' },
     { id: 'appearance', label: '外观体验', icon: '🎨' },
     { id: 'notification', label: '通知语音', icon: '🔔' },
@@ -1301,6 +1303,11 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
           </button>
         ))}
       </div>
+
+      {/* 邮箱登录 */}
+      {activeTab === 'auth' && (
+        <AuthPanel isDark={isDark} bgColor={bgColor} />
+      )}
 
       {/* 云同步设置 */}
       {activeTab === 'sync' && (
