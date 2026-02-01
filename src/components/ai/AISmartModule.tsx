@@ -356,15 +356,10 @@ export default function AISmartModule({
     }
   };
 
-  const saveApiSettings = async () => {
-    // 保存后自动测试连接
-    const success = await testConnection();
-    if (success) {
-      setShowSettings(false);
-      alert('✅ API 配置已保存并测试成功！');
-    } else {
-      alert('⚠️ API 配置已保存，但连接测试失败。请检查配置是否正确。');
-    }
+  const saveApiSettings = () => {
+    // 直接保存，不测试
+    setShowSettings(false);
+    alert('✅ API 配置已保存！\n\n如果使用时遇到问题，请检查：\n1. API Key 是否正确\n2. 网络连接是否正常\n3. API 接口地址是否正确');
   };
 
   // 重新计算所有任务的时间
