@@ -71,12 +71,18 @@ export default function AISmartModule({
         },
         body: JSON.stringify({
           model: config.model,
-          messages: [{ role: 'user', content: 'test' }],
-          max_tokens: 10,
+          messages: [{ role: 'user', content: 'hi' }],
+          max_tokens: 50, // 增加到 50，避免太小导致失败
         }),
       });
 
-      return response.ok;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('API 测试失败:', response.status, errorData);
+        return false;
+      }
+
+      return true;
     } catch (error) {
       console.error('API连接测试失败:', error);
       return false;
