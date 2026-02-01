@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, Sparkles, Trash2, Calendar, Clock, Coins, X, Brain, BookHeart, Lightbulb } from 'lucide-react';
-import { InboxManager, type TaskInInbox } from '@/services/aiSmartService';
+import { AISmartProcessor, type TaskInInbox } from '@/services/aiSmartService';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGoalStore } from '@/stores/goalStore';
 import { useAIStore } from '@/stores/aiStore';
@@ -149,7 +149,7 @@ export default function TaskInbox({ isDark = false, bgColor = '#ffffff' }: TaskI
           },
         };
 
-        const response = await InboxManager.process(request);
+        const response = await AISmartProcessor.process(request);
         
         // 根据响应判断分类
         let contentType = 'unknown';
@@ -216,7 +216,7 @@ export default function TaskInbox({ isDark = false, bgColor = '#ffffff' }: TaskI
               },
             };
 
-            const response = await InboxManager.process(request);
+            const response = await AISmartProcessor.process(request);
             
             // 如果有任务创建动作，执行创建
             if (response.actions && response.actions.length > 0) {
