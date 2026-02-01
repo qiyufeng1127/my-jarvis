@@ -315,7 +315,22 @@ export default function TaskInbox({ isDark = false, bgColor = '#ffffff' }: TaskI
 
     } catch (error) {
       console.error('智能分配失败:', error);
-      alert('❌ AI 分析失败，请稍后再试。');
+      
+      // 显示详细的错误信息
+      let errorMessage = '❌ AI 分析失败\n\n';
+      
+      if (error instanceof Error) {
+        errorMessage += `错误详情：${error.message}\n\n`;
+      }
+      
+      errorMessage += '可能的原因：\n';
+      errorMessage += '1. API Key 不正确\n';
+      errorMessage += '2. 网络连接问题\n';
+      errorMessage += '3. API 接口地址错误\n';
+      errorMessage += '4. API 配额已用完\n\n';
+      errorMessage += '请检查 AI 智能助手的设置，或稍后再试。';
+      
+      alert(errorMessage);
     } finally {
       setIsAnalyzing(false);
     }
