@@ -50,6 +50,9 @@ export default function TimelineCalendar({
       setCalendarView('week');
     }
   }, [isMobile]);
+  
+  // 触摸滑动状态
+  const [touchStart, setTouchStart] = useState<number | null>(null);
 
   // 判断颜色是否为深色
   const isColorDark = (color: string): boolean => {
@@ -170,184 +173,263 @@ export default function TimelineCalendar({
     <div className="flex flex-col h-full" style={{ backgroundColor: bgColor }}>
       {/* 上半部分：日历视图 */}
       <div className="flex-shrink-0" style={{ borderBottom: `2px solid ${borderColor}` }}>
-        {/* 日历工具栏 - 手机版简化 */}
-        <div className={`flex items-center justify-between ${isMobile ? 'px-3 py-2' : 'px-6 py-3'}`} style={{ backgroundColor: bgColor, borderBottom: `1px solid ${borderColor}` }}>
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => {
-                const newDate = new Date(selectedDate);
-                if (calendarView === 'month') {
-                  newDate.setMonth(newDate.getMonth() - 1);
-                } else {
-                  newDate.setDate(newDate.getDate() - 7);
-                }
-                setSelectedDate(newDate);
+        {/* 手机版：简化的周视图头部 */}
+        {isMobile ? (
+          <div className="px-3 py-2" style={{ backgroundColor: bgColor }}>
+            {/* 周数标题 - 可左右滑动 */}
+            <div 
+              className="flex items-center justify-center mb-2"
+              onTouchStart={(e) => {
+                const touch = e.touches[0];
+                setTouchStart(touch.clientX);
               }}
-              className={`${isMobile ? 'p-1' : 'p-2'} rounded-lg transition-colors`}
-              style={{ backgroundColor: hoverBg }}
-            >
-              <ChevronLeft className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} style={{ color: textColor }} />
-            </button>
-
-            {/* 手机版：只显示简单日期 */}
-            {isMobile ? (
-              <div className="flex items-center space-x-1">
-                <span className="text-sm font-semibold" style={{ color: textColor }}>
-                  {selectedDate.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' })}
-                </span>
-                <span className="text-xs" style={{ color: accentColor }}>
-                  {['周日', '周一', '周二', '周三', '周四', '周五', '周六'][selectedDate.getDay()]}
-                </span>
-              </div>
-            ) : (
-              <div className="flex items-center space-x-2">
-                <CalendarIcon className="w-5 h-5" style={{ color: textColor }} />
-                <h2 className="text-lg font-semibold" style={{ color: textColor }}>
-                  {calendarView === 'month' 
-                    ? selectedDate.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' })
-                    : `${selectedDate.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' })} 第${Math.ceil(selectedDate.getDate() / 7)}周`
+              onTouchMove={(e) => {
+                if (touchStart === null) return;
+                const touch = e.touches[0];
+                const diff = touch.clientX - touchStart;
+                if (Math.abs(diff) > 50) {
+                  if (diff > 0) {
+                    // 向右滑动 - 上一周
+                    const newDate = new Date(selectedDate);
+                    newDate.setDate(newDate.getDate() - 7);
+                    setSelectedDate(newDate);
+                  } else {
+                    // 向左滑动 - 下一周
+                    const newDate = new Date(selectedDate);
+                    newDate.setDate(newDate.getDate() + 7);
+                    setSelectedDate(newDate);
                   }
-                </h2>
-              </div>
-            )}
-
-            <button
-              onClick={() => {
-                const newDate = new Date(selectedDate);
-                if (calendarView === 'month') {
-                  newDate.setMonth(newDate.getMonth() + 1);
-                } else {
-                  newDate.setDate(newDate.getDate() + 7);
+                  setTouchStart(null);
                 }
-                setSelectedDate(newDate);
               }}
-              className={`${isMobile ? 'p-1' : 'p-2'} rounded-lg transition-colors`}
-              style={{ backgroundColor: hoverBg }}
+              onTouchEnd={() => setTouchStart(null)}
             >
-              <ChevronRight className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} style={{ color: textColor }} />
-            </button>
-
-            <button
-              onClick={() => setSelectedDate(new Date())}
-              className={`${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm'} rounded-lg transition-colors`}
-              style={{ backgroundColor: hoverBg, color: textColor }}
-            >
-              今天
-            </button>
-          </div>
-
-          {/* 电脑版：显示视图切换 */}
-          {!isMobile && (
-            <div className="flex items-center space-x-2">
-              <div className="flex rounded-lg p-1" style={{ backgroundColor: cardBg }}>
-                <button
-                  onClick={() => setCalendarView('week')}
-                  className={`px-3 py-1.5 text-sm rounded transition-colors ${
-                    calendarView === 'week'
-                      ? 'font-semibold shadow-sm'
-                      : ''
-                  }`}
-                  style={{
-                    backgroundColor: calendarView === 'week' ? hoverBg : 'transparent',
-                    color: calendarView === 'week' ? textColor : accentColor,
-                  }}
-                >
-                  周视图
-                </button>
-                <button
-                  onClick={() => setCalendarView('month')}
-                  className={`px-3 py-1.5 text-sm rounded transition-colors ${
-                    calendarView === 'month'
-                      ? 'font-semibold shadow-sm'
-                      : ''
-                  }`}
-                  style={{
-                    backgroundColor: calendarView === 'month' ? hoverBg : 'transparent',
-                    color: calendarView === 'month' ? textColor : accentColor,
-                  }}
-                >
-                  月视图
-                </button>
-              </div>
+              <span className="text-sm font-semibold" style={{ color: textColor }}>
+                {selectedDate.toLocaleDateString('zh-CN', { month: 'long' })}第{Math.ceil(selectedDate.getDate() / 7)}周
+              </span>
             </div>
-          )}
-        </div>
-
-        {/* 日历网格 - 手机版缩小 */}
-        <div 
-          className={`overflow-auto ${isMobile ? 'px-2 py-1' : 'px-4 py-2'}`}
-          style={{ 
-            maxHeight: calendarView === 'week' ? (isMobile ? '100px' : '180px') : (isMobile ? '200px' : '280px'),
-            minHeight: calendarView === 'week' ? (isMobile ? '80px' : '120px') : (isMobile ? '150px' : '200px'),
-            overflowY: 'auto',
-          }}
-        >
-          <div className={`grid grid-cols-7 ${calendarView === 'month' ? (isMobile ? 'gap-1' : 'gap-2') : (isMobile ? 'gap-2' : 'gap-3')}`}>
+            
             {/* 星期标题 */}
-            {['日', '一', '二', '三', '四', '五', '六'].map((day, index) => (
-              <div key={index} className={`text-center font-semibold ${isMobile ? 'py-1 text-xs' : 'py-2'}`} style={{ color: textColor }}>
-                {day}
-              </div>
-            ))}
-
-            {/* 日期格子 - 手机版缩小 */}
-            {calendarDays.map((day, index) => (
-              <button
-                key={index}
-                onClick={() => setSelectedDate(day.date)}
-                className={`aspect-square rounded-lg border-2 ${isMobile ? 'p-1' : 'p-2'} transition-all hover:shadow-md`}
-                style={{
-                  borderColor: day.isSelected
-                    ? '#3B82F6'
-                    : day.isToday
-                    ? '#10B981'
-                    : day.isCurrentMonth
-                    ? borderColor
-                    : 'transparent',
-                  backgroundColor: day.isSelected
-                    ? isDark ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)'
-                    : day.isToday
-                    ? isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.1)'
-                    : day.isCurrentMonth
-                    ? cardBg
-                    : 'transparent',
-                }}
-              >
-                <div className="flex flex-col h-full">
-                  <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-semibold mb-1`}
+            <div className="grid grid-cols-7 gap-1 mb-2">
+              {['日', '一', '二', '三', '四', '五', '六'].map((day, index) => (
+                <div key={index} className="text-center text-xs font-semibold py-1" style={{ color: textColor }}>
+                  {day}
+                </div>
+              ))}
+            </div>
+            
+            {/* 日期数字 - 无方块，只显示数字和下划线 */}
+            <div className="grid grid-cols-7 gap-1">
+              {generateWeekCalendarDays().map((day, index) => (
+                <button
+                  key={index}
+                  onClick={() => setSelectedDate(day.date)}
+                  className="text-center py-1 transition-all relative"
+                >
+                  <div 
+                    className={`text-sm font-semibold ${day.isSelected || day.isToday ? 'relative' : ''}`}
                     style={{
-                      color: day.isToday ? '#10B981' : day.isSelected ? '#3B82F6' : day.isCurrentMonth ? textColor : accentColor
+                      color: day.isToday ? '#10B981' : day.isSelected ? '#EC4899' : textColor
                     }}
                   >
                     {day.date.getDate()}
+                    {/* 选中日期 - 粉色下划线 */}
+                    {day.isSelected && (
+                      <div 
+                        className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-6 h-0.5 rounded-full"
+                        style={{ backgroundColor: '#EC4899' }}
+                      />
+                    )}
+                    {/* 当天 - 蓝色下划线 */}
+                    {day.isToday && !day.isSelected && (
+                      <div 
+                        className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-6 h-0.5 rounded-full"
+                        style={{ backgroundColor: '#3B82F6' }}
+                      />
+                    )}
                   </div>
-                  
+                  {/* 任务数量指示点 */}
                   {day.tasks.length > 0 && (
-                    <div className="flex-1 flex flex-col space-y-1 overflow-hidden">
-                      {day.tasks.slice(0, calendarView === 'month' ? (isMobile ? 1 : 2) : (isMobile ? 2 : 4)).map((task, taskIndex) => (
-                        <div
-                          key={taskIndex}
-                          className={`${isMobile ? 'text-[8px] px-0.5 py-0.5' : 'text-xs px-1 py-0.5'} rounded truncate`}
-                          style={{
-                            backgroundColor: `${categoryColors[task.taskType] || categoryColors.other}20`,
-                            color: categoryColors[task.taskType] || categoryColors.other,
-                          }}
-                        >
-                          {task.title}
-                        </div>
-                      ))}
-                      {day.tasks.length > (calendarView === 'month' ? (isMobile ? 1 : 2) : (isMobile ? 2 : 4)) && (
-                        <div className={`${isMobile ? 'text-[8px]' : 'text-xs'}`} style={{ color: accentColor }}>
-                          +{day.tasks.length - (calendarView === 'month' ? (isMobile ? 1 : 2) : (isMobile ? 2 : 4))} 更多
+                    <div className="flex justify-center mt-0.5">
+                      <div 
+                        className="w-1 h-1 rounded-full"
+                        style={{ backgroundColor: categoryColors[day.tasks[0].taskType] || categoryColors.other }}
+                      />
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          /* 电脑版：保持原样 */
+          <>
+            {/* 日历工具栏 */}
+            <div className="flex items-center justify-between px-6 py-3" style={{ backgroundColor: bgColor, borderBottom: `1px solid ${borderColor}` }}>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => {
+                    const newDate = new Date(selectedDate);
+                    if (calendarView === 'month') {
+                      newDate.setMonth(newDate.getMonth() - 1);
+                    } else {
+                      newDate.setDate(newDate.getDate() - 7);
+                    }
+                    setSelectedDate(newDate);
+                  }}
+                  className="p-1 rounded-lg transition-colors"
+                  style={{ backgroundColor: hoverBg }}
+                >
+                  <ChevronLeft className="w-4 h-4" style={{ color: textColor }} />
+                </button>
+
+                <div className="flex items-center space-x-2">
+                  <CalendarIcon className="w-5 h-5" style={{ color: textColor }} />
+                  <h2 className="text-lg font-semibold" style={{ color: textColor }}>
+                    {calendarView === 'month' 
+                      ? selectedDate.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' })
+                      : `${selectedDate.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' })} 第${Math.ceil(selectedDate.getDate() / 7)}周`
+                    }
+                  </h2>
+                </div>
+
+                <button
+                  onClick={() => {
+                    const newDate = new Date(selectedDate);
+                    if (calendarView === 'month') {
+                      newDate.setMonth(newDate.getMonth() + 1);
+                    } else {
+                      newDate.setDate(newDate.getDate() + 7);
+                    }
+                    setSelectedDate(newDate);
+                  }}
+                  className="p-1 rounded-lg transition-colors"
+                  style={{ backgroundColor: hoverBg }}
+                >
+                  <ChevronRight className="w-4 h-4" style={{ color: textColor }} />
+                </button>
+
+                <button
+                  onClick={() => setSelectedDate(new Date())}
+                  className="px-2 py-1 text-xs rounded-lg transition-colors"
+                  style={{ backgroundColor: hoverBg, color: textColor }}
+                >
+                  今天
+                </button>
+              </div>
+
+              {/* 电脑版：显示视图切换 */}
+              <div className="flex items-center space-x-2">
+                <div className="flex rounded-lg p-1" style={{ backgroundColor: cardBg }}>
+                  <button
+                    onClick={() => setCalendarView('week')}
+                    className={`px-3 py-1.5 text-sm rounded transition-colors ${
+                      calendarView === 'week'
+                        ? 'font-semibold shadow-sm'
+                        : ''
+                    }`}
+                    style={{
+                      backgroundColor: calendarView === 'week' ? hoverBg : 'transparent',
+                      color: calendarView === 'week' ? textColor : accentColor,
+                    }}
+                  >
+                    周视图
+                  </button>
+                  <button
+                    onClick={() => setCalendarView('month')}
+                    className={`px-3 py-1.5 text-sm rounded transition-colors ${
+                      calendarView === 'month'
+                        ? 'font-semibold shadow-sm'
+                        : ''
+                    }`}
+                    style={{
+                      backgroundColor: calendarView === 'month' ? hoverBg : 'transparent',
+                      color: calendarView === 'month' ? textColor : accentColor,
+                    }}
+                  >
+                    月视图
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* 日历网格 - 电脑版保留方块 */}
+            <div 
+              className="overflow-auto px-4 py-2"
+              style={{ 
+                maxHeight: calendarView === 'week' ? '180px' : '280px',
+                minHeight: calendarView === 'week' ? '120px' : '200px',
+                overflowY: 'auto',
+              }}
+            >
+              <div className={`grid grid-cols-7 ${calendarView === 'month' ? 'gap-2' : 'gap-3'}`}>
+                {/* 星期标题 */}
+                {['日', '一', '二', '三', '四', '五', '六'].map((day, index) => (
+                  <div key={index} className="text-center font-semibold py-2" style={{ color: textColor }}>
+                    {day}
+                  </div>
+                ))}
+
+                {/* 日期格子 */}
+                {calendarDays.map((day, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setSelectedDate(day.date)}
+                    className="aspect-square rounded-lg border-2 p-2 transition-all hover:shadow-md"
+                    style={{
+                      borderColor: day.isSelected
+                        ? '#3B82F6'
+                        : day.isToday
+                        ? '#10B981'
+                        : day.isCurrentMonth
+                        ? borderColor
+                        : 'transparent',
+                      backgroundColor: day.isSelected
+                        ? isDark ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)'
+                        : day.isToday
+                        ? isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.1)'
+                        : day.isCurrentMonth
+                        ? cardBg
+                        : 'transparent',
+                    }}
+                  >
+                    <div className="flex flex-col h-full">
+                      <div className="text-sm font-semibold mb-1"
+                        style={{
+                          color: day.isToday ? '#10B981' : day.isSelected ? '#3B82F6' : day.isCurrentMonth ? textColor : accentColor
+                        }}
+                      >
+                        {day.date.getDate()}
+                      </div>
+                      
+                      {day.tasks.length > 0 && (
+                        <div className="flex-1 flex flex-col space-y-1 overflow-hidden">
+                          {day.tasks.slice(0, calendarView === 'month' ? 2 : 4).map((task, taskIndex) => (
+                            <div
+                              key={taskIndex}
+                              className="text-xs px-1 py-0.5 rounded truncate"
+                              style={{
+                                backgroundColor: `${categoryColors[task.taskType] || categoryColors.other}20`,
+                                color: categoryColors[task.taskType] || categoryColors.other,
+                              }}
+                            >
+                              {task.title}
+                            </div>
+                          ))}
+                          {day.tasks.length > (calendarView === 'month' ? 2 : 4) && (
+                            <div className="text-xs" style={{ color: accentColor }}>
+                              +{day.tasks.length - (calendarView === 'month' ? 2 : 4)} 更多
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* 下半部分：时间轴视图 */}

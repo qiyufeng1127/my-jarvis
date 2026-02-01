@@ -1111,15 +1111,15 @@ export default function NewTimelineView({
                   </div>
                 )}
 
-                {/* 未展开：横向长条形布局 - 完全按照设计图，手机版缩小 */}
+                {/* 未展开：横向长条形布局 - 完全按照设计图，手机版缩小并压缩空白 */}
                 {!isExpanded && (
-                  <div className={`${isMobile ? 'p-2' : 'p-3'} text-white`} style={{ color: getTextColor(block.color) }}>
-                    {/* 第一行：拖拽手柄 + 标签 + 时长 + 编辑按钮 */}
-                    <div className={`flex items-center justify-between ${isMobile ? 'mb-1' : 'mb-2'}`}>
+                  <div className={`${isMobile ? 'p-1.5' : 'p-3'} text-white`} style={{ color: getTextColor(block.color) }}>
+                    {/* 第一行：拖拽手柄 + 标签 + 时长 + 编辑按钮 - 减少下边距 */}
+                    <div className={`flex items-center justify-between ${isMobile ? 'mb-0.5' : 'mb-2'}`}>
                       <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-2'}`}>
                         {/* 拖拽手柄 */}
                         <div
-                          className="cursor-move p-1 rounded hover:bg-white/20 transition-colors"
+                          className="cursor-move p-0.5 rounded hover:bg-white/20 transition-colors"
                           onMouseDown={(e) => handleDragStart(e, block.id, block.startTime)}
                           onTouchStart={(e) => handleDragStart(e, block.id, block.startTime)}
                         >
@@ -1130,7 +1130,7 @@ export default function NewTimelineView({
                           {block.tags.slice(0, isMobile ? 1 : 2).map((tag, idx) => (
                             <span 
                               key={idx}
-                              className={`${isMobile ? 'text-[8px]' : 'text-[10px]'} font-semibold ${isMobile ? 'px-1.5 py-0.5' : 'px-2 py-0.5'} rounded-full`}
+                              className={`${isMobile ? 'text-[9px]' : 'text-[10px]'} font-semibold ${isMobile ? 'px-2 py-0.5' : 'px-2 py-0.5'} rounded-full`}
                               style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
                             >
                               {tag}
@@ -1147,7 +1147,7 @@ export default function NewTimelineView({
                         {/* 编辑按钮 */}
                         <button
                           onClick={() => setEditingTask(block.id)}
-                          className={`${isMobile ? 'p-1' : 'p-1.5'} rounded-full hover:bg-white/20 transition-colors`}
+                          className={`${isMobile ? 'p-0.5' : 'p-1.5'} rounded-full hover:bg-white/20 transition-colors`}
                           title="编辑任务"
                         >
                           <Edit2 className={`${isMobile ? 'w-3 h-3' : 'w-4 h-4'}`} />
@@ -1155,12 +1155,12 @@ export default function NewTimelineView({
                       </div>
                     </div>
 
-                    {/* 第二行：图片 + 标题区域 - 手机版缩小 */}
-                    <div className={`flex ${isMobile ? 'gap-2 mb-1' : 'gap-3 mb-2'}`}>
+                    {/* 第二行：图片 + 标题区域 - 手机版缩小并减少边距 */}
+                    <div className={`flex ${isMobile ? 'gap-1.5 mb-0.5' : 'gap-3 mb-2'}`}>
                       {/* 圆形图片 */}
                       <div 
                         onClick={() => handleOpenImagePicker(block.id)}
-                        className={`${isMobile ? 'w-10 h-10' : 'w-14 h-14'} rounded-full flex-shrink-0 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity relative`}
+                        className={`${isMobile ? 'w-9 h-9' : 'w-14 h-14'} rounded-full flex-shrink-0 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity relative`}
                         style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
                         title="点击上传照片（支持多选）"
                       >
@@ -1182,13 +1182,13 @@ export default function NewTimelineView({
 
                       {/* 标题 + 目标 */}
                       <div className="flex-1 flex flex-col justify-center min-w-0">
-                        <div className={`flex items-center ${isMobile ? 'gap-1 mb-0.5' : 'gap-1.5 mb-1'}`}>
+                        <div className={`flex items-center ${isMobile ? 'gap-1 mb-0' : 'gap-1.5 mb-1'}`}>
                           <h3 className={`${isMobile ? 'text-sm' : 'text-base'} font-bold ${block.isCompleted ? 'line-through' : ''}`}>
                             {block.title}
                           </h3>
                           <span className={`${isMobile ? 'text-base' : 'text-lg'}`}>{block.emoji}</span>
                         </div>
-                        <div className={`${isMobile ? 'text-[10px]' : 'text-xs'} opacity-90`}>
+                        <div className={`${isMobile ? 'text-[9px]' : 'text-xs'} opacity-90`}>
                           {block.goalText}
                         </div>
                       </div>
@@ -1252,7 +1252,7 @@ export default function NewTimelineView({
                           <button
                             onClick={() => handleStartTask(block.id)}
                             disabled={startingTask === block.id}
-                            className={`${isMobile ? 'px-2 py-1 text-xs' : 'px-4 py-1.5 text-sm'} rounded-full font-bold transition-all hover:scale-105 disabled:opacity-50`}
+                            className={`${isMobile ? 'px-2 py-0.5 text-xs' : 'px-4 py-1.5 text-sm'} rounded-full font-bold transition-all hover:scale-105 disabled:opacity-50`}
                             style={{ 
                               backgroundColor: 'rgba(255,255,255,0.95)',
                               color: block.color,
