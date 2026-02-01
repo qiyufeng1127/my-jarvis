@@ -1,5 +1,4 @@
 import { useSideHustleStore } from '@/stores/sideHustleStore';
-import { Sparkles, TrendingUp, AlertTriangle, Target, Lightbulb } from 'lucide-react';
 
 interface AIInsightsProps {
   isDark?: boolean;
@@ -8,10 +7,11 @@ interface AIInsightsProps {
 export default function AIInsights({ isDark = false }: AIInsightsProps) {
   const { getActiveSideHustles, getRankedByHourlyRate, getTotalIncome } = useSideHustleStore();
 
-  // 增强对比度的颜色系统
-  const textColor = isDark ? '#ffffff' : '#1a1a1a';
-  const secondaryColor = isDark ? 'rgba(255,255,255,0.9)' : '#333333';
-  const cardBg = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)';
+  // iOS 风格的颜色系统
+  const textColor = isDark ? '#ffffff' : '#000000';
+  const secondaryColor = isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)';
+  const cardBg = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.03)';
+  const borderColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)';
 
   const activeSideHustles = getActiveSideHustles();
   const rankedByHourlyRate = getRankedByHourlyRate();
@@ -25,12 +25,11 @@ export default function AIInsights({ isDark = false }: AIInsightsProps) {
     if (rankedByHourlyRate.length > 0) {
       const best = rankedByHourlyRate[0];
       insights.push({
-        type: 'recommendation',
-        icon: TrendingUp,
-        color: '#10b981',
+        emoji: '🎯',
+        color: '#34C759',
         title: '建议优先做',
         content: `"${best.name}"`,
-        reason: `时薪最高 (¥${best.hourlyRate.toFixed(0)}/h)，ROI ${best.roi.toFixed(0)}%`,
+        reason: `时薪 ¥${best.hourlyRate.toFixed(0)}/h，ROI ${best.roi.toFixed(0)}%`,
       });
     }
 
@@ -39,41 +38,25 @@ export default function AIInsights({ isDark = false }: AIInsightsProps) {
       const worst = rankedByHourlyRate[rankedByHourlyRate.length - 1];
       if (worst.hourlyRate < 50) {
         insights.push({
-          type: 'warning',
-          icon: AlertTriangle,
-          color: '#f59e0b',
+          emoji: '⚠️',
+          color: '#FF9500',
           title: '效率较低',
           content: `"${worst.name}"`,
-          reason: `时薪仅 ¥${worst.hourlyRate.toFixed(0)}/h，建议优化或减少投入`,
+          reason: `时薪仅 ¥${worst.hourlyRate.toFixed(0)}/h，建议优化`,
         });
       }
     }
 
     // 收入预测
-    const avgMonthlyIncome = totalIncome * 0.3; // 假设本月占30%
-    const predictedIncome = avgMonthlyIncome * 1.2; // 预测增长20%
+    const avgMonthlyIncome = totalIncome * 0.3;
+    const predictedIncome = avgMonthlyIncome * 1.2;
     insights.push({
-      type: 'prediction',
-      icon: Target,
-      color: '#8b5cf6',
-      title: '本月收入预测',
+      emoji: '📈',
+      color: '#007AFF',
+      title: '本月预测',
       content: `¥${predictedIncome.toLocaleString()}`,
-      reason: '基于当前趋势，预计可达成目标',
+      reason: '基于当前趋势',
     });
-
-    // 优化建议
-    if (activeSideHustles.length > 0) {
-      const totalHours = activeSideHustles.reduce((sum, h) => sum + h.totalHours, 0);
-      const avgHourlyRate = totalIncome / totalHours;
-      insights.push({
-        type: 'suggestion',
-        icon: Lightbulb,
-        color: '#3b82f6',
-        title: '优化建议',
-        content: '专注高时薪副业',
-        reason: `当前平均时薪 ¥${avgHourlyRate.toFixed(0)}/h，可提升至 ¥${(avgHourlyRate * 1.5).toFixed(0)}/h`,
-      });
-    }
 
     return insights;
   };
@@ -86,45 +69,42 @@ export default function AIInsights({ isDark = false }: AIInsightsProps) {
 
   return (
     <div
-      className="p-6 rounded-xl"
-      style={{ backgroundColor: cardBg }}
+      className="p-3 rounded-xl"
+      style={{ 
+        backgroundColor: cardBg,
+        border: `1px solid ${borderColor}`,
+      }}
     >
       {/* 标题 */}
-      <div className="flex items-center gap-3 mb-6">
-        <Sparkles size={28} style={{ color: '#f59e0b' }} />
-        <h2 className="text-2xl font-bold" style={{ color: textColor }}>
-          今日 AI 洞察
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-lg">✨</span>
+        <h2 className="text-sm font-semibold" style={{ color: textColor }}>
+          AI 洞察
         </h2>
       </div>
 
-      {/* 洞察列表 - 大卡片、图标化 */}
-      <div className="space-y-4">
+      {/* 洞察列表 - 紧凑 */}
+      <div className="space-y-2">
         {insights.map((insight, index) => (
           <div
             key={index}
-            className="p-5 rounded-xl transition-all hover:scale-[1.02]"
+            className="p-2.5 rounded-lg"
             style={{ 
-              backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-              borderLeft: `6px solid ${insight.color}`,
+              backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
             }}
           >
-            <div className="flex items-start gap-4">
-              <div
-                className="p-3 rounded-xl"
-                style={{ backgroundColor: `${insight.color}30` }}
-              >
-                <insight.icon size={32} style={{ color: insight.color }} />
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-lg font-bold" style={{ color: insight.color }}>
+            <div className="flex items-start gap-2">
+              <span className="text-xl">{insight.emoji}</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className="text-xs font-medium" style={{ color: insight.color }}>
                     {insight.title}
                   </span>
                 </div>
-                <div className="font-bold text-2xl mb-2" style={{ color: textColor }}>
+                <div className="font-semibold text-sm mb-0.5 truncate" style={{ color: textColor }}>
                   {insight.content}
                 </div>
-                <div className="text-base" style={{ color: secondaryColor }}>
+                <div className="text-xs" style={{ color: secondaryColor }}>
                   {insight.reason}
                 </div>
               </div>
@@ -132,17 +112,6 @@ export default function AIInsights({ isDark = false }: AIInsightsProps) {
           </div>
         ))}
       </div>
-
-      {/* 查看详细分析按钮 */}
-      <button
-        className="w-full mt-6 py-3 rounded-xl transition-all hover:scale-[1.02] font-semibold text-base"
-        style={{ 
-          backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
-          color: textColor,
-        }}
-      >
-        查看详细分析
-      </button>
     </div>
   );
 }
