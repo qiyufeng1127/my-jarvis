@@ -8,7 +8,7 @@ interface WelcomeStep {
   subtitle: string;
   description: string;
   gradient: string;
-  icon: React.ReactNode;
+  iconName: 'sparkles' | 'zap' | 'message' | 'check';
   animation: string;
 }
 
@@ -19,7 +19,7 @@ const WELCOME_STEPS: WelcomeStep[] = [
     subtitle: 'Are You Ready to Become Your Best Self?',
     description: '这不是一个普通的待办清单\n这是你通往理想人生的操作系统',
     gradient: 'from-purple-600 via-pink-600 to-red-600',
-    icon: <Sparkles className="w-16 h-16" />,
+    iconName: 'sparkles',
     animation: 'animate-pulse-slow',
   },
   {
@@ -28,7 +28,7 @@ const WELCOME_STEPS: WelcomeStep[] = [
     subtitle: 'AI-Powered Growth Partner',
     description: '90% 的繁琐操作由 AI 自动完成\n你只需要专注于想法和行动',
     gradient: 'from-blue-600 via-cyan-600 to-teal-600',
-    icon: <Zap className="w-16 h-16" />,
+    iconName: 'zap',
     animation: 'animate-bounce-slow',
   },
   {
@@ -37,7 +37,7 @@ const WELCOME_STEPS: WelcomeStep[] = [
     subtitle: 'Simple Input, Complete Growth',
     description: '只需两个入口，说出你的想法\nAI 自动分类、规划、追踪、激励',
     gradient: 'from-green-600 via-emerald-600 to-teal-600',
-    icon: <MessageSquare className="w-16 h-16" />,
+    iconName: 'message',
     animation: 'animate-float',
   },
   {
@@ -46,10 +46,26 @@ const WELCOME_STEPS: WelcomeStep[] = [
     subtitle: 'Every Day is a New Beginning',
     description: '完成任务获得奖励\n记录成长看见进步\n让每个行动都有意义',
     gradient: 'from-orange-600 via-amber-600 to-yellow-600',
-    icon: <Check className="w-16 h-16" />,
+    iconName: 'check',
     animation: 'animate-scale-pulse',
   },
 ];
+
+const getIcon = (iconName: string) => {
+  const iconProps = { className: "w-16 h-16" };
+  switch (iconName) {
+    case 'sparkles':
+      return <Sparkles {...iconProps} />;
+    case 'zap':
+      return <Zap {...iconProps} />;
+    case 'message':
+      return <MessageSquare {...iconProps} />;
+    case 'check':
+      return <Check {...iconProps} />;
+    default:
+      return <Sparkles {...iconProps} />;
+  }
+};
 
 export default function PremiumWelcome() {
   const { isFirstTime, setFirstTime } = useTutorialStore();
@@ -135,7 +151,7 @@ export default function PremiumWelcome() {
               transition: 'all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)',
             }}
           >
-            {step.icon}
+            {getIcon(step.iconName)}
           </div>
 
           {/* 主标题 */}
