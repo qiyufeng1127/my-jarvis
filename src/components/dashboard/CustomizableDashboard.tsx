@@ -226,10 +226,6 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
   const [draggingTopBarItem, setDraggingTopBarItem] = useState<string | null>(null);
   const [topBarDragOffset, setTopBarDragOffset] = useState({ x: 0, y: 0 });
 
-  // 从副业追踪器获取余额数据
-  const { getTotalProfit, loadSideHustles } = useSideHustleStore();
-  const assetBalance = getTotalProfit(); // 总利润作为余额
-
   // 加载副业数据
   useEffect(() => {
     loadSideHustles();
