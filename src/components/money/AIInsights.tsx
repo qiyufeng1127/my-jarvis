@@ -8,9 +8,10 @@ interface AIInsightsProps {
 export default function AIInsights({ isDark = false }: AIInsightsProps) {
   const { getActiveSideHustles, getRankedByHourlyRate, getTotalIncome } = useSideHustleStore();
 
-  const textColor = isDark ? '#ffffff' : '#000000';
-  const secondaryColor = isDark ? 'rgba(255,255,255,0.7)' : '#666666';
-  const cardBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
+  // 增强对比度的颜色系统
+  const textColor = isDark ? '#ffffff' : '#1a1a1a';
+  const secondaryColor = isDark ? 'rgba(255,255,255,0.9)' : '#333333';
+  const cardBg = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)';
 
   const activeSideHustles = getActiveSideHustles();
   const rankedByHourlyRate = getRankedByHourlyRate();
@@ -90,40 +91,40 @@ export default function AIInsights({ isDark = false }: AIInsightsProps) {
     >
       {/* 标题 */}
       <div className="flex items-center gap-3 mb-6">
-        <Sparkles size={24} style={{ color: '#f59e0b' }} />
-        <h2 className="text-xl font-bold" style={{ color: textColor }}>
+        <Sparkles size={28} style={{ color: '#f59e0b' }} />
+        <h2 className="text-2xl font-bold" style={{ color: textColor }}>
           今日 AI 洞察
         </h2>
       </div>
 
-      {/* 洞察列表 */}
+      {/* 洞察列表 - 大卡片、图标化 */}
       <div className="space-y-4">
         {insights.map((insight, index) => (
           <div
             key={index}
-            className="p-4 rounded-lg transition-all hover:scale-[1.02]"
+            className="p-5 rounded-xl transition-all hover:scale-[1.02]"
             style={{ 
-              backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
-              borderLeft: `4px solid ${insight.color}`,
+              backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+              borderLeft: `6px solid ${insight.color}`,
             }}
           >
-            <div className="flex items-start gap-3">
+            <div className="flex items-start gap-4">
               <div
-                className="p-2 rounded-lg"
-                style={{ backgroundColor: `${insight.color}20` }}
+                className="p-3 rounded-xl"
+                style={{ backgroundColor: `${insight.color}30` }}
               >
-                <insight.icon size={20} style={{ color: insight.color }} />
+                <insight.icon size={32} style={{ color: insight.color }} />
               </div>
               <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-sm font-medium" style={{ color: insight.color }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg font-bold" style={{ color: insight.color }}>
                     {insight.title}
                   </span>
                 </div>
-                <div className="font-bold mb-1" style={{ color: textColor }}>
+                <div className="font-bold text-2xl mb-2" style={{ color: textColor }}>
                   {insight.content}
                 </div>
-                <div className="text-sm" style={{ color: secondaryColor }}>
+                <div className="text-base" style={{ color: secondaryColor }}>
                   {insight.reason}
                 </div>
               </div>
@@ -134,9 +135,9 @@ export default function AIInsights({ isDark = false }: AIInsightsProps) {
 
       {/* 查看详细分析按钮 */}
       <button
-        className="w-full mt-4 py-2 rounded-lg transition-all hover:scale-[1.02]"
+        className="w-full mt-6 py-3 rounded-xl transition-all hover:scale-[1.02] font-semibold text-base"
         style={{ 
-          backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+          backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
           color: textColor,
         }}
       >

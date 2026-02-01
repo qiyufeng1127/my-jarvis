@@ -44,10 +44,11 @@ export default function MoneyTracker({ isDark = false, bgColor = '#ffffff' }: Mo
   const thisMonthExpense = totalExpense * 0.3;
   const thisMonthProfit = thisMonthIncome - thisMonthExpense;
 
-  const textColor = isDark ? '#ffffff' : '#000000';
-  const secondaryColor = isDark ? 'rgba(255,255,255,0.7)' : '#666666';
-  const cardBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
-  const borderColor = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)';
+  // 增强对比度的颜色系统
+  const textColor = isDark ? '#ffffff' : '#1a1a1a';
+  const secondaryColor = isDark ? 'rgba(255,255,255,0.9)' : '#333333';
+  const cardBg = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)';
+  const borderColor = isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.15)';
 
   return (
     <div 
@@ -73,73 +74,119 @@ export default function MoneyTracker({ isDark = false, bgColor = '#ffffff' }: Mo
           </button>
         </div>
 
-        {/* 数据卡片 */}
+        {/* 数据卡片 - 大字体、高对比度 */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {/* 总收入 */}
           <div 
-            className="p-4 rounded-xl"
-            style={{ backgroundColor: cardBg }}
+            className="p-5 rounded-xl relative overflow-hidden"
+            style={{ 
+              backgroundColor: cardBg,
+              border: `2px solid rgba(16, 185, 129, 0.3)`,
+            }}
           >
-            <div className="flex items-center justify-between mb-2">
-              <span style={{ color: secondaryColor }}>总收入</span>
-              <TrendingUp size={20} style={{ color: '#10b981' }} />
+            {/* 背景装饰 */}
+            <div className="absolute top-0 right-0 w-24 h-24 opacity-10" style={{ color: '#10b981' }}>
+              <TrendingUp size={96} />
             </div>
-            <div className="text-2xl font-bold" style={{ color: textColor }}>
-              ¥{totalIncome.toLocaleString()}
-            </div>
-            <div className="text-sm mt-1" style={{ color: '#10b981' }}>
-              本月 +¥{thisMonthIncome.toLocaleString()}
+            
+            <div className="relative z-10">
+              <div className="flex items-center gap-2 mb-3">
+                <TrendingUp size={24} style={{ color: '#10b981' }} />
+                <span className="text-base font-semibold" style={{ color: textColor }}>总收入</span>
+              </div>
+              <div className="text-4xl font-bold mb-2" style={{ color: textColor }}>
+                ¥{totalIncome.toLocaleString()}
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="text-base font-medium" style={{ color: '#10b981' }}>
+                  +¥{thisMonthIncome.toLocaleString()}
+                </div>
+                <span className="text-sm" style={{ color: secondaryColor }}>本月</span>
+              </div>
             </div>
           </div>
 
           {/* 总支出 */}
           <div 
-            className="p-4 rounded-xl"
-            style={{ backgroundColor: cardBg }}
+            className="p-5 rounded-xl relative overflow-hidden"
+            style={{ 
+              backgroundColor: cardBg,
+              border: `2px solid rgba(239, 68, 68, 0.3)`,
+            }}
           >
-            <div className="flex items-center justify-between mb-2">
-              <span style={{ color: secondaryColor }}>总支出</span>
-              <TrendingDown size={20} style={{ color: '#ef4444' }} />
+            <div className="absolute top-0 right-0 w-24 h-24 opacity-10" style={{ color: '#ef4444' }}>
+              <TrendingDown size={96} />
             </div>
-            <div className="text-2xl font-bold" style={{ color: textColor }}>
-              ¥{totalExpense.toLocaleString()}
-            </div>
-            <div className="text-sm mt-1" style={{ color: '#ef4444' }}>
-              本月 -¥{thisMonthExpense.toLocaleString()}
+            
+            <div className="relative z-10">
+              <div className="flex items-center gap-2 mb-3">
+                <TrendingDown size={24} style={{ color: '#ef4444' }} />
+                <span className="text-base font-semibold" style={{ color: textColor }}>总支出</span>
+              </div>
+              <div className="text-4xl font-bold mb-2" style={{ color: textColor }}>
+                ¥{totalExpense.toLocaleString()}
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="text-base font-medium" style={{ color: '#ef4444' }}>
+                  -¥{thisMonthExpense.toLocaleString()}
+                </div>
+                <span className="text-sm" style={{ color: secondaryColor }}>本月</span>
+              </div>
             </div>
           </div>
 
           {/* 总利润 */}
           <div 
-            className="p-4 rounded-xl"
-            style={{ backgroundColor: cardBg }}
+            className="p-5 rounded-xl relative overflow-hidden"
+            style={{ 
+              backgroundColor: cardBg,
+              border: `2px solid rgba(139, 92, 246, 0.3)`,
+            }}
           >
-            <div className="flex items-center justify-between mb-2">
-              <span style={{ color: secondaryColor }}>总利润</span>
-              <DollarSign size={20} style={{ color: '#8b5cf6' }} />
+            <div className="absolute top-0 right-0 w-24 h-24 opacity-10" style={{ color: '#8b5cf6' }}>
+              <DollarSign size={96} />
             </div>
-            <div className="text-2xl font-bold" style={{ color: textColor }}>
-              ¥{totalProfit.toLocaleString()}
-            </div>
-            <div className="text-sm mt-1" style={{ color: '#8b5cf6' }}>
-              本月 +¥{thisMonthProfit.toLocaleString()}
+            
+            <div className="relative z-10">
+              <div className="flex items-center gap-2 mb-3">
+                <DollarSign size={24} style={{ color: '#8b5cf6' }} />
+                <span className="text-base font-semibold" style={{ color: textColor }}>总利润</span>
+              </div>
+              <div className="text-4xl font-bold mb-2" style={{ color: textColor }}>
+                ¥{totalProfit.toLocaleString()}
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="text-base font-medium" style={{ color: '#8b5cf6' }}>
+                  +¥{thisMonthProfit.toLocaleString()}
+                </div>
+                <span className="text-sm" style={{ color: secondaryColor }}>本月</span>
+              </div>
             </div>
           </div>
 
           {/* 欠债 */}
           <div 
-            className="p-4 rounded-xl"
-            style={{ backgroundColor: cardBg }}
+            className="p-5 rounded-xl relative overflow-hidden"
+            style={{ 
+              backgroundColor: cardBg,
+              border: `2px solid rgba(245, 158, 11, 0.3)`,
+            }}
           >
-            <div className="flex items-center justify-between mb-2">
-              <span style={{ color: secondaryColor }}>欠债</span>
-              <AlertCircle size={20} style={{ color: '#f59e0b' }} />
+            <div className="absolute top-0 right-0 w-24 h-24 opacity-10" style={{ color: '#f59e0b' }}>
+              <AlertCircle size={96} />
             </div>
-            <div className="text-2xl font-bold" style={{ color: textColor }}>
-              ¥{totalDebt.toLocaleString()}
-            </div>
-            <div className="text-sm mt-1" style={{ color: secondaryColor }}>
-              {totalDebt > 0 ? '需要还款' : '无欠债'}
+            
+            <div className="relative z-10">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertCircle size={24} style={{ color: '#f59e0b' }} />
+                <span className="text-base font-semibold" style={{ color: textColor }}>欠债</span>
+              </div>
+              <div className="text-4xl font-bold mb-2" style={{ color: textColor }}>
+                ¥{totalDebt.toLocaleString()}
+              </div>
+              <div className="text-base font-medium" style={{ color: totalDebt > 0 ? '#f59e0b' : '#10b981' }}>
+                {totalDebt > 0 ? '需要还款' : '无欠债 ✓'}
+              </div>
             </div>
           </div>
         </div>

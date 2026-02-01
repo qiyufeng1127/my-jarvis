@@ -12,9 +12,10 @@ export default function IdeaPool({ isDark = false }: IdeaPoolProps) {
   const [newIdeaName, setNewIdeaName] = useState('');
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
 
-  const textColor = isDark ? '#ffffff' : '#000000';
-  const secondaryColor = isDark ? 'rgba(255,255,255,0.7)' : '#666666';
-  const cardBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
+  // 增强对比度的颜色系统
+  const textColor = isDark ? '#ffffff' : '#1a1a1a';
+  const secondaryColor = isDark ? 'rgba(255,255,255,0.9)' : '#333333';
+  const cardBg = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)';
 
   const ideas = getIdeas();
 

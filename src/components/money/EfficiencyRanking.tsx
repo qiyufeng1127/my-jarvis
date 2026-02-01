@@ -10,9 +10,10 @@ export default function EfficiencyRanking({ isDark = false }: EfficiencyRankingP
   const { getRankedByHourlyRate, getRankedByROI, getRankedByProfit } = useSideHustleStore();
   const [rankingType, setRankingType] = useState<'hourlyRate' | 'roi' | 'profit'>('hourlyRate');
 
-  const textColor = isDark ? '#ffffff' : '#000000';
-  const secondaryColor = isDark ? 'rgba(255,255,255,0.7)' : '#666666';
-  const cardBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
+  // 增强对比度的颜色系统
+  const textColor = isDark ? '#ffffff' : '#1a1a1a';
+  const secondaryColor = isDark ? 'rgba(255,255,255,0.9)' : '#333333';
+  const cardBg = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)';
 
   const getRankedList = () => {
     switch (rankingType) {
@@ -100,12 +101,12 @@ export default function EfficiencyRanking({ isDark = false }: EfficiencyRankingP
         </div>
       </div>
 
-      {/* 排名列表 */}
+      {/* 排名列表 - 大字体、图表化 */}
       <div className="space-y-4">
         {rankedList.length === 0 ? (
           <div className="text-center py-8" style={{ color: secondaryColor }}>
             <Trophy size={48} className="mx-auto mb-4 opacity-50" />
-            <p>还没有副业数据</p>
+            <p className="text-lg">还没有副业数据</p>
           </div>
         ) : (
           rankedList.map((hustle, index) => {
@@ -118,54 +119,55 @@ export default function EfficiencyRanking({ isDark = false }: EfficiencyRankingP
             return (
               <div
                 key={hustle.id}
-                className="p-4 rounded-lg transition-all hover:scale-[1.02]"
+                className="p-5 rounded-xl transition-all hover:scale-[1.02]"
                 style={{ 
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
-                  border: index < 3 ? `2px solid ${hustle.color}40` : 'none',
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                  border: index < 3 ? `3px solid ${hustle.color}60` : `2px solid ${hustle.color}30`,
                 }}
               >
-                {/* 排名和名称 */}
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{getRankEmoji(index)}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">{hustle.icon}</span>
-                      <span className="font-bold" style={{ color: textColor }}>
+                {/* 排名和名称 - 大字体 */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-4">
+                    <span className="text-4xl">{getRankEmoji(index)}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl">{hustle.icon}</span>
+                      <span className="font-bold text-xl" style={{ color: textColor }}>
                         {hustle.name}
                       </span>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm" style={{ color: secondaryColor }}>
+                    <div className="text-base font-medium" style={{ color: secondaryColor }}>
                       {rankingType === 'hourlyRate' && '时薪'}
                       {rankingType === 'roi' && 'ROI'}
                       {rankingType === 'profit' && '利润'}
                     </div>
-                    <div className="text-xl font-bold" style={{ color: hustle.color }}>
+                    <div className="text-3xl font-bold" style={{ color: hustle.color }}>
                       {getRankingValue(hustle)}
                     </div>
                   </div>
                 </div>
 
-                {/* 双色进度条 */}
-                <div className="space-y-2">
+                {/* 双色进度条 - 更粗、更明显 */}
+                <div className="space-y-3">
                   {/* 时间进度条（绿色） */}
                   <div>
-                    <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <Clock size={14} style={{ color: '#10b981' }} />
-                        <span className="text-xs" style={{ color: secondaryColor }}>时间</span>
+                        <Clock size={18} style={{ color: '#10b981' }} />
+                        <span className="text-base font-semibold" style={{ color: textColor }}>时间</span>
                       </div>
-                      <span className="text-xs font-medium" style={{ color: '#10b981' }}>
+                      <span className="text-base font-bold" style={{ color: '#10b981' }}>
                         {hustle.totalHours.toFixed(1)}h
                       </span>
                     </div>
-                    <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: cardBg }}>
+                    <div className="h-4 rounded-full overflow-hidden" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
                       <div
                         className="h-full rounded-full transition-all duration-500"
                         style={{
                           width: `${timeProgress}%`,
                           backgroundColor: '#10b981',
+                          boxShadow: '0 0 10px rgba(16, 185, 129, 0.5)',
                         }}
                       />
                     </div>
@@ -173,36 +175,37 @@ export default function EfficiencyRanking({ isDark = false }: EfficiencyRankingP
 
                   {/* 收入进度条（粉色） */}
                   <div>
-                    <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <DollarSign size={14} style={{ color: '#ec4899' }} />
-                        <span className="text-xs" style={{ color: secondaryColor }}>收入</span>
+                        <DollarSign size={18} style={{ color: '#ec4899' }} />
+                        <span className="text-base font-semibold" style={{ color: textColor }}>收入</span>
                       </div>
-                      <span className="text-xs font-medium" style={{ color: '#ec4899' }}>
+                      <span className="text-base font-bold" style={{ color: '#ec4899' }}>
                         ¥{hustle.totalIncome.toLocaleString()}
                       </span>
                     </div>
-                    <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: cardBg }}>
+                    <div className="h-4 rounded-full overflow-hidden" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
                       <div
                         className="h-full rounded-full transition-all duration-500"
                         style={{
                           width: `${incomeProgress}%`,
                           backgroundColor: '#ec4899',
+                          boxShadow: '0 0 10px rgba(236, 72, 153, 0.5)',
                         }}
                       />
                     </div>
                   </div>
                 </div>
 
-                {/* 其他指标 */}
-                <div className="flex items-center justify-between mt-3 pt-3 border-t" style={{ borderColor: `${hustle.color}20` }}>
-                  <div className="flex items-center gap-4 text-xs" style={{ color: secondaryColor }}>
-                    <span>支出: ¥{hustle.totalExpense.toLocaleString()}</span>
-                    <span>利润: ¥{hustle.profit.toLocaleString()}</span>
+                {/* 其他指标 - 大字体 */}
+                <div className="flex items-center justify-between mt-4 pt-4 border-t-2" style={{ borderColor: `${hustle.color}30` }}>
+                  <div className="flex items-center gap-4 text-base font-medium" style={{ color: textColor }}>
+                    <span>支出: <span className="font-bold">¥{hustle.totalExpense.toLocaleString()}</span></span>
+                    <span>利润: <span className="font-bold">¥{hustle.profit.toLocaleString()}</span></span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <TrendingUp size={14} style={{ color: hustle.roi > 0 ? '#10b981' : '#ef4444' }} />
-                    <span className="text-xs font-medium" style={{ color: hustle.roi > 0 ? '#10b981' : '#ef4444' }}>
+                    <TrendingUp size={18} style={{ color: hustle.roi > 0 ? '#10b981' : '#ef4444' }} />
+                    <span className="text-base font-bold" style={{ color: hustle.roi > 0 ? '#10b981' : '#ef4444' }}>
                       ROI {hustle.roi.toFixed(0)}%
                     </span>
                   </div>
