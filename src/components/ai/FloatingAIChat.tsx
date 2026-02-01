@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, X, Minimize2, Maximize2, GripVertical, Settings, Hourglass, ChevronDown, ChevronUp } from 'lucide-react';
+import { Send, X, Minimize2, Maximize2, GripVertical, Settings, Hourglass, ChevronDown, ChevronUp, CheckSquare, Square, Sparkles } from 'lucide-react';
 import { useGoalStore } from '@/stores/goalStore';
 import { matchTaskToGoals, generateGoalSuggestionMessage } from '@/services/aiGoalMatcher';
 import { useMemoryStore, EMOTION_TAGS, CATEGORY_TAGS } from '@/stores/memoryStore';
 import { useAIStore } from '@/stores/aiStore';
 import { aiService } from '@/services/aiService';
 import { useTaskStore } from '@/stores/taskStore';
+import { useSideHustleStore } from '@/stores/sideHustleStore';
 import type { TaskType, TaskPriority } from '@/types';
 import AIConfigModal from './AIConfigModal';
 import { 
@@ -69,12 +70,15 @@ interface Message {
   thinkingProcess?: string[];
   // 思考过程是否展开
   isThinkingExpanded?: boolean;
+  // 是否被选中（用于批量处理）
+  isSelected?: boolean;
 }
 
 export default function FloatingAIChat({ isFullScreen = false, onClose }: FloatingAIChatProps = {}) {
-  const { addMemory } = useMemoryStore();
+  const { addMemory, addJournal } = useMemoryStore();
   const { isConfigured } = useAIStore();
   const { createTask, updateTask, tasks, getTodayTasks } = useTaskStore();
+  const { createSideHustle } = useSideHustleStore();
   
   // 使用自定义 Hooks
   const [persistedState, setPersistedState] = useLocalStorage('ai_chat_state', {
@@ -91,11 +95,12 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [bgColor, setBgColor] = useState(persistedState.bgColor);
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome',
       role: 'assistant',
-      content: '你好！我是你的AI助手，我能帮你：\n\n• 📅 智能分解任务和安排时间\n• 💰 自动分配金币和成长值\n• 🏷️ 自动打标签分类（AI智能理解）\n• 🕒 直接创建和修改时间轴任务\n• 🎯 智能关联长期目标\n• 📝 记录心情和碎碎念\n• 🔍 查询任务进度和统计\n• 🏠 智能动线优化（根据家里格局排序）\n\n直接输入文字开始对话吧！',
+      content: '你好！我是你的AI助手，我能帮你：\n\n• 📅 智能分解任务和安排时间\n• 💰 自动分配金币和成长值\n• 🏷️ 自动打标签分类（AI智能理解）\n• 🕒 直接创建和修改时间轴任务\n• 🎯 智能关联长期目标\n• 📝 记录心情、想法、感恩、成功\n• 💡 收集创业想法到副业追踪器\n• 🔍 查询任务进度和统计\n• 🏠 智能动线优化（根据家里格局排序）\n• ✨ 万能收集：支持批量智能分析并分配\n\n直接输入文字开始对话吧！',
       timestamp: new Date(),
     }
   ]);
@@ -157,6 +162,178 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
         ? { ...msg, isThinkingExpanded: !msg.isThinkingExpanded }
         : msg
     ));
+  };
+
+  // 切换消息选中状态
+  const toggleMessageSelection = (messageId: string) => {
+    setMessages(prev => prev.map(msg => 
+      msg.id === messageId 
+        ? { ...msg, isSelected: !msg.isSelected }
+        : msg
+    ));
+  };
+
+  // 全选/取消全选
+  const toggleSelectAll = () => {
+    const userMessages = messages.filter(m => m.role === 'user');
+    const allSelected = userMessages.every(m => m.isSelected);
+    
+    setMessages(prev => prev.map(msg => 
+      msg.role === 'user' 
+        ? { ...msg, isSelected: !allSelected }
+        : msg
+    ));
+  };
+
+  // 智能分析并分配选中的消息
+  const handleSmartDistribute = async () => {
+    const selectedMessages = messages.filter(m => m.isSelected && m.role === 'user');
+    
+    if (selectedMessages.length === 0) {
+      alert('请先选择要分析的消息');
+      return;
+    }
+
+    setIsProcessing(true);
+    clearThinkingSteps();
+
+    try {
+      addThinkingStep(`📝 开始分析 ${selectedMessages.length} 条消息...`);
+
+      const results = [];
+      
+      for (const msg of selectedMessages) {
+        addThinkingStep(`🔍 分析: "${msg.content.slice(0, 30)}..."`);
+        
+        // 使用 AI 分类服务
+        const classification = await aiService.classifyContent(msg.content);
+        
+        addThinkingStep(`✅ 识别为: ${classification.contentType} (置信度 ${Math.round(classification.confidence * 100)}%)`);
+        
+        results.push({
+          message: msg,
+          classification,
+        });
+      }
+
+      // 按目标组件分组
+      const grouped: Record<string, any[]> = {
+        timeline: [],
+        memory: [],
+        journal: [],
+        sidehustle: [],
+      };
+
+      results.forEach(({ message, classification }) => {
+        grouped[classification.targetComponent].push({
+          content: message.content,
+          classification,
+        });
+      });
+
+      addThinkingStep('📊 分类统计完成');
+
+      // 执行分配
+      let distributedCount = 0;
+
+      // 1. 分配到时间轴
+      if (grouped.timeline.length > 0) {
+        addThinkingStep(`📅 正在创建 ${grouped.timeline.length} 个任务到时间轴...`);
+        for (const item of grouped.timeline) {
+          await createTask({
+            title: item.content,
+            description: '',
+            taskType: 'work' as TaskType,
+            priority: 2,
+            durationMinutes: detectTaskDuration(item.content),
+            scheduledStart: new Date(),
+          });
+          distributedCount++;
+        }
+      }
+
+      // 2. 分配到记忆库
+      if (grouped.memory.length > 0) {
+        addThinkingStep(`🧠 正在保存 ${grouped.memory.length} 条记录到记忆库...`);
+        for (const item of grouped.memory) {
+          addMemory({
+            type: item.classification.contentType === 'mood' ? 'mood' : 'thought',
+            content: item.content,
+            emotionTags: item.classification.emotionTags,
+            categoryTags: item.classification.categoryTags,
+            rewards: { gold: 20, growth: 5 },
+          });
+          distributedCount++;
+        }
+      }
+
+      // 3. 分配到日记
+      if (grouped.journal.length > 0) {
+        addThinkingStep(`📖 正在保存 ${grouped.journal.length} 条记录到日记...`);
+        for (const item of grouped.journal) {
+          addJournal({
+            type: item.classification.contentType === 'success' ? 'success' : 'gratitude',
+            content: item.content,
+            tags: item.classification.categoryTags,
+            rewards: item.classification.contentType === 'success' 
+              ? { gold: 50, growth: 10 }
+              : { gold: 30, growth: 5 },
+          });
+          distributedCount++;
+        }
+      }
+
+      // 4. 分配到副业追踪器
+      if (grouped.sidehustle.length > 0) {
+        addThinkingStep(`💡 正在创建 ${grouped.sidehustle.length} 个创业想法...`);
+        for (const item of grouped.sidehustle) {
+          await createSideHustle({
+            name: item.content.slice(0, 50),
+            icon: '💡',
+            color: '#f59e0b',
+            status: 'idea',
+            aiAnalysis: item.content,
+          });
+          distributedCount++;
+        }
+      }
+
+      addThinkingStep('✨ 分配完成！');
+
+      // 显示结果
+      const resultMessage: Message = {
+        id: `ai-${Date.now()}`,
+        role: 'assistant',
+        content: `✅ **智能分析并分配完成！**\n\n共处理 ${selectedMessages.length} 条消息：\n\n` +
+          (grouped.timeline.length > 0 ? `📅 **时间轴**: ${grouped.timeline.length} 个任务\n` : '') +
+          (grouped.memory.length > 0 ? `🧠 **记忆库**: ${grouped.memory.length} 条记录\n` : '') +
+          (grouped.journal.length > 0 ? `📖 **日记**: ${grouped.journal.length} 条记录\n` : '') +
+          (grouped.sidehustle.length > 0 ? `💡 **副业追踪器**: ${grouped.sidehustle.length} 个想法\n` : '') +
+          `\n💡 你可以在对应模块查看详细内容！`,
+        timestamp: new Date(),
+        thinkingProcess: [...thinkingSteps],
+        isThinkingExpanded: false,
+      };
+
+      setMessages(prev => [...prev, resultMessage]);
+
+      // 取消选中状态
+      setMessages(prev => prev.map(msg => ({ ...msg, isSelected: false })));
+      setIsSelectionMode(false);
+
+    } catch (error) {
+      console.error('智能分配失败:', error);
+      const errorMessage: Message = {
+        id: `ai-${Date.now()}`,
+        role: 'assistant',
+        content: '❌ 抱歉，智能分析失败了。请检查 AI 配置或稍后再试。',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsProcessing(false);
+      clearThinkingSteps();
+    }
   };
 
   // 智能标签分析 - 使用AI或关键词作为后备
@@ -496,6 +673,12 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
 
         // 如果是成功或感恩日记，同步到日记模块
         if (analysis.type === 'success' || analysis.type === 'gratitude') {
+          addJournal({
+            type: analysis.type,
+            content: message,
+            tags: analysis.categories,
+            rewards: analysis.rewards,
+          });
           responseContent += `💫 同时已同步到${analysis.type === 'success' ? '成功' : '感恩'}日记模块！\n\n`;
         }
       }
@@ -750,6 +933,8 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
 
   // 全屏模式处理
   if (isFullScreen) {
+    const selectedCount = messages.filter(m => m.isSelected).length;
+    
     return (
       <div className="h-full flex flex-col bg-white">
         {/* 头部 */}
@@ -758,11 +943,42 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
             <span className="text-2xl">🤖</span>
             <div>
               <div className="font-semibold text-gray-900">AI助手</div>
-              <div className="text-xs text-gray-500">智能任务分析</div>
+              <div className="text-xs text-gray-500">
+                {isSelectionMode ? `已选择 ${selectedCount} 条` : '智能任务分析'}
+              </div>
             </div>
           </div>
           
           <div className="flex items-center space-x-2">
+            {isSelectionMode ? (
+              <>
+                <button
+                  onClick={toggleSelectAll}
+                  className="px-3 py-1.5 rounded-lg bg-blue-100 text-blue-700 text-sm font-medium"
+                  title="全选/取消全选"
+                >
+                  {messages.filter(m => m.role === 'user').every(m => m.isSelected) ? '取消全选' : '全选'}
+                </button>
+                <button
+                  onClick={() => {
+                    setMessages(prev => prev.map(msg => ({ ...msg, isSelected: false })));
+                    setIsSelectionMode(false);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-neutral-100 text-gray-700 text-sm font-medium"
+                  title="取消选择模式"
+                >
+                  取消
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setIsSelectionMode(true)}
+                className="p-2 rounded-lg bg-neutral-100 active:bg-neutral-200"
+                title="选择模式"
+              >
+                <CheckSquare className="w-5 h-5 text-gray-700" />
+              </button>
+            )}
             <button
               onClick={() => setShowConfigModal(true)}
               className="p-2 rounded-lg bg-neutral-100 active:bg-neutral-200"
@@ -789,12 +1005,26 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
               key={message.id}
               className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
+              {/* 选择框 - 只在用户消息且选择模式下显示 */}
+              {message.role === 'user' && isSelectionMode && (
+                <button
+                  onClick={() => toggleMessageSelection(message.id)}
+                  className="mr-2 mt-1 flex-shrink-0"
+                >
+                  {message.isSelected ? (
+                    <CheckSquare className="w-5 h-5 text-blue-600" />
+                  ) : (
+                    <Square className="w-5 h-5 text-gray-400" />
+                  )}
+                </button>
+              )}
+              
               <div
                 className={`max-w-[85%] rounded-lg p-3 ${
                   message.role === 'user'
                     ? 'bg-blue-600 text-white'
                     : 'bg-white text-gray-900 shadow-sm'
-                }`}
+                } ${message.isSelected ? 'ring-2 ring-blue-500' : ''}`}
               >
                 <div className="whitespace-pre-wrap text-sm">{message.content}</div>
                 
@@ -1011,58 +1241,73 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
           )}
         </div>
 
-        {/* 快速指令 */}
-        <div className="px-3 py-2 border-t border-neutral-200 bg-white">
-          <div className="flex items-center space-x-2 overflow-x-auto">
-            <span className="text-xs whitespace-nowrap text-gray-500">快速：</span>
-            {[
-              { label: '帮我安排', icon: '🎯', action: 'smart_schedule' },
-              { label: '推荐任务', icon: '💡', action: 'recommend_task' },
-              { label: '优化时间', icon: '⚡', action: 'optimize_time' },
-              { label: '查看进度', icon: '📊', action: 'check_progress' },
-            ].map((cmd) => (
-              <button
-                key={cmd.label}
-                onClick={() => {
-                  if (cmd.action === 'smart_schedule') {
-                    setInputValue('根据我的习惯和当前时间，帮我智能安排接下来要做的任务');
-                  } else if (cmd.action === 'recommend_task') {
-                    setInputValue('根据我现在的状态和时间，推荐几个适合现在做的任务');
-                  } else if (cmd.action === 'optimize_time') {
-                    setInputValue('帮我优化今天的任务安排，让时间利用更高效');
-                  } else if (cmd.action === 'check_progress') {
-                    setInputValue('查看今天的任务');
-                  }
-                  handleSend();
-                }}
-                className="px-2 py-1 rounded-full text-xs font-medium bg-neutral-100 text-gray-700 active:bg-neutral-200 whitespace-nowrap"
-              >
-                {cmd.icon} {cmd.label}
-              </button>
-            ))}
+        {/* 快速指令或智能分配按钮 */}
+        {isSelectionMode && selectedCount > 0 ? (
+          <div className="px-3 py-3 border-t border-neutral-200 bg-white">
+            <button
+              onClick={handleSmartDistribute}
+              disabled={isProcessing}
+              className="w-full py-3 rounded-lg font-semibold transition-all flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 disabled:opacity-50"
+            >
+              <Sparkles className="w-5 h-5" />
+              <span>智能分析并分配 ({selectedCount} 条)</span>
+            </button>
           </div>
-        </div>
+        ) : (
+          <div className="px-3 py-2 border-t border-neutral-200 bg-white">
+            <div className="flex items-center space-x-2 overflow-x-auto">
+              <span className="text-xs whitespace-nowrap text-gray-500">快速：</span>
+              {[
+                { label: '帮我安排', icon: '🎯', action: 'smart_schedule' },
+                { label: '推荐任务', icon: '💡', action: 'recommend_task' },
+                { label: '优化时间', icon: '⚡', action: 'optimize_time' },
+                { label: '查看进度', icon: '📊', action: 'check_progress' },
+              ].map((cmd) => (
+                <button
+                  key={cmd.label}
+                  onClick={() => {
+                    if (cmd.action === 'smart_schedule') {
+                      setInputValue('根据我的习惯和当前时间，帮我智能安排接下来要做的任务');
+                    } else if (cmd.action === 'recommend_task') {
+                      setInputValue('根据我现在的状态和时间，推荐几个适合现在做的任务');
+                    } else if (cmd.action === 'optimize_time') {
+                      setInputValue('帮我优化今天的任务安排，让时间利用更高效');
+                    } else if (cmd.action === 'check_progress') {
+                      setInputValue('查看今天的任务');
+                    }
+                    handleSend();
+                  }}
+                  className="px-2 py-1 rounded-full text-xs font-medium bg-neutral-100 text-gray-700 active:bg-neutral-200 whitespace-nowrap"
+                >
+                  {cmd.icon} {cmd.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* 输入区域 */}
         <div className="p-3 border-t border-neutral-200 bg-white pb-safe">
-          <div className="flex items-end space-x-2">
-            <textarea
-              ref={textareaRef}
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="对我说点什么..."
-              rows={2}
-              className="flex-1 px-3 py-2 rounded-lg resize-none focus:outline-none text-sm border border-gray-300 focus:border-blue-500"
-            />
-            <button
-              onClick={handleSend}
-              disabled={!inputValue.trim() || isProcessing}
-              className="p-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50"
-            >
-              {isProcessing ? <Hourglass className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            </button>
-          </div>
+          {!isSelectionMode && (
+            <div className="flex items-end space-x-2">
+              <textarea
+                ref={textareaRef}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="对我说点什么..."
+                rows={2}
+                className="flex-1 px-3 py-2 rounded-lg resize-none focus:outline-none text-sm border border-gray-300 focus:border-blue-500"
+              />
+              <button
+                onClick={handleSend}
+                disabled={!inputValue.trim() || isProcessing}
+                className="p-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50"
+              >
+                {isProcessing ? <Hourglass className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* AI配置弹窗 */}

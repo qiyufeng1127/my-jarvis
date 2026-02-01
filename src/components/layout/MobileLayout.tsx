@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
-import { X, GripVertical, Settings } from 'lucide-react';
+import { useTutorialStore } from '@/stores/tutorialStore';
+import { X, GripVertical, Settings, HelpCircle } from 'lucide-react';
 import NotificationContainer from '@/components/ui/NotificationContainer';
 import FloatingAIChat from '@/components/ai/FloatingAIChat';
 import VoiceAssistant from '@/components/voice/VoiceAssistant';
@@ -17,6 +18,9 @@ import {
 import JournalModule from '@/components/journal/JournalModule';
 import PanoramaMemory from '@/components/memory/PanoramaMemory';
 import TaskInbox from '@/components/inbox/TaskInbox';
+import UserGuide from '@/components/tutorial/UserGuide';
+import PremiumWelcome from '@/components/tutorial/PremiumWelcome';
+import OnboardingTooltip, { ONBOARDING_STEPS } from '@/components/tutorial/OnboardingTooltip';
 
 type TabType = 'timeline' | 'goals' | 'journal' | 'memory' | 'gold' | 'habits' | 'reports' | 'settings' | 'inbox' | 'ai' | 'more' | 'money';
 
@@ -44,6 +48,14 @@ const ALL_NAV_ITEMS: NavItem[] = [
 export default function MobileLayout() {
   const { loadTasks } = useTaskStore();
   const { loadGrowthData } = useGrowthStore();
+  const { 
+    showUserGuide, 
+    setShowUserGuide, 
+    activeOnboarding, 
+    setActiveOnboarding,
+    completeOnboarding,
+    shouldShowOnboarding 
+  } = useTutorialStore();
   
   // 从 localStorage 加载导航栏配置
   const [navItems, setNavItems] = useState<NavItem[]>(() => {
@@ -72,6 +84,15 @@ export default function MobileLayout() {
     loadTasks();
     loadGrowthData();
   }, [loadTasks, loadGrowthData]);
+
+  // 首次访问时显示引导
+  useEffect(() => {
+    if (shouldShowOnboarding('home')) {
+      setTimeout(() => {
+        setActiveOnboarding('home');
+      }, 1000);
+    }
+  }, [shouldShowOnboarding, setActiveOnboarding]);
 
   // 保存导航栏配置
   useEffect(() => {
@@ -173,6 +194,30 @@ export default function MobileLayout() {
       {/* 通知容器 */}
       <NotificationContainer />
 
+      {/* 高级欢迎界面 */}
+      <PremiumWelcome />
+
+      {/* 用户指南 */}
+      <UserGuide 
+        isOpen={showUserGuide} 
+        onClose={() => setShowUserGuide(false)} 
+      />
+
+      {/* 新手引导 */}
+      {activeOnboarding && ONBOARDING_STEPS[activeOnboarding as keyof typeof ONBOARDING_STEPS] && (
+        <OnboardingTooltip
+          steps={ONBOARDING_STEPS[activeOnboarding as keyof typeof ONBOARDING_STEPS]}
+          onComplete={() => {
+            completeOnboarding(activeOnboarding);
+            setActiveOnboarding(null);
+          }}
+          onSkip={() => {
+            completeOnboarding(activeOnboarding);
+            setActiveOnboarding(null);
+          }}
+        />
+      )}
+
       {/* 顶部状态栏 - 增加顶部间距避免与系统时间重叠 */}
       <div className="bg-white border-b border-neutral-200 px-3 pt-12 pb-2 shrink-0">
         <div className="flex items-center justify-between">
@@ -192,10 +237,24 @@ export default function MobileLayout() {
             </div>
           </div>
 
-          {/* 右侧：金币余额 */}
-          <div className="flex items-center space-x-1.5 px-2 py-1 rounded-lg bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-100/50">
-            <div className="text-base">💰</div>
-            <div className="text-xs font-bold text-black">0</div>
+          {/* 右侧：金币余额和帮助按钮 */}
+          <div className="flex items-center space-x-2">
+            <div 
+              className="flex items-center space-x-1.5 px-2 py-1 rounded-lg bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-100/50"
+              data-tour="coins"
+            >
+              <div className="text-base">💰</div>
+              <div className="text-xs font-bold text-black">0</div>
+            </div>
+            
+            {/* 帮助按钮 */}
+            <button
+              onClick={() => setShowUserGuide(true)}
+              className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors flex items-center justify-center"
+              title="使用教程"
+            >
+              <HelpCircle className="w-5 h-5" />
+            </button>
           </div>
         </div>
       </div>
@@ -213,6 +272,7 @@ export default function MobileLayout() {
               backgroundColor: '#FFD700',
               boxShadow: '0 4px 12px rgba(255, 215, 0, 0.4)',
             }}
+            data-tour="ai-button"
           >
             <span className="text-white text-3xl font-bold">+</span>
           </button>
@@ -246,6 +306,7 @@ export default function MobileLayout() {
                   ? 'bg-blue-50 text-blue-600'
                   : 'text-neutral-600 active:bg-neutral-100'
               }`}
+              data-tour={item.id === 'timeline' ? 'timeline' : item.id === 'inbox' ? 'inbox' : undefined}
             >
               <span className="text-2xl mb-1">{item.icon}</span>
               <span className="text-xs font-medium">{item.label}</span>
