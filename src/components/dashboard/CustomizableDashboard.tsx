@@ -28,6 +28,7 @@ import JournalModule from '@/components/journal/JournalModule';
 import PanoramaMemory from '@/components/memory/PanoramaMemory';
 import TaskInbox from '@/components/inbox/TaskInbox';
 import { supabase, isSupabaseConfigured, getCurrentUserId } from '@/lib/supabase';
+import { useSideHustleStore } from '@/stores/sideHustleStore';
 
 interface Module {
   id: string;
@@ -204,6 +205,10 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
   // 坏习惯百分比（模拟数据）
   const [habitScore, setHabitScore] = useState(0); // 0-100，越高越差
 
+  // 从副业追踪器获取余额数据
+  const { getTotalProfit, loadSideHustles } = useSideHustleStore();
+  const assetBalance = getTotalProfit(); // 总利润作为余额
+
   // 顶部状态栏元素的位置和拖动状态
   const [topBarItems, setTopBarItems] = useState<Array<{
     id: string;
@@ -221,8 +226,14 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
   const [draggingTopBarItem, setDraggingTopBarItem] = useState<string | null>(null);
   const [topBarDragOffset, setTopBarDragOffset] = useState({ x: 0, y: 0 });
 
-  // 资产余额（模拟数据，可以从副业追踪器获取）
-  const [assetBalance, setAssetBalance] = useState(0); // 正数为资产，负数为负债
+  // 从副业追踪器获取余额数据
+  const { getTotalProfit, loadSideHustles } = useSideHustleStore();
+  const assetBalance = getTotalProfit(); // 总利润作为余额
+
+  // 加载副业数据
+  useEffect(() => {
+    loadSideHustles();
+  }, [loadSideHustles]);
 
   // 从 Supabase 加载模块配置
   useEffect(() => {
