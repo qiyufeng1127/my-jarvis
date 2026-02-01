@@ -195,7 +195,7 @@ export default function TaskInbox({ isDark = false, bgColor = '#ffffff' }: TaskI
   };
 
   return (
-    <div className="h-full flex gap-3 p-3" style={{ backgroundColor: bgColor }}>
+    <div className="h-full flex flex-col md:flex-row gap-3 p-3 pb-24 md:pb-3" style={{ backgroundColor: bgColor }}>
       {/* 左侧：收集箱 */}
       <div className="flex-1 flex flex-col min-w-0">
         <h2 className="text-base font-semibold mb-2 flex items-center gap-2" style={{ color: textColor }}>
@@ -306,7 +306,7 @@ export default function TaskInbox({ isDark = false, bgColor = '#ffffff' }: TaskI
       </div>
 
       {/* 右侧：待安排任务 */}
-      <div className="w-64 flex flex-col">
+      <div className="w-full md:w-64 flex flex-col">
         <h2 className="text-base font-semibold mb-2 flex items-center gap-2" style={{ color: textColor }}>
           📋 待安排
           <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: cardBg, color: secondaryColor }}>
