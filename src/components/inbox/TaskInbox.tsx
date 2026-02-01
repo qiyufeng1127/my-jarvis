@@ -200,12 +200,10 @@ export default function TaskInbox({ isDark = false, bgColor = '#ffffff' }: TaskI
 
       // 处理任务（分配到时间轴）- 使用 AI 智能分析
       if (grouped.timeline.length > 0) {
-        message += `📅 **时间轴任务** (${grouped.timeline.length}个):\n`;
-        
-        // 收集所有任务内容，用逗号分隔（让 AI 识别为任务分解）
+        // 收集所有任务内容，用顿号分隔（让 AI 识别为任务分解）
         const taskContents = grouped.timeline.map(({ item }) => item.content).join('、');
-        message += `${taskContents}\n\n`;
-        message += `💡 正在使用 AI 智能分析任务...\n`;
+        
+        console.log('📋 收集箱任务:', taskContents);
         
         try {
           // 调用 AISmartProcessor 进行任务分解
@@ -222,23 +220,27 @@ export default function TaskInbox({ isDark = false, bgColor = '#ffffff' }: TaskI
             },
           };
 
+          console.log('🤖 调用 AI 分析...');
           const response = await AISmartProcessor.process(request);
+          console.log('✅ AI 响应:', response);
           
           // 检查是否有任务分解结果
           if (response.actions && response.actions.length > 0) {
             const taskAction = response.actions.find(a => a.type === 'create_task' && a.data.tasks);
+            console.log('🔍 找到任务动作:', taskAction);
+            
             if (taskAction && taskAction.data.tasks) {
+              console.log('🎯 打开任务编辑器，任务数量:', taskAction.data.tasks.length);
               // 打开任务编辑器
               setEditingTasks(taskAction.data.tasks);
               setShowTaskEditor(true);
-              successCount = taskAction.data.tasks.length;
+              // 直接返回，不显示 alert，不删除项目
+              return;
             }
           }
         } catch (error) {
           console.error('AI 分析失败:', error);
         }
-        
-        message += '\n';
       }
 
       // 处理记忆（分配到全景记忆栏）
