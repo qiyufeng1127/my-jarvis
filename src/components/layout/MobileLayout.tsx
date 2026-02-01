@@ -19,7 +19,7 @@ import JournalModule from '@/components/journal/JournalModule';
 import PanoramaMemory from '@/components/memory/PanoramaMemory';
 import TaskInbox from '@/components/inbox/TaskInbox';
 import UserGuide from '@/components/tutorial/UserGuide';
-import PremiumWelcome from '@/components/tutorial/PremiumWelcome';
+import MobileWelcome from '@/components/tutorial/MobileWelcome';
 import OnboardingTooltip, { ONBOARDING_STEPS } from '@/components/tutorial/OnboardingTooltip';
 
 type TabType = 'timeline' | 'goals' | 'journal' | 'memory' | 'gold' | 'habits' | 'reports' | 'settings' | 'inbox' | 'ai' | 'more' | 'money';
@@ -194,8 +194,8 @@ export default function MobileLayout() {
       {/* 通知容器 */}
       <NotificationContainer />
 
-      {/* 高级欢迎界面 - 暂时禁用 */}
-      {/* <PremiumWelcome /> */}
+      {/* 移动端欢迎界面 */}
+      <MobileWelcome />
 
       {/* 用户指南 */}
       <UserGuide 

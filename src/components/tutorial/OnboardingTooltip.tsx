@@ -90,13 +90,10 @@ export default function OnboardingTooltip({ steps, onComplete, onSkip }: Onboard
       {/* 遮罩层 */}
       <div className="fixed inset-0 bg-black/50 z-40 pointer-events-none" />
 
-      {/* 提示框 */}
-      <div
-        className="fixed z-50 bg-white rounded-xl shadow-2xl p-5 max-w-sm animate-scale-in"
+      {/* 提示框 - 移动端底部固定 */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl p-6 animate-slide-up md:max-w-sm md:bottom-auto md:left-1/2 md:-translate-x-1/2"
         style={{
-          top: `${tooltipPosition.top}px`,
-          left: `${tooltipPosition.left}px`,
-          transform: 'translate(-50%, -100%)',
+          top: window.innerWidth >= 768 ? `${tooltipPosition.top}px` : 'auto',
         }}
       >
         {/* 进度指示 */}
