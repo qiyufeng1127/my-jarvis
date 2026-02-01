@@ -58,7 +58,10 @@ export default function NewTimelineView({
   const [startingTask, setStartingTask] = useState<string | null>(null);
   const [completingTask, setCompletingTask] = useState<string | null>(null);
   const [editingVerification, setEditingVerification] = useState<string | null>(null);
+  const [addingSubTask, setAddingSubTask] = useState<string | null>(null);
+  const [newSubTaskTitle, setNewSubTaskTitle] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRefs = useRef<Record<string, HTMLInputElement>>({});
   
   // 判断颜色是否为深色
   const isColorDark = (color: string): boolean => {
@@ -332,36 +335,101 @@ export default function NewTimelineView({
   }, []);
   
   // 处理图片上传
-  const handleImageUpload = async (taskId: string, file: File, type: 'cover' | 'attachment' = 'attachment') => {
+  const handleImageUpload = async (taskId: string, files: FileList, type: 'cover' | 'attachment' = 'attachment') => {
     try {
       setUploadingImage(taskId);
       
-      // 压缩图片
-      const compressedFile = await ImageUploader.compressImage(file);
+      const uploadedImages: TaskImage[] = [];
       
-      // 上传图片
-      const imageUrl = await ImageUploader.uploadImage(compressedFile);
-      
-      // 保存图片信息
-      const newImage: TaskImage = {
-        id: `img-${Date.now()}`,
-        url: imageUrl,
-        type,
-        uploadedAt: new Date(),
-      };
+      // 上传所有选中的图片
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        // 压缩图片
+        const compressedFile = await ImageUploader.compressImage(file);
+        
+        // 上传图片
+        const imageUrl = await ImageUploader.uploadImage(compressedFile);
+        
+        // 保存图片信息
+        const newImage: TaskImage = {
+          id: `img-${Date.now()}-${i}`,
+          url: imageUrl,
+          type: i === 0 ? 'cover' : 'attachment', // 第一张为封面
+          uploadedAt: new Date(),
+        };
+        
+        uploadedImages.push(newImage);
+      }
       
       setTaskImages(prev => ({
         ...prev,
-        [taskId]: [...(prev[taskId] || []), newImage],
+        [taskId]: [...(prev[taskId] || []), ...uploadedImages],
       }));
       
-      console.log('✅ 图片上传成功');
+      console.log(`✅ 成功上传 ${uploadedImages.length} 张图片`);
+      alert(`成功上传 ${uploadedImages.length} 张图片！`);
     } catch (error) {
       console.error('❌ 图片上传失败:', error);
       alert('图片上传失败，请重试');
     } finally {
       setUploadingImage(null);
     }
+  };
+  
+  // 打开图片选择器
+  const handleOpenImagePicker = (taskId: string) => {
+    // 创建或获取该任务的 input 元素
+    if (!imageInputRefs.current[taskId]) {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.multiple = true; // 支持多选
+      input.onchange = (e) => {
+        const files = (e.target as HTMLInputElement).files;
+        if (files && files.length > 0) {
+          handleImageUpload(taskId, files, 'attachment');
+        }
+      };
+      imageInputRefs.current[taskId] = input;
+    }
+    
+    imageInputRefs.current[taskId].click();
+  };
+  
+  // 添加手动子任务
+  const handleAddManualSubTask = (taskId: string) => {
+    if (!newSubTaskTitle.trim()) {
+      alert('请输入子任务标题');
+      return;
+    }
+    
+    const newSubTask: SubTask = {
+      id: `subtask-${Date.now()}`,
+      title: newSubTaskTitle.trim(),
+      completed: false,
+      createdAt: new Date(),
+    };
+    
+    setTaskSubTasks(prev => ({
+      ...prev,
+      [taskId]: [...(prev[taskId] || []), newSubTask],
+    }));
+    
+    setNewSubTaskTitle('');
+    setAddingSubTask(null);
+    
+    console.log('✅ 手动添加子任务成功');
+  };
+  
+  // 切换子任务完成状态
+  const handleToggleSubTask = (taskId: string, subTaskId: string) => {
+    setTaskSubTasks(prev => ({
+      ...prev,
+      [taskId]: (prev[taskId] || []).map(st => 
+        st.id === subTaskId ? { ...st, completed: !st.completed } : st
+      ),
+    }));
   };
   
   // AI 生成子任务
@@ -558,7 +626,10 @@ export default function NewTimelineView({
         if (file) {
           try {
             // 上传验证图片
-            await handleImageUpload(taskId, file, 'verification');
+            const files = (e.target as HTMLInputElement).files;
+            if (files) {
+              await handleImageUpload(taskId, files, 'attachment');
+            }
             
             // 简化验证：假设上传成功就是验证成功
             // 实际项目中应该调用图像识别 API
@@ -640,6 +711,38 @@ export default function NewTimelineView({
     
     if (!task) return;
     
+    // 如果任务已完成，点击取消完成
+    if (task.status === 'completed') {
+      if (confirm('确定要取消完成这个任务吗？')) {
+        if (taskId.startsWith('demo-')) {
+          setDemoTasks(prev => prev.map(t => 
+            t.id === taskId ? { ...t, status: 'in_progress' as const } : t
+          ));
+        } else {
+          onTaskUpdate(taskId, { status: 'in_progress' });
+        }
+        
+        // 更新验证状态
+        if (verification && verification.enabled) {
+          setTaskVerifications(prev => ({
+            ...prev,
+            [taskId]: {
+              ...prev[taskId],
+              status: 'started',
+              actualCompletionTime: null,
+            },
+          }));
+        }
+      }
+      return;
+    }
+    
+    // 如果启用了验证但还没有开始任务，不能完成
+    if (verification && verification.enabled && verification.status !== 'started') {
+      alert('⚠️ 请先完成启动验证才能标记完成！');
+      return;
+    }
+    
     if (verification && verification.enabled && verification.status === 'started') {
       // 需要完成验证 - 拍照验证完成
       setCompletingTask(taskId);
@@ -655,7 +758,10 @@ export default function NewTimelineView({
         if (file) {
           try {
             // 上传验证图片
-            await handleImageUpload(taskId, file, 'verification');
+            const files = (e.target as HTMLInputElement).files;
+            if (files) {
+              await handleImageUpload(taskId, files, 'attachment');
+            }
             
             const now = new Date();
             const scheduledEnd = task.scheduledEnd ? new Date(task.scheduledEnd) : null;
@@ -1037,10 +1143,25 @@ export default function NewTimelineView({
                     <div className="flex gap-3 mb-2">
                       {/* 圆形图片 */}
                       <div 
-                        className="w-14 h-14 rounded-full flex-shrink-0 flex items-center justify-center cursor-pointer"
+                        onClick={() => handleOpenImagePicker(block.id)}
+                        className="w-14 h-14 rounded-full flex-shrink-0 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity relative"
                         style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
+                        title="点击上传照片（支持多选）"
                       >
-                        <Camera className="w-6 h-6 opacity-60" />
+                        {taskImages[block.id] && taskImages[block.id].length > 0 ? (
+                          <img 
+                            src={taskImages[block.id][0].url} 
+                            alt="封面"
+                            className="w-full h-full object-cover rounded-full"
+                          />
+                        ) : (
+                          <Camera className="w-6 h-6 opacity-60" />
+                        )}
+                        {uploadingImage === block.id && (
+                          <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
+                            <span className="text-white text-[10px]">上传中</span>
+                          </div>
+                        )}
                       </div>
 
                       {/* 标题 + 目标 */}
@@ -1202,10 +1323,25 @@ export default function NewTimelineView({
                     <div className="flex gap-2 mb-2">
                       {/* 图片上传区 */}
                       <div 
-                        className="w-16 h-16 rounded-xl flex-shrink-0 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => handleOpenImagePicker(block.id)}
+                        className="w-16 h-16 rounded-xl flex-shrink-0 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity relative"
                         style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
+                        title="点击上传照片（支持多选）"
                       >
-                        <Camera className="w-6 h-6 opacity-60" />
+                        {taskImages[block.id] && taskImages[block.id].length > 0 ? (
+                          <img 
+                            src={taskImages[block.id][0].url} 
+                            alt="封面"
+                            className="w-full h-full object-cover rounded-xl"
+                          />
+                        ) : (
+                          <Camera className="w-6 h-6 opacity-60" />
+                        )}
+                        {uploadingImage === block.id && (
+                          <div className="absolute inset-0 bg-black/50 rounded-xl flex items-center justify-center">
+                            <span className="text-white text-xs">上传中...</span>
+                          </div>
+                        )}
                       </div>
 
                       {/* 标题区 */}
@@ -1289,16 +1425,21 @@ export default function NewTimelineView({
                         {/* 完成验证按钮 */}
                         <button
                           onClick={() => handleCompleteTask(block.id)}
-                          disabled={completingTask === block.id}
+                          disabled={
+                            completingTask === block.id || 
+                            (taskVerifications[block.id]?.enabled && taskVerifications[block.id]?.status !== 'started')
+                          }
                           className="w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all hover:scale-110 disabled:opacity-50"
                           style={{ 
                             backgroundColor: block.isCompleted ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.2)',
                             borderColor: 'rgba(255,255,255,0.8)',
                           }}
                           title={
-                            taskVerifications[block.id]?.enabled 
-                              ? '拍照验证完成' 
-                              : '标记完成'
+                            block.isCompleted 
+                              ? '点击取消完成'
+                              : taskVerifications[block.id]?.enabled 
+                                ? (taskVerifications[block.id]?.status === 'started' ? '拍照验证完成' : '请先完成启动验证')
+                                : '标记完成'
                           }
                         >
                           {completingTask === block.id ? (
@@ -1356,7 +1497,31 @@ export default function NewTimelineView({
                     <div className="mt-3 pt-3 space-y-2" style={{ borderTop: '2px dashed rgba(255,255,255,0.3)' }}>
                       {/* 子任务 */}
                       <div className="space-y-1.5">
-                        {block.subtasks.map((subtask, idx) => (
+                        {/* 显示已有子任务 */}
+                        {(taskSubTasks[block.id] || []).map((subtask) => (
+                          <div 
+                            key={subtask.id}
+                            className="flex items-center gap-2 pl-3 py-1.5 rounded-lg cursor-pointer hover:opacity-80"
+                            style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}
+                            onClick={() => handleToggleSubTask(block.id, subtask.id)}
+                          >
+                            <div 
+                              className="w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center"
+                              style={{ 
+                                borderColor: 'rgba(255,255,255,0.8)',
+                                backgroundColor: subtask.completed ? 'rgba(255,255,255,0.9)' : 'transparent',
+                              }}
+                            >
+                              {subtask.completed && <Check className="w-3 h-3" style={{ color: block.color }} />}
+                            </div>
+                            <span className={`text-xs ${subtask.completed ? 'line-through opacity-60' : ''}`}>
+                              {subtask.title}
+                            </span>
+                          </div>
+                        ))}
+                        
+                        {/* 显示默认子任务 */}
+                        {(taskSubTasks[block.id] || []).length === 0 && block.subtasks.map((subtask, idx) => (
                           <div 
                             key={idx}
                             className="flex items-center gap-2 pl-3 py-1.5 rounded-lg"
@@ -1370,16 +1535,89 @@ export default function NewTimelineView({
                           </div>
                         ))}
                         
-                        <button
-                          className="w-full py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-80"
-                          style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
-                        >
-                          + 添加子任务
-                        </button>
+                        {/* 添加子任务输入框 */}
+                        {addingSubTask === block.id ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={newSubTaskTitle}
+                              onChange={(e) => setNewSubTaskTitle(e.target.value)}
+                              onKeyPress={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleAddManualSubTask(block.id);
+                                }
+                              }}
+                              placeholder="输入子任务标题..."
+                              className="flex-1 px-3 py-1.5 rounded-lg text-xs"
+                              style={{
+                                backgroundColor: 'rgba(255,255,255,0.2)',
+                                border: '1px solid rgba(255,255,255,0.3)',
+                                color: getTextColor(block.color),
+                              }}
+                              autoFocus
+                            />
+                            <button
+                              onClick={() => handleAddManualSubTask(block.id)}
+                              className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-80"
+                              style={{ backgroundColor: 'rgba(255,255,255,0.3)' }}
+                            >
+                              ✓
+                            </button>
+                            <button
+                              onClick={() => {
+                                setAddingSubTask(null);
+                                setNewSubTaskTitle('');
+                              }}
+                              className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-80"
+                              style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setAddingSubTask(block.id)}
+                            className="w-full py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-80"
+                            style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
+                          >
+                            + 添加子任务
+                          </button>
+                        )}
                       </div>
+
+                      {/* 附件列表 */}
+                      {taskImages[block.id] && taskImages[block.id].length > 0 && (
+                        <div className="space-y-1.5">
+                          <div className="text-xs font-medium opacity-80">附件列表</div>
+                          <div className="grid grid-cols-3 gap-2">
+                            {taskImages[block.id].map((image, idx) => (
+                              <div 
+                                key={image.id}
+                                className="relative aspect-square rounded-lg overflow-hidden"
+                                style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}
+                              >
+                                <img 
+                                  src={image.url} 
+                                  alt={`附件 ${idx + 1}`}
+                                  className="w-full h-full object-cover"
+                                />
+                                {idx === 0 && (
+                                  <div 
+                                    className="absolute top-1 left-1 px-1.5 py-0.5 rounded text-[10px] font-bold"
+                                    style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: 'white' }}
+                                  >
+                                    封面
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
                       {/* 文件上传区 */}
                       <div 
+                        onClick={() => handleOpenImagePicker(block.id)}
                         className="rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer transition-all hover:opacity-80"
                         style={{ 
                           backgroundColor: 'rgba(255,255,255,0.15)',
@@ -1387,7 +1625,8 @@ export default function NewTimelineView({
                         }}
                       >
                         <Plus className="w-6 h-6 mb-1 opacity-60" />
-                        <span className="text-xs font-medium opacity-80">拖拽添加文件</span>
+                        <span className="text-xs font-medium opacity-80">点击添加照片/附件</span>
+                        <span className="text-[10px] opacity-60 mt-1">支持多选，第一张为封面</span>
                       </div>
                     </div>
                   </div>

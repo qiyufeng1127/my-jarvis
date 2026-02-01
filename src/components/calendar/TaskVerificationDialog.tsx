@@ -25,6 +25,27 @@ export default function TaskVerificationDialog({
   const [editingCompletion, setEditingCompletion] = useState(false);
   const [startKeywords, setStartKeywords] = useState(verification.startKeywords.join(', '));
   const [completionKeywords, setCompletionKeywords] = useState(verification.completionKeywords.join(', '));
+  
+  // 判断颜色是否为深色
+  const isColorDark = (color: string): boolean => {
+    const hex = color.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    return brightness < 128;
+  };
+  
+  // 根据背景色获取文字颜色
+  const getTextColor = (bgColor: string): string => {
+    return isColorDark(bgColor) ? '#ffffff' : '#000000';
+  };
+  
+  const dialogBgColor = accentColor;
+  const dialogTextColor = getTextColor(accentColor);
+  const dialogAccentColor = isColorDark(accentColor) ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';
+  const inputBgColor = isColorDark(accentColor) ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)';
+  const inputBorderColor = isColorDark(accentColor) ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)';
 
   const handleSaveStart = () => {
     const keywords = startKeywords.split(',').map(k => k.trim()).filter(k => k);
@@ -49,43 +70,54 @@ export default function TaskVerificationDialog({
       <div 
         className="w-full max-w-md rounded-2xl p-6 shadow-2xl"
         style={{ 
-          backgroundColor: isDark ? '#1a1a1a' : '#ffffff',
-          color: isDark ? '#ffffff' : '#000000',
+          backgroundColor: dialogBgColor,
+          color: dialogTextColor,
         }}
       >
         {/* 标题栏 */}
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-bold">验证关键词设置</h3>
+          <h3 className="text-xl font-bold" style={{ color: dialogTextColor }}>验证关键词设置</h3>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            className="p-2 rounded-lg transition-colors"
+            style={{ 
+              backgroundColor: inputBgColor,
+              color: dialogTextColor,
+            }}
           >
             <X size={20} />
           </button>
         </div>
 
         {/* 任务标题 */}
-        <div className="mb-6 p-4 rounded-lg bg-gray-100 dark:bg-gray-800">
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">任务</p>
-          <p className="font-medium">{taskTitle}</p>
+        <div className="mb-6 p-4 rounded-lg" style={{ backgroundColor: inputBgColor }}>
+          <p className="text-sm mb-1" style={{ color: dialogAccentColor }}>任务</p>
+          <p className="font-medium" style={{ color: dialogTextColor }}>{taskTitle}</p>
         </div>
 
         {/* 启动验证关键词 */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
-            <label className="text-sm font-medium">启动验证关键词</label>
+            <label className="text-sm font-medium" style={{ color: dialogTextColor }}>启动验证关键词</label>
             {!editingStart ? (
               <button
                 onClick={() => setEditingStart(true)}
-                className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                className="p-1 rounded transition-colors"
+                style={{ 
+                  backgroundColor: inputBgColor,
+                  color: dialogTextColor,
+                }}
               >
                 <Edit2 size={16} />
               </button>
             ) : (
               <button
                 onClick={handleSaveStart}
-                className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-                style={{ color: accentColor }}
+                className="p-1 rounded transition-colors"
+                style={{ 
+                  backgroundColor: inputBgColor,
+                  color: dialogTextColor,
+                }}
               >
                 <Check size={16} />
               </button>
@@ -98,8 +130,9 @@ export default function TaskVerificationDialog({
               onChange={(e) => setStartKeywords(e.target.value)}
               className="w-full px-3 py-2 rounded-lg border"
               style={{
-                backgroundColor: isDark ? '#2a2a2a' : '#f5f5f5',
-                borderColor: isDark ? '#3a3a3a' : '#e0e0e0',
+                backgroundColor: inputBgColor,
+                borderColor: inputBorderColor,
+                color: dialogTextColor,
               }}
               placeholder="用逗号分隔，例如：书本, 笔记本, 电脑"
             />
@@ -110,8 +143,8 @@ export default function TaskVerificationDialog({
                   key={index}
                   className="px-3 py-1 rounded-full text-sm"
                   style={{
-                    backgroundColor: `${accentColor}20`,
-                    color: accentColor,
+                    backgroundColor: inputBgColor,
+                    color: dialogTextColor,
                   }}
                 >
                   {keyword}
@@ -119,7 +152,7 @@ export default function TaskVerificationDialog({
               ))}
             </div>
           )}
-          <p className="text-xs text-gray-500 mt-2">
+          <p className="text-xs mt-2" style={{ color: dialogAccentColor }}>
             拍摄照片时需要包含这些内容
           </p>
         </div>
@@ -127,19 +160,26 @@ export default function TaskVerificationDialog({
         {/* 完成验证关键词 */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
-            <label className="text-sm font-medium">完成验证关键词</label>
+            <label className="text-sm font-medium" style={{ color: dialogTextColor }}>完成验证关键词</label>
             {!editingCompletion ? (
               <button
                 onClick={() => setEditingCompletion(true)}
-                className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                className="p-1 rounded transition-colors"
+                style={{ 
+                  backgroundColor: inputBgColor,
+                  color: dialogTextColor,
+                }}
               >
                 <Edit2 size={16} />
               </button>
             ) : (
               <button
                 onClick={handleSaveCompletion}
-                className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-                style={{ color: accentColor }}
+                className="p-1 rounded transition-colors"
+                style={{ 
+                  backgroundColor: inputBgColor,
+                  color: dialogTextColor,
+                }}
               >
                 <Check size={16} />
               </button>
@@ -152,8 +192,9 @@ export default function TaskVerificationDialog({
               onChange={(e) => setCompletionKeywords(e.target.value)}
               className="w-full px-3 py-2 rounded-lg border"
               style={{
-                backgroundColor: isDark ? '#2a2a2a' : '#f5f5f5',
-                borderColor: isDark ? '#3a3a3a' : '#e0e0e0',
+                backgroundColor: inputBgColor,
+                borderColor: inputBorderColor,
+                color: dialogTextColor,
               }}
               placeholder="用逗号分隔，例如：完成的作业, 整理好的书桌"
             />
@@ -164,8 +205,8 @@ export default function TaskVerificationDialog({
                   key={index}
                   className="px-3 py-1 rounded-full text-sm"
                   style={{
-                    backgroundColor: `${accentColor}20`,
-                    color: accentColor,
+                    backgroundColor: inputBgColor,
+                    color: dialogTextColor,
                   }}
                 >
                   {keyword}
@@ -173,14 +214,14 @@ export default function TaskVerificationDialog({
               ))}
             </div>
           )}
-          <p className="text-xs text-gray-500 mt-2">
+          <p className="text-xs mt-2" style={{ color: dialogAccentColor }}>
             完成任务后拍摄照片需要包含这些内容
           </p>
         </div>
 
         {/* 状态信息 */}
-        <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20">
-          <p className="text-sm text-blue-600 dark:text-blue-400">
+        <div className="p-4 rounded-lg" style={{ backgroundColor: inputBgColor }}>
+          <p className="text-sm" style={{ color: dialogTextColor }}>
             💡 提示：验证系统将在任务开始时间自动启动，请准时完成验证！
           </p>
         </div>
