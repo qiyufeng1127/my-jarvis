@@ -441,6 +441,28 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
     const newX = e.clientX - dragOffset.x;
     const newY = e.clientY - dragOffset.y;
 
+    // 检查是否拖动到顶部状态栏区域（y < 80）
+    const module = modules.find(m => m.id === draggingModule);
+    if (module && module.type === 'image-widget' && newY < 80) {
+      // 图片组件拖动到顶部，转换为顶部状态栏元素
+      const imageUrl = module.imageUrl;
+      const newTopBarItem = {
+        id: `topbar-image-${Date.now()}`,
+        type: 'image' as const,
+        position: { x: newX, y: 0 },
+        customSize: { width: 60, height: 60 },
+        imageUrl: imageUrl,
+      };
+      
+      // 添加到顶部状态栏
+      setTopBarItems([...topBarItems, newTopBarItem]);
+      
+      // 从模块中移除
+      setModules(modules.filter(m => m.id !== draggingModule));
+      setDraggingModule(null);
+      return;
+    }
+
     setModules(
       modules.map((m) =>
         m.id === draggingModule
@@ -572,7 +594,7 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
     setTopBarItems(
       topBarItems.map((item) =>
         item.id === draggingTopBarItem
-          ? { ...item, position: { x: Math.max(0, newX), y: constrainedY } }
+          ? { ...item, position: { x: newX, y: constrainedY } } // 移除 Math.max(0, newX)，允许负值
           : item
       )
     );
@@ -972,16 +994,6 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
 
               return null;
             })}
-
-            {/* 添加图片组件按钮 */}
-            <button
-              onClick={addImageToTopBar}
-              className="absolute right-0 top-0 px-3 py-2 rounded-lg bg-neutral-100 hover:bg-neutral-200 transition-colors text-sm flex items-center gap-2"
-              title="添加图片组件到顶部"
-            >
-              <span>🖼️</span>
-              <span className="text-xs">添加图片</span>
-            </button>
           </div>
         </div>
 
