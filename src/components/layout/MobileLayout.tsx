@@ -17,13 +17,13 @@ import JournalModule from '@/components/journal/JournalModule';
 import PanoramaMemory from '@/components/memory/PanoramaMemory';
 import TaskInbox from '@/components/inbox/TaskInbox';
 
-type TabType = 'timeline' | 'goals' | 'journal' | 'memory' | 'gold' | 'habits' | 'reports' | 'settings' | 'inbox' | 'more';
+type TabType = 'timeline' | 'goals' | 'journal' | 'memory' | 'gold' | 'habits' | 'reports' | 'settings' | 'inbox' | 'ai' | 'more';
 
 interface NavItem {
   id: TabType;
   label: string;
   icon: string;
-  component: React.ComponentType<any>;
+  component?: React.ComponentType<any>;
 }
 
 const ALL_NAV_ITEMS: NavItem[] = [
@@ -31,6 +31,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { id: 'goals', label: '目标', icon: '🎯', component: GoalsModule },
   { id: 'inbox', label: '收集箱', icon: '📥', component: TaskInbox },
   { id: 'journal', label: '日记', icon: '📔', component: JournalModule },
+  { id: 'ai', label: 'AI助手', icon: '🤖' }, // AI助手特殊处理，不需要component
   { id: 'memory', label: '记忆', icon: '🧠', component: PanoramaMemory },
   { id: 'gold', label: '金币', icon: '💰', component: GoldModule },
   { id: 'habits', label: '习惯', icon: '⚠️', component: HabitsModule },
@@ -76,6 +77,15 @@ export default function MobileLayout() {
 
   // 渲染当前激活的模块
   const renderActiveModule = () => {
+    // AI助手特殊处理
+    if (activeTab === 'ai') {
+      return (
+        <div className="h-full flex flex-col bg-white">
+          <FloatingAIChat isFullScreen={true} />
+        </div>
+      );
+    }
+
     // 从 localStorage 读取自定义颜色
     const savedNavColor = localStorage.getItem('mobile_nav_color') || '#ffffff';
     
@@ -85,7 +95,7 @@ export default function MobileLayout() {
     };
 
     const activeItem = ALL_NAV_ITEMS.find(item => item.id === activeTab);
-    if (!activeItem) return null;
+    if (!activeItem || !activeItem.component) return null;
 
     const Component = activeItem.component;
     return <Component {...moduleProps} />;
@@ -169,29 +179,29 @@ export default function MobileLayout() {
       {/* 通知容器 */}
       <NotificationContainer />
 
-      {/* 顶部状态栏 */}
-      <div className="bg-white border-b border-neutral-200 px-4 py-3 shrink-0">
+      {/* 顶部状态栏 - 增加顶部间距避免与系统时间重叠 */}
+      <div className="bg-white border-b border-neutral-200 px-3 pt-12 pb-2 shrink-0">
         <div className="flex items-center justify-between">
           {/* 左侧：身份等级 */}
-          <div className="flex items-center space-x-2">
-            <div className="flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100/50">
-              <div className="text-lg">👑</div>
-              <div className="text-xs">
+          <div className="flex items-center space-x-1.5">
+            <div className="flex items-center space-x-1.5 px-2 py-1 rounded-lg bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100/50">
+              <div className="text-base">👑</div>
+              <div className="text-[10px]">
                 <div className="font-semibold text-black">萌芽新手 Lv.1</div>
               </div>
             </div>
             
             {/* 成长值 */}
-            <div className="flex items-center space-x-1 px-2 py-1.5 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100/50">
-              <div className="text-sm">📊</div>
-              <div className="text-xs font-semibold text-black">0/200</div>
+            <div className="flex items-center space-x-1 px-1.5 py-1 rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100/50">
+              <div className="text-xs">📊</div>
+              <div className="text-[10px] font-semibold text-black">0/200</div>
             </div>
           </div>
 
           {/* 右侧：金币余额 */}
-          <div className="flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-100/50">
-            <div className="text-lg">💰</div>
-            <div className="text-sm font-bold text-black">0</div>
+          <div className="flex items-center space-x-1.5 px-2 py-1 rounded-lg bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-100/50">
+            <div className="text-base">💰</div>
+            <div className="text-xs font-bold text-black">0</div>
           </div>
         </div>
       </div>
@@ -267,10 +277,10 @@ export default function MobileLayout() {
               </div>
             </div>
 
-            {/* 功能列表 */}
+            {/* 功能列表 - 只显示不在导航栏的功能 */}
             <div className="flex-1 overflow-y-auto p-4">
               <div className="grid grid-cols-4 gap-4">
-                {ALL_NAV_ITEMS.map((item) => (
+                {ALL_NAV_ITEMS.filter(item => !visibleNavItems.find(v => v.id === item.id)).map((item) => (
                   <button
                     key={item.id}
                     onClick={() => {
@@ -449,15 +459,7 @@ export default function MobileLayout() {
         </div>
       )}
 
-      {/* Kiki 宝宝语音助手 - 移动端优化位置，在更多/设置时隐藏 */}
-      {activeTab !== 'more' && activeTab !== 'settings' && !showMoreModal && (
-        <VoiceAssistant mode="float" />
-      )}
-
-      {/* 浮动AI聊天 - 移动端优化位置，在更多/设置时隐藏 */}
-      {activeTab !== 'more' && activeTab !== 'settings' && !showMoreModal && (
-        <FloatingAIChat />
-      )}
+      {/* 移除浮动按钮，集成到导航栏 */}
     </div>
   );
 }

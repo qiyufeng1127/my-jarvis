@@ -41,6 +41,22 @@ export default function NewTimelineView({
   borderColor,
   isDark,
 }: NewTimelineViewProps) {
+  // 检测是否为移动设备
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
+      const isSmallScreen = window.innerWidth < 768;
+      setIsMobile(isMobileDevice || isSmallScreen);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [editingTask, setEditingTask] = useState<string | null>(null);
   const [draggedTask, setDraggedTask] = useState<string | null>(null);
@@ -1060,23 +1076,23 @@ export default function NewTimelineView({
             {/* 任务卡片 */}
             <div className="relative flex items-start gap-3 mb-0">
               {/* 左侧时间列 */}
-              <div className="w-12 flex-shrink-0 text-left flex flex-col">
+              <div className={`${isMobile ? 'w-10' : 'w-12'} flex-shrink-0 text-left flex flex-col`}>
                 {/* 开始时间 */}
-                <div className="text-base font-bold leading-none mb-1" style={{ color: textColor }}>
+                <div className={`${isMobile ? 'text-sm' : 'text-base'} font-bold leading-none mb-1`} style={{ color: textColor }}>
                   {formatTime(block.startTime)}
                 </div>
                 {/* 占位，让结束时间对齐卡片底部 */}
                 <div className="flex-1"></div>
                 {/* 结束时间 - 对齐卡片底部 */}
-                <div className="text-sm font-semibold leading-none" style={{ color: accentColor }}>
+                <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-semibold leading-none`} style={{ color: accentColor }}>
                   {formatTime(block.endTime)}
                 </div>
               </div>
 
-              {/* 任务卡片主体 */}
+              {/* 任务卡片主体 - 手机版缩小 */}
               <div 
                 data-task-id={block.id}
-                className="flex-1 rounded-2xl shadow-lg overflow-hidden relative"
+                className={`flex-1 ${isMobile ? 'rounded-xl' : 'rounded-2xl'} shadow-lg overflow-hidden relative`}
                 style={{ 
                   backgroundColor: block.isCompleted ? 'rgba(156, 163, 175, 0.5)' : block.color,
                   opacity: block.isCompleted ? 0.7 : 1,
@@ -1095,26 +1111,26 @@ export default function NewTimelineView({
                   </div>
                 )}
 
-                {/* 未展开：横向长条形布局 - 完全按照设计图 */}
+                {/* 未展开：横向长条形布局 - 完全按照设计图，手机版缩小 */}
                 {!isExpanded && (
-                  <div className="p-3 text-white" style={{ color: getTextColor(block.color) }}>
+                  <div className={`${isMobile ? 'p-2' : 'p-3'} text-white`} style={{ color: getTextColor(block.color) }}>
                     {/* 第一行：拖拽手柄 + 标签 + 时长 + 编辑按钮 */}
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
+                    <div className={`flex items-center justify-between ${isMobile ? 'mb-1' : 'mb-2'}`}>
+                      <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-2'}`}>
                         {/* 拖拽手柄 */}
                         <div
                           className="cursor-move p-1 rounded hover:bg-white/20 transition-colors"
                           onMouseDown={(e) => handleDragStart(e, block.id, block.startTime)}
                           onTouchStart={(e) => handleDragStart(e, block.id, block.startTime)}
                         >
-                          <GripVertical className="w-4 h-4 opacity-60" />
+                          <GripVertical className={`${isMobile ? 'w-3 h-3' : 'w-4 h-4'} opacity-60`} />
                         </div>
                         
-                        <div className="flex gap-1.5">
-                          {block.tags.slice(0, 2).map((tag, idx) => (
+                        <div className={`flex ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
+                          {block.tags.slice(0, isMobile ? 1 : 2).map((tag, idx) => (
                             <span 
                               key={idx}
-                              className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                              className={`${isMobile ? 'text-[8px]' : 'text-[10px]'} font-semibold ${isMobile ? 'px-1.5 py-0.5' : 'px-2 py-0.5'} rounded-full`}
                               style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
                             >
                               {tag}
@@ -1123,28 +1139,28 @@ export default function NewTimelineView({
                         </div>
                       </div>
                       
-                      <div className="flex items-center gap-2">
-                        <div className="text-sm font-bold" style={{ color: '#ff69b4' }}>
+                      <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-2'}`}>
+                        <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-bold`} style={{ color: '#ff69b4' }}>
                           *{block.duration} min
                         </div>
                         
                         {/* 编辑按钮 */}
                         <button
                           onClick={() => setEditingTask(block.id)}
-                          className="p-1.5 rounded-full hover:bg-white/20 transition-colors"
+                          className={`${isMobile ? 'p-1' : 'p-1.5'} rounded-full hover:bg-white/20 transition-colors`}
                           title="编辑任务"
                         >
-                          <Edit2 className="w-4 h-4" />
+                          <Edit2 className={`${isMobile ? 'w-3 h-3' : 'w-4 h-4'}`} />
                         </button>
                       </div>
                     </div>
 
-                    {/* 第二行：图片 + 标题区域 */}
-                    <div className="flex gap-3 mb-2">
+                    {/* 第二行：图片 + 标题区域 - 手机版缩小 */}
+                    <div className={`flex ${isMobile ? 'gap-2 mb-1' : 'gap-3 mb-2'}`}>
                       {/* 圆形图片 */}
                       <div 
                         onClick={() => handleOpenImagePicker(block.id)}
-                        className="w-14 h-14 rounded-full flex-shrink-0 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity relative"
+                        className={`${isMobile ? 'w-10 h-10' : 'w-14 h-14'} rounded-full flex-shrink-0 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity relative`}
                         style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
                         title="点击上传照片（支持多选）"
                       >
@@ -1155,42 +1171,42 @@ export default function NewTimelineView({
                             className="w-full h-full object-cover rounded-full"
                           />
                         ) : (
-                          <Camera className="w-6 h-6 opacity-60" />
+                          <Camera className={`${isMobile ? 'w-4 h-4' : 'w-6 h-6'} opacity-60`} />
                         )}
                         {uploadingImage === block.id && (
                           <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
-                            <span className="text-white text-[10px]">上传中</span>
+                            <span className={`text-white ${isMobile ? 'text-[8px]' : 'text-[10px]'}`}>上传中</span>
                           </div>
                         )}
                       </div>
 
                       {/* 标题 + 目标 */}
                       <div className="flex-1 flex flex-col justify-center min-w-0">
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <h3 className={`text-base font-bold ${block.isCompleted ? 'line-through' : ''}`}>
+                        <div className={`flex items-center ${isMobile ? 'gap-1 mb-0.5' : 'gap-1.5 mb-1'}`}>
+                          <h3 className={`${isMobile ? 'text-sm' : 'text-base'} font-bold ${block.isCompleted ? 'line-through' : ''}`}>
                             {block.title}
                           </h3>
-                          <span className="text-lg">{block.emoji}</span>
+                          <span className={`${isMobile ? 'text-base' : 'text-lg'}`}>{block.emoji}</span>
                         </div>
-                        <div className="text-xs opacity-90">
+                        <div className={`${isMobile ? 'text-[10px]' : 'text-xs'} opacity-90`}>
                           {block.goalText}
                         </div>
                       </div>
                     </div>
 
-                    {/* 第三行：按钮 + 金币 + start */}
+                    {/* 第三行：按钮 + 金币 + start - 手机版缩小 */}
                     <div className="flex items-center justify-between">
                       {/* 左侧：三个圆形按钮 */}
-                      <div className="flex items-center gap-2">
+                      <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-2'}`}>
                         {/* AI拆解子任务 */}
                         <button
                           onClick={() => handleGenerateSubTasks(block.id, block.title, block.description)}
                           disabled={generatingSubTasks === block.id}
-                          className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 disabled:opacity-50"
+                          className={`${isMobile ? 'w-6 h-6' : 'w-8 h-8'} rounded-full flex items-center justify-center transition-all hover:scale-110 disabled:opacity-50`}
                           style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
                           title="AI拆解子任务"
                         >
-                          <span className="text-base">{generatingSubTasks === block.id ? '⏳' : '⭐'}</span>
+                          <span className={`${isMobile ? 'text-sm' : 'text-base'}`}>{generatingSubTasks === block.id ? '⏳' : '⭐'}</span>
                         </button>
                         
                         {/* 启用/编辑验证 */}
@@ -1203,7 +1219,7 @@ export default function NewTimelineView({
                               handleEnableVerification(block.id, block.title, block.taskType || 'work');
                             }
                           }}
-                          className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                          className={`${isMobile ? 'w-6 h-6' : 'w-8 h-8'} rounded-full flex items-center justify-center transition-all hover:scale-110`}
                           style={{ 
                             backgroundColor: taskVerifications[block.id]?.enabled 
                               ? 'rgba(34,197,94,0.4)' 
@@ -1211,32 +1227,32 @@ export default function NewTimelineView({
                           }}
                           title={taskVerifications[block.id]?.enabled ? '编辑验证关键词' : '启用拖延验证'}
                         >
-                          <span className="text-base">⏱️</span>
+                          <span className={`${isMobile ? 'text-sm' : 'text-base'}`}>⏱️</span>
                         </button>
                         
                         {/* 笔记和附件 */}
                         <button
                           onClick={() => toggleExpand(block.id)}
-                          className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                          className={`${isMobile ? 'w-6 h-6' : 'w-8 h-8'} rounded-full flex items-center justify-center transition-all hover:scale-110`}
                           style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
                           title="笔记和附件"
                         >
-                          <span className="text-base">📝</span>
+                          <span className={`${isMobile ? 'text-sm' : 'text-base'}`}>📝</span>
                         </button>
                       </div>
 
                       {/* 右侧：金币 + start + 展开 */}
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1 px-2 py-1 rounded-full" style={{ backgroundColor: 'rgba(255,215,0,0.3)' }}>
-                          <span className="text-base">💰</span>
-                          <span className="text-sm font-bold">{block.goldReward}</span>
+                      <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-2'}`}>
+                        <div className={`flex items-center gap-1 ${isMobile ? 'px-1.5 py-0.5' : 'px-2 py-1'} rounded-full`} style={{ backgroundColor: 'rgba(255,215,0,0.3)' }}>
+                          <span className={`${isMobile ? 'text-sm' : 'text-base'}`}>💰</span>
+                          <span className={`${isMobile ? 'text-xs' : 'text-sm'} font-bold`}>{block.goldReward}</span>
                         </div>
 
                         {!block.isCompleted && block.status !== 'in_progress' && (
                           <button
                             onClick={() => handleStartTask(block.id)}
                             disabled={startingTask === block.id}
-                            className="px-4 py-1.5 rounded-full font-bold text-sm transition-all hover:scale-105 disabled:opacity-50"
+                            className={`${isMobile ? 'px-2 py-1 text-xs' : 'px-4 py-1.5 text-sm'} rounded-full font-bold transition-all hover:scale-105 disabled:opacity-50`}
                             style={{ 
                               backgroundColor: 'rgba(255,255,255,0.95)',
                               color: block.color,
@@ -1253,7 +1269,7 @@ export default function NewTimelineView({
                         
                         {block.status === 'in_progress' && (
                           <div 
-                            className="px-3 py-1 rounded-full font-bold text-xs"
+                            className={`${isMobile ? 'px-2 py-0.5 text-[10px]' : 'px-3 py-1 text-xs'} rounded-full font-bold`}
                             style={{ 
                               backgroundColor: 'rgba(34,197,94,0.3)',
                               color: 'rgba(255,255,255,0.95)',
@@ -1265,10 +1281,10 @@ export default function NewTimelineView({
 
                         <button
                           onClick={() => toggleExpand(block.id)}
-                          className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                          className={`${isMobile ? 'w-5 h-5' : 'w-7 h-7'} rounded-full flex items-center justify-center transition-all hover:scale-110`}
                           style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
                         >
-                          <ChevronDown className="w-4 h-4" />
+                          <ChevronDown className={`${isMobile ? 'w-3 h-3' : 'w-4 h-4'}`} />
                         </button>
                       </div>
                     </div>

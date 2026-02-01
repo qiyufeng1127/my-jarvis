@@ -22,10 +22,34 @@ export default function TimelineCalendar({
   bgColor = '#ffffff',
   moduleSize, // 接收模块尺寸
 }: TimelineCalendarProps) {
-  const [calendarView, setCalendarView] = useState<'week' | 'month'>('month');
+  // 检测是否为移动设备
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
+      const isSmallScreen = window.innerWidth < 768;
+      setIsMobile(isMobileDevice || isSmallScreen);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
+  // 手机版默认周视图，电脑版默认月视图
+  const [calendarView, setCalendarView] = useState<'week' | 'month'>(isMobile ? 'week' : 'month');
   const [selectedDate, setSelectedDate] = useState(new Date());
   
   const timelineRef = useRef<HTMLDivElement>(null);
+  
+  // 当设备类型改变时更新视图
+  useEffect(() => {
+    if (isMobile) {
+      setCalendarView('week');
+    }
+  }, [isMobile]);
 
   // 判断颜色是否为深色
   const isColorDark = (color: string): boolean => {
@@ -146,9 +170,9 @@ export default function TimelineCalendar({
     <div className="flex flex-col h-full" style={{ backgroundColor: bgColor }}>
       {/* 上半部分：日历视图 */}
       <div className="flex-shrink-0" style={{ borderBottom: `2px solid ${borderColor}` }}>
-        {/* 日历工具栏 */}
-        <div className="flex items-center justify-between px-6 py-3" style={{ backgroundColor: bgColor, borderBottom: `1px solid ${borderColor}` }}>
-          <div className="flex items-center space-x-4">
+        {/* 日历工具栏 - 手机版简化 */}
+        <div className={`flex items-center justify-between ${isMobile ? 'px-3 py-2' : 'px-6 py-3'}`} style={{ backgroundColor: bgColor, borderBottom: `1px solid ${borderColor}` }}>
+          <div className="flex items-center space-x-2">
             <button
               onClick={() => {
                 const newDate = new Date(selectedDate);
@@ -159,21 +183,33 @@ export default function TimelineCalendar({
                 }
                 setSelectedDate(newDate);
               }}
-              className="p-2 rounded-lg transition-colors"
+              className={`${isMobile ? 'p-1' : 'p-2'} rounded-lg transition-colors`}
               style={{ backgroundColor: hoverBg }}
             >
-              <ChevronLeft className="w-5 h-5" style={{ color: textColor }} />
+              <ChevronLeft className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} style={{ color: textColor }} />
             </button>
 
-            <div className="flex items-center space-x-2">
-              <CalendarIcon className="w-5 h-5" style={{ color: textColor }} />
-              <h2 className="text-lg font-semibold" style={{ color: textColor }}>
-                {calendarView === 'month' 
-                  ? selectedDate.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' })
-                  : `${selectedDate.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' })} 第${Math.ceil(selectedDate.getDate() / 7)}周`
-                }
-              </h2>
-            </div>
+            {/* 手机版：只显示简单日期 */}
+            {isMobile ? (
+              <div className="flex items-center space-x-1">
+                <span className="text-sm font-semibold" style={{ color: textColor }}>
+                  {selectedDate.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' })}
+                </span>
+                <span className="text-xs" style={{ color: accentColor }}>
+                  {['周日', '周一', '周二', '周三', '周四', '周五', '周六'][selectedDate.getDay()]}
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-2">
+                <CalendarIcon className="w-5 h-5" style={{ color: textColor }} />
+                <h2 className="text-lg font-semibold" style={{ color: textColor }}>
+                  {calendarView === 'month' 
+                    ? selectedDate.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' })
+                    : `${selectedDate.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' })} 第${Math.ceil(selectedDate.getDate() / 7)}周`
+                  }
+                </h2>
+              </div>
+            )}
 
             <button
               onClick={() => {
@@ -185,78 +221,81 @@ export default function TimelineCalendar({
                 }
                 setSelectedDate(newDate);
               }}
-              className="p-2 rounded-lg transition-colors"
+              className={`${isMobile ? 'p-1' : 'p-2'} rounded-lg transition-colors`}
               style={{ backgroundColor: hoverBg }}
             >
-              <ChevronRight className="w-5 h-5" style={{ color: textColor }} />
+              <ChevronRight className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} style={{ color: textColor }} />
             </button>
 
             <button
               onClick={() => setSelectedDate(new Date())}
-              className="px-3 py-1.5 text-sm rounded-lg transition-colors"
+              className={`${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm'} rounded-lg transition-colors`}
               style={{ backgroundColor: hoverBg, color: textColor }}
             >
               今天
             </button>
           </div>
 
-          <div className="flex items-center space-x-2">
-            <div className="flex rounded-lg p-1" style={{ backgroundColor: cardBg }}>
-              <button
-                onClick={() => setCalendarView('week')}
-                className={`px-3 py-1.5 text-sm rounded transition-colors ${
-                  calendarView === 'week'
-                    ? 'font-semibold shadow-sm'
-                    : ''
-                }`}
-                style={{
-                  backgroundColor: calendarView === 'week' ? hoverBg : 'transparent',
-                  color: calendarView === 'week' ? textColor : accentColor,
-                }}
-              >
-                周视图
-              </button>
-              <button
-                onClick={() => setCalendarView('month')}
-                className={`px-3 py-1.5 text-sm rounded transition-colors ${
-                  calendarView === 'month'
-                    ? 'font-semibold shadow-sm'
-                    : ''
-                }`}
-                style={{
-                  backgroundColor: calendarView === 'month' ? hoverBg : 'transparent',
-                  color: calendarView === 'month' ? textColor : accentColor,
-                }}
-              >
-                月视图
-              </button>
+          {/* 电脑版：显示视图切换 */}
+          {!isMobile && (
+            <div className="flex items-center space-x-2">
+              <div className="flex rounded-lg p-1" style={{ backgroundColor: cardBg }}>
+                <button
+                  onClick={() => setCalendarView('week')}
+                  className={`px-3 py-1.5 text-sm rounded transition-colors ${
+                    calendarView === 'week'
+                      ? 'font-semibold shadow-sm'
+                      : ''
+                  }`}
+                  style={{
+                    backgroundColor: calendarView === 'week' ? hoverBg : 'transparent',
+                    color: calendarView === 'week' ? textColor : accentColor,
+                  }}
+                >
+                  周视图
+                </button>
+                <button
+                  onClick={() => setCalendarView('month')}
+                  className={`px-3 py-1.5 text-sm rounded transition-colors ${
+                    calendarView === 'month'
+                      ? 'font-semibold shadow-sm'
+                      : ''
+                  }`}
+                  style={{
+                    backgroundColor: calendarView === 'month' ? hoverBg : 'transparent',
+                    color: calendarView === 'month' ? textColor : accentColor,
+                  }}
+                >
+                  月视图
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
-        {/* 日历网格 */}
+        {/* 日历网格 - 手机版缩小 */}
         <div 
-          className="overflow-auto px-4 py-2"
+          className={`overflow-auto ${isMobile ? 'px-2 py-1' : 'px-4 py-2'}`}
           style={{ 
-            maxHeight: calendarView === 'week' ? '180px' : '280px',
-            minHeight: calendarView === 'week' ? '120px' : '200px',
+            maxHeight: calendarView === 'week' ? (isMobile ? '100px' : '180px') : (isMobile ? '200px' : '280px'),
+            minHeight: calendarView === 'week' ? (isMobile ? '80px' : '120px') : (isMobile ? '150px' : '200px'),
             overflowY: 'auto',
           }}
         >
-          <div className={`grid grid-cols-7 ${calendarView === 'month' ? 'gap-2' : 'gap-3'}`}>
+          <div className={`grid grid-cols-7 ${calendarView === 'month' ? (isMobile ? 'gap-1' : 'gap-2') : (isMobile ? 'gap-2' : 'gap-3')}`}>
             {/* 星期标题 */}
             {['日', '一', '二', '三', '四', '五', '六'].map((day, index) => (
-              <div key={index} className="text-center font-semibold py-2" style={{ color: textColor }}>
+              <div key={index} className={`text-center font-semibold ${isMobile ? 'py-1 text-xs' : 'py-2'}`} style={{ color: textColor }}>
                 {day}
               </div>
             ))}
 
-            {/* 日期格子 */}
+            {/* 日期格子 - 手机版缩小 */}
             {calendarDays.map((day, index) => (
               <button
                 key={index}
                 onClick={() => setSelectedDate(day.date)}
-                className={`aspect-square rounded-lg border-2 p-2 transition-all hover:shadow-md`}
+                className={`aspect-square rounded-lg border-2 ${isMobile ? 'p-1' : 'p-2'} transition-all hover:shadow-md`}
                 style={{
                   borderColor: day.isSelected
                     ? '#3B82F6'
@@ -275,7 +314,7 @@ export default function TimelineCalendar({
                 }}
               >
                 <div className="flex flex-col h-full">
-                  <div className={`text-sm font-semibold mb-1`}
+                  <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-semibold mb-1`}
                     style={{
                       color: day.isToday ? '#10B981' : day.isSelected ? '#3B82F6' : day.isCurrentMonth ? textColor : accentColor
                     }}
@@ -285,10 +324,10 @@ export default function TimelineCalendar({
                   
                   {day.tasks.length > 0 && (
                     <div className="flex-1 flex flex-col space-y-1 overflow-hidden">
-                      {day.tasks.slice(0, calendarView === 'month' ? 2 : 4).map((task, taskIndex) => (
+                      {day.tasks.slice(0, calendarView === 'month' ? (isMobile ? 1 : 2) : (isMobile ? 2 : 4)).map((task, taskIndex) => (
                         <div
                           key={taskIndex}
-                          className="text-xs px-1 py-0.5 rounded truncate"
+                          className={`${isMobile ? 'text-[8px] px-0.5 py-0.5' : 'text-xs px-1 py-0.5'} rounded truncate`}
                           style={{
                             backgroundColor: `${categoryColors[task.taskType] || categoryColors.other}20`,
                             color: categoryColors[task.taskType] || categoryColors.other,
@@ -297,9 +336,9 @@ export default function TimelineCalendar({
                           {task.title}
                         </div>
                       ))}
-                      {day.tasks.length > (calendarView === 'month' ? 2 : 4) && (
-                        <div className="text-xs" style={{ color: accentColor }}>
-                          +{day.tasks.length - (calendarView === 'month' ? 2 : 4)} 更多
+                      {day.tasks.length > (calendarView === 'month' ? (isMobile ? 1 : 2) : (isMobile ? 2 : 4)) && (
+                        <div className={`${isMobile ? 'text-[8px]' : 'text-xs'}`} style={{ color: accentColor }}>
+                          +{day.tasks.length - (calendarView === 'month' ? (isMobile ? 1 : 2) : (isMobile ? 2 : 4))} 更多
                         </div>
                       )}
                     </div>
