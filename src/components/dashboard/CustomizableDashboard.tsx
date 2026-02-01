@@ -207,19 +207,22 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
   // 顶部状态栏元素的位置和拖动状态
   const [topBarItems, setTopBarItems] = useState<Array<{
     id: string;
-    type: 'identity' | 'growth' | 'weekly' | 'habits' | 'gold' | 'image';
+    type: 'identity' | 'growth' | 'habits' | 'gold' | 'balance' | 'image';
     position: { x: number; y: number };
     imageUrl?: string;
     customSize?: { width: number; height: number };
   }>>([
     { id: 'identity', type: 'identity', position: { x: 0, y: 0 } },
     { id: 'growth', type: 'growth', position: { x: 220, y: 0 } },
-    { id: 'weekly', type: 'weekly', position: { x: 440, y: 0 } },
-    { id: 'habits', type: 'habits', position: { x: 580, y: 0 } },
+    { id: 'balance', type: 'balance', position: { x: 440, y: 0 } },
+    { id: 'habits', type: 'habits', position: { x: 680, y: 0 } },
     { id: 'gold', type: 'gold', position: { x: 1100, y: 0 } },
   ]);
   const [draggingTopBarItem, setDraggingTopBarItem] = useState<string | null>(null);
   const [topBarDragOffset, setTopBarDragOffset] = useState({ x: 0, y: 0 });
+
+  // 资产余额（模拟数据，可以从副业追踪器获取）
+  const [assetBalance, setAssetBalance] = useState(0); // 正数为资产，负数为负债
 
   // 从 Supabase 加载模块配置
   useEffect(() => {
@@ -865,7 +868,10 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                 );
               }
 
-              if (item.type === 'weekly') {
+              if (item.type === 'balance') {
+                const isNegative = assetBalance < 0;
+                const displayAmount = Math.abs(assetBalance);
+                
                 return (
                   <div
                     key={item.id}
@@ -877,10 +883,30 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                     }}
                     onMouseDown={(e) => handleTopBarDragStart(item.id, e)}
                   >
-                    <div className="flex items-center space-x-2 px-3 py-2 rounded-xl bg-green-50 border border-green-100/50">
-                      <div className="text-lg">⚡</div>
-                      <div className="text-sm text-black font-semibold">+0 本周</div>
-                    </div>
+                    <button
+                      className="flex items-center space-x-3 px-4 py-2 rounded-2xl border shadow-sm hover:scale-105 transition-transform"
+                      style={{
+                        backgroundColor: isNegative ? '#8B0000' : '#D4EDDA',
+                        borderColor: isNegative ? '#660000' : '#C3E6CB',
+                        color: isNegative ? '#ffffff' : '#000000',
+                      }}
+                    >
+                      <div className="text-2xl">💴</div>
+                      <div>
+                        <div 
+                          className="text-sm font-semibold tracking-wide"
+                          style={{ color: isNegative ? '#ffffff' : '#000000' }}
+                        >
+                          {isNegative ? '负债' : '余额'}
+                        </div>
+                        <div 
+                          className="text-base font-bold"
+                          style={{ color: isNegative ? '#ffffff' : '#000000' }}
+                        >
+                          {displayAmount.toFixed(2)}
+                        </div>
+                      </div>
+                    </button>
                   </div>
                 );
               }
