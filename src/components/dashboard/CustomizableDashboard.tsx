@@ -179,7 +179,7 @@ const moduleSpecificSizes: Record<string, { width?: number; height?: number }> =
   'ai-smart': { width: 350, height: 500 },  // AI智能输入 - 竖长方形，长宽比约4:3（高:宽）
   'journal': { height: 750 },        // 成功&感恩日记
   'memory': { height: 800 },         // 全景记忆栏
-  'inbox': { height: 600 },          // 收集箱
+  'inbox': { width: 700, height: 600 },  // 收集箱 - 需要宽度来显示左右两栏
 };
 
 interface CustomizableDashboardProps {
