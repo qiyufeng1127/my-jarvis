@@ -3,6 +3,7 @@
 // ============================================
 
 import { MoneyAIProcessor } from './moneyAIService';
+import { useAIStore } from '@/stores/aiStore';
 
 export interface AIProcessRequest {
   user_input: string;
@@ -407,7 +408,7 @@ export class AISmartProcessor {
   }
 
   // 使用 AI 智能分析任务（替代所有手动规则）
-  static async analyzeTaskWithAI(taskTitle: string, apiKey: string, apiEndpoint: string, extractedDuration?: number): Promise<{
+  static async analyzeTaskWithAI(taskTitle: string, extractedDuration?: number): Promise<{
     tags: string[];
     location: string;
     duration: number;
@@ -415,6 +416,13 @@ export class AISmartProcessor {
     category: string;
     color: string;
   }> {
+    // 从 AI Store 获取配置
+    const { apiKey, apiEndpoint, model } = useAIStore.getState();
+    
+    if (!apiKey) {
+      console.error('API Key 未配置');
+      throw new Error('API Key 未配置，请先在 AI 设置中配置');
+    }
     const prompt = `你是一个任务分析助手。请分析以下任务并返回JSON格式的结果。
 
 任务标题：${taskTitle}
@@ -452,7 +460,7 @@ ${extractedDuration ? `用户指定时长：${extractedDuration}分钟` : ''}
           'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: 'deepseek-chat',
+          model: model || 'deepseek-chat',
           messages: [
             { role: 'system', content: '你是一个任务分析助手，专门帮助用户分析任务并生成结构化数据。只返回JSON格式，不要其他内容。' },
             { role: 'user', content: prompt }
@@ -539,9 +547,13 @@ ${extractedDuration ? `用户指定时长：${extractedDuration}分钟` : ''}
       };
     }
 
-    // 获取API配置
-    const apiKey = localStorage.getItem('ai_api_key') || '';
-    const apiEndpoint = localStorage.getItem('ai_api_endpoint') || 'https://api.deepseek.com/v1/chat/completions';
+    // 获取API配置（从 AI Store）
+    const { apiKey, apiEndpoint } = useAIStore.getState();
+    
+    if (!apiKey) {
+      console.error('API Key 未配置');
+      throw new Error('API Key 未配置，请先在 AI 设置中配置');
+    }
 
     // 使用AI分析每个任务
     const decomposedTasks = [];
@@ -558,8 +570,8 @@ ${extractedDuration ? `用户指定时长：${extractedDuration}分钟` : ''}
       
       console.log(`📝 任务 ${index + 1}: "${cleanTitle}", 指定时长: ${extractedDuration || '无'}`);
       
-      // 使用AI智能分析任务（传入提取的时长）
-      const aiAnalysis = await this.analyzeTaskWithAI(cleanTitle, apiKey, apiEndpoint, extractedDuration || undefined);
+      // 使用AI智能分析任务（不再传入 apiKey 和 apiEndpoint）
+      const aiAnalysis = await this.analyzeTaskWithAI(cleanTitle, extractedDuration || undefined);
       
       const start = new Date(currentTime);
       const end = new Date(currentTime.getTime() + aiAnalysis.duration * 60000);
@@ -838,8 +850,6 @@ ${extractedDuration ? `用户指定时长：${extractedDuration}分钟` : ''}
   // 使用AI智能解析时间轴操作指令
   static async parseTimelineOperationWithAI(
     input: string, 
-    apiKey: string, 
-    apiEndpoint: string,
     existingTasks: any[]
   ): Promise<{
     operation: 'delete' | 'move' | 'modify' | 'add' | 'delay';
@@ -856,6 +866,13 @@ ${extractedDuration ? `用户指定时长：${extractedDuration}分钟` : ''}
     };
     delayMinutes?: number;
   }> {
+    // 从 AI Store 获取配置
+    const { apiKey, apiEndpoint, model } = useAIStore.getState();
+    
+    if (!apiKey) {
+      throw new Error('API Key 未配置，请先在 AI 设置中配置');
+    }
+    
     const tasksInfo = existingTasks.map(t => ({
       id: t.id,
       title: t.title,
@@ -903,7 +920,7 @@ ${tasksInfo.map((t, i) => `${i + 1}. ${t.title} (${t.start})`).join('\n')}
           'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: 'deepseek-chat',
+          model: model || 'deepseek-chat',
           messages: [
             { role: 'system', content: '你是一个时间轴操作助手，专门解析用户的时间轴操作指令。只返回JSON格式，不要其他内容。' },
             { role: 'user', content: prompt }
@@ -941,8 +958,8 @@ ${tasksInfo.map((t, i) => `${i + 1}. ${t.title} (${t.start})`).join('\n')}
 
   // 处理时间轴操作
   static async handleTimelineOperation(input: string, context: any): Promise<AIProcessResponse> {
-    const apiKey = localStorage.getItem('ai_api_key') || '';
-    const apiEndpoint = localStorage.getItem('ai_api_endpoint') || 'https://api.deepseek.com/v1/chat/completions';
+    // 从 AI Store 获取配置
+    const { apiKey } = useAIStore.getState();
     
     if (!apiKey) {
       return {
@@ -953,7 +970,7 @@ ${tasksInfo.map((t, i) => `${i + 1}. ${t.title} (${t.start})`).join('\n')}
 
     try {
       const existingTasks = context.existing_tasks || [];
-      const operation = await this.parseTimelineOperationWithAI(input, apiKey, apiEndpoint, existingTasks);
+      const operation = await this.parseTimelineOperationWithAI(input, existingTasks);
       
       // 根据操作类型执行不同的逻辑
       if (operation.operation === 'delete') {
