@@ -540,6 +540,23 @@ export default function AISmartModule({
                 />
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  模型名称
+                </label>
+                <select
+                  value={config.model}
+                  onChange={(e) => useAIStore.getState().setModel(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="deepseek-reasoner">deepseek-reasoner (推理模型，推荐)</option>
+                  <option value="deepseek-chat">deepseek-chat</option>
+                  <option value="deepseek-coder">deepseek-coder</option>
+                  <option value="gpt-3.5-turbo">gpt-3.5-turbo (OpenAI)</option>
+                  <option value="gpt-4">gpt-4 (OpenAI)</option>
+                </select>
+              </div>
+
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <p className="text-xs text-blue-800">
                   💡 支持 OpenAI、DeepSeek 等兼容 API。配置后将在所有 AI 功能中生效（收集箱、智能分析等）。
