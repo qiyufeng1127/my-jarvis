@@ -866,6 +866,7 @@ export default function NewTimelineView({
         />
       )}
       
+
       {/* 编辑任务弹窗 - 完整编辑功能 */}
       {editingTask && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
