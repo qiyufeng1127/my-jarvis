@@ -417,12 +417,14 @@ export class AISmartProcessor {
     color: string;
   }> {
     // 从 AI Store 获取配置
-    const { apiKey, apiEndpoint, model } = useAIStore.getState();
+    const { config, isConfigured } = useAIStore.getState();
     
-    if (!apiKey) {
-      console.error('API Key 未配置');
+    if (!isConfigured()) {
+      console.error('❌ API Key 未配置');
       throw new Error('API Key 未配置，请先在 AI 设置中配置');
     }
+    
+    const { apiKey, apiEndpoint, model } = config;
     const prompt = `你是一个任务分析助手。请分析以下任务并返回JSON格式的结果。
 
 任务标题：${taskTitle}
@@ -524,6 +526,13 @@ ${extractedDuration ? `用户指定时长：${extractedDuration}分钟` : ''}
   static async handleTaskDecomposition(input: string, context: any): Promise<AIProcessResponse> {
     console.log('🔍 开始处理任务分解:', input);
     
+    // 检查 API 配置
+    const { isConfigured } = useAIStore.getState();
+    if (!isConfigured()) {
+      console.error('❌ API Key 未配置');
+      throw new Error('API Key 未配置，请先在 AI 设置中配置');
+    }
+    
     // 解析时间起点
     let startTime = this.parseTimeExpression(input);
     if (!startTime) {
@@ -545,14 +554,6 @@ ${extractedDuration ? `用户指定时长：${extractedDuration}分钟` : ''}
         message: '抱歉，我没有识别到任何任务。请重新输入。',
         autoExecute: false,
       };
-    }
-
-    // 获取API配置（从 AI Store）
-    const { apiKey, apiEndpoint } = useAIStore.getState();
-    
-    if (!apiKey) {
-      console.error('API Key 未配置');
-      throw new Error('API Key 未配置，请先在 AI 设置中配置');
     }
 
     // 使用AI分析每个任务
@@ -867,11 +868,13 @@ ${extractedDuration ? `用户指定时长：${extractedDuration}分钟` : ''}
     delayMinutes?: number;
   }> {
     // 从 AI Store 获取配置
-    const { apiKey, apiEndpoint, model } = useAIStore.getState();
+    const { config, isConfigured } = useAIStore.getState();
     
-    if (!apiKey) {
+    if (!isConfigured()) {
       throw new Error('API Key 未配置，请先在 AI 设置中配置');
     }
+    
+    const { apiKey, apiEndpoint, model } = config;
     
     const tasksInfo = existingTasks.map(t => ({
       id: t.id,
@@ -959,9 +962,9 @@ ${tasksInfo.map((t, i) => `${i + 1}. ${t.title} (${t.start})`).join('\n')}
   // 处理时间轴操作
   static async handleTimelineOperation(input: string, context: any): Promise<AIProcessResponse> {
     // 从 AI Store 获取配置
-    const { apiKey } = useAIStore.getState();
+    const { isConfigured } = useAIStore.getState();
     
-    if (!apiKey) {
+    if (!isConfigured()) {
       return {
         message: '⚠️ 请先配置API Key才能使用AI智能操作功能',
         autoExecute: false,
