@@ -207,7 +207,8 @@ export class AISmartProcessor {
       return 'timeline_operation';
     }
 
-    // 任务分解型（多个任务）
+    // 任务分解型（多个任务）- 优化识别逻辑
+    // 1. 包含明确的连接词
     if (
       lowerInput.includes('然后') || 
       lowerInput.includes('之后') || 
@@ -215,6 +216,22 @@ export class AISmartProcessor {
       lowerInput.includes('、') ||
       lowerInput.includes('，')
     ) {
+      return 'task_decomposition';
+    }
+    
+    // 2. 移除时间前缀后，检查是否包含多个动词（表示多个任务）
+    const cleanInput = input.replace(/^[一二三四五六七八九十\d]+分钟[后之]后?/i, '').trim();
+    const actionVerbs = ['去', '吃', '洗', '刷', '做', '打扫', '收拾', '整理', '拖', '扫', '倒', '喂', '买', '看', '读', '写', '学', '练', '跑', '走', '睡', '起', '穿', '换', '拿', '放'];
+    let verbCount = 0;
+    for (const verb of actionVerbs) {
+      const regex = new RegExp(verb, 'g');
+      const matches = cleanInput.match(regex);
+      if (matches) {
+        verbCount += matches.length;
+      }
+    }
+    // 如果包含2个或以上动词，认为是任务分解
+    if (verbCount >= 2) {
       return 'task_decomposition';
     }
 
@@ -251,10 +268,49 @@ export class AISmartProcessor {
     let cleanInput = input.replace(/^[一二三四五六七八九十\d]+分钟[后之]后?/i, '').trim();
     
     // 按多种分隔符分割
-    const tasks = cleanInput
+    let tasks = cleanInput
       .split(/[、，,]|然后|之后|接着/)
       .map(t => t.trim())
       .filter(Boolean);
+    
+    // 如果只有一个任务，尝试按动词分割（如"去煮稀饭吃午饭 刷牙洗脸"）
+    if (tasks.length === 1) {
+      const actionVerbs = ['去', '吃', '洗', '刷', '做', '打扫', '收拾', '整理', '拖', '扫', '倒', '喂', '买', '看', '读', '写', '学', '练', '跑', '走', '睡', '起', '穿', '换', '拿', '放'];
+      
+      // 尝试在动词前分割（保留动词）
+      let splitTasks: string[] = [];
+      let currentTask = '';
+      
+      for (let i = 0; i < cleanInput.length; i++) {
+        const char = cleanInput[i];
+        currentTask += char;
+        
+        // 检查是否遇到动词（且不是第一个字符）
+        if (i > 0 && actionVerbs.includes(char)) {
+          // 检查前一个字符是否是空格或其他分隔符
+          const prevChar = cleanInput[i - 1];
+          if (prevChar === ' ' || prevChar === '\n' || prevChar === '\t') {
+            // 保存之前的任务（去掉最后的动词）
+            const prevTask = currentTask.slice(0, -1).trim();
+            if (prevTask) {
+              splitTasks.push(prevTask);
+            }
+            // 开始新任务（从当前动词开始）
+            currentTask = char;
+          }
+        }
+      }
+      
+      // 添加最后一个任务
+      if (currentTask.trim()) {
+        splitTasks.push(currentTask.trim());
+      }
+      
+      // 如果成功分割出多个任务，使用分割结果
+      if (splitTasks.length > 1) {
+        tasks = splitTasks;
+      }
+    }
     
     // 清理每个任务标题：移除末尾的时长信息（如"20分钟"）
     const cleanedTasks = tasks.map(task => {
