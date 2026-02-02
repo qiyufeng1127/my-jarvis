@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Plus, Sparkles, Trash2, Calendar, Clock, Coins, X, Brain, BookHeart, Lightbulb, ChevronUp, ChevronDown, Edit2 } from 'lucide-react';
-import { AISmartProcessor, type TaskInInbox } from '@/services/aiSmartService';
+import { aiUnified } from '@/services/aiUnifiedService';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGoalStore } from '@/stores/goalStore';
 import { useAIStore } from '@/stores/aiStore';
-import { aiService } from '@/services/aiService';
 import { matchTaskToGoals } from '@/services/aiGoalMatcher';
 import { useMemoryStore } from '@/stores/memoryStore';
 import {
@@ -77,6 +76,40 @@ export default function TaskInbox({ isDark = false, bgColor = '#ffffff' }: TaskI
     localStorage.setItem('universal_inbox_items', JSON.stringify(items));
   };
 
+  // 根据标签获取颜色
+  const getColorForTag = (tag: string): string => {
+    const colorMap: Record<string, string> = {
+      // 家务类
+      '家务': '#6A7334',
+      '清洁': '#6A7334',
+      '日常': '#6A7334',
+      '猫咪': '#6A7334',
+      // 工作类
+      '工作': '#A0BBEB',
+      '重要': '#A0BBEB',
+      '会议': '#A0BBEB',
+      // 社交类
+      '社交': '#B34568',
+      '朋友': '#B34568',
+      // 娱乐类
+      '娱乐': '#FB9FC9',
+      '休闲': '#FB9FC9',
+      // 学习类
+      '学习': '#AA9FBE',
+      '成长': '#AA9FBE',
+      // 运动健康类
+      '运动': '#A6B13C',
+      '健康': '#A6B13C',
+      // 饮食类
+      '饮食': '#FFE288',
+      '个人护理': '#F1E69F',
+      // 外出类
+      '购物': '#6A7334',
+      '室外': '#6A7334',
+    };
+    return colorMap[tag] || '#6A7334';
+  };
+
   // 添加项目到收集箱
   const handleAddToInbox = () => {
     if (!newItemContent.trim()) return;
@@ -138,35 +171,19 @@ export default function TaskInbox({ isDark = false, bgColor = '#ffffff' }: TaskI
       }> = [];
 
       for (const item of itemsToAnalyze) {
-        // 调用 AISmartProcessor 进行分类
-        const request = {
-          user_input: item.content,
-          context: {
-            user_id: 'current-user',
-            current_time: new Date().toLocaleTimeString('zh-CN'),
-            current_date: new Date().toLocaleDateString('zh-CN'),
-            timeline_summary: {},
-            user_preferences: {},
-            conversation_history: [],
-            existing_tasks: [],
-          },
-        };
-
-        const response = await AISmartProcessor.process(request);
+        // 使用新的统一服务进行内容分类
+        const classifyResult = await aiUnified.classifyContent(item.content);
         
-        // 根据响应判断分类
         let contentType = 'unknown';
         let targetComponent = 'none';
+        let emotionTags: string[] = [];
+        let categoryTags: string[] = [];
         
-        if (response.actions && response.actions.length > 0) {
-          const action = response.actions[0];
-          if (action.type === 'create_task') {
-            contentType = 'task';
-            targetComponent = 'timeline';
-          } else if (action.type === 'record_memory') {
-            contentType = 'thought';
-            targetComponent = 'memory';
-          }
+        if (classifyResult.success && classifyResult.data) {
+          contentType = classifyResult.data.contentType;
+          targetComponent = classifyResult.data.targetComponent;
+          emotionTags = classifyResult.data.emotionTags || [];
+          categoryTags = classifyResult.data.categoryTags || [];
         }
         
         results.push({
@@ -174,8 +191,8 @@ export default function TaskInbox({ isDark = false, bgColor = '#ffffff' }: TaskI
           classification: {
             contentType,
             targetComponent,
-            emotionTags: [],
-            categoryTags: [],
+            emotionTags,
+            categoryTags,
           },
         });
       }
@@ -206,37 +223,70 @@ export default function TaskInbox({ isDark = false, bgColor = '#ffffff' }: TaskI
         console.log('📋 收集箱任务:', taskContents);
         
         try {
-          // 调用 AISmartProcessor 进行任务分解
-          const request = {
-            user_input: `5分钟后${taskContents}`,
-            context: {
-              user_id: 'current-user',
-              current_time: new Date().toLocaleTimeString('zh-CN'),
-              current_date: new Date().toLocaleDateString('zh-CN'),
-              timeline_summary: {},
-              user_preferences: {},
-              conversation_history: [],
-              existing_tasks: useTaskStore.getState().tasks || [],
-            },
-          };
-
-          console.log('🤖 调用 AI 分析...');
-          const response = await AISmartProcessor.process(request);
-          console.log('✅ AI 响应:', response);
+          // 使用新的统一服务进行任务分解
+          const decomposeResult = await aiUnified.decomposeTask(`5分钟后${taskContents}`);
+          
+          console.log('✅ AI 响应:', decomposeResult);
           
           // 检查是否有任务分解结果
-          if (response.actions && response.actions.length > 0) {
-            const taskAction = response.actions.find(a => a.type === 'create_task' && a.data.tasks);
-            console.log('🔍 找到任务动作:', taskAction);
+          if (decomposeResult.success && decomposeResult.data && decomposeResult.data.tasks) {
+            const tasks = decomposeResult.data.tasks;
+            console.log('🎯 打开任务编辑器，任务数量:', tasks.length);
             
-            if (taskAction && taskAction.data.tasks) {
-              console.log('🎯 打开任务编辑器，任务数量:', taskAction.data.tasks.length);
-              // 打开任务编辑器
-              setEditingTasks(taskAction.data.tasks);
-              setShowTaskEditor(true);
-              // 直接返回，不显示 alert，不删除项目
-              return;
+            // 转换为编辑器需要的格式
+            const now = new Date();
+            const editingTasksData = [];
+            
+            for (let i = 0; i < tasks.length; i++) {
+              const task = tasks[i];
+              
+              // 解析开始时间
+              const [hours, minutes] = task.startTime.split(':');
+              const startTime = new Date(now);
+              startTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+              
+              const endTime = new Date(startTime.getTime() + task.duration * 60000);
+              
+              // 使用统一服务分析任务属性
+              const analyzeResult = await aiUnified.analyzeTask(task.title, task.duration);
+              
+              let tags = [task.category];
+              let location = task.location || '全屋';
+              let color = '#6A7334';
+              let taskType = 'life';
+              
+              if (analyzeResult.success && analyzeResult.data) {
+                tags = analyzeResult.data.tags || tags;
+                location = analyzeResult.data.location || location;
+                taskType = analyzeResult.data.taskType || taskType;
+                // 根据第一个标签获取颜色
+                color = getColorForTag(tags[0]);
+              }
+              
+              editingTasksData.push({
+                sequence: i + 1,
+                title: task.title,
+                description: task.title,
+                estimated_duration: task.duration,
+                scheduled_start: startTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+                scheduled_end: endTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+                scheduled_start_iso: startTime.toISOString(),
+                task_type: taskType,
+                category: task.category,
+                location: location,
+                tags: tags,
+                goal: null,
+                gold: Math.floor(task.duration * 1.5),
+                color: color,
+                priority: task.priority,
+              });
             }
+            
+            // 打开任务编辑器
+            setEditingTasks(editingTasksData);
+            setShowTaskEditor(true);
+            // 直接返回，不显示 alert，不删除项目
+            return;
           }
         } catch (error) {
           console.error('AI 分析失败:', error);
@@ -665,8 +715,8 @@ export default function TaskInbox({ isDark = false, bgColor = '#ffffff' }: TaskI
                         key={tagIndex}
                         className="px-2 py-1 rounded-full text-xs font-medium"
                         style={{
-                          backgroundColor: `${AISmartProcessor.getColorForTag(tag)}30`,
-                          color: AISmartProcessor.getColorForTag(tag),
+                          backgroundColor: `${getColorForTag(tag)}30`,
+                          color: getColorForTag(tag),
                         }}
                       >
                         🏷️ {tag}

@@ -4,8 +4,11 @@
 
 ```
 src/services/
-├── aiPrompts.ts          # 所有提示词配置（在这里修改提示词）
-└── aiUnifiedService.ts   # 统一调用服务（在这里调用 AI）
+├── aiPrompts.ts          # ✅ 所有提示词配置（在这里修改提示词）
+├── aiUnifiedService.ts   # ✅ 统一调用服务（推荐使用）
+├── aiSmartService.ts     # ⚠️ 旧服务（保留兼容，内部仍使用分散的提示词）
+├── aiService.ts          # ⚠️ 旧服务（保留兼容）
+└── moneyAIService.ts     # ⚠️ 旧服务（保留兼容）
 ```
 
 ---
@@ -13,6 +16,35 @@ src/services/
 ## 🎯 核心理念
 
 **所有 AI 提示词都集中在 `aiPrompts.ts` 文件中，方便统一修改和维护。**
+
+## ⚠️ 当前状态说明
+
+### 已完成 ✅
+1. ✅ 创建了 `aiPrompts.ts` - 集中管理所有提示词
+2. ✅ 创建了 `aiUnifiedService.ts` - 提供统一的调用接口
+3. ✅ 修改了 `TaskInbox.tsx` - 使用新的统一服务
+
+### 保留的旧文件 ⚠️
+为了确保网站稳定运行，以下文件暂时保留：
+- `aiSmartService.ts` - 被 `AISmartInput.tsx` 使用
+- `aiService.ts` - 被一些组件使用
+- `moneyAIService.ts` - 被副业追踪功能使用
+
+**这些文件内部的提示词仍然是分散的，但功能正常。**
+
+### 如何修改提示词？
+
+#### 方案 1：修改新的统一文件（推荐）
+如果您的组件使用了新的 `aiUnified` 服务，直接修改 `aiPrompts.ts` 即可。
+
+#### 方案 2：修改旧文件中的提示词
+如果组件还在使用旧服务（如 `AISmartProcessor`），需要：
+1. 打开对应的旧服务文件（如 `aiSmartService.ts`）
+2. 找到提示词字符串（搜索 "你是一个"）
+3. 直接修改提示词内容
+
+### 未来计划 🚀
+逐步将所有组件迁移到新的统一服务，最终删除旧文件。
 
 ---
 
