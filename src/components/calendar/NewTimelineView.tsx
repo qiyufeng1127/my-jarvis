@@ -15,6 +15,7 @@ import {
 } from '@/services/taskVerificationService';
 import TaskVerificationDialog from './TaskVerificationDialog';
 import NowTimeline from './NowTimeline';
+import { useAIStore } from '@/stores/aiStore';
 
 interface NewTimelineViewProps {
   tasks: Task[];
@@ -78,6 +79,9 @@ export default function NewTimelineView({
   const [newSubTaskTitle, setNewSubTaskTitle] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRefs = useRef<Record<string, HTMLInputElement>>({});
+  
+  // 使用 AI Store 获取 API 配置
+  const { config, isConfigured } = useAIStore();
   
   // 判断颜色是否为深色
   const isColorDark = (color: string): boolean => {
@@ -410,15 +414,13 @@ export default function NewTimelineView({
     try {
       setGeneratingSubTasks(taskId);
       
-      const apiKey = localStorage.getItem('ai_api_key') || '';
-      const apiEndpoint = localStorage.getItem('ai_api_endpoint') || 'https://api.deepseek.com/v1/chat/completions';
-      
-      if (!apiKey) {
-        alert('请先配置 API Key');
+      // 使用 AI Store 的配置
+      if (!isConfigured()) {
+        alert('请先在 AI 智能输入中配置 API Key');
         return;
       }
       
-      const subTaskTitles = await generateSubTasks(taskTitle, taskDescription || '', apiKey, apiEndpoint);
+      const subTaskTitles = await generateSubTasks(taskTitle, taskDescription || '', config.apiKey, config.apiEndpoint);
       
       const newSubTasks: SubTask[] = subTaskTitles.map(title => ({
         id: `subtask-${Date.now()}-${Math.random()}`,
@@ -444,11 +446,9 @@ export default function NewTimelineView({
   // 启用任务验证（点击立即生成关键词）
   const handleEnableVerification = async (taskId: string, taskTitle: string, taskType: string) => {
     try {
-      const apiKey = localStorage.getItem('ai_api_key') || '';
-      const apiEndpoint = localStorage.getItem('ai_api_endpoint') || 'https://api.deepseek.com/v1/chat/completions';
-      
-      if (!apiKey) {
-        alert('请先配置 API Key');
+      // 使用 AI Store 的配置
+      if (!isConfigured()) {
+        alert('请先在 AI 智能输入中配置 API Key');
         return;
       }
       
@@ -456,8 +456,8 @@ export default function NewTimelineView({
       const { startKeywords, completionKeywords } = await generateVerificationKeywords(
         taskTitle, 
         taskType, 
-        apiKey, 
-        apiEndpoint
+        config.apiKey, 
+        config.apiEndpoint
       );
       
       // 获取任务的开始和结束时间
@@ -866,18 +866,21 @@ export default function NewTimelineView({
         />
       )}
       
-      {/* 编辑任务弹窗 - 修复颜色对比度，压缩高度 */}
+      {/* 编辑任务弹窗 - 完整编辑功能 */}
       {editingTask && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5" style={{ backgroundColor: isDark ? '#1f2937' : '#ffffff' }}>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-bold" style={{ color: isDark ? '#ffffff' : '#000000' }}>编辑任务</h3>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" style={{ backgroundColor: isDark ? '#1f2937' : '#ffffff' }}>
+            <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b" style={{ 
+              backgroundColor: isDark ? '#1f2937' : '#ffffff',
+              borderColor: isDark ? '#374151' : '#e5e7eb'
+            }}>
+              <h3 className="text-xl font-bold" style={{ color: isDark ? '#ffffff' : '#000000' }}>编辑任务</h3>
               <button
                 onClick={() => setEditingTask(null)}
-                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 style={{ color: isDark ? '#ffffff' : '#000000' }}
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
             
@@ -885,89 +888,250 @@ export default function NewTimelineView({
               const task = allTasks.find(t => t.id === editingTask);
               if (!task) return null;
               
+              const [editedTask, setEditedTask] = useState(task);
+              
               return (
-                <div className="space-y-3">
-                  {/* 任务标题 - 压缩高度 */}
+                <div className="p-6 space-y-4">
+                  {/* 任务标题 */}
                   <div>
-                    <label className="block text-sm font-medium mb-1.5" style={{ color: isDark ? '#ffffff' : '#000000' }}>任务标题</label>
+                    <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>任务标题</label>
                     <input
                       type="text"
-                      defaultValue={task.title}
-                      className="w-full px-3 py-2 rounded-lg border text-sm"
+                      value={editedTask.title}
+                      onChange={(e) => setEditedTask({ ...editedTask, title: e.target.value })}
+                      className="w-full px-4 py-2 rounded-lg border text-base"
                       style={{ 
                         borderColor: isDark ? '#4b5563' : '#d1d5db',
                         backgroundColor: isDark ? '#374151' : '#ffffff',
                         color: isDark ? '#ffffff' : '#000000'
                       }}
-                      onBlur={(e) => {
-                        onTaskUpdate(editingTask, { title: e.target.value });
-                      }}
                     />
                   </div>
                   
-                  {/* 时长 - 压缩高度 */}
+                  {/* 任务描述 */}
                   <div>
-                    <label className="block text-sm font-medium mb-1.5" style={{ color: isDark ? '#ffffff' : '#000000' }}>时长（分钟）</label>
+                    <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>任务描述</label>
+                    <textarea
+                      value={editedTask.description || ''}
+                      onChange={(e) => setEditedTask({ ...editedTask, description: e.target.value })}
+                      rows={3}
+                      className="w-full px-4 py-2 rounded-lg border text-base resize-none"
+                      style={{ 
+                        borderColor: isDark ? '#4b5563' : '#d1d5db',
+                        backgroundColor: isDark ? '#374151' : '#ffffff',
+                        color: isDark ? '#ffffff' : '#000000'
+                      }}
+                      placeholder="详细描述这个任务..."
+                    />
+                  </div>
+                  
+                  {/* 时间和时长 */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>开始时间</label>
+                      <input
+                        type="time"
+                        value={editedTask.scheduledStart ? new Date(editedTask.scheduledStart).toTimeString().slice(0, 5) : ''}
+                        onChange={(e) => {
+                          const [hours, minutes] = e.target.value.split(':');
+                          const newDate = new Date(editedTask.scheduledStart || new Date());
+                          newDate.setHours(parseInt(hours), parseInt(minutes));
+                          setEditedTask({ ...editedTask, scheduledStart: newDate.toISOString() });
+                        }}
+                        className="w-full px-4 py-2 rounded-lg border text-base"
+                        style={{ 
+                          borderColor: isDark ? '#4b5563' : '#d1d5db',
+                          backgroundColor: isDark ? '#374151' : '#ffffff',
+                          color: isDark ? '#ffffff' : '#000000'
+                        }}
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>时长（分钟）</label>
+                      <input
+                        type="number"
+                        value={editedTask.durationMinutes}
+                        onChange={(e) => setEditedTask({ ...editedTask, durationMinutes: parseInt(e.target.value) || 0 })}
+                        className="w-full px-4 py-2 rounded-lg border text-base"
+                        style={{ 
+                          borderColor: isDark ? '#4b5563' : '#d1d5db',
+                          backgroundColor: isDark ? '#374151' : '#ffffff',
+                          color: isDark ? '#ffffff' : '#000000'
+                        }}
+                        min={5}
+                        max={480}
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* 金币奖励 */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>💰 金币奖励</label>
                     <input
                       type="number"
-                      defaultValue={task.durationMinutes}
-                      className="w-full px-3 py-2 rounded-lg border text-sm"
+                      value={editedTask.goldReward || 0}
+                      onChange={(e) => setEditedTask({ ...editedTask, goldReward: parseInt(e.target.value) || 0 })}
+                      className="w-full px-4 py-2 rounded-lg border text-base"
                       style={{ 
                         borderColor: isDark ? '#4b5563' : '#d1d5db',
                         backgroundColor: isDark ? '#374151' : '#ffffff',
                         color: isDark ? '#ffffff' : '#000000'
                       }}
-                      onBlur={(e) => {
-                        const minutes = parseInt(e.target.value);
-                        onTaskUpdate(editingTask, { durationMinutes: minutes });
-                      }}
+                      min={0}
                     />
                   </div>
                   
-                  {/* 开始时间 - 压缩高度 */}
+                  {/* 标签 */}
                   <div>
-                    <label className="block text-sm font-medium mb-1.5" style={{ color: isDark ? '#ffffff' : '#000000' }}>开始时间</label>
+                    <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>🏷️ 标签</label>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {(editedTask.tags || []).map((tag, idx) => (
+                        <span
+                          key={idx}
+                          className="px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2"
+                          style={{
+                            backgroundColor: isDark ? '#374151' : '#f3f4f6',
+                            color: isDark ? '#ffffff' : '#000000'
+                          }}
+                        >
+                          {tag}
+                          <button
+                            onClick={() => {
+                              const newTags = [...(editedTask.tags || [])];
+                              newTags.splice(idx, 1);
+                              setEditedTask({ ...editedTask, tags: newTags });
+                            }}
+                            className="hover:bg-red-500/20 rounded-full p-0.5"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                      <button
+                        onClick={() => {
+                          const newTag = prompt('输入新标签：');
+                          if (newTag) {
+                            setEditedTask({ 
+                              ...editedTask, 
+                              tags: [...(editedTask.tags || []), newTag] 
+                            });
+                          }
+                        }}
+                        className="px-3 py-1 rounded-full text-sm font-medium border-2 border-dashed"
+                        style={{
+                          borderColor: isDark ? '#4b5563' : '#d1d5db',
+                          color: isDark ? '#ffffff' : '#000000'
+                        }}
+                      >
+                        + 添加标签
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* 关联目标 */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>🎯 关联目标</label>
                     <input
-                      type="time"
-                      defaultValue={task.scheduledStart ? new Date(task.scheduledStart).toTimeString().slice(0, 5) : ''}
-                      className="w-full px-3 py-2 rounded-lg border text-sm"
+                      type="text"
+                      value={editedTask.description || ''}
+                      onChange={(e) => setEditedTask({ ...editedTask, description: e.target.value })}
+                      placeholder="例如：月入5w、坚持100天..."
+                      className="w-full px-4 py-2 rounded-lg border text-base"
                       style={{ 
                         borderColor: isDark ? '#4b5563' : '#d1d5db',
                         backgroundColor: isDark ? '#374151' : '#ffffff',
                         color: isDark ? '#ffffff' : '#000000'
                       }}
-                      onBlur={(e) => {
-                        const [hours, minutes] = e.target.value.split(':');
-                        const newDate = new Date(task.scheduledStart || new Date());
-                        newDate.setHours(parseInt(hours), parseInt(minutes));
-                        
-                        onTaskUpdate(editingTask, { scheduledStart: newDate });
+                    />
+                  </div>
+                  
+                  {/* 位置 */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>📍 位置</label>
+                    <input
+                      type="text"
+                      value={editedTask.location || ''}
+                      onChange={(e) => setEditedTask({ ...editedTask, location: e.target.value })}
+                      placeholder="例如：厨房、卧室、办公室..."
+                      className="w-full px-4 py-2 rounded-lg border text-base"
+                      style={{ 
+                        borderColor: isDark ? '#4b5563' : '#d1d5db',
+                        backgroundColor: isDark ? '#374151' : '#ffffff',
+                        color: isDark ? '#ffffff' : '#000000'
                       }}
                     />
                   </div>
                   
-                  {/* 按钮 - 压缩高度 */}
-                  <div className="flex gap-2 pt-3">
+                  {/* 照片上传 */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>📷 照片</label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {taskImages[editingTask] && taskImages[editingTask].map((image, idx) => (
+                        <div key={image.id} className="relative aspect-square rounded-lg overflow-hidden">
+                          <img src={image.url} alt={`照片 ${idx + 1}`} className="w-full h-full object-cover" />
+                          <button
+                            onClick={() => {
+                              setTaskImages(prev => ({
+                                ...prev,
+                                [editingTask]: prev[editingTask].filter(img => img.id !== image.id)
+                              }));
+                            }}
+                            className="absolute top-1 right-1 p-1 bg-red-500 rounded-full hover:bg-red-600"
+                          >
+                            <X className="w-3 h-3 text-white" />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => handleOpenImagePicker(editingTask)}
+                        className="aspect-square rounded-lg border-2 border-dashed flex items-center justify-center"
+                        style={{
+                          borderColor: isDark ? '#4b5563' : '#d1d5db',
+                          backgroundColor: isDark ? '#374151' : '#f9fafb'
+                        }}
+                      >
+                        <Camera className="w-6 h-6" style={{ color: isDark ? '#9ca3af' : '#6b7280' }} />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* 按钮 */}
+                  <div className="flex gap-3 pt-4 border-t" style={{ borderColor: isDark ? '#374151' : '#e5e7eb' }}>
                     <button
                       onClick={() => {
-                        if (onTaskDelete) {
+                        if (onTaskDelete && confirm('确定要删除这个任务吗？')) {
                           onTaskDelete(editingTask);
+                          setEditingTask(null);
                         }
-                        setEditingTask(null);
                       }}
-                      className="flex-1 px-3 py-2 rounded-lg font-medium transition-colors text-sm"
+                      className="px-6 py-3 rounded-lg font-medium transition-colors text-base"
                       style={{ backgroundColor: '#EF4444', color: 'white' }}
                     >
-                      <Trash2 className="w-4 h-4 inline mr-1" />
-                      删除
+                      <Trash2 className="w-4 h-4 inline mr-2" />
+                      删除任务
                     </button>
                     
                     <button
                       onClick={() => setEditingTask(null)}
-                      className="flex-1 px-3 py-2 rounded-lg font-medium transition-colors text-sm"
+                      className="flex-1 px-6 py-3 rounded-lg font-medium transition-colors text-base"
+                      style={{ 
+                        backgroundColor: isDark ? '#374151' : '#f3f4f6',
+                        color: isDark ? '#ffffff' : '#000000'
+                      }}
+                    >
+                      取消
+                    </button>
+                    
+                    <button
+                      onClick={() => {
+                        onTaskUpdate(editingTask, editedTask);
+                        setEditingTask(null);
+                      }}
+                      className="flex-1 px-6 py-3 rounded-lg font-medium transition-colors text-base"
                       style={{ backgroundColor: '#10B981', color: 'white' }}
                     >
-                      完成
+                      保存修改
                     </button>
                   </div>
                 </div>
@@ -1036,8 +1200,8 @@ export default function NewTimelineView({
                           <GripVertical className={`${isMobile ? 'w-3 h-3' : 'w-3.5 h-3.5'} opacity-60`} />
                         </div>
                         
-                        <div className={`flex ${isMobile ? 'gap-1' : 'gap-1'}`}>
-                          {block.tags.slice(0, isMobile ? 1 : 2).map((tag, idx) => (
+                        <div className={`flex ${isMobile ? 'gap-1' : 'gap-1'} flex-wrap`}>
+                          {block.tags.map((tag, idx) => (
                             <span 
                               key={idx}
                               className={`${isMobile ? 'text-[9px]' : 'text-[10px]'} font-semibold ${isMobile ? 'px-1.5 py-0.5' : 'px-2 py-0.5'} rounded-full`}
