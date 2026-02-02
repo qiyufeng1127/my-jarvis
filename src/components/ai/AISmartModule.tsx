@@ -103,6 +103,13 @@ export default function AISmartModule({
     if (!message || isProcessing) return;
 
     // 检查API配置 - 使用 AI Store
+    console.log('🔍 检查 API 配置:', {
+      apiKey: config.apiKey ? '已设置' : '未设置',
+      apiEndpoint: config.apiEndpoint,
+      model: config.model,
+      isConfigured: isConfigured(),
+    });
+    
     if (!isConfigured()) {
       const errorMessage: AIMessage = {
         id: `error-${Date.now()}`,
