@@ -321,9 +321,77 @@ export class AISmartProcessor {
     return cleanedTasks.filter(Boolean);
   }
 
-  // 解析时间表达式
+  // 解析时间表达式（支持日期关键词和智能时间识别）
   static parseTimeExpression(input: string): Date | null {
     const now = new Date();
+    
+    // 识别日期关键词
+    let targetDate: Date | null = null;
+    
+    // 1. 识别"明天"、"后天"、"昨天"、"今天"
+    if (input.includes('明天') || input.includes('明日')) {
+      targetDate = new Date(now);
+      targetDate.setDate(targetDate.getDate() + 1);
+    } else if (input.includes('后天')) {
+      targetDate = new Date(now);
+      targetDate.setDate(targetDate.getDate() + 2);
+    } else if (input.includes('昨天') || input.includes('昨日')) {
+      targetDate = new Date(now);
+      targetDate.setDate(targetDate.getDate() - 1);
+    } else if (input.includes('今天') || input.includes('今日')) {
+      targetDate = new Date(now);
+    }
+    
+    // 2. 识别"本周X"（本周一、本周二、本周三等）
+    const weekdayMatch = input.match(/本周([一二三四五六日天])/);
+    if (weekdayMatch) {
+      const weekdayMap: Record<string, number> = {
+        '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '日': 0, '天': 0
+      };
+      const targetWeekday = weekdayMap[weekdayMatch[1]];
+      const currentWeekday = now.getDay();
+      let dayDiff = targetWeekday - currentWeekday;
+      
+      // 如果目标日期已过，跳到下周
+      if (dayDiff < 0) {
+        dayDiff += 7;
+      }
+      
+      targetDate = new Date(now);
+      targetDate.setDate(targetDate.getDate() + dayDiff);
+    }
+    
+    // 3. 识别"这个月X号"、"本月X号"
+    const thisMonthMatch = input.match(/(?:这个月|本月)(\d{1,2})号/);
+    if (thisMonthMatch) {
+      const day = parseInt(thisMonthMatch[1]);
+      targetDate = new Date(now.getFullYear(), now.getMonth(), day);
+      
+      // 如果日期已过，跳到下个月
+      if (targetDate < now) {
+        targetDate.setMonth(targetDate.getMonth() + 1);
+      }
+    }
+    
+    // 4. 识别"下个月X号"、"下月X号"
+    const nextMonthMatch = input.match(/(?:下个月|下月)(\d{1,2})号/);
+    if (nextMonthMatch) {
+      const day = parseInt(nextMonthMatch[1]);
+      targetDate = new Date(now.getFullYear(), now.getMonth() + 1, day);
+    }
+    
+    // 5. 识别"X月X号"
+    const monthDayMatch = input.match(/(\d{1,2})月(\d{1,2})号/);
+    if (monthDayMatch) {
+      const month = parseInt(monthDayMatch[1]) - 1; // 月份从0开始
+      const day = parseInt(monthDayMatch[2]);
+      targetDate = new Date(now.getFullYear(), month, day);
+      
+      // 如果日期已过，跳到明年
+      if (targetDate < now) {
+        targetDate.setFullYear(targetDate.getFullYear() + 1);
+      }
+    }
     
     // 匹配 "X分钟后"
     const minutesMatch = input.match(/(\d+)分钟[后之]后?/i);
@@ -337,11 +405,15 @@ export class AISmartProcessor {
     if (timeMatch) {
       const hours = parseInt(timeMatch[1]);
       const minutes = parseInt(timeMatch[2]);
-      const targetTime = new Date(now);
-      targetTime.setHours(hours, minutes, 0, 0);
+      
+      // 智能识别上午/晚上
+      const smartHours = this.smartDetectTimeOfDay(input, hours);
+      
+      const targetTime = targetDate ? new Date(targetDate) : new Date(now);
+      targetTime.setHours(smartHours, minutes, 0, 0);
 
-      // 如果时间已过，设置为明天
-      if (targetTime < now) {
+      // 如果没有明确日期关键词，且时间已过，设置为明天
+      if (!targetDate && targetTime < now) {
         targetTime.setDate(targetTime.getDate() + 1);
       }
       
@@ -353,17 +425,80 @@ export class AISmartProcessor {
     if (atTimeMatch) {
       const hours = parseInt(atTimeMatch[1]);
       const minutes = parseInt(atTimeMatch[2]);
-      const targetTime = new Date(now);
-      targetTime.setHours(hours, minutes, 0, 0);
       
-      if (targetTime < now) {
+      // 智能识别上午/晚上
+      const smartHours = this.smartDetectTimeOfDay(input, hours);
+      
+      const targetTime = targetDate ? new Date(targetDate) : new Date(now);
+      targetTime.setHours(smartHours, minutes, 0, 0);
+      
+      // 如果没有明确日期关键词，且时间已过，设置为明天
+      if (!targetDate && targetTime < now) {
         targetTime.setDate(targetTime.getDate() + 1);
       }
       
       return targetTime;
     }
     
+    // 如果只有日期没有时间，返回当天的当前时间
+    if (targetDate) {
+      targetDate.setHours(now.getHours(), now.getMinutes(), 0, 0);
+      return targetDate;
+    }
+    
     return null;
+  }
+  
+  // 智能识别时间是上午还是晚上
+  static smartDetectTimeOfDay(input: string, hours: number): number {
+    // 如果已经是24小时制（>12），直接返回
+    if (hours > 12) {
+      return hours;
+    }
+    
+    // 如果明确指定了上午/下午/晚上
+    if (input.includes('上午') || input.includes('早上') || input.includes('早晨')) {
+      return hours;
+    }
+    if (input.includes('下午') || input.includes('午后')) {
+      return hours === 12 ? 12 : hours + 12;
+    }
+    if (input.includes('晚上') || input.includes('夜里') || input.includes('夜晚')) {
+      return hours === 12 ? 0 : hours + 12;
+    }
+    
+    // 智能识别关键词
+    const morningKeywords = ['起床', '穿衣', '洗漱', '刷牙', '早餐', '上班', '上学', '晨练'];
+    const eveningKeywords = ['睡觉', '入睡', '休息', '晚餐', '下班', '回家', '洗澡'];
+    
+    const lowerInput = input.toLowerCase();
+    
+    // 检查是否包含早上的关键词
+    for (const keyword of morningKeywords) {
+      if (lowerInput.includes(keyword)) {
+        return hours; // 上午
+      }
+    }
+    
+    // 检查是否包含晚上的关键词
+    for (const keyword of eveningKeywords) {
+      if (lowerInput.includes(keyword)) {
+        return hours === 12 ? 0 : hours + 12; // 晚上
+      }
+    }
+    
+    // 根据时间段智能判断
+    if (hours >= 6 && hours <= 11) {
+      return hours; // 6-11点默认上午
+    } else if (hours === 12) {
+      return 12; // 12点默认中午
+    } else if (hours >= 1 && hours <= 5) {
+      // 1-5点需要根据上下文判断
+      // 如果包含"起床"等关键词，是凌晨；否则是下午
+      return hours + 12; // 默认下午
+    }
+    
+    return hours;
   }
 
   // 处理指定时间的任务（带冲突检测）
