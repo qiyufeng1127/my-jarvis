@@ -918,36 +918,6 @@ export default function NewTimelineView({
       setCompletingTask(null);
     }
   };
-              ...prev,
-              [taskId]: {
-                ...prev[taskId],
-                startFailedAttempts: newFailedAttempts,
-              },
-            }));
-            
-            SoundEffects.playFailSound();
-            
-            if (newFailedAttempts >= 3) {
-              // 连续三次失败，播放警报
-              SoundEffects.playAlarmSound();
-              VoiceReminder.speak('连续三次验证失败！扣除50金币！请认真完成任务！');
-              penaltyGold(50, `启动验证失败：${task.title}`, taskId, task.title);
-              alert('⚠️ 连续三次验证失败！扣除50金币！');
-            } else {
-              const errorMsg = error instanceof Error ? error.message : '验证失败';
-              alert(`❌ ${errorMsg}\n\n剩余尝试次数：${3 - newFailedAttempts}`);
-            }
-          }
-        }
-        setStartingTask(null);
-      };
-      
-      input.click();
-    } else {
-      // 无需验证，直接启动
-      onTaskUpdate(taskId, { status: 'in_progress' });
-    }
-  };
   
   // 完成任务（带验证）
   const handleCompleteTask = async (taskId: string) => {
@@ -1054,74 +1024,6 @@ export default function NewTimelineView({
         document.body.removeChild(modal);
         setCompletingTask(null);
       });
-    }
-            SoundEffects.playCoinSound();
-            
-            // 添加金币
-            addGold(goldReward, `完成任务：${task.title}`, taskId, task.title);
-            
-            // 显示庆祝效果
-            setCelebrationGold(goldReward);
-            setShowCelebration(true);
-            
-            // 语音祝贺
-            if (isEarlyCompletion) {
-              VoiceReminder.congratulateEarlyCompletion(task.title, goldReward);
-            } else {
-              VoiceReminder.congratulateCompletion(task.title, goldReward);
-            }
-            
-            // 更新任务状态为已完成
-            onTaskUpdate(taskId, { 
-              status: 'completed',
-              scheduledEnd: isEarlyCompletion ? now : task.scheduledEnd,
-            });
-            
-            // 如果提前完成，自动调整后续任务时间
-            if (isEarlyCompletion && scheduledEnd) {
-              TaskTimeAdjuster.adjustFollowingTasks(
-                taskId,
-                now,
-                allTasks,
-                (id, updates) => {
-                  onTaskUpdate(id, updates);
-                }
-              );
-            }
-            
-            // 停止监控
-            TaskMonitor.stopMonitoring(taskId);
-            
-            console.log('✅ 任务完成验证成功');
-          } catch (error) {
-            // 验证失败
-            const newFailedAttempts = (verification.completionFailedAttempts || 0) + 1;
-            
-            setTaskVerifications(prev => ({
-              ...prev,
-              [taskId]: {
-                ...prev[taskId],
-                completionFailedAttempts: newFailedAttempts,
-              },
-            }));
-            
-            SoundEffects.playFailSound();
-            
-            if (newFailedAttempts >= 3) {
-              SoundEffects.playAlarmSound();
-              VoiceReminder.speak('连续三次验证失败！扣除50金币！请认真完成任务！');
-              penaltyGold(50, `完成验证失败：${task.title}`, taskId, task.title);
-              alert('⚠️ 连续三次验证失败！扣除50金币！');
-            } else {
-              const errorMsg = error instanceof Error ? error.message : '验证失败';
-              alert(`❌ ${errorMsg}\n\n剩余尝试次数：${3 - newFailedAttempts}`);
-            }
-          }
-        }
-        setCompletingTask(null);
-      };
-      
-      input.click();
     } else {
       // 无需验证，直接完成
       const goldReward = task.goldReward || Math.floor((task.durationMinutes || 60) * 0.8);
