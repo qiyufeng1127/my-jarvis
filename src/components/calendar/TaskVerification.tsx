@@ -13,6 +13,7 @@ interface TaskVerificationProps {
     maxFileSize?: number;
   };
   verificationType: 'start' | 'complete'; // 开始验证或完成验证
+  keywords?: string[]; // 验证关键词（用于显示在相机界面顶部）
   onSuccess: () => void;
   onFail: () => void;
   onSkip: () => void;
@@ -21,6 +22,8 @@ interface TaskVerificationProps {
 
 export default function TaskVerification({
   task,
+  verificationType,
+  keywords = [],
   onSuccess,
   onFail,
   onSkip,
@@ -369,6 +372,26 @@ export default function TaskVerification({
                 />
                 <canvas ref={canvasRef} className="hidden" />
                 
+                {/* 验证关键词提示 - 显示在顶部 */}
+                {keywords.length > 0 && (
+                  <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/80 to-transparent p-4 z-10">
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {keywords.map((keyword, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center gap-1 px-3 py-2 bg-white/20 backdrop-blur-md rounded-full border border-white/30"
+                        >
+                          <span className="text-2xl">📸</span>
+                          <span className="text-white font-semibold text-sm">{keyword}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-white/90 text-center text-xs mt-2">
+                      📷 请拍摄包含以上内容的照片
+                    </p>
+                  </div>
+                )}
+                
                 {/* 拍照指引 */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <div className="border-4 border-white/50 rounded-lg w-64 h-48"></div>
@@ -380,6 +403,26 @@ export default function TaskVerification({
             {(task.verificationType === 'upload' || task.verificationType === 'file') && 
              !uploadedImage && !uploadedFile && !verificationResult && (
               <div className="w-full h-full flex items-center justify-center">
+                {/* 验证关键词提示 - 显示在顶部 */}
+                {keywords.length > 0 && (
+                  <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/80 to-transparent p-4 z-10">
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {keywords.map((keyword, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center gap-1 px-3 py-2 bg-white/20 backdrop-blur-md rounded-full border border-white/30"
+                        >
+                          <span className="text-2xl">📸</span>
+                          <span className="text-white font-semibold text-sm">{keyword}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-white/90 text-center text-xs mt-2">
+                      📷 请上传包含以上内容的照片
+                    </p>
+                  </div>
+                )}
+                
                 <div className="text-center">
                   <div className="w-24 h-24 mx-auto mb-4 bg-white/10 rounded-full flex items-center justify-center">
                     <Camera className="w-12 h-12 text-white" />
