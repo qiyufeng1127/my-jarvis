@@ -35,8 +35,15 @@ export const useGoalStore = create<GoalState>()(
     
     try {
       if (isSupabaseConfigured()) {
-        // 从 Supabase 加载目标
-        const userId = getCurrentUserId();
+        // 获取当前登录用户
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          console.log('⚠️ 未登录，使用本地数据');
+          set({ isLoading: false });
+          return;
+        }
+        
+        const userId = session.user.id;
         const { data, error } = await supabase
           .from(TABLES.GOALS)
           .select('*')
@@ -92,7 +99,12 @@ export const useGoalStore = create<GoalState>()(
     set({ isLoading: true, error: null });
     
     try {
-      const userId = getCurrentUserId();
+      // 获取当前登录用户
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('未登录');
+      }
+      const userId = session.user.id;
       const newGoal: LongTermGoal = {
         id: `goal-${Date.now()}`,
         userId,
@@ -110,6 +122,12 @@ export const useGoalStore = create<GoalState>()(
         createdAt: new Date(),
         updatedAt: new Date(),
       };
+      
+      // 先添加到本地状态
+      set({
+        goals: [...get().goals, newGoal],
+        isLoading: false,
+      });
       
       // 保存到 Supabase（如果已配置）
       if (isSupabaseConfigured()) {
@@ -129,13 +147,12 @@ export const useGoalStore = create<GoalState>()(
           is_completed: newGoal.isCompleted,
         });
         
-        if (error) throw error;
+        if (error) {
+          console.warn('⚠️ 目标创建云端同步失败:', error);
+        } else {
+          console.log('✅ 目标已同步到云端');
+        }
       }
-      
-      set({
-        goals: [...get().goals, newGoal],
-        isLoading: false,
-      });
       
       return newGoal;
     } catch (error) {
@@ -152,6 +169,11 @@ export const useGoalStore = create<GoalState>()(
         ...updates,
         updatedAt: new Date(),
       } as LongTermGoal;
+      
+      // 先更新本地状态
+      set({
+        goals: get().goals.map((g) => (g.id === id ? updatedGoal : g)),
+      });
       
       // 更新到 Supabase（如果已配置）
       if (isSupabaseConfigured()) {
@@ -174,12 +196,12 @@ export const useGoalStore = create<GoalState>()(
           })
           .eq('id', id);
         
-        if (error) throw error;
+        if (error) {
+          console.warn('⚠️ 目标更新云端同步失败:', error);
+        } else {
+          console.log('✅ 目标更新已同步到云端');
+        }
       }
-      
-      set({
-        goals: get().goals.map((g) => (g.id === id ? updatedGoal : g)),
-      });
     } catch (error) {
       set({ error: '更新目标失败' });
       console.error('更新目标失败:', error);
@@ -188,6 +210,9 @@ export const useGoalStore = create<GoalState>()(
 
   deleteGoal: async (id) => {
     try {
+      // 先从本地删除
+      set({ goals: get().goals.filter((g) => g.id !== id) });
+      
       // 从 Supabase 删除（如果已配置）
       if (isSupabaseConfigured()) {
         const { error } = await supabase
@@ -195,10 +220,12 @@ export const useGoalStore = create<GoalState>()(
           .delete()
           .eq('id', id);
         
-        if (error) throw error;
+        if (error) {
+          console.warn('⚠️ 目标删除云端同步失败:', error);
+        } else {
+          console.log('✅ 目标删除已同步到云端');
+        }
       }
-      
-      set({ goals: get().goals.filter((g) => g.id !== id) });
     } catch (error) {
       set({ error: '删除目标失败' });
       console.error('删除目标失败:', error);

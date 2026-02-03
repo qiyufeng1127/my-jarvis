@@ -36,8 +36,15 @@ export const useTaskStore = create<TaskState>()(
     
     try {
       if (isSupabaseConfigured()) {
-        // 从 Supabase 加载任务
-        const userId = getCurrentUserId();
+        // 获取当前登录用户
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          console.log('⚠️ 未登录，使用本地数据');
+          set({ isLoading: false });
+          return;
+        }
+        
+        const userId = session.user.id;
         console.log('📥 从 Supabase 加载任务，用户ID:', userId);
         
         const { data, error } = await supabase
@@ -99,7 +106,12 @@ export const useTaskStore = create<TaskState>()(
     set({ isLoading: true, error: null });
     
     try {
-      const userId = getCurrentUserId();
+      // 获取当前登录用户
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('未登录');
+      }
+      const userId = session.user.id;
       
       // 处理日期：如果是字符串就直接使用，如果是 Date 对象就转换
       const scheduledStartStr = typeof taskData.scheduledStart === 'string' 
@@ -160,14 +172,6 @@ export const useTaskStore = create<TaskState>()(
         // 在后台异步执行，不等待结果
         (async () => {
           try {
-            // 1. 确保用户存在
-            const userExists = await ensureUserExists(userId);
-            if (!userExists) {
-              console.warn('⚠️ 用户不存在，跳过云端保存');
-              return;
-            }
-            
-            // 2. 保存任务
             const { error } = await supabase.from(TABLES.TASKS).insert({
               id: newTask.id,
               user_id: newTask.userId,
@@ -195,7 +199,7 @@ export const useTaskStore = create<TaskState>()(
             if (error) {
               console.warn('⚠️ 云端保存失败:', error.message);
             } else {
-              console.log('✅ 已同步到云端');
+              console.log('✅ 任务已同步到云端');
             }
           } catch (error: any) {
             console.warn('⚠️ 云端同步异常:', error?.message || error);
@@ -218,6 +222,11 @@ export const useTaskStore = create<TaskState>()(
         ...updates,
         updatedAt: new Date(),
       } as Task;
+      
+      // 先更新本地状态
+      set((state) => ({
+        tasks: state.tasks.map((t) => (t.id === id ? updatedTask : t)),
+      }));
       
       // 更新到 Supabase（如果已配置）
       if (isSupabaseConfigured()) {
@@ -245,12 +254,12 @@ export const useTaskStore = create<TaskState>()(
           })
           .eq('id', id);
         
-        if (error) throw error;
+        if (error) {
+          console.warn('⚠️ 任务更新云端同步失败:', error);
+        } else {
+          console.log('✅ 任务更新已同步到云端');
+        }
       }
-      
-      set((state) => ({
-        tasks: state.tasks.map((t) => (t.id === id ? updatedTask : t)),
-      }));
     } catch (error) {
       set({ error: '更新任务失败' });
       console.error('更新任务失败:', error);
@@ -259,6 +268,11 @@ export const useTaskStore = create<TaskState>()(
 
   deleteTask: async (id) => {
     try {
+      // 先从本地删除
+      set((state) => ({
+        tasks: state.tasks.filter((t) => t.id !== id),
+      }));
+      
       // 从 Supabase 删除（如果已配置）
       if (isSupabaseConfigured()) {
         const { error } = await supabase
@@ -266,12 +280,12 @@ export const useTaskStore = create<TaskState>()(
           .delete()
           .eq('id', id);
         
-        if (error) throw error;
+        if (error) {
+          console.warn('⚠️ 任务删除云端同步失败:', error);
+        } else {
+          console.log('✅ 任务删除已同步到云端');
+        }
       }
-      
-      set((state) => ({
-        tasks: state.tasks.filter((t) => t.id !== id),
-      }));
     } catch (error) {
       set({ error: '删除任务失败' });
       console.error('删除任务失败:', error);

@@ -2,6 +2,8 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useUserStore } from '@/stores/userStore';
 import { useGoldStore } from '@/stores/goldStore';
+import { useTaskStore } from '@/stores/taskStore';
+import { useGoalStore } from '@/stores/goalStore';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 // 页面组件（稍后创建）
@@ -14,6 +16,8 @@ import NotificationToast from '@/components/notifications/NotificationToast';
 function App() {
   const { user, initializeUser } = useUserStore();
   const { loadFromCloud } = useGoldStore();
+  const { loadTasks } = useTaskStore();
+  const { loadGoals } = useGoalStore();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
@@ -31,8 +35,13 @@ function App() {
         if (session) {
           console.log('✅ 用户已登录:', session.user.email);
           setIsAuthenticated(true);
-          // 从云端加载数据
-          await loadFromCloud();
+          // 从云端加载所有数据
+          await Promise.all([
+            loadFromCloud(),
+            loadTasks(),
+            loadGoals(),
+          ]);
+          console.log('✅ 所有数据已从云端加载');
         } else {
           console.log('ℹ️ 用户未登录');
           setIsAuthenticated(false);
@@ -53,8 +62,13 @@ function App() {
       console.log('🔐 认证状态变化:', event);
       if (session) {
         setIsAuthenticated(true);
-        // 登录成功后加载云端数据
-        await loadFromCloud();
+        // 登录成功后加载所有云端数据
+        await Promise.all([
+          loadFromCloud(),
+          loadTasks(),
+          loadGoals(),
+        ]);
+        console.log('✅ 所有数据已从云端加载');
       } else {
         setIsAuthenticated(false);
       }
@@ -63,7 +77,7 @@ function App() {
     return () => {
       subscription.unsubscribe();
     };
-  }, [initializeUser, loadFromCloud]);
+  }, [initializeUser, loadFromCloud, loadTasks, loadGoals]);
 
   // 加载中状态
   if (isCheckingAuth) {
