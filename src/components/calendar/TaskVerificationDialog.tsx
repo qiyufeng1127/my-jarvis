@@ -25,6 +25,8 @@ export default function TaskVerificationDialog({
   const [editingCompletion, setEditingCompletion] = useState(false);
   const [startKeywords, setStartKeywords] = useState(verification.startKeywords.join(', '));
   const [completionKeywords, setCompletionKeywords] = useState(verification.completionKeywords.join(', '));
+  const [enableStartVerification, setEnableStartVerification] = useState(verification.startKeywords.length > 0);
+  const [enableCompletionVerification, setEnableCompletionVerification] = useState(verification.completionKeywords.length > 0);
   
   // 判断颜色是否为深色
   const isColorDark = (color: string): boolean => {
@@ -48,7 +50,9 @@ export default function TaskVerificationDialog({
   const inputBorderColor = isColorDark(accentColor) ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)';
 
   const handleSaveStart = () => {
-    const keywords = startKeywords.split(',').map(k => k.trim()).filter(k => k);
+    const keywords = enableStartVerification 
+      ? startKeywords.split(',').map(k => k.trim()).filter(k => k)
+      : [];
     onUpdate({
       ...verification,
       startKeywords: keywords,
@@ -57,7 +61,9 @@ export default function TaskVerificationDialog({
   };
 
   const handleSaveCompletion = () => {
-    const keywords = completionKeywords.split(',').map(k => k.trim()).filter(k => k);
+    const keywords = enableCompletionVerification
+      ? completionKeywords.split(',').map(k => k.trim()).filter(k => k)
+      : [];
     onUpdate({
       ...verification,
       completionKeywords: keywords,
@@ -98,8 +104,16 @@ export default function TaskVerificationDialog({
         {/* 启动验证关键词 */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
-            <label className="text-sm font-medium" style={{ color: dialogTextColor }}>启动验证关键词</label>
-            {!editingStart ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={enableStartVerification}
+                onChange={(e) => setEnableStartVerification(e.target.checked)}
+                className="w-4 h-4 rounded"
+              />
+              <label className="text-sm font-medium" style={{ color: dialogTextColor }}>启动验证关键词</label>
+            </div>
+            {enableStartVerification && !editingStart ? (
               <button
                 onClick={() => setEditingStart(true)}
                 className="p-1 rounded transition-colors"
@@ -110,7 +124,7 @@ export default function TaskVerificationDialog({
               >
                 <Edit2 size={16} />
               </button>
-            ) : (
+            ) : enableStartVerification && editingStart ? (
               <button
                 onClick={handleSaveStart}
                 className="p-1 rounded transition-colors"
@@ -121,47 +135,64 @@ export default function TaskVerificationDialog({
               >
                 <Check size={16} />
               </button>
-            )}
+            ) : null}
           </div>
-          {editingStart ? (
-            <input
-              type="text"
-              value={startKeywords}
-              onChange={(e) => setStartKeywords(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border"
-              style={{
-                backgroundColor: inputBgColor,
-                borderColor: inputBorderColor,
-                color: dialogTextColor,
-              }}
-              placeholder="用逗号分隔，例如：书本, 笔记本, 电脑"
-            />
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {verification.startKeywords.map((keyword, index) => (
-                <span
-                  key={index}
-                  className="px-3 py-1 rounded-full text-sm"
+          {enableStartVerification && (
+            <>
+              {editingStart ? (
+                <input
+                  type="text"
+                  value={startKeywords}
+                  onChange={(e) => setStartKeywords(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border"
                   style={{
                     backgroundColor: inputBgColor,
+                    borderColor: inputBorderColor,
                     color: dialogTextColor,
                   }}
-                >
-                  {keyword}
-                </span>
-              ))}
-            </div>
+                  placeholder="用逗号分隔，例如：洗漱台, 牙刷, 洗面奶"
+                />
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {verification.startKeywords.map((keyword, index) => (
+                    <span
+                      key={index}
+                      className="px-3 py-1 rounded-full text-sm"
+                      style={{
+                        backgroundColor: inputBgColor,
+                        color: dialogTextColor,
+                      }}
+                    >
+                      {keyword}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs mt-2" style={{ color: dialogAccentColor }}>
+                拍摄照片时需要包含这些内容
+              </p>
+            </>
           )}
-          <p className="text-xs mt-2" style={{ color: dialogAccentColor }}>
-            拍摄照片时需要包含这些内容
-          </p>
+          {!enableStartVerification && (
+            <p className="text-xs" style={{ color: dialogAccentColor }}>
+              不启用启动验证，点击开始即可直接启动任务
+            </p>
+          )}
         </div>
 
         {/* 完成验证关键词 */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
-            <label className="text-sm font-medium" style={{ color: dialogTextColor }}>完成验证关键词</label>
-            {!editingCompletion ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={enableCompletionVerification}
+                onChange={(e) => setEnableCompletionVerification(e.target.checked)}
+                className="w-4 h-4 rounded"
+              />
+              <label className="text-sm font-medium" style={{ color: dialogTextColor }}>完成验证关键词</label>
+            </div>
+            {enableCompletionVerification && !editingCompletion ? (
               <button
                 onClick={() => setEditingCompletion(true)}
                 className="p-1 rounded transition-colors"
@@ -172,7 +203,7 @@ export default function TaskVerificationDialog({
               >
                 <Edit2 size={16} />
               </button>
-            ) : (
+            ) : enableCompletionVerification && editingCompletion ? (
               <button
                 onClick={handleSaveCompletion}
                 className="p-1 rounded transition-colors"
@@ -183,40 +214,49 @@ export default function TaskVerificationDialog({
               >
                 <Check size={16} />
               </button>
-            )}
+            ) : null}
           </div>
-          {editingCompletion ? (
-            <input
-              type="text"
-              value={completionKeywords}
-              onChange={(e) => setCompletionKeywords(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border"
-              style={{
-                backgroundColor: inputBgColor,
-                borderColor: inputBorderColor,
-                color: dialogTextColor,
-              }}
-              placeholder="用逗号分隔，例如：完成的作业, 整理好的书桌"
-            />
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {verification.completionKeywords.map((keyword, index) => (
-                <span
-                  key={index}
-                  className="px-3 py-1 rounded-full text-sm"
+          {enableCompletionVerification && (
+            <>
+              {editingCompletion ? (
+                <input
+                  type="text"
+                  value={completionKeywords}
+                  onChange={(e) => setCompletionKeywords(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border"
                   style={{
                     backgroundColor: inputBgColor,
+                    borderColor: inputBorderColor,
                     color: dialogTextColor,
                   }}
-                >
-                  {keyword}
-                </span>
-              ))}
-            </div>
+                  placeholder="用逗号分隔，例如：干净的脸, 整洁的洗漱台"
+                />
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {verification.completionKeywords.map((keyword, index) => (
+                    <span
+                      key={index}
+                      className="px-3 py-1 rounded-full text-sm"
+                      style={{
+                        backgroundColor: inputBgColor,
+                        color: dialogTextColor,
+                      }}
+                    >
+                      {keyword}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs mt-2" style={{ color: dialogAccentColor }}>
+                完成任务后拍摄照片需要包含这些内容
+              </p>
+            </>
           )}
-          <p className="text-xs mt-2" style={{ color: dialogAccentColor }}>
-            完成任务后拍摄照片需要包含这些内容
-          </p>
+          {!enableCompletionVerification && (
+            <p className="text-xs" style={{ color: dialogAccentColor }}>
+              不启用完成验证，点击完成即可直接完成任务
+            </p>
+          )}
         </div>
 
         {/* 状态信息 */}

@@ -27,3 +27,24 @@ export const TABLES = {
 export const isSupabaseConfigured = () => {
   return Boolean(supabaseUrl && supabaseAnonKey);
 };
+
+// 获取当前用户ID（同步版本，从session获取）
+export const getCurrentUserId = () => {
+  // 从localStorage直接读取session，避免异步问题
+  const sessionStr = localStorage.getItem('supabase.auth.token');
+  if (sessionStr) {
+    try {
+      const session = JSON.parse(sessionStr);
+      return session?.user?.id || 'anonymous';
+    } catch {
+      return 'anonymous';
+    }
+  }
+  return 'anonymous';
+};
+
+// 获取当前用户ID（异步版本）
+export const getCurrentUserIdAsync = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  return user?.id || 'anonymous';
+};

@@ -53,12 +53,19 @@ export default function EmailAuth({ onSuccess }: EmailAuthProps) {
             // 检查是否需要邮箱验证
             if (signUpData.user.identities && signUpData.user.identities.length === 0) {
               setMessage('该邮箱已注册，请使用正确的密码登录');
+              setLoading(false);
             } else {
-              setMessage('注册成功！请检查邮箱验证链接（如果需要）');
               // 如果不需要邮箱验证，直接登录成功
               if (signUpData.session) {
                 console.log('✅ 注册并登录成功');
-                onSuccess();
+                setMessage('✅ 注册成功！正在加载...');
+                // 延迟一下让用户看到成功提示
+                setTimeout(() => {
+                  onSuccess();
+                }, 500);
+              } else {
+                setMessage('注册成功！请检查邮箱验证链接');
+                setLoading(false);
               }
             }
           }
@@ -67,7 +74,11 @@ export default function EmailAuth({ onSuccess }: EmailAuthProps) {
         }
       } else if (signInData.user) {
         console.log('✅ 登录成功');
-        onSuccess();
+        setMessage('✅ 登录成功！正在加载...');
+        // 延迟一下让用户看到成功提示
+        setTimeout(() => {
+          onSuccess();
+        }, 500);
       }
     } catch (err: any) {
       setError(`操作失败: ${err.message}`);

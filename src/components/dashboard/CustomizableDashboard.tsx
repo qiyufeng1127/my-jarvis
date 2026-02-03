@@ -31,6 +31,7 @@ import { supabase, isSupabaseConfigured, getCurrentUserId } from '@/lib/supabase
 import { useSideHustleStore } from '@/stores/sideHustleStore';
 import { useGoldStore } from '@/stores/goldStore';
 import GitHubCommitBadge from '@/components/ui/GitHubCommitBadge';
+import VersionInfo from '@/components/VersionInfo';
 
 interface Module {
   id: string;
@@ -217,7 +218,7 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
   // 顶部状态栏元素的位置和拖动状态
   const [topBarItems, setTopBarItems] = useState<Array<{
     id: string;
-    type: 'identity' | 'growth' | 'habits' | 'gold' | 'balance' | 'image' | 'github';
+    type: 'identity' | 'growth' | 'habits' | 'gold' | 'balance' | 'image' | 'github' | 'version';
     position: { x: number; y: number };
     imageUrl?: string;
     customSize?: { width: number; height: number };
@@ -228,6 +229,7 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
     { id: 'habits', type: 'habits', position: { x: 680, y: 0 } },
     { id: 'gold', type: 'gold', position: { x: 900, y: 0 } },
     { id: 'github', type: 'github', position: { x: 1150, y: 0 } },
+    { id: 'version', type: 'version', position: { x: 1350, y: 0 } },
   ]);
   const [draggingTopBarItem, setDraggingTopBarItem] = useState<string | null>(null);
   const [topBarDragOffset, setTopBarDragOffset] = useState({ x: 0, y: 0 });
@@ -988,6 +990,23 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                     onMouseDown={(e) => handleTopBarDragStart(item.id, e)}
                   >
                     <GitHubCommitBadge />
+                  </div>
+                );
+              }
+              
+              if (item.type === 'version') {
+                return (
+                  <div
+                    key={item.id}
+                    className="absolute"
+                    style={{
+                      left: item.position.x,
+                      top: item.position.y,
+                      cursor: draggingTopBarItem === item.id ? 'grabbing' : 'grab',
+                    }}
+                    onMouseDown={(e) => handleTopBarDragStart(item.id, e)}
+                  >
+                    <VersionInfo isDark={false} />
                   </div>
                 );
               }

@@ -9,6 +9,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 // 页面组件（稍后创建）
 import Dashboard from '@/pages/Dashboard';
 import Welcome from '@/pages/Welcome';
+import BaiduAITest from '@/pages/BaiduAITest';
 
 // 通知系统
 import NotificationToast from '@/components/notifications/NotificationToast';
@@ -22,40 +23,58 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    // 检查用户是否已登录
-    const checkAuth = async () => {
+    let mounted = true;
+    
+    // 初始化应用
+    const initialize = async () => {
+      // 1. 初始化本地用户（快速，不阻塞）
+      initializeUser();
+      
+      // 2. 检查登录状态
       if (!isSupabaseConfigured()) {
-        console.log('⚠️ Supabase 未配置');
-        setIsCheckingAuth(false);
+        console.log('⚠️ Supabase 未配置，使用本地模式');
+        if (mounted) {
+          setIsCheckingAuth(false);
+          setIsAuthenticated(false);
+        }
         return;
       }
 
       try {
         const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!mounted) return;
+        
         if (session) {
           console.log('✅ 用户已登录:', session.user.email);
           setIsAuthenticated(true);
-          // 从云端加载所有数据
-          await Promise.all([
+          setIsCheckingAuth(false); // 先显示界面
+          
+          // 3. 后台异步加载云端数据（不阻塞界面显示）
+          Promise.all([
             loadFromCloud(),
             loadTasks(),
             loadGoals(),
-          ]);
-          console.log('✅ 所有数据已从云端加载');
+          ]).then(() => {
+            console.log('✅ 云端数据加载完成');
+          }).catch((error) => {
+            console.error('❌ 云端数据加载失败:', error);
+          });
         } else {
-          console.log('ℹ️ 用户未登录');
+          console.log('👤 游客模式：数据保存在本地');
           setIsAuthenticated(false);
+          setIsCheckingAuth(false);
         }
       } catch (error) {
         console.error('❌ 检查登录状态失败:', error);
-        setIsAuthenticated(false);
-      } finally {
-        setIsCheckingAuth(false);
+        if (mounted) {
+          setIsAuthenticated(false);
+          setIsCheckingAuth(false);
+        }
       }
     };
 
-    checkAuth();
-    initializeUser();
+    initialize();
 
     // 监听认证状态变化
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -63,21 +82,23 @@ function App() {
       if (session) {
         setIsAuthenticated(true);
         // 登录成功后加载所有云端数据
-        await Promise.all([
+        Promise.all([
           loadFromCloud(),
           loadTasks(),
           loadGoals(),
-        ]);
-        console.log('✅ 所有数据已从云端加载');
+        ]).then(() => {
+          console.log('✅ 云端数据同步完成');
+        });
       } else {
         setIsAuthenticated(false);
       }
     });
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
-  }, [initializeUser, loadFromCloud, loadTasks, loadGoals]);
+  }, []); // 空依赖数组，只在组件挂载时执行一次
 
   // 加载中状态
   if (isCheckingAuth) {
@@ -98,18 +119,17 @@ function App() {
         <NotificationToast />
         
         <Routes>
-          {/* 如果没有登录，显示欢迎页 */}
-          {!isAuthenticated ? (
-            <Route path="*" element={<Welcome />} />
-          ) : (
-            <>
-              {/* 主控面板 */}
-              <Route path="/" element={<Dashboard />} />
-              
-              {/* 其他路由稍后添加 */}
-              <Route path="*" element={<Dashboard />} />
-            </>
-          )}
+          {/* 主控面板 - 游客和登录用户都可以访问 */}
+          <Route path="/" element={<Dashboard />} />
+          
+          {/* 欢迎页 */}
+          <Route path="/welcome" element={<Welcome />} />
+          
+          {/* 百度AI测试页 */}
+          <Route path="/baidu-ai-test" element={<BaiduAITest />} />
+          
+          {/* 其他路由 */}
+          <Route path="*" element={<Dashboard />} />
         </Routes>
       </div>
     </Router>
