@@ -105,11 +105,11 @@ export default function AIConfigModal({ isOpen, onClose }: AIConfigModalProps) {
                 value={localApiKey}
                 onChange={(e) => setLocalApiKey(e.target.value)}
                 placeholder="sk-..."
-                className="w-full px-4 py-3 pr-24 rounded-lg border-2 border-gray-200 focus:border-purple-500 focus:outline-none text-sm font-mono"
+                className="w-full px-4 py-3 pr-24 rounded-lg border-2 border-gray-200 focus:border-purple-500 focus:outline-none text-sm font-mono text-gray-900"
               />
               <button
                 onClick={() => setShowKey(!showKey)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors text-gray-900"
               >
                 {showKey ? '隐藏' : '显示'}
               </button>
@@ -130,7 +130,7 @@ export default function AIConfigModal({ isOpen, onClose }: AIConfigModalProps) {
               value={localEndpoint}
               onChange={(e) => setLocalEndpoint(e.target.value)}
               placeholder="https://api.deepseek.com/v1/chat/completions"
-              className="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-purple-500 focus:outline-none text-sm font-mono"
+              className="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-purple-500 focus:outline-none text-sm font-mono text-gray-900"
             />
             <div className="mt-2 text-xs text-gray-600">
               <p>常用端点：</p>
@@ -150,7 +150,7 @@ export default function AIConfigModal({ isOpen, onClose }: AIConfigModalProps) {
             <select
               value={localModel}
               onChange={(e) => setLocalModel(e.target.value)}
-              className="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-purple-500 focus:outline-none text-sm cursor-pointer"
+              className="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-purple-500 focus:outline-none text-sm cursor-pointer text-gray-900"
             >
               <option value="deepseek-chat">DeepSeek Chat (推荐)</option>
               <option value="deepseek-coder">DeepSeek Coder</option>

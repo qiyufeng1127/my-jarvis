@@ -1096,8 +1096,8 @@ export default function NewTimelineView({
         }
         
         return (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" style={{ paddingTop: '100px' }}>
-            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[75vh] overflow-y-auto" style={{ backgroundColor: isDark ? '#1f2937' : '#ffffff' }}>
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" style={{ paddingTop: '60px', paddingBottom: '80px' }}>
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[70vh] overflow-y-auto" style={{ backgroundColor: isDark ? '#1f2937' : '#ffffff' }}>
               <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-2.5 border-b" style={{ 
                 backgroundColor: isDark ? '#1f2937' : '#ffffff',
                 borderColor: isDark ? '#374151' : '#e5e7eb'

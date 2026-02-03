@@ -646,6 +646,12 @@ ${extractedDuration ? `用户指定时长：${extractedDuration}分钟` : ''}
 4. 只返回JSON，不要其他文字`;
 
     try {
+      console.log('🚀 开始调用AI API:', { apiEndpoint, model });
+      
+      // 添加超时控制（30秒）
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      
       const response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: {
@@ -661,13 +667,24 @@ ${extractedDuration ? `用户指定时长：${extractedDuration}分钟` : ''}
           temperature: 0.7,
           max_tokens: 500,
         }),
+        signal: controller.signal,
       });
 
+      clearTimeout(timeoutId);
+
       if (!response.ok) {
-        throw new Error('AI分析失败');
+        const errorText = await response.text();
+        console.error('❌ API响应错误:', response.status, errorText);
+        throw new Error(`AI分析失败 (${response.status}): ${errorText}`);
       }
 
       const data = await response.json();
+      console.log('✅ API响应成功:', data);
+      
+      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+        throw new Error('API返回格式错误');
+      }
+      
       const aiResponse = data.choices[0].message.content;
       
       // 提取JSON（处理可能的markdown代码块）
@@ -699,13 +716,27 @@ ${extractedDuration ? `用户指定时长：${extractedDuration}分钟` : ''}
         category: result.category || '生活事务',
         color: color,
       };
-    } catch (error) {
-      console.error('AI分析失败，使用默认值:', error);
-      // 如果AI失败，返回默认值
+    } catch (error: any) {
+      console.error('❌ AI分析失败，使用默认值:', error);
+      
+      // 如果是超时错误
+      if (error.name === 'AbortError') {
+        console.error('⏱️ API请求超时（30秒）');
+        throw new Error('AI请求超时，请检查网络连接或稍后重试');
+      }
+      
+      // 如果是网络错误
+      if (error.message.includes('fetch')) {
+        console.error('🌐 网络连接失败');
+        throw new Error('网络连接失败，请检查网络设置');
+      }
+      
+      // 其他错误，返回默认值
+      console.warn('⚠️ 使用默认值继续');
       return {
         tags: ['日常', '待办'],
         location: '全屋',
-        duration: 30,
+        duration: extractedDuration || 30,
         taskType: 'life',
         category: '生活事务',
         color: '#6A7334',
@@ -721,7 +752,10 @@ ${extractedDuration ? `用户指定时长：${extractedDuration}分钟` : ''}
     const { isConfigured } = useAIStore.getState();
     if (!isConfigured()) {
       console.error('❌ API Key 未配置');
-      throw new Error('API Key 未配置，请先在 AI 设置中配置');
+      return {
+        message: '❌ API Key 未配置\n\n请先在 AI 设置中配置 API Key 和 API 端点。\n\n点击右上角的 ⚙️ 图标进行配置。',
+        autoExecute: false,
+      };
     }
     
     // 解析时间起点
@@ -750,53 +784,80 @@ ${extractedDuration ? `用户指定时长：${extractedDuration}分钟` : ''}
     // 使用AI分析每个任务
     const decomposedTasks = [];
     let currentTime = new Date(startTime);
+    let hasError = false;
+    let errorMessage = '';
     
-    for (let index = 0; index < rawTasks.length; index++) {
-      const rawTask = rawTasks[index];
-      
-      // 提取时长信息
-      const extractedDuration = this.extractDurationFromTask(rawTask);
-      
-      // 清理任务标题（移除时长）
-      const cleanTitle = rawTask.replace(/\d+分钟$/i, '').trim();
-      
-      console.log(`📝 任务 ${index + 1}: "${cleanTitle}", 指定时长: ${extractedDuration || '无'}`);
-      
-      // 使用AI智能分析任务（不再传入 apiKey 和 apiEndpoint）
-      const aiAnalysis = await this.analyzeTaskWithAI(cleanTitle, extractedDuration || undefined);
-      
-      const start = new Date(currentTime);
-      const end = new Date(currentTime.getTime() + aiAnalysis.duration * 60000);
-      const goal = this.identifyGoal(cleanTitle);
-      
-      const task = {
-        sequence: index + 1,
-        title: cleanTitle,
-        description: cleanTitle,
-        estimated_duration: aiAnalysis.duration,
-        scheduled_start: start.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-        scheduled_end: end.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-        scheduled_start_iso: start.toISOString(),
-        task_type: aiAnalysis.taskType,
-        category: aiAnalysis.category,
-        location: aiAnalysis.location,
-        tags: aiAnalysis.tags,
-        goal: goal,
-        gold: this.calculateGold({ estimated_duration: aiAnalysis.duration, task_type: aiAnalysis.taskType }),
-        color: aiAnalysis.color,
-      };
+    try {
+      for (let index = 0; index < rawTasks.length; index++) {
+        const rawTask = rawTasks[index];
+        
+        // 提取时长信息
+        const extractedDuration = this.extractDurationFromTask(rawTask);
+        
+        // 清理任务标题（移除时长）
+        const cleanTitle = rawTask.replace(/\d+分钟$/i, '').trim();
+        
+        console.log(`📝 任务 ${index + 1}: "${cleanTitle}", 指定时长: ${extractedDuration || '无'}`);
+        
+        try {
+          // 使用AI智能分析任务
+          const aiAnalysis = await this.analyzeTaskWithAI(cleanTitle, extractedDuration || undefined);
+          
+          const start = new Date(currentTime);
+          const end = new Date(currentTime.getTime() + aiAnalysis.duration * 60000);
+          const goal = this.identifyGoal(cleanTitle);
+          
+          const task = {
+            sequence: index + 1,
+            title: cleanTitle,
+            description: cleanTitle,
+            estimated_duration: aiAnalysis.duration,
+            scheduled_start: start.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+            scheduled_end: end.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+            scheduled_start_iso: start.toISOString(),
+            task_type: aiAnalysis.taskType,
+            category: aiAnalysis.category,
+            location: aiAnalysis.location,
+            tags: aiAnalysis.tags,
+            goal: goal,
+            gold: this.calculateGold({ estimated_duration: aiAnalysis.duration, task_type: aiAnalysis.taskType }),
+            color: aiAnalysis.color,
+          };
 
-      decomposedTasks.push(task);
-      
-      // 下一个任务开始时间
-      currentTime = new Date(end.getTime());
+          decomposedTasks.push(task);
+          
+          // 下一个任务开始时间
+          currentTime = new Date(end.getTime());
+        } catch (taskError: any) {
+          console.error(`❌ 任务 ${index + 1} 分析失败:`, taskError);
+          hasError = true;
+          errorMessage = taskError.message || '任务分析失败';
+          break;
+        }
+      }
+    } catch (error: any) {
+      console.error('❌ 任务分解过程出错:', error);
+      return {
+        message: `❌ 任务分解失败\n\n${error.message || '未知错误'}\n\n请检查：\n1. API Key 是否正确\n2. 网络连接是否正常\n3. API 端点是否可访问`,
+        autoExecute: false,
+      };
+    }
+
+    // 如果有错误且没有成功分析任何任务
+    if (hasError && decomposedTasks.length === 0) {
+      return {
+        message: `❌ 任务分解失败\n\n${errorMessage}\n\n请检查：\n1. API Key 是否正确配置\n2. 网络连接是否正常\n3. API 端点是否可访问\n\n你可以在右上角 ⚙️ 中重新配置 API。`,
+        autoExecute: false,
+      };
     }
 
     const groupedByLocation = this.groupTasksByLocation(decomposedTasks);
     console.log('✅ AI智能分析完成:', decomposedTasks);
 
     // 构建消息
-    let message = `✅ AI已智能分析 ${decomposedTasks.length} 个任务：\n\n`;
+    let message = hasError 
+      ? `⚠️ 部分任务分析成功（${decomposedTasks.length}/${rawTasks.length}）：\n\n`
+      : `✅ AI已智能分析 ${decomposedTasks.length} 个任务：\n\n`;
     
     decomposedTasks.forEach((task, index) => {
       message += `${task.sequence}. **${task.title}** 📍${task.location}\n`;
@@ -812,6 +873,11 @@ ${extractedDuration ? `用户指定时长：${extractedDuration}分钟` : ''}
     const totalGold = decomposedTasks.reduce((sum, t) => sum + t.gold, 0);
 
     message += `📊 总计：${totalDuration}分钟 | 💰${totalGold}金币\n\n`;
+    
+    if (hasError) {
+      message += `⚠️ 错误信息：${errorMessage}\n\n`;
+    }
+    
     message += `💡 正在打开事件卡片编辑器，你可以：\n`;
     message += `   • 双击任意字段进行编辑\n`;
     message += `   • 使用上下箭头调整任务顺序\n`;

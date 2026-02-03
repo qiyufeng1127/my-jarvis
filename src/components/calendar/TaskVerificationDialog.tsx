@@ -43,11 +43,12 @@ export default function TaskVerificationDialog({
     return isColorDark(bgColor) ? '#ffffff' : '#000000';
   };
   
-  const dialogBgColor = accentColor;
-  const dialogTextColor = getTextColor(accentColor);
-  const dialogAccentColor = isColorDark(accentColor) ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';
-  const inputBgColor = isColorDark(accentColor) ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)';
-  const inputBorderColor = isColorDark(accentColor) ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)';
+  // 使用时间轴背景色（从 Dashboard 传入的 bgColor）
+  const dialogBgColor = isDark ? '#1f2937' : '#ffffff'; // 跟随时间轴背景
+  const dialogTextColor = isDark ? '#ffffff' : '#000000';
+  const dialogAccentColor = isDark ? 'rgba(255,255,255,0.7)' : '#666666';
+  const inputBgColor = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)';
+  const inputBorderColor = isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)';
 
   const handleSaveStart = () => {
     const keywords = enableStartVerification 

@@ -230,6 +230,7 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
     const message = text || inputValue.trim();
     if (!message || isProcessing) return;
 
+    // 立即显示用户消息
     const userMessage: AIMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
@@ -240,6 +241,9 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
     setIsProcessing(true);
+
+    // 立即显示"AI正在思考"状态
+    // 用户可以看到消息已发送
 
     try {
       // 调用 AI 处理
@@ -281,10 +285,11 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
         await showFeedback('success', { action: '执行操作' });
       }
     } catch (error) {
+      console.error('❌ AI处理失败:', error);
       const errorMessage: AIMessage = {
         id: `error-${Date.now()}`,
         role: 'assistant',
-        content: '抱歉，处理时出现了问题。请重试。',
+        content: '抱歉，处理时出现了问题。请检查AI配置或稍后重试。',
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -830,8 +835,8 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
           </div>
         </div>
 
-        {/* 输入区域 */}
-        <div className="p-6 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
+        {/* 输入区域 - 更紧凑 */}
+        <div className="p-3 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
           {isVoiceMode ? (
             // 语音模式界面
             <div className="flex flex-col items-center space-y-4">
@@ -875,7 +880,7 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
               </button>
             </div>
           ) : (
-            // 文字模式界面
+            // 文字模式界面 - 更紧凑，文字改黑色
             <div className="flex items-end space-x-2">
               <textarea
                 ref={textareaRef}
@@ -883,18 +888,18 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="对我说点什么..."
-                rows={2}
-                className="flex-1 px-4 py-3 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-opacity-50"
+                rows={1}
+                className="flex-1 px-3 py-2 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-opacity-50"
                 style={{
-                  backgroundColor: cardBg,
-                  color: textColor,
-                  border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}`,
+                  backgroundColor: '#ffffff',
+                  color: '#000000',
+                  border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)'}`,
                 }}
               />
               <button
                 onClick={() => handleSend()}
                 disabled={!inputValue.trim() || isProcessing}
-                className="p-3 rounded-lg transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-2 rounded-lg transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ 
                   backgroundColor: buttonBg,
                   color: textColor 
