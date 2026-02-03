@@ -616,37 +616,31 @@ export class AISmartProcessor {
     }
     
     const { apiKey, apiEndpoint, model } = config;
-    const prompt = `你是一个任务分析助手。请分析以下任务并返回JSON格式的结果。
+    
+    // 强制使用 deepseek-chat 而不是 deepseek-reasoner（reasoner 不适合结构化输出）
+    const useModel = model === 'deepseek-reasoner' ? 'deepseek-chat' : (model || 'deepseek-chat');
+    
+    const prompt = `分析任务并返回JSON。
 
-任务标题：${taskTitle}
-${extractedDuration ? `用户指定时长：${extractedDuration}分钟` : ''}
+任务：${taskTitle}
+${extractedDuration ? `时长：${extractedDuration}分钟` : ''}
 
-请返回以下信息（必须是有效的JSON格式）：
+返回格式（纯JSON，无注释）：
 {
-  "tags": ["标签1", "标签2"],  // 2-3个标签，粒度适中（不要太具体如"擦桌子"，也不要太泛化如"日常"）
-  "location": "位置",  // 可选：厕所、工作区、客厅、卧室、拍摄间、厨房、全屋、室外
-  "duration": ${extractedDuration || 30},  // 预估时长（分钟），如果用户指定了时长，必须使用用户指定的时长
-  "taskType": "life",  // 可选：work, study, health, life, finance, creative, rest
-  "category": "分类名称"  // 如：家务、工作、学习等
+  "tags": ["标签1", "标签2"],
+  "location": "位置",
+  "duration": ${extractedDuration || 30},
+  "taskType": "life",
+  "category": "分类"
 }
 
-标签示例（粒度适中）：
-- 家务类：家务、清洁、收纳、猫咪
-- 工作类：工作、会议、编程、设计
-- 学习类：学习、阅读、课程
-- 运动类：运动、健身、跑步
-- 饮食类：饮食、早餐、午餐、晚餐
-- 社交类：社交、朋友、聚会
-- 娱乐类：娱乐、休闲、游戏
+位置选项：厕所、工作区、客厅、卧室、拍摄间、厨房、全屋、室外
+taskType选项：work, study, health, life, finance, creative, rest
 
-注意：
-1. 标签粒度适中，2-3个即可
-2. 位置根据中国家庭实际情况判断
-3. 时长要合理（5-120分钟）
-4. 只返回JSON，不要其他文字`;
+只返回JSON对象，不要任何其他文字。`;
 
     try {
-      console.log('🚀 开始调用AI API:', { apiEndpoint, model });
+      console.log('🚀 开始调用AI API:', { apiEndpoint, model: useModel });
       
       // 添加超时控制（30秒）
       const controller = new AbortController();
@@ -659,13 +653,13 @@ ${extractedDuration ? `用户指定时长：${extractedDuration}分钟` : ''}
           'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: model || 'deepseek-chat',
+          model: useModel,
           messages: [
-            { role: 'system', content: '你是一个任务分析助手，专门帮助用户分析任务并生成结构化数据。只返回JSON格式，不要其他内容。' },
+            { role: 'system', content: '你是任务分析助手。只返回纯JSON对象，不要markdown代码块，不要注释，不要其他文字。' },
             { role: 'user', content: prompt }
           ],
-          temperature: 0.7,
-          max_tokens: 500,
+          temperature: 0.3,
+          max_tokens: 300,
         }),
         signal: controller.signal,
       });
@@ -686,16 +680,61 @@ ${extractedDuration ? `用户指定时长：${extractedDuration}分钟` : ''}
       }
       
       const aiResponse = data.choices[0].message.content;
+      console.log('🤖 AI原始响应:', aiResponse);
       
       // 提取JSON（处理可能的markdown代码块）
       let jsonStr = aiResponse.trim();
+      
+      // 移除 markdown 代码块标记
       if (jsonStr.startsWith('```json')) {
-        jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+        jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?$/g, '');
       } else if (jsonStr.startsWith('```')) {
-        jsonStr = jsonStr.replace(/```\n?/g, '');
+        jsonStr = jsonStr.replace(/```\n?/g, '').replace(/```\n?$/g, '');
       }
       
-      const result = JSON.parse(jsonStr);
+      // 尝试提取 JSON 对象（处理可能的额外文本）
+      const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        jsonStr = jsonMatch[0];
+      }
+      
+      // 移除 JSON 中的注释（// 和 /* */）
+      jsonStr = jsonStr
+        .replace(/\/\/.*$/gm, '')  // 移除单行注释
+        .replace(/\/\*[\s\S]*?\*\//g, '')  // 移除多行注释
+        .trim();
+      
+      console.log('📝 清理后的JSON字符串:', jsonStr);
+      
+      // 验证 JSON 是否完整
+      if (!jsonStr || jsonStr.trim() === '' || jsonStr === '{}') {
+        console.error('❌ JSON字符串为空或无效');
+        throw new Error('AI返回的JSON为空');
+      }
+      
+      let result;
+      try {
+        result = JSON.parse(jsonStr);
+      } catch (parseError) {
+        console.error('❌ JSON解析失败:', parseError);
+        console.error('原始响应:', aiResponse);
+        console.error('清理后字符串:', jsonStr);
+        throw new Error('JSON格式错误');
+      }
+      
+      // 验证必需字段
+      if (!result.tags || !Array.isArray(result.tags)) {
+        console.warn('⚠️ tags字段缺失或格式错误，使用默认值');
+        result.tags = ['日常'];
+      }
+      if (!result.location) {
+        console.warn('⚠️ location字段缺失，使用默认值');
+        result.location = '全屋';
+      }
+      if (!result.duration) {
+        console.warn('⚠️ duration字段缺失，使用默认值');
+        result.duration = extractedDuration || 30;
+      }
       
       // 根据第一个标签获取颜色
       const color = this.getColorForTag(result.tags[0]);

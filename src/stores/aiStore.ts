@@ -25,7 +25,7 @@ export const useAIStore = create<AIStore>()(
       config: {
         apiKey: '',
         apiEndpoint: 'https://api.deepseek.com/v1/chat/completions',
-        model: 'deepseek-reasoner', // DeepSeek 推理模型（推荐）
+        model: 'deepseek-chat', // DeepSeek Chat 模型（适合结构化输出）
         temperature: 0.7,
         maxTokens: 2000,
       },
