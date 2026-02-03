@@ -1,160 +1,161 @@
-# ManifestOS - 我要变好
+# ManifestOS - 使用指南
 
-> 大女主成长操作系统 - 将高效生产力与个人成长深度整合的AI驱动生活操作系统
+## 🎯 这是什么？
 
-## 🌟 项目愿景
+ManifestOS 是一个**大女主成长操作系统**，帮助你通过游戏化的方式管理任务、追踪目标、获得金币奖励。
 
-ManifestOS 不仅帮助用户完成任务，更通过游戏化机制、显化法则和视觉化成长追踪，将每一个日常行动都转化为通往"理想自我"的坚实步伐，真正实现"通过小任务，完成大蜕变"。
-
-## ✨ 核心特性
-
-- 🎯 **大女主成长系统** - 可定制的成长维度、身份层级和长期目标追踪
-- 🎤 **Kiki宝宝语音助手** - 自然语言交互，零学习成本
-- ⚡ **智能防拖延** - AI驱动的任务验证和进度检查
-- 💰 **动态金币经济** - 即时激励，行为塑造
-- 📊 **坏习惯追踪** - 智能识别和改进计划
-- 🔄 **多设备同步** - 无缝跨设备体验
-- 📈 **成长数据分析** - 深度洞察，持续优化
-
-## 🛠️ 技术栈
-
-### 前端
-- **框架**: React 18 + TypeScript
-- **状态管理**: Zustand
-- **路由**: React Router v6
-- **样式**: Tailwind CSS
-- **图标**: Lucide React
-- **图表**: Recharts
-- **动画**: Framer Motion
-- **拖拽**: @dnd-kit
-
-### 后端
-- **数据库**: Supabase (PostgreSQL)
-- **实时同步**: Supabase Realtime
-- **存储**: Supabase Storage
-- **认证**: 同步码系统
-
-### AI服务
-- **NLP**: DeepSeek API
-- **图像识别**: 百度云图像识别API
-- **语音**: Web Speech API
+**核心功能：**
+- ✅ 任务管理（时间轴视图）
+- ✅ 目标追踪
+- ✅ 金币奖励系统
+- ✅ 邮箱登录 + 多端云同步
+- ✅ 移动端完美适配
 
 ## 🚀 快速开始
 
-### 环境要求
-- Node.js >= 18.0.0
-- npm >= 9.0.0
+### 1. 访问网站
+- **网址**：https://qiyufeng1127.github.io/my-jarvis/
+- **支持**：电脑、手机、平板
 
-### 安装依赖
+### 2. 登录
+- 输入邮箱和密码（至少6位）
+- 首次登录自动注册，无需验证
+- 同一邮箱可在多设备登录
+
+### 3. 开始使用
+- **创建任务**：点击"+"按钮或使用AI智能输入
+- **完成任务**：点击任务卡片，上传验证照片
+- **获得金币**：完成任务自动获得金币奖励
+- **查看进度**：右上角显示金币余额和GitHub推送次数
+
+## 📱 移动端使用
+
+### 导航栏
+- 底部导航栏：时间轴、目标、副业、收集箱等
+- 长按可编辑导航栏
+- 支持自定义颜色
+
+### 主要功能
+- **时间轴**：查看和管理所有任务
+- **目标**：设置和追踪长期目标
+- **金币**：查看金币余额和交易记录
+- **收集箱**：快速记录想法
+
+## 💰 金币系统
+
+### 如何获得金币？
+1. 完成任务（根据任务类型和时长计算）
+2. 达成目标里程碑
+3. 连续完成任务有额外奖励
+
+### 金币用途
+- 查看成长进度
+- 解锁特殊功能（未来）
+- 兑换奖励（未来）
+
+## ☁️ 云端同步
+
+### 自动同步的数据
+- ✅ 所有任务
+- ✅ 所有目标
+- ✅ 金币余额和交易记录
+- ✅ 仪表盘配置
+
+### 如何使用多端同步？
+1. 电脑端：用邮箱登录 → 创建任务
+2. 手机端：用**相同邮箱**登录 → 自动看到所有数据
+3. 任一设备操作，其他设备刷新即可同步
+
+## 🎨 个性化设置
+
+### 桌面端
+- 拖拽模块调整位置
+- 调整模块大小
+- 自定义模块颜色
+- 右键上传自定义图标
+
+### 移动端
+- 长按导航栏编辑
+- 自定义导航栏颜色
+- 调整导航项顺序
+
+## 🔧 开发者配置
+
+### Supabase设置（必须！）
+如果你是开发者，需要配置Supabase才能使用云同步：
+
+1. **执行SQL**：`supabase_schema.sql`
+2. **关闭邮箱验证**：Authentication → Email → 取消"Confirm email"
+3. **禁用RLS**：Table Editor → 每个表 → 关闭RLS
+
+详见：`SUPABASE_README.md`
+
+### 本地开发
 ```bash
 npm install
-```
-
-### 配置环境变量
-```bash
-cp .env.example .env
-# 编辑 .env 文件，填入你的 API 密钥
-```
-
-### 启动开发服务器
-```bash
 npm run dev
 ```
 
-### 构建生产版本
+### 部署
 ```bash
 npm run build
+git push origin main
+# GitHub Actions 自动部署
 ```
 
-## 📁 项目结构
+## 📊 数据说明
 
-```
-manifestos/
-├── src/
-│   ├── components/        # 可复用组件
-│   │   ├── ui/           # 基础UI组件
-│   │   ├── layout/       # 布局组件
-│   │   ├── task/         # 任务相关组件
-│   │   ├── growth/       # 成长相关组件
-│   │   └── voice/        # 语音交互组件
-│   ├── pages/            # 页面组件
-│   ├── stores/           # Zustand状态管理
-│   ├── services/         # API服务
-│   │   ├── supabase/    # Supabase服务
-│   │   ├── ai/          # AI服务
-│   │   └── voice/       # 语音服务
-│   ├── hooks/            # 自定义Hooks
-│   ├── utils/            # 工具函数
-│   ├── types/            # TypeScript类型定义
-│   ├── constants/        # 常量定义
-│   └── styles/           # 全局样式
-├── public/               # 静态资源
-└── supabase/            # Supabase配置和迁移
-```
+### 存储位置
+- **本地**：浏览器 localStorage（离线可用）
+- **云端**：Supabase（多端同步）
 
-## 🎨 设计系统
+### 数据安全
+- 每个用户的数据通过user_id隔离
+- 不同用户看不到彼此的数据
+- HTTPS加密传输
 
-### 色彩系统
-- **主色调**: 复古高饱和红色 (#991B1B)
-- **辅助色**: 紫色 (#7C3AED)
-- **成功色**: 绿色 (#047857)
-- **警告色**: 橙色 (#d97706)
+## 🐛 常见问题
 
-### 字体系统
-- **主字体**: SF Pro Display
-- **备用字体**: Inter
-- **字号**: 12/14/16/20/24/32/40px
+### Q: 白屏打不开？
+A: 清除浏览器缓存（Ctrl+Shift+Delete），然后刷新
 
-### 间距系统
-- **基础单位**: 8px
-- **间距尺度**: 8/16/24/32/40/48/64/80/96px
+### Q: 数据不同步？
+A: 
+1. 确认用的是相同邮箱登录
+2. 刷新页面
+3. 查看浏览器控制台（F12）是否有错误
 
-## 📊 数据模型
+### Q: 忘记密码？
+A: 目前需要重新注册（未来会添加密码重置功能）
 
-详见 `supabase/schema.sql` 文件，包含以下核心表：
-- `users` - 用户表
-- `tasks` - 任务表
-- `growth_dimensions` - 成长维度表
-- `long_term_goals` - 长期目标表
-- `identity_levels` - 身份层级表
-- `bad_habits` - 坏习惯记录表
-- `gold_transactions` - 金币交易表
-- `sync_logs` - 同步日志表
+### Q: 如何导出数据？
+A: 在Supabase后台的Table Editor中可以导出CSV
 
-## 🔐 安全与隐私
+## 📞 技术支持
 
-- 端到端加密的数据同步
-- 本地优先的数据存储
-- 一次性同步码系统
-- 可随时撤销的设备授权
-- 符合GDPR和中国网络安全法
+- **GitHub**：https://github.com/qiyufeng1127/my-jarvis
+- **Issues**：https://github.com/qiyufeng1127/my-jarvis/issues
 
-## 📝 开发计划
+## 🎯 核心文件说明
 
-- [x] 项目基础架构
-- [ ] Supabase数据库设置
-- [ ] 核心状态管理
-- [ ] 设计系统和组件库
-- [ ] 语音交互系统
-- [ ] 成长系统
-- [ ] 任务管理系统
-- [ ] 金币经济系统
-- [ ] 坏习惯追踪
-- [ ] 多设备同步
+### 前端组件
+- `src/components/auth/EmailAuth.tsx` - 邮箱登录
+- `src/components/layout/MobileLayout.tsx` - 移动端布局
+- `src/components/dashboard/CustomizableDashboard.tsx` - 桌面端布局
+- `src/components/calendar/NewTimelineView.tsx` - 时间轴视图
 
-## 📄 许可证
+### 数据管理
+- `src/stores/goldStore.ts` - 金币系统
+- `src/stores/taskStore.ts` - 任务管理
+- `src/stores/goalStore.ts` - 目标追踪
 
-MIT License
-
-## 👥 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
-## 📧 联系方式
-
-如有问题或建议，请通过 Issue 联系我们。
+### 配置
+- `src/lib/supabase.ts` - Supabase客户端
+- `vite.config.ts` - Vite配置
+- `.github/workflows/deploy.yml` - 自动部署
 
 ---
 
-**让每一天都成为成长的一天 🌱**
-
+**版本**：v1.5.0  
+**最后更新**：2026-02-04  
+**推送次数**：681
