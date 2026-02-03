@@ -2,26 +2,26 @@
   "name": "ManifestOS - 我要变好",
   "short_name": "ManifestOS",
   "description": "大女主成长操作系统，让每一个日常行动都转化为通往理想自我的坚实步伐",
-  "start_url": "/",
+  "start_url": "/my-jarvis/",
   "display": "standalone",
   "background_color": "#e2d9bc",
   "theme_color": "#e2d9bc",
   "orientation": "portrait",
-  "scope": "/",
   "icons": [
     {
-      "src": "/icon-192.png",
+      "src": "/my-jarvis/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icon-512.png",
+      "src": "/my-jarvis/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     }
   ],
   "categories": ["productivity", "lifestyle"],
-  "screenshots": []
+  "lang": "zh-CN",
+  "dir": "ltr"
 }

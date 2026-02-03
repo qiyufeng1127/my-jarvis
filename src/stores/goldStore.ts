@@ -190,12 +190,15 @@ export const useGoldStore = create<GoldState>()(
         set({ isSyncing: true });
         
         try {
-          const userId = await getAuthUserId();
-          if (!userId) {
+          // 获取当前登录用户
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) {
             console.log('⚠️ 未登录，跳过云端同步');
             set({ isSyncing: false });
             return;
           }
+          
+          const userId = session.user.id;
           
           // 保存金币数据到云端
           const { error } = await supabase
@@ -233,11 +236,14 @@ export const useGoldStore = create<GoldState>()(
         }
         
         try {
-          const userId = await getAuthUserId();
-          if (!userId) {
+          // 获取当前登录用户
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) {
             console.log('⚠️ 未登录，使用本地数据');
             return;
           }
+          
+          const userId = session.user.id;
           
           const { data, error } = await supabase
             .from('gold_data')
@@ -247,7 +253,7 @@ export const useGoldStore = create<GoldState>()(
           
           if (error) {
             if (error.code === 'PGRST116') {
-              console.log('ℹ️ 云端暂无金币数据');
+              console.log('ℹ️ 云端暂无金币数据，将在下次操作时同步');
             } else {
               console.error('❌ 加载金币数据失败:', error);
             }

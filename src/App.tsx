@@ -1,7 +1,8 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useUserStore } from '@/stores/userStore';
 import { useGoldStore } from '@/stores/goldStore';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 // 页面组件（稍后创建）
 import Dashboard from '@/pages/Dashboard';
@@ -13,14 +14,68 @@ import NotificationToast from '@/components/notifications/NotificationToast';
 function App() {
   const { user, initializeUser } = useUserStore();
   const { loadFromCloud } = useGoldStore();
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    // 初始化用户
+    // 检查用户是否已登录
+    const checkAuth = async () => {
+      if (!isSupabaseConfigured()) {
+        console.log('⚠️ Supabase 未配置');
+        setIsCheckingAuth(false);
+        return;
+      }
+
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          console.log('✅ 用户已登录:', session.user.email);
+          setIsAuthenticated(true);
+          // 从云端加载数据
+          await loadFromCloud();
+        } else {
+          console.log('ℹ️ 用户未登录');
+          setIsAuthenticated(false);
+        }
+      } catch (error) {
+        console.error('❌ 检查登录状态失败:', error);
+        setIsAuthenticated(false);
+      } finally {
+        setIsCheckingAuth(false);
+      }
+    };
+
+    checkAuth();
     initializeUser();
-    
-    // 从云端加载金币数据
-    loadFromCloud();
+
+    // 监听认证状态变化
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔐 认证状态变化:', event);
+      if (session) {
+        setIsAuthenticated(true);
+        // 登录成功后加载云端数据
+        await loadFromCloud();
+      } else {
+        setIsAuthenticated(false);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [initializeUser, loadFromCloud]);
+
+  // 加载中状态
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-neutral-600">加载中...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Router>
@@ -29,8 +84,8 @@ function App() {
         <NotificationToast />
         
         <Routes>
-          {/* 如果没有用户，显示欢迎页 */}
-          {!user ? (
+          {/* 如果没有登录，显示欢迎页 */}
+          {!isAuthenticated ? (
             <Route path="*" element={<Welcome />} />
           ) : (
             <>
