@@ -7,6 +7,7 @@ import NotificationSettingsPanel from '@/components/settings/NotificationSetting
 import { MoneyTracker } from '@/components/money';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
+import { useGoldStore } from '@/stores/goldStore';
 import { TrendingUp, Target, CheckCircle, Clock, ShoppingBag, History, Plus } from 'lucide-react';
 import { useState } from 'react';
 
@@ -49,6 +50,7 @@ export function TasksModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: 
 
 // 金币经济模块
 export function GoldModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: boolean; bgColor?: string }) {
+  const { balance, todayEarned, todaySpent, transactions, getTodayTransactions } = useGoldStore();
   const [showShop, setShowShop] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showAddReward, setShowAddReward] = useState(false);
@@ -64,6 +66,9 @@ export function GoldModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: b
   const textColor = isDark ? '#ffffff' : '#000000';
   const accentColor = isDark ? 'rgba(255,255,255,0.7)' : '#666666';
   const buttonBg = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)';
+  
+  // 获取今日交易记录
+  const todayTransactions = getTodayTransactions();
 
   // 根据文案智能生成图标
   const generateIcon = (text: string): string => {
@@ -142,9 +147,6 @@ export function GoldModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: b
     ],
     reward: customRewards,
   };
-
-  // 交易记录
-  const transactions: any[] = [];
 
   // 添加奖励弹窗
   if (showAddReward) {
@@ -273,7 +275,7 @@ export function GoldModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: b
         {/* 余额显示 */}
         <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
           <div className="text-sm" style={{ color: accentColor }}>当前余额</div>
-          <div className="text-2xl font-bold" style={{ color: textColor }}>0 💰</div>
+          <div className="text-2xl font-bold" style={{ color: textColor }}>{balance} 💰</div>
         </div>
 
         {/* 分类标签 */}
@@ -381,9 +383,32 @@ export function GoldModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: b
         </div>
 
         {/* 交易列表 */}
-        <div className="rounded-lg p-4 text-center" style={{ backgroundColor: cardBg }}>
-          <div className="text-sm" style={{ color: accentColor }}>暂无交易记录</div>
-        </div>
+        {transactions.length === 0 ? (
+          <div className="rounded-lg p-4 text-center" style={{ backgroundColor: cardBg }}>
+            <div className="text-sm" style={{ color: accentColor }}>暂无交易记录</div>
+          </div>
+        ) : (
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {transactions.map((transaction) => (
+              <div key={transaction.id} className="rounded-lg p-3" style={{ backgroundColor: cardBg }}>
+                <div className="flex items-start justify-between mb-1">
+                  <div className="flex-1">
+                    <div className="text-sm font-medium" style={{ color: textColor }}>{transaction.reason}</div>
+                    {transaction.taskTitle && (
+                      <div className="text-xs mt-1" style={{ color: accentColor }}>任务：{transaction.taskTitle}</div>
+                    )}
+                  </div>
+                  <div className={`text-base font-bold ${transaction.type === 'earn' ? 'text-green-500' : 'text-red-500'}`}>
+                    {transaction.type === 'earn' ? '+' : '-'}{transaction.amount}
+                  </div>
+                </div>
+                <div className="text-xs" style={{ color: accentColor }}>
+                  {new Date(transaction.timestamp).toLocaleString('zh-CN')}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -393,15 +418,15 @@ export function GoldModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: b
       {/* 金币余额卡片 */}
       <div className="rounded-lg p-6" style={{ backgroundColor: cardBg }}>
         <div className="text-sm mb-2" style={{ color: accentColor }}>金币余额</div>
-        <div className="text-4xl font-bold mb-4" style={{ color: textColor }}>0 💰</div>
+        <div className="text-4xl font-bold mb-4" style={{ color: textColor }}>{balance} 💰</div>
         <div className="flex justify-between text-sm">
           <div>
             <div style={{ color: accentColor }}>今日收入</div>
-            <div className="font-semibold" style={{ color: textColor }}>+0</div>
+            <div className="font-semibold" style={{ color: textColor }}>+{todayEarned}</div>
           </div>
           <div>
             <div style={{ color: accentColor }}>今日支出</div>
-            <div className="font-semibold" style={{ color: textColor }}>-0</div>
+            <div className="font-semibold" style={{ color: textColor }}>-{todaySpent}</div>
           </div>
         </div>
       </div>
@@ -429,9 +454,27 @@ export function GoldModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: b
       {/* 最近交易 */}
       <div className="space-y-2">
         <h4 className="font-semibold text-sm" style={{ color: textColor }}>最近交易</h4>
-        <div className="rounded-lg p-4 text-center" style={{ backgroundColor: cardBg }}>
-          <div className="text-sm" style={{ color: accentColor }}>暂无交易记录</div>
-        </div>
+        {todayTransactions.length === 0 ? (
+          <div className="rounded-lg p-4 text-center" style={{ backgroundColor: cardBg }}>
+            <div className="text-sm" style={{ color: accentColor }}>暂无交易记录</div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {todayTransactions.slice(0, 5).map((transaction) => (
+              <div key={transaction.id} className="rounded-lg p-3 flex items-center justify-between" style={{ backgroundColor: cardBg }}>
+                <div className="flex-1">
+                  <div className="text-sm font-medium" style={{ color: textColor }}>{transaction.reason}</div>
+                  <div className="text-xs" style={{ color: accentColor }}>
+                    {new Date(transaction.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+                <div className={`text-sm font-bold ${transaction.type === 'earn' ? 'text-green-500' : 'text-red-500'}`}>
+                  {transaction.type === 'earn' ? '+' : '-'}{transaction.amount}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

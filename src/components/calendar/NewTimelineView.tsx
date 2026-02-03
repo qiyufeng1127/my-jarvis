@@ -16,6 +16,8 @@ import {
 import TaskVerificationDialog from './TaskVerificationDialog';
 import NowTimeline from './NowTimeline';
 import { useAIStore } from '@/stores/aiStore';
+import { useGoldStore } from '@/stores/goldStore';
+import CelebrationEffect from '@/components/effects/CelebrationEffect';
 
 interface NewTimelineViewProps {
   tasks: Task[];
@@ -83,6 +85,13 @@ export default function NewTimelineView({
   // 使用 AI Store 获取 API 配置
   const { config, isConfigured } = useAIStore();
   
+  // 使用金币系统
+  const { addGold, penaltyGold } = useGoldStore();
+  
+  // 庆祝效果状态
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationGold, setCelebrationGold] = useState(0);
+  
   // 判断颜色是否为深色
   const isColorDark = (color: string): boolean => {
     const hex = color.replace('#', '');
@@ -101,17 +110,90 @@ export default function NewTimelineView({
   // 使用真实任务（不再需要示范任务）
   const allTasks = tasks;
 
-  // 任务类别颜色（根据设计图）
-  const categoryColors: Record<string, string> = {
-    work: '#C85A7C',      // 玫红色 - 工作
-    study: '#C85A7C',     // 玫红色 - 学习/运营
-    health: '#6BA56D',    // 绿色 - 健康
-    life: '#8B1538',      // 深红色 - 生活
-    social: '#C85A7C',    // 玫红色 - 社交
-    finance: '#8B1538',   // 深红色 - 财务
-    creative: '#C85A7C',  // 玫红色 - 创意
-    rest: '#6BA56D',      // 绿色 - 休息
-    other: '#C85A7C',     // 玫红色 - 其他
+  // 根据任务内容智能分配颜色
+  const getTaskColor = (task: Task): string => {
+    const title = task.title.toLowerCase();
+    const tags = task.tags || [];
+    const description = (task.description || '').toLowerCase();
+    
+    // 1. 家务类 - 蓝色系
+    if (
+      title.includes('收拾') || title.includes('打扫') || title.includes('整理') ||
+      title.includes('洗碗') || title.includes('做饭') || title.includes('垃圾') ||
+      title.includes('厨房') || title.includes('客厅') || title.includes('卧室') ||
+      tags.some(t => t.includes('家务') || t.includes('清洁'))
+    ) {
+      return '#4A90E2'; // 蓝色
+    }
+    
+    // 2. 照相馆工作 - 紫色系
+    if (
+      title.includes('照相馆') || title.includes('小红书') || title.includes('拍照') ||
+      title.includes('修图') || title.includes('摄影') ||
+      tags.some(t => t.includes('照相馆') || t.includes('摄影'))
+    ) {
+      return '#9B59B6'; // 紫色
+    }
+    
+    // 3. 文创设计工作 - 橙色系
+    if (
+      title.includes('设计') || title.includes('文创') || title.includes('创意') ||
+      title.includes('作品') || title.includes('绘画') ||
+      tags.some(t => t.includes('设计') || t.includes('文创') || t.includes('创意'))
+    ) {
+      return '#E67E22'; // 橙色
+    }
+    
+    // 4. 学习成长 - 绿色系
+    if (
+      title.includes('学习') || title.includes('读书') || title.includes('课程') ||
+      title.includes('成长') || title.includes('技能') ||
+      tags.some(t => t.includes('学习') || t.includes('成长') || t.includes('读书'))
+    ) {
+      return '#27AE60'; // 绿色
+    }
+    
+    // 5. 日常生活 - 粉色系
+    if (
+      title.includes('起床') || title.includes('洗漱') || title.includes('吃饭') ||
+      title.includes('睡觉') || title.includes('休息') ||
+      tags.some(t => t.includes('生活') || t.includes('日常'))
+    ) {
+      return '#E91E63'; // 粉色
+    }
+    
+    // 6. 自我管理 - 青色系
+    if (
+      title.includes('计划') || title.includes('总结') || title.includes('反思') ||
+      title.includes('目标') || title.includes('管理') ||
+      tags.some(t => t.includes('管理') || t.includes('计划'))
+    ) {
+      return '#00BCD4'; // 青色
+    }
+    
+    // 7. 其他创业事项 - 红色系
+    if (
+      title.includes('创业') || title.includes('运营') || title.includes('推广') ||
+      title.includes('营销') || title.includes('ins') || title.includes('穿搭') ||
+      tags.some(t => t.includes('创业') || t.includes('运营'))
+    ) {
+      return '#C85A7C'; // 玫红色
+    }
+    
+    // 8. 默认：根据任务类型
+    const categoryColors: Record<string, string> = {
+      work: '#C85A7C',      // 玫红色 - 工作
+      study: '#27AE60',     // 绿色 - 学习
+      health: '#27AE60',    // 绿色 - 健康
+      life: '#E91E63',      // 粉色 - 生活
+      social: '#C85A7C',    // 玫红色 - 社交
+      finance: '#E67E22',   // 橙色 - 财务
+      creative: '#E67E22',  // 橙色 - 创意
+      rest: '#27AE60',      // 绿色 - 休息
+      other: '#4A90E2',     // 蓝色 - 其他
+    };
+    
+    return categoryColors[task.taskType] || '#4A90E2';
   };
 
   // 根据任务类型获取标签
@@ -137,14 +219,46 @@ export default function NewTimelineView({
     return tags.slice(0, 3); // 最多显示3个标签
   };
 
-  // 根据任务标题获取 emoji
+  // 根据任务标题智能获取 emoji
   const getTaskEmoji = (title: string): string => {
-    if (title.includes('起床') || title.includes('衣服')) return '👔';
-    if (title.includes('ins') || title.includes('穿搭')) return '👗';
-    if (title.includes('照相馆') || title.includes('小红书')) return '💄';
-    if (title.includes('运动') || title.includes('健身')) return '💪';
-    if (title.includes('学习') || title.includes('读书')) return '📚';
-    return '📝';
+    const lowerTitle = title.toLowerCase();
+    
+    // 家务类
+    if (lowerTitle.includes('客厅')) return '🛋️';
+    if (lowerTitle.includes('垃圾')) return '🗑️';
+    if (lowerTitle.includes('打扫') || lowerTitle.includes('清洁')) return '🧹';
+    if (lowerTitle.includes('洗碗')) return '🍽️';
+    if (lowerTitle.includes('做饭') || lowerTitle.includes('厨房')) return '🍳';
+    if (lowerTitle.includes('卧室')) return '🛏️';
+    if (lowerTitle.includes('整理') || lowerTitle.includes('收拾')) return '📦';
+    
+    // 工作类
+    if (lowerTitle.includes('照相馆') || lowerTitle.includes('摄影')) return '📷';
+    if (lowerTitle.includes('小红书')) return '📱';
+    if (lowerTitle.includes('设计')) return '🎨';
+    if (lowerTitle.includes('文创')) return '✨';
+    if (lowerTitle.includes('创意')) return '💡';
+    
+    // 学习类
+    if (lowerTitle.includes('学习') || lowerTitle.includes('读书')) return '📚';
+    if (lowerTitle.includes('课程')) return '🎓';
+    if (lowerTitle.includes('写作')) return '✍️';
+    
+    // 生活类
+    if (lowerTitle.includes('起床')) return '⏰';
+    if (lowerTitle.includes('衣服') || lowerTitle.includes('穿搭')) return '👗';
+    if (lowerTitle.includes('运动') || lowerTitle.includes('健身')) return '💪';
+    if (lowerTitle.includes('吃饭')) return '🍽️';
+    if (lowerTitle.includes('睡觉')) return '😴';
+    
+    // 创业类
+    if (lowerTitle.includes('ins')) return '📸';
+    if (lowerTitle.includes('运营')) return '📊';
+    if (lowerTitle.includes('推广')) return '📢';
+    if (lowerTitle.includes('营销')) return '💼';
+    
+    // 默认
+    return '✅';
   };
 
   // 根据任务获取关联目标文本
@@ -180,8 +294,8 @@ export default function NewTimelineView({
         '使用换好衣服的模特换背景和动作',
       ] : [];
       
-      // 使用任务自带的颜色、标签、金币，如果没有则使用默认值
-      const taskColor = task.color || categoryColors[task.taskType] || categoryColors.other;
+      // 使用任务自带的颜色、标签、金币，如果没有则使用智能分配
+      const taskColor = task.color || getTaskColor(task);
       const taskTags = task.tags && task.tags.length > 0 ? task.tags : getTaskTags(task.taskType, task.title);
       const taskGold = task.goldReward || Math.floor((task.durationMinutes || 60) * 0.8);
       
@@ -609,6 +723,10 @@ export default function NewTimelineView({
             
             const now = new Date();
             
+            // 计算启动金币奖励（任务总金币的40%）
+            const totalGold = task.goldReward || Math.floor((task.durationMinutes || 60) * 0.8);
+            const startGold = Math.round(totalGold * 0.4);
+            
             // 更新验证状态
             setTaskVerifications(prev => ({
               ...prev,
@@ -617,6 +735,7 @@ export default function NewTimelineView({
                 status: 'started',
                 actualStartTime: now,
                 startFailedAttempts: 0,
+                startGoldEarned: startGold,
               },
             }));
             
@@ -624,8 +743,15 @@ export default function NewTimelineView({
             SoundEffects.playSuccessSound();
             SoundEffects.playCoinSound();
             
+            // 添加金币
+            addGold(startGold, `启动任务：${task.title}`, taskId, task.title);
+            
+            // 显示庆祝效果
+            setCelebrationGold(startGold);
+            setShowCelebration(true);
+            
             // 语音祝贺
-            VoiceReminder.congratulateCompletion(task.title, 10);
+            VoiceReminder.congratulateCompletion(task.title, startGold);
             
             // 更新任务状态
             onTaskUpdate(taskId, { status: 'in_progress' });
@@ -649,6 +775,7 @@ export default function NewTimelineView({
               // 连续三次失败，播放警报
               SoundEffects.playAlarmSound();
               VoiceReminder.speak('连续三次验证失败！扣除50金币！请认真完成任务！');
+              penaltyGold(50, `启动验证失败：${task.title}`, taskId, task.title);
               alert('⚠️ 连续三次验证失败！扣除50金币！');
             } else {
               alert(`❌ 验证失败！请重新拍摄包含以下内容的照片：\n${verification.startKeywords.join('、')}\n\n剩余尝试次数：${3 - newFailedAttempts}`);
@@ -724,6 +851,9 @@ export default function NewTimelineView({
             // 检查是否提前完成
             const isEarlyCompletion = scheduledEnd && now < scheduledEnd;
             
+            // 计算金币奖励
+            const goldReward = task.goldReward || Math.floor((task.durationMinutes || 60) * 0.8);
+            
             // 更新验证状态
             setTaskVerifications(prev => ({
               ...prev,
@@ -739,11 +869,18 @@ export default function NewTimelineView({
             SoundEffects.playSuccessSound();
             SoundEffects.playCoinSound();
             
+            // 添加金币
+            addGold(goldReward, `完成任务：${task.title}`, taskId, task.title);
+            
+            // 显示庆祝效果
+            setCelebrationGold(goldReward);
+            setShowCelebration(true);
+            
             // 语音祝贺
             if (isEarlyCompletion) {
-              VoiceReminder.congratulateEarlyCompletion(task.title, 20);
+              VoiceReminder.congratulateEarlyCompletion(task.title, goldReward);
             } else {
-              VoiceReminder.congratulateCompletion(task.title, 10);
+              VoiceReminder.congratulateCompletion(task.title, goldReward);
             }
             
             // 更新任务状态为已完成
@@ -785,6 +922,7 @@ export default function NewTimelineView({
             if (newFailedAttempts >= 3) {
               SoundEffects.playAlarmSound();
               VoiceReminder.speak('连续三次验证失败！扣除50金币！请认真完成任务！');
+              penaltyGold(50, `完成验证失败：${task.title}`, taskId, task.title);
               alert('⚠️ 连续三次验证失败！扣除50金币！');
             } else {
               alert(`❌ 验证失败！请重新拍摄包含以下内容的照片：\n${verification.completionKeywords.join('、')}\n\n剩余尝试次数：${3 - newFailedAttempts}`);
@@ -797,6 +935,19 @@ export default function NewTimelineView({
       input.click();
     } else {
       // 无需验证，直接完成
+      const goldReward = task.goldReward || Math.floor((task.durationMinutes || 60) * 0.8);
+      
+      // 添加金币
+      addGold(goldReward, `完成任务：${task.title}`, taskId, task.title);
+      
+      // 显示庆祝效果
+      setCelebrationGold(goldReward);
+      setShowCelebration(true);
+      
+      // 播放音效
+      SoundEffects.playSuccessSound();
+      SoundEffects.playCoinSound();
+      
       onTaskUpdate(taskId, { status: 'completed' });
     }
   };
@@ -837,6 +988,13 @@ export default function NewTimelineView({
 
   return (
     <div className="space-y-3 pb-4 relative">
+      {/* 庆祝效果 */}
+      <CelebrationEffect 
+        show={showCelebration} 
+        goldAmount={celebrationGold}
+        onComplete={() => setShowCelebration(false)}
+      />
+      
       {/* NOW时间线 */}
       <NowTimeline 
         timeBlocks={timeBlocks.map(block => ({
