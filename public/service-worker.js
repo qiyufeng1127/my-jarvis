@@ -26,15 +26,15 @@ self.addEventListener('activate', (event) => {
   console.log('Service Worker 激活中...');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
+        return Promise.all(
+          cacheNames.map((cacheName) => {
+            if (cacheName !== CACHE_NAME) {
             console.log('删除旧缓存:', cacheName);
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
+              return caches.delete(cacheName);
+            }
+          })
+        );
+      })
   );
   return self.clients.claim();
 });
@@ -46,13 +46,13 @@ self.addEventListener('fetch', (event) => {
       .then((response) => {
         // 只缓存成功的响应
         if (response && response.status === 200) {
-          const responseToCache = response.clone();
+            const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
+                cache.put(event.request, responseToCache);
+              });
         }
-        return response;
-      })
+            return response;
+          })
       .catch(() => {
         // 网络失败时从缓存中获取
         return caches.match(event.request);

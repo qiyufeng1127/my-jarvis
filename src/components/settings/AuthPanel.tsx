@@ -136,7 +136,7 @@ export default function AuthPanel({ isDark = false, bgColor = '#ffffff' }: AuthP
   return (
     <div className="space-y-4">
       <h4 className="font-semibold text-base" style={{ color: textColor }}>🔐 账号登录</h4>
-      
+
       {/* 说明 */}
       <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
         <div className="text-sm mb-2" style={{ color: textColor }}>💡 登录后可享受</div>
@@ -152,9 +152,9 @@ export default function AuthPanel({ isDark = false, bgColor = '#ffffff' }: AuthP
         <div className="text-sm mb-2" style={{ color: textColor }}>👤 当前：游客模式</div>
         <div className="text-xs leading-relaxed" style={{ color: accentColor }}>
           您可以正常使用所有功能，数据保存在本地浏览器中。登录后可实现多设备同步。
-        </div>
-      </div>
-      
+            </div>
+          </div>
+
       {/* 登录表单 */}
       <div style={{ 
         backgroundColor: cardBg,
