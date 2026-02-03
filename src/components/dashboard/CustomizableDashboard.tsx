@@ -29,6 +29,8 @@ import PanoramaMemory from '@/components/memory/PanoramaMemory';
 import TaskInbox from '@/components/inbox/TaskInbox';
 import { supabase, isSupabaseConfigured, getCurrentUserId } from '@/lib/supabase';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
+import { useGoldStore } from '@/stores/goldStore';
+import GitHubCommitBadge from '@/components/ui/GitHubCommitBadge';
 
 interface Module {
   id: string;
@@ -208,11 +210,14 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
   // 从副业追踪器获取余额数据
   const { getTotalProfit, loadSideHustles } = useSideHustleStore();
   const assetBalance = getTotalProfit(); // 总利润作为余额
+  
+  // 从金币Store获取余额
+  const { balance: goldBalance } = useGoldStore();
 
   // 顶部状态栏元素的位置和拖动状态
   const [topBarItems, setTopBarItems] = useState<Array<{
     id: string;
-    type: 'identity' | 'growth' | 'habits' | 'gold' | 'balance' | 'image';
+    type: 'identity' | 'growth' | 'habits' | 'gold' | 'balance' | 'image' | 'github';
     position: { x: number; y: number };
     imageUrl?: string;
     customSize?: { width: number; height: number };
@@ -221,7 +226,8 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
     { id: 'growth', type: 'growth', position: { x: 220, y: 0 } },
     { id: 'balance', type: 'balance', position: { x: 440, y: 0 } },
     { id: 'habits', type: 'habits', position: { x: 680, y: 0 } },
-    { id: 'gold', type: 'gold', position: { x: 1100, y: 0 } },
+    { id: 'gold', type: 'gold', position: { x: 900, y: 0 } },
+    { id: 'github', type: 'github', position: { x: 1150, y: 0 } },
   ]);
   const [draggingTopBarItem, setDraggingTopBarItem] = useState<string | null>(null);
   const [topBarDragOffset, setTopBarDragOffset] = useState({ x: 0, y: 0 });
@@ -962,9 +968,26 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                       <div className="text-2xl">💰</div>
                       <div>
                         <div className="text-sm text-black font-semibold tracking-wide">BALANCE</div>
-                        <div className="text-xl font-bold text-black">0</div>
+                        <div className="text-xl font-bold text-black">{goldBalance}</div>
                       </div>
                     </button>
+                  </div>
+                );
+              }
+
+              if (item.type === 'github') {
+                return (
+                  <div
+                    key={item.id}
+                    className="absolute"
+                    style={{
+                      left: item.position.x,
+                      top: item.position.y,
+                      cursor: draggingTopBarItem === item.id ? 'grabbing' : 'grab',
+                    }}
+                    onMouseDown={(e) => handleTopBarDragStart(item.id, e)}
+                  >
+                    <GitHubCommitBadge />
                   </div>
                 );
               }

@@ -1,0 +1,326 @@
+/* 移动端响应式样式 */
+
+/* 基础响应式断点 */
+@media (max-width: 768px) {
+  /* 全局字体调整 */
+  html {
+    font-size: 14px;
+  }
+
+  /* 容器内边距调整 */
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  /* 按钮尺寸调整 */
+  button {
+    min-height: 44px; /* iOS 推荐的最小触摸目标 */
+    padding: 0.75rem 1rem;
+  }
+
+  /* 输入框调整 */
+  input,
+  textarea,
+  select {
+    font-size: 16px; /* 防止 iOS 自动缩放 */
+    padding: 0.75rem;
+  }
+
+  /* 卡片间距调整 */
+  .card {
+    margin-bottom: 1rem;
+  }
+
+  /* 模态框全屏显示 */
+  .modal {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 0;
+  }
+
+  /* 表格横向滚动 */
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* 图片响应式 */
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* 导航栏固定在底部 */
+  .mobile-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    padding-bottom: env(safe-area-inset-bottom); /* iOS 安全区域 */
+  }
+
+  /* 主内容区域留出底部导航栏空间 */
+  .main-content {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  }
+
+  /* 顶部状态栏留出刘海屏空间 */
+  .top-bar {
+    padding-top: max(12px, env(safe-area-inset-top));
+  }
+
+  /* 滚动容器优化 */
+  .scroll-container {
+    -webkit-overflow-scrolling: touch;
+    overflow-y: auto;
+  }
+
+  /* 禁用文本选择（提升触摸体验） */
+  .no-select {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* 触摸反馈 */
+  .touchable {
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+  }
+
+  /* 隐藏桌面端元素 */
+  .desktop-only {
+    display: none !important;
+  }
+
+  /* 显示移动端元素 */
+  .mobile-only {
+    display: block !important;
+  }
+}
+
+/* 小屏手机（iPhone SE 等） */
+@media (max-width: 375px) {
+  html {
+    font-size: 13px;
+  }
+
+  .container {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+}
+
+/* 大屏手机和平板 */
+@media (min-width: 768px) and (max-width: 1024px) {
+  html {
+    font-size: 15px;
+  }
+
+  /* 平板可以显示更多内容 */
+  .tablet-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+}
+
+/* 横屏模式 */
+@media (max-width: 768px) and (orientation: landscape) {
+  /* 减少垂直间距 */
+  .card {
+    margin-bottom: 0.5rem;
+  }
+
+  /* 导航栏更紧凑 */
+  .mobile-nav {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+}
+
+/* iOS 特定样式 */
+@supports (-webkit-touch-callout: none) {
+  /* 禁用长按菜单 */
+  .no-callout {
+    -webkit-touch-callout: none;
+  }
+
+  /* 平滑滚动 */
+  .smooth-scroll {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Android 特定样式 */
+@media (max-width: 768px) {
+  /* 优化 Android 滚动性能 */
+  .scroll-container {
+    will-change: scroll-position;
+  }
+}
+
+/* 暗色模式支持 */
+@media (prefers-color-scheme: dark) {
+  /* 暗色模式下的样式调整 */
+  .card {
+    background-color: #1f2937;
+    color: #f9fafb;
+  }
+
+  .modal {
+    background-color: #111827;
+  }
+}
+
+/* 减少动画（用户偏好） */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* 高对比度模式 */
+@media (prefers-contrast: high) {
+  button {
+    border: 2px solid currentColor;
+  }
+
+  .card {
+    border: 2px solid currentColor;
+  }
+}
+
+/* 触摸设备优化 */
+@media (hover: none) and (pointer: coarse) {
+  /* 增大可点击区域 */
+  a,
+  button,
+  .clickable {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* 移除 hover 效果 */
+  .hover-effect:hover {
+    transform: none;
+  }
+
+  /* 添加 active 效果 */
+  .touchable:active {
+    opacity: 0.7;
+    transform: scale(0.98);
+  }
+}
+
+/* 安全区域适配 */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-area-left {
+  padding-left: env(safe-area-inset-left);
+}
+
+.safe-area-right {
+  padding-right: env(safe-area-inset-right);
+}
+
+/* 全屏模式 */
+.fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+}
+
+/* 加载状态 */
+.loading-skeleton {
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 25%,
+    #e0e0e0 50%,
+    #f0f0f0 75%
+  );
+  background-size: 200% 100%;
+  animation: loading 1.5s ease-in-out infinite;
+}
+
+@keyframes loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* 下拉刷新指示器 */
+.pull-to-refresh {
+  position: absolute;
+  top: -60px;
+  left: 0;
+  right: 0;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.3s ease;
+}
+
+.pull-to-refresh.active {
+  transform: translateY(60px);
+}
+
+/* 底部安全区域占位 */
+.bottom-spacer {
+  height: calc(80px + env(safe-area-inset-bottom));
+}
+
+/* 虚拟键盘适配 */
+@media (max-width: 768px) {
+  /* 当虚拟键盘弹出时，调整视口 */
+  .keyboard-open {
+    height: 100vh;
+    height: -webkit-fill-available;
+  }
+}
+
+/* 手势操作区域 */
+.swipeable {
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 防止双击缩放 */
+.no-zoom {
+  touch-action: manipulation;
+}
+
+/* 优化滚动性能 */
+.optimized-scroll {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  will-change: scroll-position;
+  transform: translateZ(0);
+}
+
+/* 固定定位元素优化 */
+.fixed-optimized {
+  position: fixed;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+

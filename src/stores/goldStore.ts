@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { supabase, isSupabaseConfigured, getCurrentUserId, getAuthUserId } from '@/lib/supabase';
 
 export interface GoldTransaction {
   id: string;
@@ -17,13 +18,17 @@ interface GoldState {
   todaySpent: number; // 今日支出
   transactions: GoldTransaction[]; // 交易记录
   lastResetDate: string; // 上次重置日期（用于每日重置）
+  isSyncing: boolean; // 是否正在同步
+  lastSyncTime: number; // 上次同步时间戳
   
   // Actions
-  addGold: (amount: number, reason: string, taskId?: string, taskTitle?: string) => void;
-  spendGold: (amount: number, reason: string) => void;
-  penaltyGold: (amount: number, reason: string, taskId?: string, taskTitle?: string) => void;
+  addGold: (amount: number, reason: string, taskId?: string, taskTitle?: string) => Promise<void>;
+  spendGold: (amount: number, reason: string) => Promise<void>;
+  penaltyGold: (amount: number, reason: string, taskId?: string, taskTitle?: string) => Promise<void>;
   getTodayTransactions: () => GoldTransaction[];
   resetDailyStats: () => void;
+  syncToCloud: () => Promise<void>;
+  loadFromCloud: () => Promise<void>;
 }
 
 export const useGoldStore = create<GoldState>()(
@@ -34,8 +39,10 @@ export const useGoldStore = create<GoldState>()(
       todaySpent: 0,
       transactions: [],
       lastResetDate: new Date().toDateString(),
+      isSyncing: false,
+      lastSyncTime: 0,
       
-      addGold: (amount, reason, taskId, taskTitle) => {
+      addGold: async (amount, reason, taskId, taskTitle) => {
         const transaction: GoldTransaction = {
           id: crypto.randomUUID(),
           type: 'earn',
@@ -67,9 +74,12 @@ export const useGoldStore = create<GoldState>()(
         });
         
         console.log(`💰 获得金币: +${amount} (${reason})`);
+        
+        // 同步到云端
+        await get().syncToCloud();
       },
       
-      spendGold: (amount, reason) => {
+      spendGold: async (amount, reason) => {
         const state = get();
         if (state.balance < amount) {
           console.warn('⚠️ 金币余额不足');
@@ -105,9 +115,12 @@ export const useGoldStore = create<GoldState>()(
         });
         
         console.log(`💸 消费金币: -${amount} (${reason})`);
+        
+        // 同步到云端
+        await get().syncToCloud();
       },
       
-      penaltyGold: (amount, reason, taskId, taskTitle) => {
+      penaltyGold: async (amount, reason, taskId, taskTitle) => {
         const transaction: GoldTransaction = {
           id: crypto.randomUUID(),
           type: 'penalty',
@@ -139,6 +152,9 @@ export const useGoldStore = create<GoldState>()(
         });
         
         console.log(`⚠️ 扣除金币: -${amount} (${reason})`);
+        
+        // 同步到云端
+        await get().syncToCloud();
       },
       
       getTodayTransactions: () => {
@@ -154,6 +170,103 @@ export const useGoldStore = create<GoldState>()(
           todaySpent: 0,
           lastResetDate: new Date().toDateString(),
         });
+      },
+      
+      // 同步到云端
+      syncToCloud: async () => {
+        if (!isSupabaseConfigured()) {
+          console.log('⚠️ Supabase 未配置，跳过云端同步');
+          return;
+        }
+        
+        const state = get();
+        
+        // 防止频繁同步（5秒内只同步一次）
+        const now = Date.now();
+        if (state.isSyncing || (now - state.lastSyncTime < 5000)) {
+          return;
+        }
+        
+        set({ isSyncing: true });
+        
+        try {
+          const userId = await getAuthUserId();
+          if (!userId) {
+            console.log('⚠️ 未登录，跳过云端同步');
+            set({ isSyncing: false });
+            return;
+          }
+          
+          // 保存金币数据到云端
+          const { error } = await supabase
+            .from('gold_data')
+            .upsert({
+              user_id: userId,
+              balance: state.balance,
+              today_earned: state.todayEarned,
+              today_spent: state.todaySpent,
+              transactions: state.transactions,
+              last_reset_date: state.lastResetDate,
+              updated_at: new Date().toISOString(),
+            }, {
+              onConflict: 'user_id'
+            });
+          
+          if (error) {
+            console.error('❌ 同步金币数据到云端失败:', error);
+          } else {
+            console.log('✅ 金币数据已同步到云端');
+            set({ lastSyncTime: now });
+          }
+        } catch (error) {
+          console.error('❌ 同步金币数据异常:', error);
+        } finally {
+          set({ isSyncing: false });
+        }
+      },
+      
+      // 从云端加载
+      loadFromCloud: async () => {
+        if (!isSupabaseConfigured()) {
+          console.log('⚠️ Supabase 未配置，使用本地数据');
+          return;
+        }
+        
+        try {
+          const userId = await getAuthUserId();
+          if (!userId) {
+            console.log('⚠️ 未登录，使用本地数据');
+            return;
+          }
+          
+          const { data, error } = await supabase
+            .from('gold_data')
+            .select('*')
+            .eq('user_id', userId)
+            .single();
+          
+          if (error) {
+            if (error.code === 'PGRST116') {
+              console.log('ℹ️ 云端暂无金币数据');
+            } else {
+              console.error('❌ 加载金币数据失败:', error);
+            }
+            return;
+          }
+          
+          if (data) {
+            console.log('✅ 从云端加载金币数据');
+            set({
+              balance: data.balance || 0,
+              todayEarned: data.today_earned || 0,
+              todaySpent: data.today_spent || 0,
+              transactions: data.transactions || [],
+              lastResetDate: data.last_reset_date || new Date().toDateString(),
+            });
+          }
+        } catch (error) {
+          console.error('❌ 加载金币数据异常:', error);
+        }
       },
     }),
     {

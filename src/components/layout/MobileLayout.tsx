@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
+import { useGoldStore } from '@/stores/goldStore';
 import { useTutorialStore } from '@/stores/tutorialStore';
 import { X, GripVertical, Settings, HelpCircle } from 'lucide-react';
 import NotificationContainer from '@/components/ui/NotificationContainer';
 import FloatingAIChat from '@/components/ai/FloatingAIChat';
 import VoiceAssistant from '@/components/voice/VoiceAssistant';
+import GitHubCommitBadge from '@/components/ui/GitHubCommitBadge';
 import {
   GoalsModule,
   TimelineModule,
@@ -48,6 +50,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
 export default function MobileLayout() {
   const { loadTasks } = useTaskStore();
   const { loadGrowthData } = useGrowthStore();
+  const { balance } = useGoldStore();
   const { 
     showUserGuide, 
     setShowUserGuide, 
@@ -237,14 +240,17 @@ export default function MobileLayout() {
             </div>
           </div>
 
-          {/* 右侧：金币余额和帮助按钮 */}
+          {/* 右侧：GitHub推送次数、金币余额和帮助按钮 */}
           <div className="flex items-center space-x-2">
+            {/* GitHub推送次数 */}
+            <GitHubCommitBadge className="scale-90" />
+            
             <div 
               className="flex items-center space-x-1.5 px-2 py-1 rounded-lg bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-100/50"
               data-tour="coins"
             >
               <div className="text-base">💰</div>
-              <div className="text-xs font-bold text-black">0</div>
+              <div className="text-xs font-bold text-black">{balance}</div>
             </div>
             
             {/* 帮助按钮 */}

@@ -1,229 +1,205 @@
--- ManifestOS 数据库表结构
--- 在 Supabase SQL Editor 中执行此脚本
-
--- ========================================
--- 第一步：创建所有表结构
--- ========================================
-
--- 1. 用户表
-CREATE TABLE IF NOT EXISTS users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  local_user_id TEXT UNIQUE NOT NULL,
-  public_data JSONB DEFAULT '{}',
-  device_list JSONB DEFAULT '[]',
-  settings JSONB DEFAULT '{}',
+-- 金币数据表
+CREATE TABLE IF NOT EXISTS gold_data (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL UNIQUE,
+  balance INTEGER DEFAULT 0,
+  today_earned INTEGER DEFAULT 0,
+  today_spent INTEGER DEFAULT 0,
+  transactions JSONB DEFAULT '[]'::jsonb,
+  last_reset_date TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 2. 任务表
+-- 为 user_id 创建索引
+CREATE INDEX IF NOT EXISTS idx_gold_data_user_id ON gold_data(user_id);
+
+-- 启用行级安全策略 (RLS)
+ALTER TABLE gold_data ENABLE ROW LEVEL SECURITY;
+
+-- 创建策略：用户只能访问自己的数据
+CREATE POLICY "Users can view their own gold data"
+  ON gold_data FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own gold data"
+  ON gold_data FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own gold data"
+  ON gold_data FOR UPDATE
+  USING (auth.uid() = user_id);
+
+-- 任务数据表（如果还没有）
 CREATE TABLE IF NOT EXISTS tasks (
-  id TEXT PRIMARY KEY,  -- 改为 TEXT 类型，因为代码生成的是字符串 ID
-  user_id TEXT NOT NULL,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
-  task_type TEXT NOT NULL,
-  priority INTEGER DEFAULT 2,
-  duration_minutes INTEGER DEFAULT 30,
-  scheduled_start TIMESTAMP WITH TIME ZONE,
-  scheduled_end TIMESTAMP WITH TIME ZONE,
-  actual_start TIMESTAMP WITH TIME ZONE,
-  actual_end TIMESTAMP WITH TIME ZONE,
   status TEXT DEFAULT 'pending',
-  growth_dimensions JSONB DEFAULT '{}',
-  long_term_goals JSONB DEFAULT '{}',
-  identity_tags TEXT[] DEFAULT '{}',
-  enable_progress_check BOOLEAN DEFAULT false,
-  progress_checks JSONB DEFAULT '[]',
-  penalty_gold INTEGER DEFAULT 0,
-  gold_earned INTEGER DEFAULT 0,
+  priority TEXT DEFAULT 'medium',
+  due_date TIMESTAMP WITH TIME ZONE,
+  tags TEXT[] DEFAULT '{}',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  completed_at TIMESTAMP WITH TIME ZONE
 );
 
--- 3. 长期目标表
-CREATE TABLE IF NOT EXISTS long_term_goals (
-  id TEXT PRIMARY KEY,  -- 改为 TEXT 类型
-  user_id TEXT NOT NULL,
-  name TEXT NOT NULL,
+-- 为 user_id 创建索引
+CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id);
+
+-- 启用行级安全策略
+ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+
+-- 创建策略：用户只能访问自己的任务
+CREATE POLICY "Users can view their own tasks"
+  ON tasks FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own tasks"
+  ON tasks FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own tasks"
+  ON tasks FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own tasks"
+  ON tasks FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- 目标数据表
+CREATE TABLE IF NOT EXISTS goals (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL,
+  title TEXT NOT NULL,
   description TEXT,
-  goal_type TEXT NOT NULL,
-  target_value NUMERIC,
-  current_value NUMERIC DEFAULT 0,
-  unit TEXT,
-  deadline TIMESTAMP WITH TIME ZONE,
-  related_dimensions TEXT[] DEFAULT '{}',
-  milestones JSONB DEFAULT '[]',
-  is_active BOOLEAN DEFAULT true,
-  is_completed BOOLEAN DEFAULT false,
-  completed_at TIMESTAMP WITH TIME ZONE,
+  status TEXT DEFAULT 'active',
+  progress INTEGER DEFAULT 0,
+  target_date TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  completed_at TIMESTAMP WITH TIME ZONE
 );
 
--- 4. 全景记忆表
-CREATE TABLE IF NOT EXISTS memories (
-  id TEXT PRIMARY KEY,  -- 改为 TEXT 类型
-  user_id TEXT NOT NULL,
-  type TEXT NOT NULL,
-  content TEXT NOT NULL,
-  emotion_tags TEXT[] DEFAULT '{}',
-  category_tags TEXT[] DEFAULT '{}',
-  ai_generated BOOLEAN DEFAULT false,
-  rewards JSONB DEFAULT '{"gold": 0, "growth": 0}',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+-- 为 user_id 创建索引
+CREATE INDEX IF NOT EXISTS idx_goals_user_id ON goals(user_id);
 
--- 5. 日记表
+-- 启用行级安全策略
+ALTER TABLE goals ENABLE ROW LEVEL SECURITY;
+
+-- 创建策略：用户只能访问自己的目标
+CREATE POLICY "Users can view their own goals"
+  ON goals FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own goals"
+  ON goals FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own goals"
+  ON goals FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own goals"
+  ON goals FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- 日记数据表
 CREATE TABLE IF NOT EXISTS journals (
-  id TEXT PRIMARY KEY,  -- 改为 TEXT 类型
-  user_id TEXT NOT NULL,
-  type TEXT NOT NULL,
-  content TEXT NOT NULL,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL,
+  date DATE NOT NULL,
+  content TEXT,
   mood TEXT,
   tags TEXT[] DEFAULT '{}',
-  rewards JSONB DEFAULT '{"gold": 0, "growth": 0}',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 6. 成长记录表
-CREATE TABLE IF NOT EXISTS growth_records (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id TEXT NOT NULL,
-  dimension TEXT NOT NULL,
-  value NUMERIC NOT NULL,
-  change NUMERIC NOT NULL,
-  source TEXT,
-  source_id TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 7. 通知表
-CREATE TABLE IF NOT EXISTS notifications (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id TEXT NOT NULL,
-  type TEXT NOT NULL,
-  title TEXT NOT NULL,
-  message TEXT NOT NULL,
-  is_read BOOLEAN DEFAULT false,
-  action_url TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 8. 仪表盘模块配置表
-CREATE TABLE IF NOT EXISTS dashboard_modules (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id TEXT UNIQUE NOT NULL,
-  modules JSONB DEFAULT '[]',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 创建索引以提高查询性能
-CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
-CREATE INDEX IF NOT EXISTS idx_tasks_scheduled_start ON tasks(scheduled_start);
-CREATE INDEX IF NOT EXISTS idx_goals_user_id ON long_term_goals(user_id);
-CREATE INDEX IF NOT EXISTS idx_goals_is_active ON long_term_goals(is_active);
-CREATE INDEX IF NOT EXISTS idx_memories_user_id ON memories(user_id);
-CREATE INDEX IF NOT EXISTS idx_memories_created_at ON memories(created_at);
+-- 为 user_id 和 date 创建索引
 CREATE INDEX IF NOT EXISTS idx_journals_user_id ON journals(user_id);
-CREATE INDEX IF NOT EXISTS idx_journals_created_at ON journals(created_at);
-CREATE INDEX IF NOT EXISTS idx_growth_records_user_id ON growth_records(user_id);
-CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_journals_date ON journals(date);
+
+-- 启用行级安全策略
+ALTER TABLE journals ENABLE ROW LEVEL SECURITY;
+
+-- 创建策略：用户只能访问自己的日记
+CREATE POLICY "Users can view their own journals"
+  ON journals FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own journals"
+  ON journals FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own journals"
+  ON journals FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own journals"
+  ON journals FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- 记忆数据表
+CREATE TABLE IF NOT EXISTS memories (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL,
+  title TEXT NOT NULL,
+  content TEXT,
+  type TEXT DEFAULT 'note',
+  tags TEXT[] DEFAULT '{}',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 为 user_id 创建索引
+CREATE INDEX IF NOT EXISTS idx_memories_user_id ON memories(user_id);
+
+-- 启用行级安全策略
+ALTER TABLE memories ENABLE ROW LEVEL SECURITY;
+
+-- 创建策略：用户只能访问自己的记忆
+CREATE POLICY "Users can view their own memories"
+  ON memories FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own memories"
+  ON memories FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own memories"
+  ON memories FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own memories"
+  ON memories FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- 仪表盘模块配置表
+CREATE TABLE IF NOT EXISTS dashboard_modules (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL UNIQUE,
+  modules JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 为 user_id 创建索引
 CREATE INDEX IF NOT EXISTS idx_dashboard_modules_user_id ON dashboard_modules(user_id);
 
--- 创建更新时间触发器函数
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- 为需要的表添加更新时间触发器（先删除旧的，避免重复）
-DROP TRIGGER IF EXISTS update_users_updated_at ON users;
-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-DROP TRIGGER IF EXISTS update_tasks_updated_at ON tasks;
-CREATE TRIGGER update_tasks_updated_at BEFORE UPDATE ON tasks
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-DROP TRIGGER IF EXISTS update_goals_updated_at ON long_term_goals;
-CREATE TRIGGER update_goals_updated_at BEFORE UPDATE ON long_term_goals
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-DROP TRIGGER IF EXISTS update_memories_updated_at ON memories;
-CREATE TRIGGER update_memories_updated_at BEFORE UPDATE ON memories
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-DROP TRIGGER IF EXISTS update_journals_updated_at ON journals;
-CREATE TRIGGER update_journals_updated_at BEFORE UPDATE ON journals
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- 启用行级安全策略（RLS）
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE long_term_goals ENABLE ROW LEVEL SECURITY;
-ALTER TABLE memories ENABLE ROW LEVEL SECURITY;
-ALTER TABLE journals ENABLE ROW LEVEL SECURITY;
-ALTER TABLE growth_records ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+-- 启用行级安全策略
 ALTER TABLE dashboard_modules ENABLE ROW LEVEL SECURITY;
 
--- ========================================
--- 第二步：清理旧的策略和触发器
--- ========================================
+-- 创建策略：用户只能访问自己的仪表盘配置
+CREATE POLICY "Users can view their own dashboard modules"
+  ON dashboard_modules FOR SELECT
+  USING (auth.uid() = user_id);
 
--- 删除所有旧的策略（表已存在，现在可以安全删除）
-DROP POLICY IF EXISTS "Allow all operations on users" ON users;
-DROP POLICY IF EXISTS "Allow all operations on tasks" ON tasks;
-DROP POLICY IF EXISTS "Allow all operations on goals" ON long_term_goals;
-DROP POLICY IF EXISTS "Allow all operations on memories" ON memories;
-DROP POLICY IF EXISTS "Allow all operations on journals" ON journals;
-DROP POLICY IF EXISTS "Allow all operations on growth_records" ON growth_records;
-DROP POLICY IF EXISTS "Allow all operations on notifications" ON notifications;
-DROP POLICY IF EXISTS "Allow all operations on dashboard_modules" ON dashboard_modules;
+CREATE POLICY "Users can insert their own dashboard modules"
+  ON dashboard_modules FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
 
--- 删除所有旧的触发器
-DROP TRIGGER IF EXISTS update_users_updated_at ON users;
-DROP TRIGGER IF EXISTS update_tasks_updated_at ON tasks;
-DROP TRIGGER IF EXISTS update_goals_updated_at ON long_term_goals;
-DROP TRIGGER IF EXISTS update_memories_updated_at ON memories;
-DROP TRIGGER IF EXISTS update_journals_updated_at ON journals;
-
--- ========================================
--- 第三步：创建触发器和策略
--- ========================================
-
--- 创建 RLS 策略（允许所有操作，因为使用 local_user_id 而不是 auth.uid()）
--- 注意：这是简化版本，生产环境需要更严格的安全策略
-
-CREATE POLICY "Allow all operations on users" ON users
-  FOR ALL USING (true) WITH CHECK (true);
-
-CREATE POLICY "Allow all operations on tasks" ON tasks
-  FOR ALL USING (true) WITH CHECK (true);
-
-CREATE POLICY "Allow all operations on goals" ON long_term_goals
-  FOR ALL USING (true) WITH CHECK (true);
-
-CREATE POLICY "Allow all operations on memories" ON memories
-  FOR ALL USING (true) WITH CHECK (true);
-
-CREATE POLICY "Allow all operations on journals" ON journals
-  FOR ALL USING (true) WITH CHECK (true);
-
-CREATE POLICY "Allow all operations on growth_records" ON growth_records
-  FOR ALL USING (true) WITH CHECK (true);
-
-CREATE POLICY "Allow all operations on notifications" ON notifications
-  FOR ALL USING (true) WITH CHECK (true);
-
-CREATE POLICY "Allow all operations on dashboard_modules" ON dashboard_modules
-  FOR ALL USING (true) WITH CHECK (true);
-
+CREATE POLICY "Users can update their own dashboard modules"
+  ON dashboard_modules FOR UPDATE
+  USING (auth.uid() = user_id);

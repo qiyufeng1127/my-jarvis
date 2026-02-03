@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useUserStore } from '@/stores/userStore';
+import { useGoldStore } from '@/stores/goldStore';
 
 // 页面组件（稍后创建）
 import Dashboard from '@/pages/Dashboard';
@@ -11,11 +12,15 @@ import NotificationToast from '@/components/notifications/NotificationToast';
 
 function App() {
   const { user, initializeUser } = useUserStore();
+  const { loadFromCloud } = useGoldStore();
 
   useEffect(() => {
     // 初始化用户
     initializeUser();
-  }, [initializeUser]);
+    
+    // 从云端加载金币数据
+    loadFromCloud();
+  }, [initializeUser, loadFromCloud]);
 
   return (
     <Router>
