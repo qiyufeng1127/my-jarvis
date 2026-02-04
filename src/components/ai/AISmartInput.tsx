@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Mic, X, Sparkles, MicOff } from 'lucide-react';
+import { Send, Mic, X, Sparkles, MicOff, Edit2, ChevronUp, ChevronDown, Clock, Coins } from 'lucide-react';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
@@ -48,6 +48,9 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
     text: string;
     color: string;
   } | null>(null);
+  const [showTaskEditor, setShowTaskEditor] = useState(false);
+  const [editingTasks, setEditingTasks] = useState<any[]>([]);
+  const [editingField, setEditingField] = useState<{taskIndex: number, field: string} | null>(null);
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
@@ -57,7 +60,7 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   
   const { createTask } = useTaskStore();
-  const { dimensions } = useGrowthStore();
+  const { dimensions, goals, addGoal } = useGrowthStore();
   const { 
     getActiveSideHustles, 
     addIncome, 
@@ -249,6 +252,36 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
       // 调用 AI 处理
       const response = await processWithAI(message);
       
+      // 调试日志
+      console.log('🔍 AI处理结果:', response);
+      console.log('📋 Actions:', response.actions);
+      console.log('📊 Data:', response.data);
+      
+      // 如果是任务分解，直接打开编辑器，不显示按钮
+      if (response.actions && response.actions.length > 0) {
+        const taskAction = response.actions.find(a => a.type === 'create_task' && a.data.tasks);
+        if (taskAction && taskAction.data.tasks) {
+          console.log('🎯 检测到任务分解，直接打开编辑器');
+          
+          // 显示AI消息（不带按钮）
+          const aiMessage: AIMessage = {
+            id: `ai-${Date.now()}`,
+            role: 'assistant',
+            content: response.message,
+            data: response.data,
+            actions: undefined, // 不显示按钮
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, aiMessage]);
+          
+          // 直接打开任务编辑器
+          setEditingTasks(taskAction.data.tasks);
+          setShowTaskEditor(true);
+          return;
+        }
+      }
+      
+      // 其他情况：正常显示消息和按钮
       const aiMessage: AIMessage = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
@@ -258,6 +291,7 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
         timestamp: new Date(),
       };
 
+      console.log('💬 最终消息:', aiMessage);
       setMessages(prev => [...prev, aiMessage]);
 
       // 语音反馈
@@ -747,7 +781,22 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
                     {message.actions.map((action, index) => (
                       <button
                         key={index}
-                        onClick={() => executeActions([action])}
+                        onClick={() => {
+                          console.log('🖱️ 按钮点击:', action);
+                          console.log('📋 Action type:', action.type);
+                          console.log('📊 Action data:', action.data);
+                          console.log('✅ Has tasks?', action.data?.tasks);
+                          
+                          // 如果是创建任务，打开编辑器
+                          if (action.type === 'create_task' && action.data.tasks) {
+                            console.log('🎯 打开任务编辑器，任务数量:', action.data.tasks.length);
+                            setEditingTasks(action.data.tasks);
+                            setShowTaskEditor(true);
+                          } else {
+                            console.log('⚡ 直接执行操作');
+                            executeActions([action]);
+                          }
+                        }}
                         className="w-full px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-[1.02]"
                         style={{ 
                           backgroundColor: buttonBg,
@@ -910,8 +959,342 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
             </div>
           )}
         </div>
+
+        {/* 任务编辑器弹窗 - 事件卡片形式（手机优化版） */}
+        {showTaskEditor && (
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-2">
+            <div className="bg-white rounded-2xl shadow-2xl w-full h-[95%] flex flex-col">
+              {/* 头部 */}
+              <div className="flex-shrink-0 border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">✏️ 编辑任务</h3>
+                  <p className="text-xs text-gray-500 mt-1">双击字段编辑，用箭头调整顺序</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowTaskEditor(false);
+                    setEditingTasks([]);
+                    setEditingField(null);
+                  }}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="关闭编辑器"
+                >
+                  <X className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+
+              {/* 任务卡片列表 - 可滚动 */}
+              <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                {editingTasks.map((task, index) => (
+                  <div
+                    key={index}
+                    className="rounded-xl p-3 border-2 shadow-sm bg-white"
+                    style={{
+                      borderColor: task.color,
+                    }}
+                  >
+                    {/* 第一行：序号 + 任务名称 + 上下移动 */}
+                    <div className="flex items-center gap-2 mb-2">
+                      {/* 序号 */}
+                      <div className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center font-bold text-white text-sm" style={{ backgroundColor: task.color }}>
+                        {index + 1}
+                      </div>
+
+                      {/* 任务名称 - 双击编辑 */}
+                      <div className="flex-1 min-w-0">
+                        {editingField?.taskIndex === index && editingField?.field === 'title' ? (
+                          <input
+                            type="text"
+                            value={task.title}
+                            onChange={(e) => updateTaskField(index, 'title', e.target.value)}
+                            onBlur={() => setEditingField(null)}
+                            onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
+                            autoFocus
+                            className="w-full px-2 py-1 text-sm font-bold rounded-lg focus:outline-none focus:ring-2 bg-white text-gray-900 border-2"
+                            style={{
+                              borderColor: task.color,
+                            }}
+                          />
+                        ) : (
+                          <div
+                            onDoubleClick={() => setEditingField({ taskIndex: index, field: 'title' })}
+                            className="text-sm font-bold cursor-pointer px-2 py-1 rounded-lg transition-colors text-gray-900"
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${task.color}10`}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            title="双击编辑"
+                          >
+                            {task.title}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 上下移动按钮 */}
+                      <div className="flex-shrink-0 flex items-center gap-1">
+                        <button
+                          onClick={() => moveTaskUp(index)}
+                          disabled={index === 0}
+                          className="p-1.5 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all hover:scale-110"
+                          style={{
+                            backgroundColor: `${task.color}20`,
+                          }}
+                          title="上移"
+                        >
+                          <ChevronUp className="w-4 h-4" style={{ color: task.color }} />
+                        </button>
+                        <button
+                          onClick={() => moveTaskDown(index)}
+                          disabled={index === editingTasks.length - 1}
+                          className="p-1.5 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all hover:scale-110"
+                          style={{
+                            backgroundColor: `${task.color}20`,
+                          }}
+                          title="下移"
+                        >
+                          <ChevronDown className="w-4 h-4" style={{ color: task.color }} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 第二行：所有详细信息 */}
+                    <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                      {/* 时间 */}
+                      <div 
+                        className="flex items-center gap-1 rounded-lg px-2 py-1"
+                        style={{ backgroundColor: `${task.color}15` }}
+                      >
+                        <Clock className="w-3 h-3" style={{ color: task.color }} />
+                        <span className="font-semibold text-gray-900">{task.scheduled_start}</span>
+                        <span className="text-gray-500">→</span>
+                        <span className="font-semibold text-gray-900">{task.scheduled_end}</span>
+                      </div>
+
+                      {/* 时长 - 双击编辑 */}
+                      <div className="flex-shrink-0">
+                        {editingField?.taskIndex === index && editingField?.field === 'duration' ? (
+                          <input
+                            type="number"
+                            value={task.estimated_duration}
+                            onChange={(e) => updateTaskField(index, 'estimated_duration', parseInt(e.target.value) || 0)}
+                            onBlur={() => setEditingField(null)}
+                            onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
+                            autoFocus
+                            className="w-16 px-2 py-1 text-xs rounded-lg focus:outline-none focus:ring-2 bg-white text-gray-900 border-2"
+                            style={{
+                              borderColor: task.color,
+                            }}
+                          />
+                        ) : (
+                          <div
+                            onDoubleClick={() => setEditingField({ taskIndex: index, field: 'duration' })}
+                            className="cursor-pointer px-2 py-1 rounded-lg transition-colors"
+                            style={{ backgroundColor: `${task.color}15` }}
+                            title="双击编辑"
+                          >
+                            <span className="font-bold text-gray-900">{task.estimated_duration}分钟</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 金币 */}
+                      <div className="flex-shrink-0">
+                        <div className="flex items-center gap-1 bg-yellow-50 rounded-lg px-2 py-1">
+                          <Coins className="w-3 h-3 text-yellow-600" />
+                          <span className="font-bold text-yellow-700">{task.gold}</span>
+                        </div>
+                      </div>
+
+                      {/* 位置 */}
+                      <div className="flex-shrink-0">
+                        <span 
+                          className="px-2 py-1 rounded-lg font-medium inline-flex items-center gap-0.5"
+                          style={{
+                            backgroundColor: `${task.color}15`,
+                            color: task.color,
+                          }}
+                        >
+                          📍 {task.location}
+                        </span>
+                      </div>
+
+                      {/* 标签 */}
+                      {task.tags.map((tag: string, tagIndex: number) => (
+                        <span
+                          key={tagIndex}
+                          className="px-2 py-1 rounded-lg font-medium"
+                          style={{
+                            backgroundColor: `${AISmartProcessor.getColorForTag(tag)}20`,
+                            color: AISmartProcessor.getColorForTag(tag),
+                          }}
+                        >
+                          {tag}
+                        </span>
+                      ))}
+
+                      {/* 目标 */}
+                      {task.goal && (
+                        <div className="flex items-center gap-1 bg-green-50 rounded-lg px-2 py-1">
+                          <span>🎯</span>
+                          <span className="font-medium text-green-700">{task.goal}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* 底部按钮 */}
+              <div className="flex-shrink-0 border-t border-gray-200 px-4 py-3 flex space-x-2">
+                <button
+                  onClick={() => {
+                    setShowTaskEditor(false);
+                    setEditingTasks([]);
+                    setEditingField(null);
+                  }}
+                  className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors text-sm"
+                >
+                  ❌ 取消
+                </button>
+                <button
+                  onClick={async () => {
+                    // 添加新目标到长期目标系统
+                    for (const task of editingTasks) {
+                      if (task.goal && task.isNewGoal) {
+                        const existingGoal = goals.find(g => g.title === task.goal);
+                        if (!existingGoal) {
+                          await addGoal({
+                            title: task.goal,
+                            description: `通过AI智能助手自动创建`,
+                            category: 'personal',
+                            priority: 'medium',
+                            status: 'active',
+                          });
+                        }
+                      }
+                    }
+
+                    // 创建任务并推送到时间轴
+                    console.log('📤 开始推送任务到时间轴:', editingTasks);
+                    await executeActions([{
+                      type: 'create_task',
+                      data: { tasks: editingTasks },
+                      label: '确认',
+                    }]);
+                    
+                    // 关闭编辑器
+                    setShowTaskEditor(false);
+                    setEditingTasks([]);
+                    setEditingField(null);
+                    
+                    // 显示成功消息
+                    const successMessage: AIMessage = {
+                      id: `success-${Date.now()}`,
+                      role: 'assistant',
+                      content: `✅ 已成功添加 ${editingTasks.length} 个任务到时间轴！`,
+                      timestamp: new Date(),
+                    };
+                    setMessages(prev => [...prev, successMessage]);
+                  }}
+                  className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold transition-all transform hover:scale-105 shadow-lg text-sm"
+                >
+                  🚀 推送到时间轴
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
+
+  // 重新计算所有任务的时间
+  function recalculateTaskTimes(tasks: any[], startFromIndex: number = 0) {
+    const newTasks = [...tasks];
+    
+    console.log('🔄 开始重新计算时间，从索引:', startFromIndex);
+    
+    for (let i = startFromIndex; i < newTasks.length; i++) {
+      if (i === 0) {
+        // 第一个任务：保持开始时间，但更新结束时间
+        const start = new Date(newTasks[i].scheduled_start_iso);
+        const end = new Date(start.getTime() + newTasks[i].estimated_duration * 60000);
+        newTasks[i].scheduled_start = start.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        newTasks[i].scheduled_end = end.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+      } else {
+        // 后续任务：紧接着前一个任务的结束时间开始
+        const prevStart = new Date(newTasks[i - 1].scheduled_start_iso);
+        const prevEnd = new Date(prevStart.getTime() + newTasks[i - 1].estimated_duration * 60000);
+        const start = new Date(prevEnd.getTime());
+        const end = new Date(start.getTime() + newTasks[i].estimated_duration * 60000);
+        
+        newTasks[i].scheduled_start_iso = start.toISOString();
+        newTasks[i].scheduled_start = start.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        newTasks[i].scheduled_end = end.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+      }
+    }
+    
+    return newTasks;
+  }
+
+  // 上移任务
+  function moveTaskUp(index: number) {
+    if (index === 0) return;
+    
+    const newTasks = [...editingTasks];
+    [newTasks[index - 1], newTasks[index]] = [newTasks[index], newTasks[index - 1]];
+    
+    // 重新计算时间
+    const recalculated = recalculateTaskTimes(newTasks, 0);
+    setEditingTasks(recalculated);
+  }
+
+  // 下移任务
+  function moveTaskDown(index: number) {
+    if (index === editingTasks.length - 1) return;
+    
+    const newTasks = [...editingTasks];
+    [newTasks[index], newTasks[index + 1]] = [newTasks[index + 1], newTasks[index]];
+    
+    // 重新计算时间
+    const recalculated = recalculateTaskTimes(newTasks, 0);
+    setEditingTasks(recalculated);
+  }
+
+  // 更新任务字段
+  function updateTaskField(index: number, field: string, value: any) {
+    const newTasks = [...editingTasks];
+    newTasks[index][field] = value;
+    
+    // 如果修改了任务名称，自动重新计算所有相关属性
+    if (field === 'title') {
+      console.log(`✏️ 修改任务${index + 1}的名称为: ${value}`);
+      
+      // 重新推断所有属性（使用AI服务的静态方法）
+      // 注意：这些方法需要在 aiSmartService.ts 中导出
+      newTasks[index].tags = ['日常']; // 简化版，实际应该调用AI分析
+      newTasks[index].color = AISmartProcessor.getTaskColor(newTasks[index].tags);
+      
+      // 重新估算时长（简化版）
+      const newDuration = 30; // 默认30分钟
+      newTasks[index].estimated_duration = newDuration;
+      
+      // 重新计算金币
+      newTasks[index].gold = AISmartProcessor.calculateGold(newTasks[index]);
+      
+      // 从当前任务开始重新计算所有时间
+      const recalculated = recalculateTaskTimes(newTasks, index);
+      setEditingTasks(recalculated);
+    }
+    // 如果修改了时长，重新计算金币和后续任务时间
+    else if (field === 'estimated_duration') {
+      console.log(`⚡ 修改任务${index + 1}的时长为: ${value}分钟`);
+      newTasks[index].gold = AISmartProcessor.calculateGold(newTasks[index]);
+      
+      // 从当前任务开始重新计算所有时间
+      const recalculated = recalculateTaskTimes(newTasks, index);
+      setEditingTasks(recalculated);
+    } else {
+      setEditingTasks(newTasks);
+    }
+  }
 }
 

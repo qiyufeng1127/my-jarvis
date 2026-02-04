@@ -196,8 +196,8 @@ export default function NewTimelineView({
     }
     
     // 9. 默认：根据任务类型
-    const categoryColors: Record<string, string> = {
-      work: '#C85A7C',      // 玫红色 - 工作
+  const categoryColors: Record<string, string> = {
+    work: '#C85A7C',      // 玫红色 - 工作
       study: '#27AE60',     // 绿色 - 学习
       health: '#2ECC71',    // 浅绿色 - 健康
       life: '#E91E63',      // 粉色 - 生活
@@ -759,9 +759,9 @@ export default function NewTimelineView({
       // 处理拍照
       const cameraBtn = modal.querySelector('#camera-btn');
       cameraBtn?.addEventListener('click', () => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/*';
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
         input.capture = 'environment' as any;
         input.onchange = (e) => handleVerificationImage(e, taskId, 'start');
         input.click();
@@ -798,9 +798,9 @@ export default function NewTimelineView({
     
     if (!task) return;
     
-    const file = (e.target as HTMLInputElement).files?.[0];
-    if (file) {
-      try {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (file) {
+          try {
         const keywords = type === 'start' ? verification.startKeywords : verification.completionKeywords;
         
         // 检查是否需要验证（如果没有关键词，直接通过）
@@ -826,39 +826,39 @@ export default function NewTimelineView({
           console.log(`✅ ${type === 'start' ? '启动' : '完成'}验证通过！匹配的关键词:`, verifyResult.matchedKeywords);
         }
         
-        // 上传验证图片
-        const files = (e.target as HTMLInputElement).files;
-        if (files) {
-          await handleImageUpload(taskId, files, 'attachment');
-        }
-        
-        const now = new Date();
-        
+            // 上传验证图片
+            const files = (e.target as HTMLInputElement).files;
+            if (files) {
+              await handleImageUpload(taskId, files, 'attachment');
+            }
+            
+            const now = new Date();
+            
         if (type === 'start') {
           // 启动任务
           const totalGold = task.goldReward || Math.floor((task.durationMinutes || 60) * 0.8);
           const startGold = Math.round(totalGold * 0.4);
           
-          setTaskVerifications(prev => ({
-            ...prev,
-            [taskId]: {
-              ...prev[taskId],
-              status: 'started',
-              actualStartTime: now,
-              startFailedAttempts: 0,
+            setTaskVerifications(prev => ({
+              ...prev,
+              [taskId]: {
+                ...prev[taskId],
+                status: 'started',
+                actualStartTime: now,
+                startFailedAttempts: 0,
               startGoldEarned: startGold,
-            },
-          }));
-          
-          SoundEffects.playSuccessSound();
-          SoundEffects.playCoinSound();
+              },
+            }));
+            
+            SoundEffects.playSuccessSound();
+            SoundEffects.playCoinSound();
           addGold(startGold, `启动任务：${task.title}`, taskId, task.title);
           setCelebrationGold(startGold);
           setShowCelebration(true);
           VoiceReminder.congratulateCompletion(task.title, startGold);
-          onTaskUpdate(taskId, { status: 'in_progress' });
-          
-          console.log('✅ 任务启动验证成功');
+            onTaskUpdate(taskId, { status: 'in_progress' });
+            
+            console.log('✅ 任务启动验证成功');
         } else {
           // 完成任务
           const totalGold = task.goldReward || Math.floor((task.durationMinutes || 60) * 0.8);
@@ -885,33 +885,33 @@ export default function NewTimelineView({
           
           console.log('✅ 任务完成验证成功');
         }
-      } catch (error) {
-        // 验证失败
+          } catch (error) {
+            // 验证失败
         const failedAttemptsKey = type === 'start' ? 'startFailedAttempts' : 'completionFailedAttempts';
         const newFailedAttempts = (verification[failedAttemptsKey] || 0) + 1;
-        
-        setTaskVerifications(prev => ({
-          ...prev,
-          [taskId]: {
-            ...prev[taskId],
+            
+            setTaskVerifications(prev => ({
+              ...prev,
+              [taskId]: {
+                ...prev[taskId],
             [failedAttemptsKey]: newFailedAttempts,
-          },
-        }));
-        
-        SoundEffects.playFailSound();
-        
-        if (newFailedAttempts >= 3) {
-          SoundEffects.playAlarmSound();
-          VoiceReminder.speak('连续三次验证失败！扣除50金币！请认真完成任务！');
+              },
+            }));
+            
+            SoundEffects.playFailSound();
+            
+            if (newFailedAttempts >= 3) {
+              SoundEffects.playAlarmSound();
+              VoiceReminder.speak('连续三次验证失败！扣除50金币！请认真完成任务！');
           penaltyGold(50, `${type === 'start' ? '启动' : '完成'}验证失败：${task.title}`, taskId, task.title);
-          alert('⚠️ 连续三次验证失败！扣除50金币！');
-        } else {
+              alert('⚠️ 连续三次验证失败！扣除50金币！');
+            } else {
           const errorMsg = error instanceof Error ? error.message : '验证失败';
           alert(`❌ ${errorMsg}\n\n剩余尝试次数：${3 - newFailedAttempts}`);
+            }
+          }
         }
-      }
-    }
-    
+      
     if (type === 'start') {
       setStartingTask(null);
     } else {
@@ -998,10 +998,10 @@ export default function NewTimelineView({
       // 处理拍照
       const cameraBtn = modal.querySelector('#camera-btn-complete');
       cameraBtn?.addEventListener('click', () => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/*';
-        input.capture = 'environment' as any;
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.capture = 'environment' as any;
         input.onchange = (e) => handleVerificationImage(e, taskId, 'complete');
         input.click();
         document.body.removeChild(modal);
@@ -1034,11 +1034,11 @@ export default function NewTimelineView({
       // 显示庆祝效果
       setCelebrationGold(goldReward);
       setShowCelebration(true);
-      
+            
       // 播放音效
-      SoundEffects.playSuccessSound();
-      SoundEffects.playCoinSound();
-      
+            SoundEffects.playSuccessSound();
+            SoundEffects.playCoinSound();
+            
       onTaskUpdate(taskId, { status: 'completed' });
     }
   };
@@ -1131,273 +1131,273 @@ export default function NewTimelineView({
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" style={{ paddingTop: '60px', paddingBottom: '80px' }}>
             <div className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[70vh] overflow-y-auto" style={{ backgroundColor: isDark ? '#1f2937' : '#ffffff' }}>
               <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-2.5 border-b" style={{ 
-                backgroundColor: isDark ? '#1f2937' : '#ffffff',
-                borderColor: isDark ? '#374151' : '#e5e7eb'
-              }}>
+              backgroundColor: isDark ? '#1f2937' : '#ffffff',
+              borderColor: isDark ? '#374151' : '#e5e7eb'
+            }}>
                 <h3 className="text-base font-bold" style={{ color: isDark ? '#ffffff' : '#000000' }}>编辑任务</h3>
-                <button
+              <button
                   onClick={() => {
                     setEditingTask(null);
                     setEditedTaskData(null);
                   }}
                   className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
-                  style={{ color: isDark ? '#ffffff' : '#000000' }}
-                >
+                style={{ color: isDark ? '#ffffff' : '#000000' }}
+              >
                   <X className="w-4 h-4" />
-                </button>
-              </div>
-              
+              </button>
+            </div>
+            
               <div className="p-3 space-y-2.5">(
-                {/* 任务标题 */}
-                <div>
-                  <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>任务标题</label>
-                  <input
-                    type="text"
+                  {/* 任务标题 */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>任务标题</label>
+                    <input
+                      type="text"
                     value={editedTaskData.title}
                     onChange={(e) => setEditedTaskData({ ...editedTaskData, title: e.target.value })}
-                    className="w-full px-4 py-2 rounded-lg border text-base"
-                    style={{ 
-                      borderColor: isDark ? '#4b5563' : '#d1d5db',
-                      backgroundColor: isDark ? '#374151' : '#ffffff',
-                      color: isDark ? '#ffffff' : '#000000'
-                    }}
-                  />
-                </div>
+                      className="w-full px-4 py-2 rounded-lg border text-base"
+                      style={{ 
+                        borderColor: isDark ? '#4b5563' : '#d1d5db',
+                        backgroundColor: isDark ? '#374151' : '#ffffff',
+                        color: isDark ? '#ffffff' : '#000000'
+                      }}
+                    />
+                  </div>
                   
-                {/* 任务描述 */}
-                <div>
-                  <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>任务描述</label>
-                  <textarea
+                  {/* 任务描述 */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>任务描述</label>
+                    <textarea
                     value={editedTaskData.description || ''}
                     onChange={(e) => setEditedTaskData({ ...editedTaskData, description: e.target.value })}
-                    rows={3}
-                    className="w-full px-4 py-2 rounded-lg border text-base resize-none"
-                    style={{ 
-                      borderColor: isDark ? '#4b5563' : '#d1d5db',
-                      backgroundColor: isDark ? '#374151' : '#ffffff',
-                      color: isDark ? '#ffffff' : '#000000'
-                    }}
-                    placeholder="详细描述这个任务..."
-                  />
-                </div>
+                      rows={3}
+                      className="w-full px-4 py-2 rounded-lg border text-base resize-none"
+                      style={{ 
+                        borderColor: isDark ? '#4b5563' : '#d1d5db',
+                        backgroundColor: isDark ? '#374151' : '#ffffff',
+                        color: isDark ? '#ffffff' : '#000000'
+                      }}
+                      placeholder="详细描述这个任务..."
+                    />
+                  </div>
                   
-                {/* 时间和时长 */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>开始时间</label>
-                    <input
-                      type="time"
+                  {/* 时间和时长 */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>开始时间</label>
+                      <input
+                        type="time"
                       value={editedTaskData.scheduledStart ? new Date(editedTaskData.scheduledStart).toTimeString().slice(0, 5) : ''}
-                      onChange={(e) => {
-                        const [hours, minutes] = e.target.value.split(':');
+                        onChange={(e) => {
+                          const [hours, minutes] = e.target.value.split(':');
                         const newDate = new Date(editedTaskData.scheduledStart || new Date());
-                        newDate.setHours(parseInt(hours), parseInt(minutes));
+                          newDate.setHours(parseInt(hours), parseInt(minutes));
                         setEditedTaskData({ ...editedTaskData, scheduledStart: newDate.toISOString() });
-                      }}
-                      className="w-full px-4 py-2 rounded-lg border text-base"
-                      style={{ 
-                        borderColor: isDark ? '#4b5563' : '#d1d5db',
-                        backgroundColor: isDark ? '#374151' : '#ffffff',
-                        color: isDark ? '#ffffff' : '#000000'
-                      }}
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>时长（分钟）</label>
-                    <input
-                      type="number"
-                      value={editedTaskData.durationMinutes}
-                      onChange={(e) => setEditedTaskData({ ...editedTaskData, durationMinutes: parseInt(e.target.value) || 0 })}
-                      className="w-full px-4 py-2 rounded-lg border text-base"
-                      style={{ 
-                        borderColor: isDark ? '#4b5563' : '#d1d5db',
-                        backgroundColor: isDark ? '#374151' : '#ffffff',
-                        color: isDark ? '#ffffff' : '#000000'
-                      }}
-                      min={5}
-                      max={480}
-                    />
-                  </div>
-                </div>
-                  
-                {/* 金币奖励 */}
-                <div>
-                  <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>💰 金币奖励</label>
-                  <input
-                    type="number"
-                    value={editedTaskData.goldReward || 0}
-                    onChange={(e) => setEditedTaskData({ ...editedTaskData, goldReward: parseInt(e.target.value) || 0 })}
-                    className="w-full px-4 py-2 rounded-lg border text-base"
-                    style={{ 
-                      borderColor: isDark ? '#4b5563' : '#d1d5db',
-                      backgroundColor: isDark ? '#374151' : '#ffffff',
-                      color: isDark ? '#ffffff' : '#000000'
-                    }}
-                    min={0}
-                  />
-                </div>
-                
-                {/* 标签 */}
-                <div>
-                  <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>🏷️ 标签</label>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {(editedTaskData.tags || []).map((tag, idx) => (
-                      <span
-                        key={idx}
-                        className="px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2"
-                        style={{
-                          backgroundColor: isDark ? '#374151' : '#f3f4f6',
+                        }}
+                        className="w-full px-4 py-2 rounded-lg border text-base"
+                        style={{ 
+                          borderColor: isDark ? '#4b5563' : '#d1d5db',
+                          backgroundColor: isDark ? '#374151' : '#ffffff',
                           color: isDark ? '#ffffff' : '#000000'
                         }}
-                      >
-                        {tag}
-                        <button
-                          onClick={() => {
-                            const newTags = [...(editedTaskData.tags || [])];
-                            newTags.splice(idx, 1);
-                            setEditedTaskData({ ...editedTaskData, tags: newTags });
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>时长（分钟）</label>
+                      <input
+                        type="number"
+                      value={editedTaskData.durationMinutes}
+                      onChange={(e) => setEditedTaskData({ ...editedTaskData, durationMinutes: parseInt(e.target.value) || 0 })}
+                        className="w-full px-4 py-2 rounded-lg border text-base"
+                        style={{ 
+                          borderColor: isDark ? '#4b5563' : '#d1d5db',
+                          backgroundColor: isDark ? '#374151' : '#ffffff',
+                          color: isDark ? '#ffffff' : '#000000'
+                        }}
+                        min={5}
+                        max={480}
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* 金币奖励 */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>💰 金币奖励</label>
+                    <input
+                      type="number"
+                    value={editedTaskData.goldReward || 0}
+                    onChange={(e) => setEditedTaskData({ ...editedTaskData, goldReward: parseInt(e.target.value) || 0 })}
+                      className="w-full px-4 py-2 rounded-lg border text-base"
+                      style={{ 
+                        borderColor: isDark ? '#4b5563' : '#d1d5db',
+                        backgroundColor: isDark ? '#374151' : '#ffffff',
+                        color: isDark ? '#ffffff' : '#000000'
+                      }}
+                      min={0}
+                    />
+                  </div>
+                  
+                  {/* 标签 */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>🏷️ 标签</label>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                    {(editedTaskData.tags || []).map((tag, idx) => (
+                        <span
+                          key={idx}
+                          className="px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2"
+                          style={{
+                            backgroundColor: isDark ? '#374151' : '#f3f4f6',
+                            color: isDark ? '#ffffff' : '#000000'
                           }}
-                          className="hover:bg-red-500/20 rounded-full p-0.5"
                         >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))}
-                    <button
-                      onClick={() => {
-                        const newTag = prompt('输入新标签：');
-                        if (newTag) {
+                          {tag}
+                          <button
+                            onClick={() => {
+                            const newTags = [...(editedTaskData.tags || [])];
+                              newTags.splice(idx, 1);
+                            setEditedTaskData({ ...editedTaskData, tags: newTags });
+                            }}
+                            className="hover:bg-red-500/20 rounded-full p-0.5"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                      <button
+                        onClick={() => {
+                          const newTag = prompt('输入新标签：');
+                          if (newTag) {
                           setEditedTaskData({ 
                             ...editedTaskData, 
                             tags: [...(editedTaskData.tags || []), newTag] 
-                          });
+                            });
+                          }
+                        }}
+                        className="px-3 py-1 rounded-full text-sm font-medium border-2 border-dashed"
+                        style={{
+                          borderColor: isDark ? '#4b5563' : '#d1d5db',
+                          color: isDark ? '#ffffff' : '#000000'
+                        }}
+                      >
+                        + 添加标签
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* 关联目标 */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>🎯 关联目标</label>
+                    <input
+                      type="text"
+                    value={editedTaskData.description || ''}
+                    onChange={(e) => setEditedTaskData({ ...editedTaskData, description: e.target.value })}
+                      placeholder="例如：月入5w、坚持100天..."
+                      className="w-full px-4 py-2 rounded-lg border text-base"
+                      style={{ 
+                        borderColor: isDark ? '#4b5563' : '#d1d5db',
+                        backgroundColor: isDark ? '#374151' : '#ffffff',
+                        color: isDark ? '#ffffff' : '#000000'
+                      }}
+                    />
+                  </div>
+                  
+                  {/* 位置 */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>📍 位置</label>
+                    <input
+                      type="text"
+                    value={editedTaskData.location || ''}
+                    onChange={(e) => setEditedTaskData({ ...editedTaskData, location: e.target.value })}
+                      placeholder="例如：厨房、卧室、办公室..."
+                      className="w-full px-4 py-2 rounded-lg border text-base"
+                      style={{ 
+                        borderColor: isDark ? '#4b5563' : '#d1d5db',
+                        backgroundColor: isDark ? '#374151' : '#ffffff',
+                        color: isDark ? '#ffffff' : '#000000'
+                      }}
+                    />
+                  </div>
+                  
+                  {/* 照片上传 */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>📷 照片</label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {taskImages[editingTask] && taskImages[editingTask].map((image, idx) => (
+                        <div key={image.id} className="relative aspect-square rounded-lg overflow-hidden">
+                          <img src={image.url} alt={`照片 ${idx + 1}`} className="w-full h-full object-cover" />
+                          <button
+                            onClick={() => {
+                              setTaskImages(prev => ({
+                                ...prev,
+                                [editingTask]: prev[editingTask].filter(img => img.id !== image.id)
+                              }));
+                            }}
+                            className="absolute top-1 right-1 p-1 bg-red-500 rounded-full hover:bg-red-600"
+                          >
+                            <X className="w-3 h-3 text-white" />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => handleOpenImagePicker(editingTask)}
+                        className="aspect-square rounded-lg border-2 border-dashed flex items-center justify-center"
+                        style={{
+                          borderColor: isDark ? '#4b5563' : '#d1d5db',
+                          backgroundColor: isDark ? '#374151' : '#f9fafb'
+                        }}
+                      >
+                        <Camera className="w-6 h-6" style={{ color: isDark ? '#9ca3af' : '#6b7280' }} />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* 按钮 */}
+                <div className="flex gap-2 pt-3 border-t" style={{ borderColor: isDark ? '#374151' : '#e5e7eb' }}>
+                    <button
+                      onClick={() => {
+                        if (onTaskDelete && confirm('确定要删除这个任务吗？')) {
+                          onTaskDelete(editingTask);
+                          setEditingTask(null);
+                        setEditedTaskData(null);
                         }
                       }}
-                      className="px-3 py-1 rounded-full text-sm font-medium border-2 border-dashed"
-                      style={{
-                        borderColor: isDark ? '#4b5563' : '#d1d5db',
+                    className="px-4 py-2 rounded-lg font-medium transition-colors text-sm"
+                      style={{ backgroundColor: '#EF4444', color: 'white' }}
+                    >
+                    <Trash2 className="w-3.5 h-3.5 inline mr-1" />
+                    删除
+                    </button>
+                    
+                    <button
+                    onClick={() => {
+                      setEditingTask(null);
+                      setEditedTaskData(null);
+                    }}
+                    className="flex-1 px-4 py-2 rounded-lg font-medium transition-colors text-sm"
+                      style={{ 
+                        backgroundColor: isDark ? '#374151' : '#f3f4f6',
                         color: isDark ? '#ffffff' : '#000000'
                       }}
                     >
-                      + 添加标签
+                      取消
                     </button>
-                  </div>
-                </div>
-                
-                {/* 关联目标 */}
-                <div>
-                  <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>🎯 关联目标</label>
-                  <input
-                    type="text"
-                    value={editedTaskData.description || ''}
-                    onChange={(e) => setEditedTaskData({ ...editedTaskData, description: e.target.value })}
-                    placeholder="例如：月入5w、坚持100天..."
-                    className="w-full px-4 py-2 rounded-lg border text-base"
-                    style={{ 
-                      borderColor: isDark ? '#4b5563' : '#d1d5db',
-                      backgroundColor: isDark ? '#374151' : '#ffffff',
-                      color: isDark ? '#ffffff' : '#000000'
-                    }}
-                  />
-                </div>
-                
-                {/* 位置 */}
-                <div>
-                  <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>📍 位置</label>
-                  <input
-                    type="text"
-                    value={editedTaskData.location || ''}
-                    onChange={(e) => setEditedTaskData({ ...editedTaskData, location: e.target.value })}
-                    placeholder="例如：厨房、卧室、办公室..."
-                    className="w-full px-4 py-2 rounded-lg border text-base"
-                    style={{ 
-                      borderColor: isDark ? '#4b5563' : '#d1d5db',
-                      backgroundColor: isDark ? '#374151' : '#ffffff',
-                      color: isDark ? '#ffffff' : '#000000'
-                    }}
-                  />
-                </div>
-                  
-                {/* 照片上传 */}
-                <div>
-                  <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#000000' }}>📷 照片</label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {taskImages[editingTask] && taskImages[editingTask].map((image, idx) => (
-                      <div key={image.id} className="relative aspect-square rounded-lg overflow-hidden">
-                        <img src={image.url} alt={`照片 ${idx + 1}`} className="w-full h-full object-cover" />
-                        <button
-                          onClick={() => {
-                            setTaskImages(prev => ({
-                              ...prev,
-                              [editingTask]: prev[editingTask].filter(img => img.id !== image.id)
-                            }));
-                          }}
-                          className="absolute top-1 right-1 p-1 bg-red-500 rounded-full hover:bg-red-600"
-                        >
-                          <X className="w-3 h-3 text-white" />
-                        </button>
-                      </div>
-                    ))}
+                    
                     <button
-                      onClick={() => handleOpenImagePicker(editingTask)}
-                      className="aspect-square rounded-lg border-2 border-dashed flex items-center justify-center"
-                      style={{
-                        borderColor: isDark ? '#4b5563' : '#d1d5db',
-                        backgroundColor: isDark ? '#374151' : '#f9fafb'
+                      onClick={() => {
+                      onTaskUpdate(editingTask, editedTaskData);
+                        setEditingTask(null);
+                      setEditedTaskData(null);
                       }}
+                    className="flex-1 px-4 py-2 rounded-lg font-medium transition-colors text-sm"
+                      style={{ backgroundColor: '#10B981', color: 'white' }}
                     >
-                      <Camera className="w-6 h-6" style={{ color: isDark ? '#9ca3af' : '#6b7280' }} />
+                    保存
                     </button>
                   </div>
                 </div>
-                  
-                {/* 按钮 */}
-                <div className="flex gap-2 pt-3 border-t" style={{ borderColor: isDark ? '#374151' : '#e5e7eb' }}>
-                  <button
-                    onClick={() => {
-                      if (onTaskDelete && confirm('确定要删除这个任务吗？')) {
-                        onTaskDelete(editingTask);
-                        setEditingTask(null);
-                        setEditedTaskData(null);
-                      }
-                    }}
-                    className="px-4 py-2 rounded-lg font-medium transition-colors text-sm"
-                    style={{ backgroundColor: '#EF4444', color: 'white' }}
-                  >
-                    <Trash2 className="w-3.5 h-3.5 inline mr-1" />
-                    删除
-                  </button>
-                  
-                  <button
-                    onClick={() => {
-                      setEditingTask(null);
-                      setEditedTaskData(null);
-                    }}
-                    className="flex-1 px-4 py-2 rounded-lg font-medium transition-colors text-sm"
-                    style={{ 
-                      backgroundColor: isDark ? '#374151' : '#f3f4f6',
-                      color: isDark ? '#ffffff' : '#000000'
-                    }}
-                  >
-                    取消
-                  </button>
-                  
-                  <button
-                    onClick={() => {
-                      onTaskUpdate(editingTask, editedTaskData);
-                      setEditingTask(null);
-                      setEditedTaskData(null);
-                    }}
-                    className="flex-1 px-4 py-2 rounded-lg font-medium transition-colors text-sm"
-                    style={{ backgroundColor: '#10B981', color: 'white' }}
-                  >
-                    保存
-                  </button>
-                </div>
-              </div>
-            </div>
           </div>
+        </div>
         );
       })()}
       
