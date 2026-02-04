@@ -918,7 +918,8 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
               {editingTasks.map((task, index) => (
                 <div
                   key={index}
-                  className="rounded-2xl p-4 bg-white shadow-sm border border-gray-200"
+                  className="rounded-2xl p-4 bg-white shadow-sm border-2"
+                  style={{ borderColor: task.color }}
                 >
                   {/* 第一行：序号 + 任务名称 + 上下移动 */}
                   <div className="flex items-center gap-2 mb-3">
@@ -970,64 +971,146 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
                   </div>
 
                   {/* 详细信息 */}
-                  <div className="flex items-center gap-2 flex-wrap text-xs">
-                    <div className="flex items-center gap-1 bg-gray-100 rounded-full px-3 py-1.5">
-                      <Clock className="w-3 h-3 text-gray-600" />
-                      <span className="font-medium text-gray-900">{task.scheduled_start}</span>
-                      <span className="text-gray-400">→</span>
-                      <span className="font-medium text-gray-900">{task.scheduled_end}</span>
+                  <div className="space-y-2">
+                    {/* 时间和时长 */}
+                    <div className="flex items-center gap-2 flex-wrap text-xs">
+                      <div className="flex items-center gap-1 bg-gray-100 rounded-full px-3 py-1.5">
+                        <Clock className="w-3 h-3 text-gray-600" />
+                        <span className="font-medium text-gray-900">{task.scheduled_start}</span>
+                        <span className="text-gray-400">→</span>
+                        <span className="font-medium text-gray-900">{task.scheduled_end}</span>
+                      </div>
+
+                      <div className="flex-shrink-0">
+                        {editingField?.taskIndex === index && editingField?.field === 'duration' ? (
+                          <input
+                            type="number"
+                            value={task.estimated_duration}
+                            onChange={(e) => updateTaskField(index, 'estimated_duration', parseInt(e.target.value) || 0)}
+                            onBlur={() => setEditingField(null)}
+                            onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
+                            autoFocus
+                            className="w-16 px-2 py-1 text-xs rounded-full focus:outline-none focus:ring-2 bg-gray-50 text-gray-900 border-2"
+                            style={{ borderColor: task.color }}
+                          />
+                        ) : (
+                          <div
+                            onDoubleClick={() => setEditingField({ taskIndex: index, field: 'duration' })}
+                            className="cursor-pointer px-3 py-1.5 rounded-full transition-colors bg-gray-100"
+                          >
+                            <span className="font-medium text-gray-900">{task.estimated_duration}分钟</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1 bg-yellow-50 rounded-full px-3 py-1.5">
+                        <Coins className="w-3 h-3 text-yellow-600" />
+                        <span className="font-semibold text-yellow-700">{task.gold}</span>
+                      </div>
+
+                      <span className="px-3 py-1.5 rounded-full font-medium bg-gray-100 text-gray-700">
+                        📍 {task.location}
+                      </span>
                     </div>
 
-                    <div className="flex-shrink-0">
-                      {editingField?.taskIndex === index && editingField?.field === 'duration' ? (
-                        <input
-                          type="number"
-                          value={task.estimated_duration}
-                          onChange={(e) => updateTaskField(index, 'estimated_duration', parseInt(e.target.value) || 0)}
-                          onBlur={() => setEditingField(null)}
-                          onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
-                          autoFocus
-                          className="w-16 px-2 py-1 text-xs rounded-full focus:outline-none focus:ring-2 bg-gray-50 text-gray-900 border-2"
-                          style={{ borderColor: task.color }}
-                        />
-                      ) : (
+                    {/* 标签（可编辑） */}
+                    <div className="flex items-center gap-2 flex-wrap text-xs">
+                      <span className="text-gray-500 font-medium">🏷️ 标签：</span>
+                      {task.tags.map((tag: string, tagIndex: number) => (
                         <div
-                          onDoubleClick={() => setEditingField({ taskIndex: index, field: 'duration' })}
-                          className="cursor-pointer px-3 py-1.5 rounded-full transition-colors bg-gray-100"
+                          key={tagIndex}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-full font-medium"
+                          style={{
+                            backgroundColor: `${AISmartProcessor.getColorForTag(tag)}20`,
+                            color: AISmartProcessor.getColorForTag(tag),
+                          }}
                         >
-                          <span className="font-medium text-gray-900">{task.estimated_duration}分钟</span>
+                          <span>{tag}</span>
+                          <button
+                            onClick={() => {
+                              const newTasks = [...editingTasks];
+                              newTasks[index].tags = newTasks[index].tags.filter((_: string, i: number) => i !== tagIndex);
+                              // 更新颜色（使用第一个标签的颜色）
+                              newTasks[index].color = AISmartProcessor.getTaskColor(newTasks[index].tags);
+                              setEditingTasks(newTasks);
+                            }}
+                            className="hover:bg-red-500/20 rounded-full p-0.5 transition-colors"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
                         </div>
+                      ))}
+                      <button
+                        onClick={() => {
+                          const newTag = prompt('输入新标签：');
+                          if (newTag && newTag.trim()) {
+                            const newTasks = [...editingTasks];
+                            newTasks[index].tags = [...newTasks[index].tags, newTag.trim()];
+                            // 更新颜色（使用第一个标签的颜色）
+                            newTasks[index].color = AISmartProcessor.getTaskColor(newTasks[index].tags);
+                            setEditingTasks(newTasks);
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-full font-medium border-2 border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
+                      >
+                        + 添加
+                      </button>
+                    </div>
+
+                    {/* 关联目标（可编辑） */}
+                    <div className="flex items-center gap-2 flex-wrap text-xs">
+                      <span className="text-gray-500 font-medium">🎯 目标：</span>
+                      {task.goal ? (
+                        <div className="flex items-center gap-1 bg-green-50 rounded-full px-3 py-1.5">
+                          <span className="font-medium text-green-700">{task.goal}</span>
+                          <button
+                            onClick={() => {
+                              const newTasks = [...editingTasks];
+                              newTasks[index].goal = null;
+                              newTasks[index].isNewGoal = false;
+                              setEditingTasks(newTasks);
+                            }}
+                            className="hover:bg-red-500/20 rounded-full p-0.5 transition-colors"
+                          >
+                            <X className="w-3 h-3 text-green-700" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            // 显示目标选择器
+                            const existingGoals = goals.map(g => g.title);
+                            const options = [...existingGoals, '+ 创建新目标'];
+                            const choice = prompt(`选择目标（输入序号）：\n${options.map((o, i) => `${i + 1}. ${o}`).join('\n')}`);
+                            
+                            if (choice) {
+                              const choiceIndex = parseInt(choice) - 1;
+                              if (choiceIndex >= 0 && choiceIndex < options.length) {
+                                if (choiceIndex === options.length - 1) {
+                                  // 创建新目标
+                                  const newGoalName = prompt('输入新目标名称：');
+                                  if (newGoalName && newGoalName.trim()) {
+                                    const newTasks = [...editingTasks];
+                                    newTasks[index].goal = newGoalName.trim();
+                                    newTasks[index].isNewGoal = true;
+                                    setEditingTasks(newTasks);
+                                  }
+                                } else {
+                                  // 选择现有目标
+                                  const newTasks = [...editingTasks];
+                                  newTasks[index].goal = existingGoals[choiceIndex];
+                                  newTasks[index].isNewGoal = false;
+                                  setEditingTasks(newTasks);
+                                }
+                              }
+                            }
+                          }}
+                          className="px-3 py-1.5 rounded-full font-medium border-2 border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
+                        >
+                          + 关联目标
+                        </button>
                       )}
                     </div>
-
-                    <div className="flex items-center gap-1 bg-yellow-50 rounded-full px-3 py-1.5">
-                      <Coins className="w-3 h-3 text-yellow-600" />
-                      <span className="font-semibold text-yellow-700">{task.gold}</span>
-                    </div>
-
-                    <span className="px-3 py-1.5 rounded-full font-medium bg-gray-100 text-gray-700">
-                      📍 {task.location}
-                    </span>
-
-                    {task.tags.map((tag: string, tagIndex: number) => (
-                      <span
-                        key={tagIndex}
-                        className="px-3 py-1.5 rounded-full font-medium"
-                        style={{
-                          backgroundColor: `${AISmartProcessor.getColorForTag(tag)}20`,
-                          color: AISmartProcessor.getColorForTag(tag),
-                        }}
-                      >
-                        {tag}
-                      </span>
-                    ))}
-
-                    {task.goal && (
-                      <div className="flex items-center gap-1 bg-green-50 rounded-full px-3 py-1.5">
-                        <span>🎯</span>
-                        <span className="font-medium text-green-700">{task.goal}</span>
-                      </div>
-                    )}
                   </div>
                 </div>
               ))}
