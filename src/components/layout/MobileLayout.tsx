@@ -5,7 +5,7 @@ import { useGoldStore } from '@/stores/goldStore';
 import { useTutorialStore } from '@/stores/tutorialStore';
 import { X, GripVertical, Settings, HelpCircle } from 'lucide-react';
 import NotificationContainer from '@/components/ui/NotificationContainer';
-import FloatingAIChat from '@/components/ai/FloatingAIChat';
+import AISmartInput from '@/components/ai/AISmartInput';
 import VoiceAssistant from '@/components/voice/VoiceAssistant';
 import GitHubCommitBadge from '@/components/ui/GitHubCommitBadge';
 import {
@@ -81,7 +81,7 @@ export default function MobileLayout() {
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
   const [navColor, setNavColor] = useState(() => localStorage.getItem('mobile_nav_color') || '#ffffff');
   const [showColorPicker, setShowColorPicker] = useState(false);
-  const [showAIChat, setShowAIChat] = useState(false); // AI 对话框状态
+  const [showAISmartInput, setShowAISmartInput] = useState(false); // AI 智能输入状态
 
   useEffect(() => {
     loadTasks();
@@ -272,7 +272,7 @@ export default function MobileLayout() {
         {/* 浮动 AI 按钮 - 只在时间轴页面显示 */}
         {activeTab === 'timeline' && (
           <button
-            onClick={() => setShowAIChat(true)}
+            onClick={() => setShowAISmartInput(true)}
             className="fixed bottom-24 right-4 w-14 h-14 rounded-full shadow-lg flex items-center justify-center z-30 active:scale-95 transition-transform"
             style={{
               backgroundColor: '#FFD700',
@@ -285,12 +285,11 @@ export default function MobileLayout() {
         )}
       </div>
 
-      {/* AI 对话框 */}
-      {showAIChat && (
-        <div className="fixed inset-0 z-50 bg-white">
-          <FloatingAIChat isFullScreen={true} onClose={() => setShowAIChat(false)} />
-        </div>
-      )}
+      {/* AI 智能输入 - 使用电脑版相同的组件 */}
+      <AISmartInput 
+        isOpen={showAISmartInput} 
+        onClose={() => setShowAISmartInput(false)} 
+      />
 
       {/* 底部导航栏 - 固定在底部 */}
       <div 
