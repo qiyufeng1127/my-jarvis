@@ -391,6 +391,18 @@ p, span, div, h1, h2, h3, h4, h5, h6, a, button, input, textarea, label {
   }
 }
 
+@keyframes progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 .animate-fade-in {
   animation: fadeIn var(--transition-normal) ease-in-out;
 }

@@ -1027,6 +1027,7 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
                     
                     try {
                       // 添加新目标
+                      let completedCount = 0;
                       for (const task of editingTasks) {
                         if (task.goal && task.isNewGoal) {
                           const existingGoal = goals.find(g => g.title === task.goal);
@@ -1042,12 +1043,28 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
                         }
                       }
 
-                      // 创建任务
-                      await executeActions([{
-                        type: 'create_task',
-                        data: { tasks: editingTasks },
-                        label: '确认',
-                      }]);
+                      // 逐个创建任务，显示进度
+                      for (let i = 0; i < editingTasks.length; i++) {
+                        const task = editingTasks[i];
+                        await createTask({
+                          title: task.title,
+                          description: task.description || '',
+                          durationMinutes: task.estimated_duration || 60,
+                          taskType: task.task_type || 'life',
+                          scheduledStart: task.scheduled_start_iso,
+                          priority: task.priority || 'medium',
+                          tags: task.tags || [],
+                          status: 'pending',
+                          color: task.color,
+                          location: task.location,
+                          goldReward: task.gold || 0,
+                        });
+                        completedCount++;
+                        
+                        // 更新进度提示
+                        const progressMsg = `正在推送 ${completedCount}/${editingTasks.length} 个任务...`;
+                        console.log(progressMsg);
+                      }
                       
                       setShowTaskEditor(false);
                       setEditingTasks([]);
@@ -1079,9 +1096,36 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
                   {isProcessing ? '推送中...' : '完成'}
                 </button>
               </div>
-              <p className="text-xs text-gray-500 mt-2 text-center">
-                {isProcessing ? '正在添加到时间轴...' : '双击字段编辑，用箭头调整顺序'}
-              </p>
+              
+              {/* 进度提示 */}
+              {isProcessing ? (
+                <div className="mt-2 space-y-2">
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <div className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <div className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                    <span className="text-sm font-medium text-blue-600">正在推送到时间轴...</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                    <div 
+                      className="h-full bg-blue-500 transition-all duration-300 rounded-full"
+                      style={{ 
+                        width: '100%',
+                        animation: 'progress 2s ease-in-out infinite'
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-center text-gray-600">
+                    共 {editingTasks.length} 个任务，请稍候...
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-600 mt-2 text-center">
+                  双击字段编辑，用箭头调整顺序
+                </p>
+              )}
             </div>
 
             {/* 任务卡片列表 */}

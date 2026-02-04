@@ -9,7 +9,7 @@ interface AIConfigModalProps {
 
 export default function AIConfigModal({ isOpen, onClose }: AIConfigModalProps) {
   const { config, setApiKey, setApiEndpoint, setModel, isConfigured } = useAIStore();
-  const [localApiKey, setLocalApiKey] = useState(config.apiKey);
+  const [localApiKey, setLocalApiKey] = useState(config.apiKey || 'sk-feff761a4a744e789711f2d88801d80b');
   const [localEndpoint, setLocalEndpoint] = useState(config.apiEndpoint || 'https://api.deepseek.com/v1/chat/completions');
   const [localModel, setLocalModel] = useState(config.model || 'deepseek-chat');
   const [showKey, setShowKey] = useState(false);
