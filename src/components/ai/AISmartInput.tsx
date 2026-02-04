@@ -963,13 +963,24 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
           {isProcessing && (
             <div className="flex justify-start">
               <div className="rounded-2xl px-4 py-3 bg-white border border-gray-200 shadow-sm">
-                <div className="flex items-center space-x-2">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                <div className="flex items-center justify-between space-x-3">
+                  <div className="flex items-center space-x-2">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                    <span className="text-xs text-gray-500">AI正在思考...</span>
                   </div>
-                  <span className="text-xs text-gray-500">AI正在思考...</span>
+                  <button
+                    onClick={() => {
+                      console.log('🛑 用户强制停止思考');
+                      setIsProcessing(false);
+                    }}
+                    className="px-3 py-1 rounded-full bg-red-50 text-red-600 text-xs font-medium active:bg-red-100 transition-colors"
+                  >
+                    停止
+                  </button>
                 </div>
               </div>
             </div>
@@ -1027,7 +1038,6 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
                     
                     try {
                       // 添加新目标
-                      let completedCount = 0;
                       for (const task of editingTasks) {
                         if (task.goal && task.isNewGoal) {
                           const existingGoal = goals.find(g => g.title === task.goal);
@@ -1059,17 +1069,17 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
                           location: task.location,
                           goldReward: task.gold || 0,
                         });
-                        completedCount++;
                         
                         // 更新进度提示
-                        const progressMsg = `正在推送 ${completedCount}/${editingTasks.length} 个任务...`;
-                        console.log(progressMsg);
+                        console.log(`正在推送 ${i + 1}/${editingTasks.length} 个任务...`);
                       }
                       
+                      // 关闭编辑器
                       setShowTaskEditor(false);
                       setEditingTasks([]);
                       setEditingField(null);
                       
+                      // 显示成功消息
                       const successMessage: AIMessage = {
                         id: `success-${Date.now()}`,
                         role: 'assistant',
@@ -1078,6 +1088,9 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
                       };
                       setMessages(prev => [...prev, successMessage]);
                       
+                      // 重置处理状态（关键！）
+                      setIsProcessing(false);
+                      
                       // 等待一下让用户看到成功消息
                       await new Promise(resolve => setTimeout(resolve, 800));
                       
@@ -1085,9 +1098,11 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
                       onClose();
                     } catch (error) {
                       console.error('❌ 推送任务失败:', error);
-                      alert('推送任务失败，请重试');
-                    } finally {
+                      
+                      // 重置处理状态（关键！）
                       setIsProcessing(false);
+                      
+                      alert('推送任务失败，请重试');
                     }
                   }}
                   disabled={isProcessing}
