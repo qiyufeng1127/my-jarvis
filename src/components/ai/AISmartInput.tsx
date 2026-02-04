@@ -112,9 +112,7 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
   useEffect(() => {
     if (!isOpen) return;
     // 清空消息，直接开始对话
-    if (messages.length === 0) {
-      // 不添加欢迎消息
-    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   if (!isOpen) return null;
