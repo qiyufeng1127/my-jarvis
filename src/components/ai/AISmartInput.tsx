@@ -67,7 +67,7 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
   } = useSideHustleStore();
 
   const cardBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
-  const textColor = isDark ? '#ffffff' : '#000000';
+  const textColor = '#000000'; // 强制使用黑色文字，确保在任何背景下都可见
   const accentColor = isDark ? 'rgba(255,255,255,0.7)' : '#666666';
   const buttonBg = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)';
 
