@@ -340,6 +340,8 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
   };
 
   const processWithAI = async (input: string) => {
+    console.log('📱 手机端 - 开始处理输入:', input);
+    
     // 获取现有任务（用于冲突检测）
     const existingTasks = useTaskStore.getState().tasks || [];
     
@@ -361,8 +363,16 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
       },
     };
 
+    console.log('📱 手机端 - 调用 AISmartProcessor.process');
+    
     // 调用 AI 处理服务
-    return await AISmartProcessor.process(request);
+    const result = await AISmartProcessor.process(request);
+    
+    console.log('📱 手机端 - AI处理结果:', result);
+    console.log('📱 手机端 - Actions:', result.actions);
+    console.log('📱 手机端 - 是否有tasks:', result.actions?.[0]?.data?.tasks);
+    
+    return result;
   };
 
 
@@ -797,6 +807,7 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
                             executeActions([action]);
                           }
                         }}
+                        
                         className="w-full px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-[1.02]"
                         style={{ 
                           backgroundColor: buttonBg,

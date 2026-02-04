@@ -812,6 +812,7 @@ taskType选项：work, study, health, life, finance, creative, rest
       .filter(Boolean);
     
     console.log('📋 原始任务列表:', rawTasks);
+    console.log('📋 任务数量:', rawTasks.length);
     
     if (rawTasks.length === 0) {
       return {
@@ -1483,7 +1484,10 @@ ${tasksInfo.map((t, i) => `${i + 1}. ${t.title} (${t.start})`).join('\n')}
 
   // 主处理函数
   static async process(request: AIProcessRequest): Promise<AIProcessResponse> {
+    console.log('🤖 AISmartProcessor.process - 输入:', request.user_input);
+    
     const inputType = this.analyzeInputType(request.user_input);
+    console.log('🤖 AISmartProcessor.process - 识别类型:', inputType);
 
     switch (inputType) {
       case 'money_tracking':
@@ -1491,6 +1495,7 @@ ${tasksInfo.map((t, i) => `${i + 1}. ${t.title} (${t.start})`).join('\n')}
       case 'scheduled_task':
         return await this.handleScheduledTask(request.user_input, request.context);
       case 'task_decomposition':
+        console.log('🤖 AISmartProcessor.process - 调用 handleTaskDecomposition');
         return await this.handleTaskDecomposition(request.user_input, request.context);
       case 'timeline_operation':
         return await this.handleTimelineOperation(request.user_input, request.context);
