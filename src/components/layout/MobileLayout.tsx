@@ -472,11 +472,6 @@ export default function MobileLayout() {
                 </div>
               </div>
             )}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* 当前导航项 */}
             <div className="flex-1 overflow-y-auto p-4">
