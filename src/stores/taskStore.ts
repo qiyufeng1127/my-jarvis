@@ -47,6 +47,10 @@ export const useTaskStore = create<TaskState>()(
         const userId = session.user.id;
         console.log('📥 从 Supabase 加载任务，用户ID:', userId);
         
+        // 获取本地任务（用于合并）
+        const localTasks = get().tasks;
+        console.log('📦 本地任务数量:', localTasks.length);
+        
         const { data, error } = await supabase
           .from(TABLES.TASKS)
           .select('*')
@@ -58,7 +62,7 @@ export const useTaskStore = create<TaskState>()(
           throw error;
         }
         
-        const tasks: Task[] = (data || []).map((row: any) => ({
+        const cloudTasks: Task[] = (data || []).map((row: any) => ({
           id: row.id,
           userId: row.user_id,
           title: row.title,
@@ -86,8 +90,54 @@ export const useTaskStore = create<TaskState>()(
           updatedAt: new Date(row.updated_at),
         }));
         
-        console.log('✅ 从 Supabase 加载了', tasks.length, '个任务');
-        set({ tasks, isLoading: false });
+        console.log('☁️ 从 Supabase 加载了', cloudTasks.length, '个任务');
+        
+        // 合并本地和云端任务（去重，优先使用云端数据）
+        const cloudTaskIds = new Set(cloudTasks.map(t => t.id));
+        const localOnlyTasks = localTasks.filter(t => 
+          !cloudTaskIds.has(t.id) && t.userId !== 'local-user'
+        );
+        
+        // 将本地独有的任务上传到云端
+        if (localOnlyTasks.length > 0) {
+          console.log('📤 上传', localOnlyTasks.length, '个本地任务到云端');
+          for (const task of localOnlyTasks) {
+            try {
+              await supabase.from(TABLES.TASKS).insert({
+                id: task.id,
+                user_id: userId,
+                title: task.title,
+                description: task.description,
+                task_type: task.taskType,
+                priority: task.priority,
+                duration_minutes: task.durationMinutes,
+                scheduled_start: task.scheduledStart?.toISOString(),
+                scheduled_end: task.scheduledEnd?.toISOString(),
+                actual_start: task.actualStart?.toISOString(),
+                actual_end: task.actualEnd?.toISOString(),
+                status: task.status,
+                growth_dimensions: task.growthDimensions,
+                long_term_goals: task.longTermGoals,
+                identity_tags: task.identityTags,
+                enable_progress_check: task.enableProgressCheck,
+                progress_checks: task.progressChecks,
+                penalty_gold: task.penaltyGold,
+                gold_earned: task.goldEarned,
+                tags: task.tags,
+                color: task.color,
+                location: task.location,
+                gold_reward: task.goldReward,
+              });
+            } catch (uploadError) {
+              console.warn('⚠️ 上传任务失败:', task.title, uploadError);
+            }
+          }
+        }
+        
+        // 合并所有任务
+        const mergedTasks = [...cloudTasks, ...localOnlyTasks];
+        console.log('✅ 合并后共', mergedTasks.length, '个任务');
+        set({ tasks: mergedTasks, isLoading: false });
       } else {
         // Supabase 未配置，使用本地存储
         console.log('⚠️ Supabase 未配置，使用本地存储');
@@ -106,12 +156,9 @@ export const useTaskStore = create<TaskState>()(
     set({ isLoading: true, error: null });
     
     try {
-      // 获取当前登录用户
+      // 获取当前登录用户（如果未登录，使用本地ID）
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('未登录');
-      }
-      const userId = session.user.id;
+      const userId = session?.user?.id || 'local-user';
       
       // 处理日期：如果是字符串就直接使用，如果是 Date 对象就转换
       const scheduledStartStr = typeof taskData.scheduledStart === 'string' 
@@ -159,6 +206,7 @@ export const useTaskStore = create<TaskState>()(
         color: newTask.color,
         location: newTask.location,
         goldReward: newTask.goldReward,
+        userId: newTask.userId,
       });
       
       // 先添加到本地状态
@@ -167,8 +215,8 @@ export const useTaskStore = create<TaskState>()(
         isLoading: false,
       }));
       
-      // 异步保存到 Supabase（不阻塞，不抛出错误）
-      if (isSupabaseConfigured()) {
+      // 异步保存到 Supabase（仅在已登录且配置了 Supabase 时）
+      if (isSupabaseConfigured() && session) {
         // 在后台异步执行，不等待结果
         (async () => {
           try {
@@ -205,6 +253,8 @@ export const useTaskStore = create<TaskState>()(
             console.warn('⚠️ 云端同步异常:', error?.message || error);
           }
         })();
+      } else {
+        console.log('💾 任务仅保存到本地存储（未登录或未配置云端）');
       }
       
       return newTask;

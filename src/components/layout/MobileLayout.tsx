@@ -273,12 +273,13 @@ export default function MobileLayout() {
       <div className="flex-1 overflow-y-auto pb-20 relative">
         {renderActiveModule()}
         
-        {/* 浮动 AI 按钮 - 只在时间轴页面显示 */}
+        {/* 浮动 AI 按钮 - 只在时间轴页面显示，调整位置避免被导航栏遮挡 */}
         {activeTab === 'timeline' && (
           <button
             onClick={() => setShowAISmartInput(true)}
-            className="fixed bottom-24 right-4 w-14 h-14 rounded-full shadow-lg flex items-center justify-center z-30 active:scale-95 transition-transform"
+            className="fixed right-4 w-14 h-14 rounded-full shadow-lg flex items-center justify-center z-30 active:scale-95 transition-transform"
             style={{
+              bottom: '88px', // 导航栏高度约72px + 16px间距
               backgroundColor: '#FFD700',
               boxShadow: '0 4px 12px rgba(255, 215, 0, 0.4)',
             }}

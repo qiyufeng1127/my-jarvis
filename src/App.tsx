@@ -55,17 +55,22 @@ function App() {
         if (session) {
           console.log('✅ 用户已登录:', session.user.email);
           setIsAuthenticated(true);
-          setIsCheckingAuth(false); // 先显示界面
           
-          // 3. 后台异步加载云端数据（不阻塞界面显示）
+          // 3. 加载云端数据（等待完成后再显示界面，确保数据同步）
           Promise.all([
             loadFromCloud(),
             loadTasks(),
             loadGoals(),
           ]).then(() => {
             console.log('✅ 云端数据加载完成');
+            if (mounted) {
+              setIsCheckingAuth(false);
+            }
           }).catch((error) => {
-            console.error('❌ 云端数据加载失败:', error);
+            console.error('❌ 云端数据加载失败，使用本地数据:', error);
+            if (mounted) {
+              setIsCheckingAuth(false);
+            }
           });
         } else {
           console.log('👤 游客模式：数据保存在本地');
