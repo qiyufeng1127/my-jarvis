@@ -247,8 +247,8 @@ export default function TaskVerification({
       const blob = await fetch(imageData).then(r => r.blob());
       const file = new File([blob], 'verification.jpg', { type: 'image/jpeg' });
       
-      // 调用百度AI验证
-      const result = await baiduImageRecognition.verifyImage(file, keywords, 0.3);
+      // 调用百度AI验证 - 降低阈值，提高识别成功率
+      const result = await baiduImageRecognition.verifyImage(file, keywords, 0.15); // 从0.3降低到0.15
 
       setIsVerifying(false);
 
@@ -261,10 +261,14 @@ export default function TaskVerification({
           onSuccess();
         }, 2000);
       } else {
-        // 验证失败
+        // 验证失败 - 提供更详细的信息
+        const recognizedText = result.recognizedKeywords.length > 0 
+          ? result.recognizedKeywords.slice(0, 8).join(', ') 
+          : '无相关内容';
+        
         setVerificationResult('fail');
         setVerificationReason(
-          `验证失败！\n要求: ${keywords.join(', ')}\n识别到: ${result.recognizedKeywords.length > 0 ? result.recognizedKeywords.slice(0, 5).join(', ') : '无相关内容'}`
+          `验证失败！\n要求包含: ${keywords.join(' 或 ')}\n识别到: ${recognizedText}\n\n提示：请确保照片清晰，包含要求的物品`
         );
         
         // 扣除金币
@@ -389,23 +393,27 @@ export default function TaskVerification({
                 />
                 <canvas ref={canvasRef} className="hidden" />
                 
-                {/* 验证关键词提示 - 显示在顶部 */}
+                {/* 验证关键词提示 - 移到中间位置 */}
                 {keywords.length > 0 && (
-                  <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/80 to-transparent p-4 z-10">
-                    <div className="flex flex-wrap gap-2 justify-center">
-                      {keywords.map((keyword, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center gap-1 px-3 py-2 bg-white/20 backdrop-blur-md rounded-full border border-white/30"
-                        >
-                          <span className="text-2xl">📸</span>
-                          <span className="text-white font-semibold text-sm">{keyword}</span>
-                        </div>
-                      ))}
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 w-full px-4">
+                    <div className="bg-black/70 backdrop-blur-md rounded-2xl p-4 border border-white/20">
+                      <p className="text-white text-center text-sm font-semibold mb-3">
+                        📷 拍照验证
+                      </p>
+                      <div className="flex flex-wrap gap-2 justify-center mb-2">
+                        {keywords.map((keyword, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-blue-500/80 backdrop-blur-sm rounded-full"
+                          >
+                            <span className="text-white font-semibold text-sm">{keyword}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-white/90 text-center text-xs">
+                        📸 请拍摄或上传包含以上内容的照片
+                      </p>
                     </div>
-                    <p className="text-white/90 text-center text-xs mt-2">
-                      📷 请拍摄包含以上内容的照片
-                    </p>
                   </div>
                 )}
                 
@@ -420,23 +428,27 @@ export default function TaskVerification({
             {(task.verificationType === 'upload' || task.verificationType === 'file') && 
              !uploadedImage && !uploadedFile && !verificationResult && (
               <div className="w-full h-full flex items-center justify-center">
-                {/* 验证关键词提示 - 显示在顶部 */}
+                {/* 验证关键词提示 - 移到中间位置 */}
                 {keywords.length > 0 && (
-                  <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/80 to-transparent p-4 z-10">
-                    <div className="flex flex-wrap gap-2 justify-center">
-                      {keywords.map((keyword, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center gap-1 px-3 py-2 bg-white/20 backdrop-blur-md rounded-full border border-white/30"
-                        >
-                          <span className="text-2xl">📸</span>
-                          <span className="text-white font-semibold text-sm">{keyword}</span>
-                        </div>
-                      ))}
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 w-full px-4">
+                    <div className="bg-black/70 backdrop-blur-md rounded-2xl p-4 border border-white/20">
+                      <p className="text-white text-center text-sm font-semibold mb-3">
+                        📷 上传验证
+                      </p>
+                      <div className="flex flex-wrap gap-2 justify-center mb-2">
+                        {keywords.map((keyword, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-blue-500/80 backdrop-blur-sm rounded-full"
+                          >
+                            <span className="text-white font-semibold text-sm">{keyword}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-white/90 text-center text-xs">
+                        📸 请上传包含以上内容的照片
+                      </p>
                     </div>
-                    <p className="text-white/90 text-center text-xs mt-2">
-                      📷 请上传包含以上内容的照片
-                    </p>
                   </div>
                 )}
                 

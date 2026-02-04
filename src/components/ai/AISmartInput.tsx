@@ -249,6 +249,11 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
     setInputValue('');
     setIsProcessing(true);
 
+    // 确保无论如何都会重置 isProcessing
+    const resetProcessing = () => {
+      setIsProcessing(false);
+    };
+
     try {
       // 直接调用本地AI处理器（不需要先调用DeepSeek API）
       const existingTasks = useTaskStore.getState().tasks || [];
@@ -295,6 +300,9 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
           // 直接打开任务编辑器
           setEditingTasks(taskAction.data.tasks);
           setShowTaskEditor(true);
+          
+          // 重置处理状态
+          resetProcessing();
           return;
         }
       }
@@ -349,7 +357,8 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
       
       await showFeedback('failure', {});
     } finally {
-      setIsProcessing(false);
+      // 确保一定会重置
+      resetProcessing();
     }
   };
 
