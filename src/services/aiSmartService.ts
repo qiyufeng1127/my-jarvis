@@ -806,8 +806,16 @@ taskType选项：work, study, health, life, finance, creative, rest
     
     // 分割任务（原始输入，包含时长信息）
     const rawInput = input.replace(/^[一二三四五六七八九十\d]+分钟[后之]后?/i, '').trim();
-    const rawTasks = rawInput
-      .split(/[、，,]|然后|之后|接着/)
+    
+    console.log('📋 清理后的输入:', rawInput);
+    console.log('📋 输入长度:', rawInput.length);
+    console.log('📋 输入字符:', Array.from(rawInput).map((c, i) => `${i}:${c}(${c.charCodeAt(0)})`).join(' '));
+    
+    const splitResult = rawInput.split(/[、，,]|然后|之后|接着/);
+    console.log('📋 分割结果（未过滤）:', splitResult);
+    console.log('📋 分割结果数量:', splitResult.length);
+    
+    const rawTasks = splitResult
       .map(t => t.trim())
       .filter(Boolean);
     

@@ -245,30 +245,44 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
     setInputValue('');
     setIsProcessing(true);
 
-    // 立即显示"AI正在思考"状态
-    // 用户可以看到消息已发送
-
     try {
-      // 调用 AI 处理
-      const response = await processWithAI(message);
+      // 直接调用本地AI处理器（不需要先调用DeepSeek API）
+      const existingTasks = useTaskStore.getState().tasks || [];
+      const existingSideHustles = getActiveSideHustles();
       
-      // 调试日志
-      console.log('🔍 AI处理结果:', response);
-      console.log('📋 Actions:', response.actions);
-      console.log('📊 Data:', response.data);
+      const request: AIProcessRequest = {
+        user_input: message,
+        context: {
+          user_id: 'current-user',
+          current_time: new Date().toLocaleTimeString('zh-CN'),
+          current_date: new Date().toLocaleDateString('zh-CN'),
+          timeline_summary: {},
+          user_preferences: {},
+          conversation_history: messages.slice(-5),
+          existing_tasks: existingTasks,
+          existing_side_hustles: existingSideHustles,
+        },
+      };
+
+      console.log('📱 手机端 - 调用 AISmartProcessor.process');
+      const localResponse = await AISmartProcessor.process(request);
+      
+      console.log('🔍 AI处理结果:', localResponse);
+      console.log('📋 Actions:', localResponse.actions);
+      console.log('📊 Data:', localResponse.data);
       
       // 如果是任务分解，直接打开编辑器，不显示按钮
-      if (response.actions && response.actions.length > 0) {
-        const taskAction = response.actions.find(a => a.type === 'create_task' && a.data.tasks);
+      if (localResponse.actions && localResponse.actions.length > 0) {
+        const taskAction = localResponse.actions.find(a => a.type === 'create_task' && a.data.tasks);
         if (taskAction && taskAction.data.tasks) {
-          console.log('🎯 检测到任务分解，直接打开编辑器');
+          console.log('🎯 检测到任务分解，直接打开编辑器，任务数量:', taskAction.data.tasks.length);
           
           // 显示AI消息（不带按钮）
           const aiMessage: AIMessage = {
             id: `ai-${Date.now()}`,
             role: 'assistant',
-            content: response.message,
-            data: response.data,
+            content: localResponse.message,
+            data: localResponse.data,
             actions: undefined, // 不显示按钮
             timestamp: new Date(),
           };
@@ -285,9 +299,9 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
       const aiMessage: AIMessage = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        content: response.message,
-        data: response.data,
-        actions: response.actions,
+        content: localResponse.message,
+        data: localResponse.data,
+        actions: localResponse.actions,
         timestamp: new Date(),
       };
 
@@ -300,17 +314,14 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
       }
 
       // 处理冲突选项
-      if (response.conflictDetected && response.conflictOptions) {
-        // 显示冲突选项，等待用户选择
-        // 不自动执行
+      if (localResponse.conflictDetected && localResponse.conflictOptions) {
         return;
       }
 
-      // 自动执行操作（如果不需要确认）
-      if (response.autoExecute && response.actions) {
-        await executeActions(response.actions);
+      // 自动执行操作
+      if (localResponse.autoExecute && localResponse.actions) {
+        await executeActions(localResponse.actions);
         
-        // 成功反馈
         if (deviceFeedbackRef.current) {
           deviceFeedbackRef.current.vibrate([100, 50, 100]);
           deviceFeedbackRef.current.playSound('success');
@@ -328,7 +339,6 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
       };
       setMessages(prev => [...prev, errorMessage]);
       
-      // 错误反馈
       if (deviceFeedbackRef.current) {
         deviceFeedbackRef.current.playSound('error');
       }
@@ -337,42 +347,6 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
     } finally {
       setIsProcessing(false);
     }
-  };
-
-  const processWithAI = async (input: string) => {
-    console.log('📱 手机端 - 开始处理输入:', input);
-    
-    // 获取现有任务（用于冲突检测）
-    const existingTasks = useTaskStore.getState().tasks || [];
-    
-    // 获取现有副业（用于副业追踪）
-    const existingSideHustles = getActiveSideHustles();
-    
-    // 构建请求上下文
-    const request: AIProcessRequest = {
-      user_input: input,
-      context: {
-        user_id: 'current-user', // TODO: 从 userStore 获取
-        current_time: new Date().toLocaleTimeString('zh-CN'),
-        current_date: new Date().toLocaleDateString('zh-CN'),
-        timeline_summary: {}, // TODO: 获取时间轴摘要
-        user_preferences: {}, // TODO: 获取用户偏好
-        conversation_history: messages.slice(-5), // 最近5条对话
-        existing_tasks: existingTasks, // 传入现有任务用于冲突检测
-        existing_side_hustles: existingSideHustles, // 传入现有副业用于副业追踪
-      },
-    };
-
-    console.log('📱 手机端 - 调用 AISmartProcessor.process');
-    
-    // 调用 AI 处理服务
-    const result = await AISmartProcessor.process(request);
-    
-    console.log('📱 手机端 - AI处理结果:', result);
-    console.log('📱 手机端 - Actions:', result.actions);
-    console.log('📱 手机端 - 是否有tasks:', result.actions?.[0]?.data?.tasks);
-    
-    return result;
   };
 
 
