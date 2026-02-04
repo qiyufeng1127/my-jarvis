@@ -8,8 +8,9 @@ import { MoneyTracker } from '@/components/money';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
 import { useGoldStore } from '@/stores/goldStore';
+import { useThemeStore, ACCENT_COLORS } from '@/stores/themeStore';
 import { TrendingUp, Target, CheckCircle, Clock, ShoppingBag, History, Plus } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 // 重新导出 GoalsModule
 export { GoalsModule } from '@/components/growth/GoalsModule';
@@ -1275,15 +1276,21 @@ export function ReportsModule({ isDark = false }: { isDark?: boolean }) {
 
 // 设置模块
 export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: boolean; bgColor?: string }) {
-  const [activeTab, setActiveTab] = useState<'auth' | 'sync' | 'growth' | 'identity' | 'procrastination' | 'economy' | 'appearance' | 'notification'>('auth');
+  const [activeTab, setActiveTab] = useState<'auth' | 'sync' | 'growth' | 'identity' | 'procrastination' | 'economy' | 'appearance' | 'notification'>('appearance');
   const [strictnessLevel, setStrictnessLevel] = useState(2); // 0=低, 1=中, 2=高
   
-  // 外观设置状态
-  const [theme, setTheme] = useState<'light' | 'dark' | 'auto'>('light');
-  const [primaryColor, setPrimaryColor] = useState('#DD617C');
+  // 使用真正的主题 store
+  const { mode, accentColor: themeAccentColor, effectiveTheme, setMode, setAccentColor } = useThemeStore();
+  
+  // 本地UI设置
   const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>('medium');
   const [density, setDensity] = useState<'compact' | 'standard' | 'comfortable'>('standard');
   const [defaultView, setDefaultView] = useState<'dashboard' | 'tasks' | 'timeline'>('dashboard');
+  
+  // 根据主题更新 isDark
+  useEffect(() => {
+    isDark = effectiveTheme === 'dark';
+  }, [effectiveTheme]);
   
   // 通知设置状态
   const [notifications, setNotifications] = useState({
@@ -1303,6 +1310,11 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
   const [supabaseKey, setSupabaseKey] = useState(import.meta.env.VITE_SUPABASE_ANON_KEY || '');
   const [openaiKey, setOpenaiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY || '');
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState(import.meta.env.VITE_OPENAI_BASE_URL || 'https://api.openai.com/v1');
+  
+  // 百度AI配置状态
+  const [baiduApiKey, setBaiduApiKey] = useState(localStorage.getItem('baidu_api_key') || import.meta.env.VITE_BAIDU_API_KEY || 's8Hva3oqIiFaeU9uoYpCmvV9');
+  const [baiduSecretKey, setBaiduSecretKey] = useState(localStorage.getItem('baidu_secret_key') || import.meta.env.VITE_BAIDU_SECRET_KEY || 'VvugzlhsmyZ8HBk707HMqkGa9YM8Lvb8Ly');
+  const [showBaiduKey, setShowBaiduKey] = useState(false);
 
   // 云同步设置状态
   const [autoSync, setAutoSync] = useState(true);
@@ -1318,6 +1330,7 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
   const tabs = [
     { id: 'auth', label: '邮箱登录', icon: '🔐' },
     { id: 'sync', label: '云同步', icon: '☁️' },
+    { id: 'baidu', label: '百度AI', icon: '🤖' },
     { id: 'appearance', label: '外观体验', icon: '🎨' },
     { id: 'notification', label: '通知语音', icon: '🔔' },
     { id: 'growth', label: '成长维度', icon: '📊' },
@@ -1350,6 +1363,177 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
       {/* 邮箱登录 */}
       {activeTab === 'auth' && (
         <AuthPanel isDark={isDark} bgColor={bgColor} />
+      )}
+
+      {/* 百度AI配置 */}
+      {activeTab === 'baidu' && (
+        <div className="space-y-4">
+          <h4 className="font-semibold text-base" style={{ color: textColor }}>🤖 百度AI图像识别</h4>
+
+          {/* 配置说明 */}
+          <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
+            <div className="text-sm mb-2" style={{ color: textColor }}>💡 为什么需要配置？</div>
+            <div className="text-xs leading-relaxed" style={{ color: accentColor }}>
+              百度AI用于任务验证系统的照片识别功能。配置后，系统可以自动识别照片内容，判断是否包含验证关键词（如"厨房"、"水槽"等），确保任务真正完成。
+            </div>
+          </div>
+
+          {/* 配置状态 */}
+          <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-medium" style={{ color: textColor }}>配置状态</div>
+                <div className="text-xs mt-1" style={{ color: accentColor }}>
+                  {baiduApiKey && baiduSecretKey ? '✅ 已配置' : '⚠️ 未配置'}
+                </div>
+              </div>
+              {baiduApiKey && baiduSecretKey && (
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span className="text-sm font-medium" style={{ color: '#4ade80' }}>可用</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* API Key 输入 */}
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium mb-2" style={{ color: textColor }}>
+                🔑 API Key *
+              </label>
+              <div className="relative">
+                <input
+                  type={showBaiduKey ? 'text' : 'password'}
+                  value={baiduApiKey}
+                  onChange={(e) => setBaiduApiKey(e.target.value)}
+                  placeholder="请输入百度AI的API Key"
+                  className="w-full px-3 py-2.5 pr-20 rounded-lg text-sm"
+                  style={{
+                    backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)',
+                    color: textColor,
+                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}`,
+                  }}
+                />
+                <button
+                  onClick={() => setShowBaiduKey(!showBaiduKey)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 text-xs rounded transition-colors"
+                  style={{ backgroundColor: buttonBg, color: textColor }}
+                >
+                  {showBaiduKey ? '隐藏' : '显示'}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2" style={{ color: textColor }}>
+                🔐 Secret Key *
+              </label>
+              <div className="relative">
+                <input
+                  type={showBaiduKey ? 'text' : 'password'}
+                  value={baiduSecretKey}
+                  onChange={(e) => setBaiduSecretKey(e.target.value)}
+                  placeholder="请输入百度AI的Secret Key"
+                  className="w-full px-3 py-2.5 pr-20 rounded-lg text-sm"
+                  style={{
+                    backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)',
+                    color: textColor,
+                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}`,
+                  }}
+                />
+                <button
+                  onClick={() => setShowBaiduKey(!showBaiduKey)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 text-xs rounded transition-colors"
+                  style={{ backgroundColor: buttonBg, color: textColor }}
+                >
+                  {showBaiduKey ? '隐藏' : '显示'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 获取密钥指南 */}
+          <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
+            <h5 className="text-sm font-semibold mb-2" style={{ color: textColor }}>📚 如何获取API密钥？</h5>
+            <ol className="space-y-2 text-xs" style={{ color: accentColor }}>
+              <li>1. 访问 <a href="https://ai.baidu.com/" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: textColor }}>https://ai.baidu.com/</a></li>
+              <li>2. 登录百度账号（没有则注册）</li>
+              <li>3. 进入控制台 → 图像识别 → 通用物体和场景识别</li>
+              <li>4. 创建应用，获取 API Key 和 Secret Key</li>
+              <li>5. 将密钥填入上方输入框，点击保存</li>
+            </ol>
+          </div>
+
+          {/* 免费额度说明 */}
+          <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
+            <h5 className="text-sm font-semibold mb-2" style={{ color: textColor }}>💰 免费额度</h5>
+            <div className="text-xs leading-relaxed" style={{ color: accentColor }}>
+              • 每天 500 次免费调用<br/>
+              • 超出后按次数收费（价格很低）<br/>
+              • 对于个人使用完全够用
+            </div>
+          </div>
+
+          {/* 功能说明 */}
+          <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
+            <h5 className="text-sm font-semibold mb-2" style={{ color: textColor }}>✨ 配置后可使用</h5>
+            <ul className="space-y-1 text-xs" style={{ color: accentColor }}>
+              <li>✅ 任务开始拍照验证</li>
+              <li>✅ 任务完成拍照验证</li>
+              <li>✅ 自动识别照片内容</li>
+              <li>✅ 智能匹配验证关键词</li>
+              <li>✅ 防止拖延和作弊</li>
+            </ul>
+          </div>
+
+          {/* 安全提示 */}
+          <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
+            <h5 className="text-sm font-semibold mb-2" style={{ color: textColor }}>🔒 安全提示</h5>
+            <div className="text-xs leading-relaxed" style={{ color: accentColor }}>
+              • API密钥仅保存在本地浏览器<br/>
+              • 不会上传到服务器<br/>
+              • 请妥善保管，不要泄露给他人
+            </div>
+          </div>
+
+          {/* 保存按钮 */}
+          <button
+            onClick={() => {
+              // 保存到localStorage
+              localStorage.setItem('baidu_api_key', baiduApiKey);
+              localStorage.setItem('baidu_secret_key', baiduSecretKey);
+              
+              // 同时保存到用户设置（云端同步）
+              // TODO: 调用 useUserStore 的 updateSettings 方法
+              
+              alert('✅ 百度AI配置已保存！\n\n现在可以使用照片验证功能了。');
+            }}
+            disabled={!baiduApiKey || !baiduSecretKey}
+            className="w-full py-3 rounded-lg text-sm font-semibold transition-all hover:scale-[1.02]"
+            style={{
+              backgroundColor: (baiduApiKey && baiduSecretKey) ? buttonBg : 'rgba(0,0,0,0.05)',
+              color: (baiduApiKey && baiduSecretKey) ? textColor : accentColor,
+              opacity: (baiduApiKey && baiduSecretKey) ? 1 : 0.5,
+              cursor: (baiduApiKey && baiduSecretKey) ? 'pointer' : 'not-allowed',
+            }}
+          >
+            💾 保存配置
+          </button>
+
+          {/* 测试按钮 */}
+          {baiduApiKey && baiduSecretKey && (
+            <button
+              onClick={() => {
+                alert('🧪 测试功能开发中...\n\n您可以通过创建任务并启用验证来测试照片识别功能。');
+              }}
+              className="w-full py-3 rounded-lg text-sm font-semibold transition-all hover:scale-[1.02]"
+              style={{ backgroundColor: buttonBg, color: textColor }}
+            >
+              🧪 测试连接
+            </button>
+          )}
+        </div>
       )}
 
       {/* 云同步设置 */}
@@ -1678,119 +1862,183 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
 
       {/* 外观与体验 */}
       {activeTab === 'appearance' && (
-        <div className="space-y-3">
-          <h4 className="font-semibold text-sm" style={{ color: textColor }}>主题设置</h4>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { value: 'light', label: '☀️ 明亮' },
-              { value: 'dark', label: '🌙 暗色' },
-              { value: 'auto', label: '🌓 自动' }
-            ].map((themeOption) => (
+        <div className="space-y-4">
+          {/* 主题设置 */}
+          <div>
+            <h4 className="font-semibold text-base mb-2" style={{ color: textColor }}>主题设置</h4>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { value: 'light', label: '明亮', icon: '☀️' },
+                { value: 'dark', label: '暗色', icon: '🌙' },
+                { value: 'auto', label: '自动', icon: '🌓' }
+              ].map((themeOption) => (
+                <button 
+                  key={themeOption.value}
+                  onClick={() => setMode(themeOption.value as any)}
+                  className="py-3 rounded-lg text-sm font-medium transition-all active:scale-95" 
+                  style={{ 
+                    backgroundColor: mode === themeOption.value ? buttonBg : 'transparent', 
+                    color: textColor, 
+                    border: `2px solid ${mode === themeOption.value ? (isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.2)') : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)')}` 
+                  }}
+                >
+                  <div className="text-xl mb-0.5">{themeOption.icon}</div>
+                  <div className="text-xs">{themeOption.label}</div>
+                </button>
+              ))}
+            </div>
+            <div className="mt-1.5 text-xs text-center" style={{ color: accentColor }}>
+              {mode === 'auto' && '将跟随系统设置自动切换'}
+              {mode === 'light' && '始终使用明亮主题'}
+              {mode === 'dark' && '始终使用暗色主题'}
+            </div>
+          </div>
+
+          {/* 主色调 */}
+          <div>
+            <h4 className="font-semibold text-base mb-2" style={{ color: textColor }}>主色调</h4>
+            <div className="grid grid-cols-3 gap-2">
+              {Object.entries(ACCENT_COLORS).map(([key, color]) => (
+                <button 
+                  key={key}
+                  onClick={() => setAccentColor(key as any)}
+                  className="p-2 rounded-lg transition-all active:scale-95 relative" 
+                  style={{ 
+                    backgroundColor: color.light,
+                    border: `2px solid ${themeAccentColor === key ? color.primary : 'transparent'}`
+                  }}
+                >
+                  <div className="w-full aspect-square rounded-md mb-1" style={{ backgroundColor: color.primary }} />
+                  <div className="text-xs font-medium text-center" style={{ color: color.dark }}>
+                    {color.name}
+                  </div>
+                  {themeAccentColor === key && (
+                    <div className="absolute top-1 right-1 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-md">
+                      <div className="text-xs">✓</div>
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 实时预览 */}
+          <div className="rounded-lg p-3" style={{ backgroundColor: cardBg }}>
+            <h4 className="text-sm font-semibold mb-2" style={{ color: textColor }}>✨ 实时预览</h4>
+            <div className="p-2 rounded-lg" style={{ backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.8)' }}>
+              <div className="text-sm font-medium mb-1" style={{ color: textColor }}>示例卡片</div>
+              <div className="text-xs mb-2" style={{ color: accentColor }}>这是在当前主题下的样子</div>
               <button 
-                key={themeOption.value}
-                onClick={() => setTheme(themeOption.value as any)}
-                className="py-2 rounded-lg text-xs font-medium transition-all" 
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold"
                 style={{ 
-                  backgroundColor: theme === themeOption.value ? buttonBg : 'transparent', 
-                  color: textColor, 
-                  border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}` 
+                  backgroundColor: ACCENT_COLORS[themeAccentColor].primary,
+                  color: 'white'
                 }}
               >
-                {themeOption.label}
+                主色调按钮
               </button>
-            ))}
+            </div>
           </div>
 
-          <h4 className="font-semibold text-sm mt-4" style={{ color: textColor }}>主色调</h4>
-          <div className="grid grid-cols-6 gap-2">
-            {['#DD617C', '#6D9978', '#E8C259', '#AC0327', '#D1CBBA', '#7C3AED'].map((color) => (
-              <button 
-                key={color}
-                onClick={() => setPrimaryColor(color)}
-                className="w-full aspect-square rounded-lg transition-all hover:scale-110 relative" 
-                style={{ backgroundColor: color }}
-              >
-                {primaryColor === color && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-4 h-4 bg-white rounded-full flex items-center justify-center">
-                      <div className="w-2 h-2 bg-black rounded-full" />
-                    </div>
-                  </div>
-                )}
-              </button>
-            ))}
+          {/* 界面设置 */}
+          <div>
+            <h4 className="font-semibold text-base mb-2" style={{ color: textColor }}>界面设置</h4>
+            <div className="space-y-2">
+              <div className="rounded-lg p-2.5" style={{ backgroundColor: cardBg }}>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium" style={{ color: textColor }}>字体大小</span>
+                  <select 
+                    value={fontSize}
+                    onChange={(e) => setFontSize(e.target.value as any)}
+                    className="px-3 py-1.5 rounded-lg text-xs cursor-pointer font-medium" 
+                    style={{ backgroundColor: buttonBg, color: textColor, border: 'none' }}
+                  >
+                    <option value="small">小</option>
+                    <option value="medium">中</option>
+                    <option value="large">大</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="rounded-lg p-2.5" style={{ backgroundColor: cardBg }}>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium" style={{ color: textColor }}>界面密度</span>
+                  <select 
+                    value={density}
+                    onChange={(e) => setDensity(e.target.value as any)}
+                    className="px-3 py-1.5 rounded-lg text-xs cursor-pointer font-medium" 
+                    style={{ backgroundColor: buttonBg, color: textColor, border: 'none' }}
+                  >
+                    <option value="compact">紧凑</option>
+                    <option value="standard">标准</option>
+                    <option value="comfortable">宽松</option>
+                  </select>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <h4 className="font-semibold text-sm mt-4" style={{ color: textColor }}>界面设置</h4>
+          {/* 交互偏好 */}
+          <div>
+            <h4 className="font-semibold text-base mb-2" style={{ color: textColor }}>交互偏好</h4>
+            <div className="rounded-lg p-2.5" style={{ backgroundColor: cardBg }}>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium" style={{ color: textColor }}>默认视图</span>
+                <select 
+                  value={defaultView}
+                  onChange={(e) => setDefaultView(e.target.value as any)}
+                  className="px-3 py-1.5 rounded-lg text-xs cursor-pointer font-medium" 
+                  style={{ backgroundColor: buttonBg, color: textColor, border: 'none' }}
+                >
+                  <option value="dashboard">仪表盘</option>
+                  <option value="tasks">任务列表</option>
+                  <option value="timeline">时间轴</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* 当前设置 */}
           <div className="rounded-lg p-3" style={{ backgroundColor: cardBg }}>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm" style={{ color: textColor }}>字体大小</span>
-              <select 
-                value={fontSize}
-                onChange={(e) => setFontSize(e.target.value as any)}
-                className="px-3 py-1.5 rounded text-xs cursor-pointer" 
-                style={{ backgroundColor: buttonBg, color: textColor, border: 'none' }}
-              >
-                <option value="small">小</option>
-                <option value="medium">中</option>
-                <option value="large">大</option>
-              </select>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm" style={{ color: textColor }}>界面密度</span>
-              <select 
-                value={density}
-                onChange={(e) => setDensity(e.target.value as any)}
-                className="px-3 py-1.5 rounded text-xs cursor-pointer" 
-                style={{ backgroundColor: buttonBg, color: textColor, border: 'none' }}
-              >
-                <option value="compact">紧凑</option>
-                <option value="standard">标准</option>
-                <option value="comfortable">宽松</option>
-              </select>
-            </div>
-          </div>
-
-          <h4 className="font-semibold text-sm mt-4" style={{ color: textColor }}>交互偏好</h4>
-          <div className="rounded-lg p-3" style={{ backgroundColor: cardBg }}>
-            <div className="flex items-center justify-between">
-              <span className="text-sm" style={{ color: textColor }}>默认视图</span>
-              <select 
-                value={defaultView}
-                onChange={(e) => setDefaultView(e.target.value as any)}
-                className="px-3 py-1.5 rounded text-xs cursor-pointer" 
-                style={{ backgroundColor: buttonBg, color: textColor, border: 'none' }}
-              >
-                <option value="dashboard">仪表盘</option>
-                <option value="tasks">任务列表</option>
-                <option value="timeline">时间轴</option>
-              </select>
+            <h4 className="text-sm font-semibold mb-2" style={{ color: textColor }}>📋 当前设置</h4>
+            <div className="space-y-1.5 text-xs" style={{ color: accentColor }}>
+              <div className="flex items-center justify-between">
+                <span>主题:</span>
+                <span className="font-medium" style={{ color: textColor }}>
+                  {mode === 'light' ? '☀️ 明亮' : mode === 'dark' ? '🌙 暗色' : '🌓 自动'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>主色调:</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-medium" style={{ color: textColor }}>{ACCENT_COLORS[themeAccentColor].name}</span>
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: ACCENT_COLORS[themeAccentColor].primary }} />
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>字体:</span>
+                <span className="font-medium" style={{ color: textColor }}>
+                  {fontSize === 'small' ? '小' : fontSize === 'medium' ? '中' : '大'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>密度:</span>
+                <span className="font-medium" style={{ color: textColor }}>
+                  {density === 'compact' ? '紧凑' : density === 'standard' ? '标准' : '宽松'}
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* 当前设置预览 */}
-          <div className="rounded-lg p-4 mt-4" style={{ backgroundColor: cardBg }}>
-            <h4 className="text-sm font-semibold mb-2" style={{ color: textColor }}>当前设置</h4>
-            <div className="space-y-1 text-xs" style={{ color: accentColor }}>
-              <div>主题: {theme === 'light' ? '明亮' : theme === 'dark' ? '暗色' : '自动'}</div>
-              <div>主色调: <span className="inline-block w-3 h-3 rounded-full ml-1" style={{ backgroundColor: primaryColor }} /></div>
-              <div>字体: {fontSize === 'small' ? '小' : fontSize === 'medium' ? '中' : '大'}</div>
-              <div>密度: {density === 'compact' ? '紧凑' : density === 'standard' ? '标准' : '宽松'}</div>
-              <div>默认视图: {defaultView === 'dashboard' ? '仪表盘' : defaultView === 'tasks' ? '任务列表' : '时间轴'}</div>
+          {/* 提示 */}
+          <div className="rounded-lg p-2.5" style={{ backgroundColor: ACCENT_COLORS[themeAccentColor].light + '40' }}>
+            <div className="text-xs font-medium mb-0.5" style={{ color: ACCENT_COLORS[themeAccentColor].dark }}>
+              💡 提示
+            </div>
+            <div className="text-xs leading-relaxed" style={{ color: ACCENT_COLORS[themeAccentColor].dark }}>
+              主题和主色调设置会立即生效，并自动保存。刷新页面后依然保持。
             </div>
           </div>
-
-          {/* 保存按钮 */}
-          <button 
-            onClick={() => {
-              // 这里应该保存到 userStore
-              alert('设置已保存！');
-            }}
-            className="w-full py-3 rounded-lg text-sm font-semibold transition-all hover:scale-[1.02]" 
-            style={{ backgroundColor: buttonBg, color: textColor }}
-          >
-            💾 保存设置
-          </button>
         </div>
       )}
 

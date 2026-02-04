@@ -4,6 +4,7 @@ import { useUserStore } from '@/stores/userStore';
 import { useGoldStore } from '@/stores/goldStore';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGoalStore } from '@/stores/goalStore';
+import { useThemeStore } from '@/stores/themeStore';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 // 页面组件（稍后创建）
@@ -19,8 +20,14 @@ function App() {
   const { loadFromCloud } = useGoldStore();
   const { loadTasks } = useTaskStore();
   const { loadGoals } = useGoalStore();
+  const { updateEffectiveTheme } = useThemeStore();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // 初始化主题
+  useEffect(() => {
+    updateEffectiveTheme();
+  }, [updateEffectiveTheme]);
 
   useEffect(() => {
     let mounted = true;

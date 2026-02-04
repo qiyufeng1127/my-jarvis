@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Copy, RefreshCw, Check, Clock, Smartphone, Monitor, Tablet } from 'lucide-react';
+import { useUserStore } from '@/stores/userStore';
 
 interface SyncCode {
   code: string;
@@ -11,6 +12,12 @@ export default function SyncSettings() {
   const [syncCode, setSyncCode] = useState<SyncCode | null>(null);
   const [copied, setCopied] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const { user, updateSettings } = useUserStore();
+  
+  // 从云端加载API配置
+  const [baiduApiKey, setBaiduApiKey] = useState('');
+  const [baiduSecretKey, setBaiduSecretKey] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   // 生成6位同步码
   const generateSyncCode = () => {
@@ -73,6 +80,63 @@ export default function SyncSettings() {
       }
     }
   }, []);
+
+  // 从云端加载API配置
+  useEffect(() => {
+    if (user?.settings) {
+      setBaiduApiKey(user.settings.baiduApiKey || 's8Hva3oqIiFaeU9uoYpCmvV9');
+      setBaiduSecretKey(user.settings.baiduSecretKey || 'VvugzlhsmyZ8HBk707HMqkGa9YMvb8Ly');
+    }
+  }, [user]);
+
+  // 保存API配置到云端
+  const saveApiConfig = async () => {
+    if (!baiduApiKey || !baiduSecretKey) {
+      alert('请填写完整的API配置');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await updateSettings({
+        baiduApiKey,
+        baiduSecretKey,
+      });
+      
+      // 同时保存到localStorage作为备份
+      localStorage.setItem('baidu_api_key', baiduApiKey);
+      localStorage.setItem('baidu_secret_key', baiduSecretKey);
+      
+      alert('✅ API配置已保存到云端，所有设备将自动同步');
+    } catch (error) {
+      console.error('保存API配置失败:', error);
+      alert('❌ 保存失败：' + error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 测试API连接
+  const testApiConnection = async () => {
+    if (!baiduApiKey || !baiduSecretKey) {
+      alert('请先填写 API Key 和 Secret Key');
+      return;
+    }
+
+    try {
+      const url = `https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id=${baiduApiKey}&client_secret=${baiduSecretKey}`;
+      const response = await fetch(url, { method: 'POST' });
+      const data = await response.json();
+      
+      if (data.access_token) {
+        alert('✅ API配置成功！可以正常使用图像识别功能了');
+      } else {
+        alert('❌ API配置失败：' + (data.error_description || '未知错误'));
+      }
+    } catch (error) {
+      alert('❌ 测试失败：' + error);
+    }
+  };
 
   // 计算剩余时间
   const getRemainingTime = () => {
@@ -288,6 +352,91 @@ export default function SyncSettings() {
             </div>
           </div>
 
+          {/* 图像识别设置 */}
+          <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-xl p-6 border-2 border-orange-200">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">🔍 图像识别设置</h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  配置百度AI图像识别API，用于任务验证时的图片识别功能
+                </p>
+              </div>
+              <div className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                ☁️ 云端同步
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              {/* API Key 输入 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  API Key
+                </label>
+                <input
+                  type="text"
+                  placeholder="请输入百度AI的API Key"
+                  value={baiduApiKey}
+                  onChange={(e) => setBaiduApiKey(e.target.value)}
+                  className="w-full px-4 py-3 rounded-lg border-2 border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-500 font-mono text-sm"
+                />
+              </div>
+
+              {/* Secret Key 输入 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Secret Key
+                </label>
+                <input
+                  type="text"
+                  placeholder="请输入百度AI的Secret Key"
+                  value={baiduSecretKey}
+                  onChange={(e) => setBaiduSecretKey(e.target.value)}
+                  className="w-full px-4 py-3 rounded-lg border-2 border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-500 font-mono text-sm"
+                />
+              </div>
+
+              {/* 使用说明 */}
+              <div className="bg-orange-50 rounded-lg p-4 border border-orange-200">
+                <h3 className="font-semibold text-orange-900 mb-2">📖 如何获取API密钥</h3>
+                <ol className="text-sm text-orange-800 space-y-1 list-decimal list-inside">
+                  <li>访问 <a href="https://ai.baidu.com/" target="_blank" rel="noopener noreferrer" className="underline hover:text-orange-600">百度AI开放平台</a></li>
+                  <li>注册/登录百度账号</li>
+                  <li>进入控制台 → 创建应用</li>
+                  <li>选择"图像识别"服务</li>
+                  <li>获取 API Key 和 Secret Key</li>
+                  <li>将密钥填写到上方输入框中</li>
+                </ol>
+              </div>
+
+              {/* 按钮组 */}
+              <div className="flex space-x-3">
+                <button
+                  onClick={saveApiConfig}
+                  disabled={isSaving}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-medium hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSaving ? '保存中...' : '💾 保存到云端'}
+                </button>
+                <button
+                  onClick={testApiConnection}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-lg font-medium hover:scale-105 transition-all"
+                >
+                  🧪 测试连接
+                </button>
+              </div>
+
+              {/* 云同步提示 */}
+              <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                <div className="flex items-start space-x-2">
+                  <div className="text-lg">☁️</div>
+                  <div className="flex-1 text-sm text-blue-800">
+                    <strong>云端同步：</strong>配置保存后，会自动同步到你的所有设备（手机、iPad、电脑等），无需重复配置
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* 安全提示 */}
           <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
             <div className="flex items-start space-x-3">
@@ -299,6 +448,7 @@ export default function SyncSettings() {
                   <li>• 请勿将同步码分享给他人</li>
                   <li>• 所有数据传输均经过加密处理</li>
                   <li>• 可以随时断开设备连接</li>
+                  <li>• API密钥保存在云端，会自动同步到所有设备</li>
                 </ul>
               </div>
             </div>

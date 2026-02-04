@@ -55,6 +55,10 @@ export interface UserSettings {
   autoSync: boolean;
   syncInterval: number;
   syncPhotos: boolean;
+  
+  // API配置（云端同步）
+  baiduApiKey?: string;
+  baiduSecretKey?: string;
 }
 
 // ============================================

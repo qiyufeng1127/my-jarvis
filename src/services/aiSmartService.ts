@@ -312,10 +312,16 @@ export class AISmartProcessor {
       }
     }
     
-    // 清理每个任务标题：移除末尾的时长信息（如"20分钟"）
+    // 清理每个任务标题：移除时间相关字眼
     const cleanedTasks = tasks.map(task => {
-      // 移除末尾的时长（如"处理微信的客户问题吧照片处理了并且寄出去20分钟"）
-      return task.replace(/\d+分钟$/i, '').trim();
+      return task
+        // 移除末尾的时长（如"20分钟"、"大概10分钟"、"做10分钟"）
+        .replace(/(?:大概|做|持续|约)?(\d+)分钟?$/i, '')
+        // 移除"X分钟后"、"X分钟之后"
+        .replace(/[一二三四五六七八九十\d]+分钟[后之]后?/gi, '')
+        // 移除单独的数字（如末尾的"10"）
+        .replace(/\s+\d+$/i, '')
+        .trim();
     });
     
     return cleanedTasks.filter(Boolean);
@@ -327,6 +333,16 @@ export class AISmartProcessor {
     
     // 识别日期关键词
     let targetDate: Date | null = null;
+    
+    // 优先检查"X分钟后" - 这应该是相对于当前时间，不涉及日期
+    // 修复：确保识别的是"X分钟后"而不是其他包含"分钟"的表达
+    const minutesMatch = input.match(/^(\d+)分钟[后之]后?/i);
+    if (minutesMatch) {
+      const minutes = parseInt(minutesMatch[1]);
+      const targetTime = new Date(now.getTime() + minutes * 60000);
+      console.log(`⏰ 识别到"${minutes}分钟后"，目标时间: ${targetTime.toLocaleString('zh-CN')}`);
+      return targetTime;
+    }
     
     // 1. 识别"明天"、"后天"、"昨天"、"今天"
     if (input.includes('明天') || input.includes('明日')) {
@@ -391,13 +407,6 @@ export class AISmartProcessor {
       if (targetDate < now) {
         targetDate.setFullYear(targetDate.getFullYear() + 1);
       }
-    }
-    
-    // 匹配 "X分钟后"
-    const minutesMatch = input.match(/(\d+)分钟[后之]后?/i);
-    if (minutesMatch) {
-      const minutes = parseInt(minutesMatch[1]);
-      return new Date(now.getTime() + minutes * 60000);
     }
     
     // 匹配 "HH:MM" 格式
@@ -1078,6 +1087,236 @@ taskType选项：work, study, health, life, finance, creative, rest
     return this.getColorForTag(tags[0]);
   }
 
+  // 推断任务位置（简化版，用于编辑器实时更新）
+  static inferLocation(taskTitle: string): string {
+    const title = taskTitle.toLowerCase();
+    
+    if (title.includes('厕所') || title.includes('洗漱') || title.includes('刷牙') || title.includes('洗脸')) {
+      return '厕所';
+    }
+    if (title.includes('工作') || title.includes('编程') || title.includes('写代码') || title.includes('电脑')) {
+      return '工作区';
+    }
+    if (title.includes('客厅') || title.includes('沙发')) {
+      return '客厅';
+    }
+    if (title.includes('卧室') || title.includes('睡觉') || title.includes('床')) {
+      return '卧室';
+    }
+    if (title.includes('拍摄') || title.includes('录制') || title.includes('视频')) {
+      return '拍摄间';
+    }
+    if (title.includes('厨房') || title.includes('做饭') || title.includes('煮') || title.includes('炒')) {
+      return '厨房';
+    }
+    if (title.includes('室外') || title.includes('外出') || title.includes('购物') || title.includes('散步')) {
+      return '室外';
+    }
+    
+    return '全屋';
+  }
+
+  // 生成任务标签（简化版，用于编辑器实时更新）
+  static generateTags(taskTitle: string): string[] {
+    const title = taskTitle.toLowerCase();
+    const tags: string[] = [];
+    
+    // 家务类
+    if (title.includes('打扫') || title.includes('清洁') || title.includes('拖地') || title.includes('扫地')) {
+      tags.push('家务', '清洁');
+    } else if (title.includes('猫') || title.includes('铲猫砂') || title.includes('喂猫')) {
+      tags.push('家务', '猫咪');
+    } else if (title.includes('洗衣') || title.includes('晾衣')) {
+      tags.push('家务', '日常');
+    }
+    // 工作类
+    else if (title.includes('工作') || title.includes('编程') || title.includes('开发') || title.includes('会议')) {
+      tags.push('工作');
+    }
+    // 学习类
+    else if (title.includes('学习') || title.includes('阅读') || title.includes('看书') || title.includes('课程')) {
+      tags.push('学习', '成长');
+    }
+    // 运动类
+    else if (title.includes('运动') || title.includes('健身') || title.includes('跑步') || title.includes('锻炼')) {
+      tags.push('运动', '健康');
+    }
+    // 饮食类
+    else if (title.includes('吃') || title.includes('早餐') || title.includes('午餐') || title.includes('晚餐') || title.includes('做饭')) {
+      tags.push('饮食');
+    }
+    // 个人护理
+    else if (title.includes('洗漱') || title.includes('刷牙') || title.includes('洗脸') || title.includes('护肤')) {
+      tags.push('个人护理');
+    }
+    // 默认
+    else {
+      tags.push('日常');
+    }
+    
+    return tags;
+  }
+
+  // 推断任务类型（简化版，用于编辑器实时更新）
+  static inferTaskType(taskTitle: string): string {
+    const title = taskTitle.toLowerCase();
+    
+    if (title.includes('工作') || title.includes('会议') || title.includes('编程')) {
+      return 'work';
+    }
+    if (title.includes('学习') || title.includes('阅读') || title.includes('课程')) {
+      return 'learning';
+    }
+    if (title.includes('运动') || title.includes('健身') || title.includes('跑步')) {
+      return 'sport';
+    }
+    if (title.includes('创作') || title.includes('写作') || title.includes('设计')) {
+      return 'creative';
+    }
+    if (title.includes('社交') || title.includes('朋友') || title.includes('聚会')) {
+      return 'social';
+    }
+    if (title.includes('休息') || title.includes('睡觉') || title.includes('放松')) {
+      return 'rest';
+    }
+    
+    return 'life';
+  }
+
+  // 推断任务分类（简化版，用于编辑器实时更新）
+  static inferCategory(taskTitle: string): string {
+    const title = taskTitle.toLowerCase();
+    
+    if (title.includes('工作') || title.includes('会议')) {
+      return '工作事务';
+    }
+    if (title.includes('学习') || title.includes('阅读')) {
+      return '学习成长';
+    }
+    if (title.includes('运动') || title.includes('健身')) {
+      return '运动健康';
+    }
+    if (title.includes('家务') || title.includes('打扫')) {
+      return '家务清洁';
+    }
+    
+    return '生活事务';
+  }
+
+  // 估算任务时长（简化版，用于编辑器实时更新）
+  static estimateTaskDuration(taskTitle: string): number {
+    const title = taskTitle.toLowerCase();
+    
+    // 快速任务（5-15分钟）
+    if (title.includes('刷牙') || title.includes('洗脸') || title.includes('喝水')) {
+      return 5;
+    }
+    if (title.includes('洗漱') || title.includes('穿衣')) {
+      return 10;
+    }
+    
+    // 中等任务（20-40分钟）
+    if (title.includes('吃饭') || title.includes('早餐') || title.includes('午餐') || title.includes('晚餐')) {
+      return 20;
+    }
+    if (title.includes('打扫') || title.includes('拖地') || title.includes('扫地')) {
+      return 30;
+    }
+    
+    // 长任务（60分钟以上）
+    if (title.includes('工作') || title.includes('学习') || title.includes('会议')) {
+      return 60;
+    }
+    if (title.includes('做饭') || title.includes('煮饭')) {
+      return 40;
+    }
+    
+    // 默认30分钟
+    return 30;
+  }
+
+  // 根据标签获取颜色（使用用户提供的色号）
+  static getColorForTag(tag: string): string {
+    const colorMap: Record<string, string> = {
+      // 家务类 - Muddy Green (泥绿色)
+      '家务': '#6A7334',
+      '清洁': '#6A7334',
+      '日常': '#6A7334',
+      '猫咪': '#6A7334',
+      '拖地': '#6A7334',
+      '扫地': '#6A7334',
+      '洗衣服': '#6A7334',
+      '铲猫砂': '#6A7334',
+      '收纳': '#6A7334',
+      '整理': '#6A7334',
+      '打扫': '#6A7334',
+      '卫生': '#6A7334',
+      
+      // 工作类 - Carolina Blue (卡罗莱纳蓝)
+      '工作': '#A0BBEB',
+      '重要': '#A0BBEB',
+      '会议': '#A0BBEB',
+      '编程': '#A0BBEB',
+      '设计': '#A0BBEB',
+      '开发': '#A0BBEB',
+      '技术': '#A0BBEB',
+      '文档': '#A0BBEB',
+      '职业': '#A0BBEB',
+      
+      // 社交类 - Raspberry Rose (覆盆子玫瑰)
+      '社交': '#B34568',
+      '朋友': '#B34568',
+      '聚会': '#B34568',
+      '人际': '#B34568',
+      '关系': '#B34568',
+      
+      // 娱乐类 - Illusion (幻影粉)
+      '娱乐': '#FB9FC9',
+      '休闲': '#FB9FC9',
+      '游戏': '#FB9FC9',
+      '放松': '#FB9FC9',
+      
+      // 学习类 - Pastel Purple (淡紫色)
+      '学习': '#AA9FBE',
+      '成长': '#AA9FBE',
+      '阅读': '#AA9FBE',
+      '课程': '#AA9FBE',
+      '教育': '#AA9FBE',
+      '提升': '#AA9FBE',
+      
+      // 运动健康类 - Brass (黄铜色)
+      '运动': '#A6B13C',
+      '健康': '#A6B13C',
+      '健身': '#A6B13C',
+      '跑步': '#A6B13C',
+      '锻炼': '#A6B13C',
+      '瑜伽': '#A6B13C',
+      
+      // 饮食类 - Butter Yellow (奶油黄)
+      '饮食': '#FFE288',
+      '个人护理': '#F1E69F',
+      '早餐': '#FFE288',
+      '午餐': '#FFE288',
+      '晚餐': '#FFE288',
+      '做饭': '#FFE288',
+      '美容': '#F1E69F',
+      '护肤': '#F1E69F',
+      
+      // 外出类 - Muddy Green (泥绿色)
+      '购物': '#6A7334',
+      '室外': '#6A7334',
+      '外出': '#6A7334',
+    };
+    
+    return colorMap[tag] || '#6A7334'; // 默认返回泥绿色
+  }
+
+  // 获取任务的主色调（基于第一个标签）
+  static getTaskColor(tags: string[]): string {
+    if (tags.length === 0) return '#6A7334';
+    return this.getColorForTag(tags[0]);
+  }
+
   // 识别关联的长期目标
   static identifyGoal(taskTitle: string): string | null {
     const title = taskTitle.toLowerCase();
@@ -1164,6 +1403,7 @@ taskType选项：work, study, health, life, finance, creative, rest
       timeRange?: { start: string; end: string }; // '15:00' - '18:00'
       taskIds?: string[];
       all?: boolean;
+      targetDate?: string; // 移动任务的目标日期
     };
     newTask?: {
       title: string;
@@ -1192,6 +1432,7 @@ taskType选项：work, study, health, life, finance, creative, rest
 用户指令：${input}
 
 当前时间：${new Date().toLocaleString('zh-CN')}
+当前日期：${new Date().toLocaleDateString('zh-CN')} (${new Date().getMonth() + 1}月${new Date().getDate()}号)
 
 现有任务列表：
 ${tasksInfo.map((t, i) => `${i + 1}. ${t.title} (${t.start})`).join('\n')}
@@ -1202,7 +1443,8 @@ ${tasksInfo.map((t, i) => `${i + 1}. ${t.title} (${t.start})`).join('\n')}
   "filters": {
     "date": "today",  // 日期过滤：today | yesterday | tomorrow | 具体日期
     "timeRange": { "start": "15:00", "end": "18:00" },  // 时间范围（可选）
-    "all": true  // 是否全部（可选）
+    "all": true,  // 是否全部（可选）
+    "targetDate": "today"  // 移动任务的目标日期（仅用于move操作）
   },
   "newTask": {  // 如果是添加任务（可选）
     "title": "任务名称",
@@ -1217,6 +1459,8 @@ ${tasksInfo.map((t, i) => `${i + 1}. ${t.title} (${t.start})`).join('\n')}
 2. "删除今天下午3点以后的任务" → {"operation": "delete", "filters": {"date": "today", "timeRange": {"start": "15:00", "end": "23:59"}}}
 3. "在今天下午3:40增加一个开会任务" → {"operation": "add", "newTask": {"title": "开会", "time": "15:40", "duration": 60}}
 4. "把今天的任务往后推1小时" → {"operation": "delay", "filters": {"date": "today"}, "delayMinutes": 60}
+5. "把5号的任务移动到4号" → {"operation": "move", "filters": {"date": "2024-02-05"}, "targetDate": "2024-02-04"}
+6. "把明天的任务移动到今天" → {"operation": "move", "filters": {"date": "tomorrow"}, "targetDate": "today"}
 
 只返回JSON，不要其他文字。`;
 
@@ -1300,8 +1544,55 @@ ${tasksInfo.map((t, i) => `${i + 1}. ${t.title} (${t.start})`).join('\n')}
               data: {
                 operation: 'delete',
                 taskIds: tasksToDelete.map(t => t.id),
+                navigateToTimeline: true, // 添加导航标记
               },
               label: '确认删除',
+            },
+          ],
+          needsConfirmation: true,
+          autoExecute: false,
+        };
+      } else if (operation.operation === 'move') {
+        // 移动任务到指定日期
+        const tasksToMove = this.filterTasks(existingTasks, operation.filters);
+        
+        if (tasksToMove.length === 0) {
+          return {
+            message: '❌ 没有找到符合条件的任务',
+            autoExecute: false,
+          };
+        }
+        
+        // 解析目标日期
+        const targetDateStr = operation.filters?.targetDate || 'today';
+        let targetDate = new Date();
+        targetDate.setHours(0, 0, 0, 0); // 重置到当天0点
+        
+        if (targetDateStr === 'yesterday') {
+          targetDate.setDate(targetDate.getDate() - 1);
+        } else if (targetDateStr === 'tomorrow') {
+          targetDate.setDate(targetDate.getDate() + 1);
+        } else if (targetDateStr !== 'today') {
+          // 尝试解析具体日期（如"2024-02-04"）
+          const parsedDate = new Date(targetDateStr);
+          if (!isNaN(parsedDate.getTime())) {
+            targetDate = parsedDate;
+            targetDate.setHours(0, 0, 0, 0);
+          }
+        }
+        
+        return {
+          message: `⏰ 准备将以下 ${tasksToMove.length} 个任务移动到 ${targetDate.toLocaleDateString('zh-CN')}：\n\n${tasksToMove.map(t => `• ${t.title}`).join('\n')}`,
+          actions: [
+            {
+              type: 'update_timeline',
+              data: {
+                operation: 'move',
+                taskIds: tasksToMove.map(t => t.id),
+                targetDate: targetDate.toISOString(),
+                navigateToTimeline: true,
+              },
+              label: '确认移动',
             },
           ],
           needsConfirmation: true,
@@ -1384,19 +1675,35 @@ ${tasksInfo.map((t, i) => `${i + 1}. ${t.title} (${t.start})`).join('\n')}
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
-      const targetDate = new Date(today);
+      let targetDate = new Date(today);
+      
       if (filters.date === 'yesterday') {
         targetDate.setDate(targetDate.getDate() - 1);
       } else if (filters.date === 'tomorrow') {
         targetDate.setDate(targetDate.getDate() + 1);
+      } else if (filters.date !== 'today') {
+        // 尝试解析具体日期（如"2024-02-05"）
+        const parsedDate = new Date(filters.date);
+        if (!isNaN(parsedDate.getTime())) {
+          targetDate = parsedDate;
+          targetDate.setHours(0, 0, 0, 0);
+        }
       }
+      
+      console.log('🔍 过滤任务 - 目标日期:', targetDate.toLocaleDateString('zh-CN'));
       
       filtered = filtered.filter(task => {
         if (!task.scheduledStart) return false;
         const taskDate = new Date(task.scheduledStart);
         taskDate.setHours(0, 0, 0, 0);
-        return taskDate.getTime() === targetDate.getTime();
+        const match = taskDate.getTime() === targetDate.getTime();
+        if (match) {
+          console.log('✅ 匹配任务:', task.title, taskDate.toLocaleDateString('zh-CN'));
+        }
+        return match;
       });
+      
+      console.log('🔍 过滤结果:', filtered.length, '个任务');
     }
     
     // 时间范围过滤

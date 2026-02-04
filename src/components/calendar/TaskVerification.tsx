@@ -228,33 +228,50 @@ export default function TaskVerification({
     setIsVerifying(true);
 
     try {
-      // 调用 AI 服务验证图片
-      const result = await aiService.verifyTaskImage(
-        imageData,
-        task.requirement,
-        task.title
-      );
+      // 如果没有关键词要求，直接通过（向后兼容）
+      if (!keywords || keywords.length === 0) {
+        console.warn('⚠️ 没有验证关键词，自动通过验证');
+        setIsVerifying(false);
+        setVerificationResult('success');
+        setVerificationReason('验证通过');
+        setTimeout(() => {
+          onSuccess();
+        }, 2000);
+        return;
+      }
 
-    setIsVerifying(false);
+      // 使用百度AI图像识别验证
+      const { baiduImageRecognition } = await import('@/services/baiduImageRecognition');
+      
+      // 将base64转换为File对象
+      const blob = await fetch(imageData).then(r => r.blob());
+      const file = new File([blob], 'verification.jpg', { type: 'image/jpeg' });
+      
+      // 调用百度AI验证
+      const result = await baiduImageRecognition.verifyImage(file, keywords, 0.3);
 
-      if (result.success && result.isValid && result.confidence >= 0.6) {
+      setIsVerifying(false);
+
+      if (result.success) {
         // 验证成功
         setVerificationResult('success');
-        setVerificationReason(result.reason || '图片验证通过');
+        setVerificationReason(`验证通过！识别到: ${result.matchedKeywords.join(', ')}`);
 
-    setTimeout(() => {
-        onSuccess();
+        setTimeout(() => {
+          onSuccess();
         }, 2000);
       } else {
         // 验证失败
         setVerificationResult('fail');
-        setVerificationReason(result.reason || '图片不符合要求');
+        setVerificationReason(
+          `验证失败！\n要求: ${keywords.join(', ')}\n识别到: ${result.recognizedKeywords.length > 0 ? result.recognizedKeywords.slice(0, 5).join(', ') : '无相关内容'}`
+        );
         
         // 扣除金币
         deductGold(20, `任务验证失败: ${task.title}`);
         
         setTimeout(() => {
-        onFail();
+          onFail();
         }, 2000);
       }
     } catch (error) {
@@ -268,7 +285,7 @@ export default function TaskVerification({
       
       setTimeout(() => {
         onFail();
-    }, 2000);
+      }, 2000);
     }
   };
 

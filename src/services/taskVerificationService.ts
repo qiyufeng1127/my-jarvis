@@ -29,6 +29,7 @@ export interface TaskVerification {
   startGoldEarned: number; // 启动获得的金币（40%）
   completionGoldEarned: number; // 完成获得的金币（60%）
   totalGoldPenalty: number; // 总共扣除的金币
+  startPenaltyGold: number; // 启动阶段扣除的金币（完成时返还）
 }
 
 export interface TaskImage {
@@ -59,32 +60,50 @@ export class GoldSystem {
     return Math.round(totalGold * 0.6);
   }
   
-  // 计算启动超时惩罚（梯度：200/300/400/600）
-  static calculateStartTimeoutPenalty(timeoutCount: number): number {
-    const penalties = [200, 300, 400];
-    if (timeoutCount >= 3) {
-      return 600; // 连续3次，扣600
-    }
-    return penalties[timeoutCount] || 0;
+  // 计算启动超时惩罚（梯度：10%、20%、30%、40%...递增）
+  static calculateStartTimeoutPenalty(totalGold: number, timeoutCount: number): number {
+    const percentage = (timeoutCount + 1) * 0.1; // 10%, 20%, 30%, 40%...
+    return Math.round(totalGold * percentage);
   }
   
-  // 计算完成超时惩罚（梯度：200/300/400/600）
+  // 计算提前完成奖励
+  static calculateEarlyCompletionBonus(totalGold: number, savedPercentage: number): number {
+    if (savedPercentage >= 50) {
+      // 提前50%以上：额外奖励100%金币
+      return totalGold;
+    } else if (savedPercentage >= 20) {
+      // 提前20%-50%：额外奖励33%金币
+      return Math.round(totalGold * 0.33);
+    }
+    return 0;
+  }
+  
+  // 计算完成验证窗口开启时间（提前多少分钟）
+  static getCompletionWindowMinutes(durationMinutes: number): number {
+    if (durationMinutes >= 30) {
+      return 5; // 时长≥30分钟：提前5分钟
+    } else if (durationMinutes < 10) {
+      return 1; // 时长<10分钟：提前1分钟
+    } else {
+      return 3; // 10-30分钟：提前3分钟
+    }
+  }
+  
+  // 旧的方法保持兼容性
   static calculateCompletionTimeoutPenalty(timeoutCount: number): number {
     const penalties = [200, 300, 400];
     if (timeoutCount >= 3) {
-      return 600; // 连续3次，扣600
+      return 600;
     }
     return penalties[timeoutCount] || 0;
   }
   
-  // 计算启动重试惩罚（第1次0，第2次400，第3次600）
   static calculateStartRetryPenalty(retryCount: number): number {
     if (retryCount === 0) return 0;
     if (retryCount === 1) return 400;
     return 600;
   }
   
-  // 计算完成延期惩罚（梯度：200/300/400）
   static calculateCompletionExtensionPenalty(extensionCount: number): number {
     const penalties = [200, 300, 400];
     return penalties[extensionCount] || 400;

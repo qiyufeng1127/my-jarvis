@@ -3,7 +3,7 @@ import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
 import { useGoldStore } from '@/stores/goldStore';
 import { useTutorialStore } from '@/stores/tutorialStore';
-import { X, GripVertical, Settings, HelpCircle } from 'lucide-react';
+import { X, GripVertical, Settings } from 'lucide-react';
 import NotificationContainer from '@/components/ui/NotificationContainer';
 import AISmartInput from '@/components/ai/AISmartInput';
 import VoiceAssistant from '@/components/voice/VoiceAssistant';
@@ -20,7 +20,7 @@ import {
 import JournalModule from '@/components/journal/JournalModule';
 import PanoramaMemory from '@/components/memory/PanoramaMemory';
 import TaskInbox from '@/components/inbox/TaskInbox';
-import UserGuide from '@/components/tutorial/UserGuide';
+import DailyReceipt from '@/components/receipt/DailyReceipt';
 import MobileWelcome from '@/components/tutorial/MobileWelcome';
 import OnboardingTooltip, { ONBOARDING_STEPS } from '@/components/tutorial/OnboardingTooltip';
 
@@ -52,13 +52,14 @@ export default function MobileLayout() {
   const { loadGrowthData } = useGrowthStore();
   const { balance } = useGoldStore();
   const { 
-    showUserGuide, 
-    setShowUserGuide, 
     activeOnboarding, 
     setActiveOnboarding,
     completeOnboarding,
     shouldShowOnboarding 
   } = useTutorialStore();
+  
+  // 小票弹窗状态
+  const [showReceipt, setShowReceipt] = useState(false);
   
   // 从 localStorage 加载导航栏配置
   const [navItems, setNavItems] = useState<NavItem[]>(() => {
@@ -200,10 +201,10 @@ export default function MobileLayout() {
       {/* 移动端欢迎界面 */}
       <MobileWelcome />
 
-      {/* 用户指南 */}
-      <UserGuide 
-        isOpen={showUserGuide} 
-        onClose={() => setShowUserGuide(false)} 
+      {/* 每日小票 */}
+      <DailyReceipt 
+        isOpen={showReceipt} 
+        onClose={() => setShowReceipt(false)} 
       />
 
       {/* 新手引导 */}
@@ -253,13 +254,16 @@ export default function MobileLayout() {
               <div className="text-xs font-bold text-black">{balance}</div>
             </div>
             
-            {/* 帮助按钮 */}
+            {/* 生成小票按钮 - 替换原来的帮助按钮 */}
             <button
-              onClick={() => setShowUserGuide(true)}
-              className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors flex items-center justify-center"
-              title="使用教程"
+              onClick={() => setShowReceipt(true)}
+              className="w-8 h-8 rounded-full bg-blue-100 hover:bg-blue-200 active:bg-blue-300 transition-colors flex items-center justify-center animate-bounce"
+              title="生成每日小票"
+              style={{
+                animation: 'bounce 2s infinite',
+              }}
             >
-              <HelpCircle className="w-5 h-5" />
+              <span className="text-base">🧾</span>
             </button>
           </div>
         </div>

@@ -62,7 +62,7 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
   const deviceFeedbackRef = useRef<DeviceFeedbackService | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   
-  const { createTask } = useTaskStore();
+  const { createTask, updateTask, deleteTask, tasks: allTasks } = useTaskStore();
   const { dimensions, goals, addGoal } = useGrowthStore();
   const { 
     getActiveSideHustles, 
@@ -417,15 +417,105 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
           
         case 'update_timeline':
           // 更新时间轴任务
-          if (action.data.task_id) {
+          if (action.data.operation === 'delete') {
+            // 批量删除任务
+            const taskIds = action.data.taskIds || [];
+            for (const taskId of taskIds) {
+              await deleteTask(taskId);
+            }
+            
+            // 语音反馈
+            if (voiceFeedbackRef.current) {
+              await voiceFeedbackRef.current.provideFeedback('success', { 
+                action: `已删除${taskIds.length}个任务` 
+              });
+            }
+            
+            // 如果需要跳转到时间轴
+            if (action.data.navigateToTimeline) {
+              setTimeout(() => {
+                onClose();
+              }, 500);
+            }
+          } else if (action.data.operation === 'move') {
+            // 批量移动任务到指定日期
+            const taskIds = action.data.taskIds || [];
+            const targetDate = new Date(action.data.targetDate);
+            
+            console.log('📅 移动任务到:', targetDate.toLocaleDateString('zh-CN'));
+            
+            for (const taskId of taskIds) {
+              const task = allTasks.find(t => t.id === taskId);
+              if (task && task.scheduledStart) {
+                const oldStart = new Date(task.scheduledStart);
+                
+                // 保持原来的时间，只改变日期
+                const newStart = new Date(targetDate);
+                newStart.setHours(oldStart.getHours(), oldStart.getMinutes(), 0, 0);
+                
+                // 计算新的结束时间
+                const newEnd = task.scheduledEnd 
+                  ? new Date(newStart.getTime() + (new Date(task.scheduledEnd).getTime() - oldStart.getTime()))
+                  : undefined;
+                
+                await updateTask(taskId, {
+                  scheduledStart: newStart,
+                  scheduledEnd: newEnd,
+                });
+                
+                console.log(`✅ 任务"${task.title}"已移动到 ${newStart.toLocaleString('zh-CN')}`);
+              }
+            }
+            
+            // 语音反馈
+            if (voiceFeedbackRef.current) {
+              await voiceFeedbackRef.current.provideFeedback('success', { 
+                action: `已移动${taskIds.length}个任务到${targetDate.toLocaleDateString('zh-CN')}` 
+              });
+            }
+            
+            // 如果需要跳转到时间轴
+            if (action.data.navigateToTimeline) {
+              setTimeout(() => {
+                onClose();
+              }, 500);
+            }
+          } else if (action.data.operation === 'delay') {
+            // 顺延任务
+            const taskIds = action.data.taskIds || [];
+            const delayMinutes = action.data.delayMinutes || 60;
+            
+            for (const taskId of taskIds) {
+              const task = allTasks.find(t => t.id === taskId);
+              if (task && task.scheduledStart) {
+                const newStart = new Date(new Date(task.scheduledStart).getTime() + delayMinutes * 60000);
+                const newEnd = task.scheduledEnd 
+                  ? new Date(new Date(task.scheduledEnd).getTime() + delayMinutes * 60000)
+                  : undefined;
+                
+                await updateTask(taskId, {
+                  scheduledStart: newStart,
+                  scheduledEnd: newEnd,
+                });
+              }
+            }
+            
+            // 语音反馈
+            if (voiceFeedbackRef.current) {
+              await voiceFeedbackRef.current.provideFeedback('success', { 
+                action: `已顺延${taskIds.length}个任务${delayMinutes}分钟` 
+              });
+            }
+          } else if (action.data.task_id) {
+            // 单个任务更新
             const updates: any = {};
             if (action.data.new_start_time) {
-              updates.scheduledStart = new Date(action.data.new_start_time).toISOString();
+              updates.scheduledStart = new Date(action.data.new_start_time);
             }
             if (action.data.new_duration) {
               updates.durationMinutes = action.data.new_duration;
             }
-            // TODO: 调用 updateTask
+            await updateTask(action.data.task_id, updates);
             console.log('更新任务:', action.data.task_id, updates);
           }
           break;
@@ -599,11 +689,63 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
             
             {/* 右侧：设置按钮 */}
             <button
-              onClick={() => setShowConfigModal(true)}
+              onClick={async () => {
+                // 如果有编辑中的任务，先推送到时间轴
+                if (showTaskEditor && editingTasks.length > 0) {
+                  console.log('📤 点击完成按钮，开始推送任务到时间轴:', editingTasks);
+                  
+                  // 添加新目标
+                  for (const task of editingTasks) {
+                    if (task.goal && task.isNewGoal) {
+                      const existingGoal = goals.find(g => g.title === task.goal);
+                      if (!existingGoal) {
+                        await addGoal({
+                          title: task.goal,
+                          description: `通过AI智能助手自动创建`,
+                          category: 'personal',
+                          priority: 'medium',
+                          status: 'active',
+                        });
+                      }
+                    }
+                  }
+
+                  // 创建任务
+                  await executeActions([{
+                    type: 'create_task',
+                    data: { tasks: editingTasks },
+                    label: '确认',
+                  }]);
+                  
+                  setShowTaskEditor(false);
+                  setEditingTasks([]);
+                  setEditingField(null);
+                  
+                  const successMessage: AIMessage = {
+                    id: `success-${Date.now()}`,
+                    role: 'assistant',
+                    content: `✅ 已成功添加 ${editingTasks.length} 个任务到时间轴！`,
+                    timestamp: new Date(),
+                  };
+                  setMessages(prev => [...prev, successMessage]);
+                  
+                  // 关闭对话框，跳转到时间轴
+                  setTimeout(() => {
+                    onClose();
+                  }, 500);
+                } else {
+                  // 没有编辑任务，打开设置
+                  setShowConfigModal(true);
+                }
+              }}
               className="p-2 rounded-full bg-gray-100 active:bg-gray-200 transition-colors"
-              title="API设置"
+              title={showTaskEditor ? "完成" : "API设置"}
             >
-              <Settings className="w-5 h-5 text-gray-700" />
+              {showTaskEditor ? (
+                <span className="text-blue-600 font-semibold px-2">完成</span>
+              ) : (
+                <Settings className="w-5 h-5 text-gray-700" />
+              )}
             </button>
           </div>
           
@@ -866,51 +1008,71 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
                 >
                   取消
                 </button>
-                <div className="font-semibold text-base text-gray-900">编辑任务</div>
+                <div className="font-semibold text-base text-gray-900">编辑任务 ({editingTasks.length})</div>
                 <button
                   onClick={async () => {
-                    // 添加新目标
-                    for (const task of editingTasks) {
-                      if (task.goal && task.isNewGoal) {
-                        const existingGoal = goals.find(g => g.title === task.goal);
-                        if (!existingGoal) {
-                          await addGoal({
-                            title: task.goal,
-                            description: `通过AI智能助手自动创建`,
-                            category: 'personal',
-                            priority: 'medium',
-                            status: 'active',
-                          });
+                    console.log('📤 点击完成按钮，开始推送任务到时间轴:', editingTasks);
+                    
+                    // 显示加载状态
+                    setIsProcessing(true);
+                    
+                    try {
+                      // 添加新目标
+                      for (const task of editingTasks) {
+                        if (task.goal && task.isNewGoal) {
+                          const existingGoal = goals.find(g => g.title === task.goal);
+                          if (!existingGoal) {
+                            await addGoal({
+                              title: task.goal,
+                              description: `通过AI智能助手自动创建`,
+                              category: 'personal',
+                              priority: 'medium',
+                              status: 'active',
+                            });
+                          }
                         }
                       }
-                    }
 
-                    // 创建任务
-                    console.log('📤 开始推送任务到时间轴:', editingTasks);
-                    await executeActions([{
-                      type: 'create_task',
-                      data: { tasks: editingTasks },
-                      label: '确认',
-                    }]);
-                    
-                    setShowTaskEditor(false);
-                    setEditingTasks([]);
-                    setEditingField(null);
-                    
-                    const successMessage: AIMessage = {
-                      id: `success-${Date.now()}`,
-                      role: 'assistant',
-                      content: `✅ 已成功添加 ${editingTasks.length} 个任务到时间轴！`,
-                      timestamp: new Date(),
-                    };
-                    setMessages(prev => [...prev, successMessage]);
+                      // 创建任务
+                      await executeActions([{
+                        type: 'create_task',
+                        data: { tasks: editingTasks },
+                        label: '确认',
+                      }]);
+                      
+                      setShowTaskEditor(false);
+                      setEditingTasks([]);
+                      setEditingField(null);
+                      
+                      const successMessage: AIMessage = {
+                        id: `success-${Date.now()}`,
+                        role: 'assistant',
+                        content: `✅ 已成功添加 ${editingTasks.length} 个任务到时间轴！正在跳转...`,
+                        timestamp: new Date(),
+                      };
+                      setMessages(prev => [...prev, successMessage]);
+                      
+                      // 等待一下让用户看到成功消息
+                      await new Promise(resolve => setTimeout(resolve, 800));
+                      
+                      // 关闭对话框
+                      onClose();
+                    } catch (error) {
+                      console.error('❌ 推送任务失败:', error);
+                      alert('推送任务失败，请重试');
+                    } finally {
+                      setIsProcessing(false);
+                    }
                   }}
-                  className="text-blue-600 font-semibold active:opacity-50"
+                  disabled={isProcessing}
+                  className="text-blue-600 font-semibold active:opacity-50 disabled:opacity-30"
                 >
-                  完成
+                  {isProcessing ? '推送中...' : '完成'}
                 </button>
               </div>
-              <p className="text-xs text-gray-500 mt-2 text-center">双击字段编辑，用箭头调整顺序</p>
+              <p className="text-xs text-gray-500 mt-2 text-center">
+                {isProcessing ? '正在添加到时间轴...' : '双击字段编辑，用箭头调整顺序'}
+              </p>
             </div>
 
             {/* 任务卡片列表 */}

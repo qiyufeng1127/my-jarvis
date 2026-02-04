@@ -78,11 +78,45 @@ export default function NewTimelineView({
   const [generatingSubTasks, setGeneratingSubTasks] = useState<string | null>(null);
   const [startingTask, setStartingTask] = useState<string | null>(null);
   const [completingTask, setCompletingTask] = useState<string | null>(null);
+  const [verifyingTask, setVerifyingTask] = useState<string | null>(null); // 正在验证的任务
+  const [verifyingType, setVerifyingType] = useState<'start' | 'complete' | null>(null); // 验证类型
   const [editingVerification, setEditingVerification] = useState<string | null>(null);
   const [addingSubTask, setAddingSubTask] = useState<string | null>(null);
   const [newSubTaskTitle, setNewSubTaskTitle] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRefs = useRef<Record<string, HTMLInputElement>>({});
+  
+  // 智能识别任务类型：是否为照片任务
+  const detectPhotoTaskType = (title: string): { isPhotoTask: boolean; targetCount: number; unit: string } => {
+    // 匹配模式：数字 + 量词（张、个、次、幅、份等）
+    const patterns = [
+      /(\d+)\s*张/,  // 10张、5张
+      /(\d+)\s*个/,  // 10个、5个
+      /(\d+)\s*次/,  // 10次、3次
+      /(\d+)\s*幅/,  // 10幅、5幅
+      /(\d+)\s*份/,  // 10份、5份
+      /(\d+)\s*件/,  // 10件、5件
+    ];
+    
+    for (const pattern of patterns) {
+      const match = title.match(pattern);
+      if (match) {
+        const count = parseInt(match[1]);
+        const unit = match[0].replace(/\d+\s*/, ''); // 提取量词
+        return { isPhotoTask: true, targetCount: count, unit };
+      }
+    }
+    
+    return { isPhotoTask: false, targetCount: 0, unit: '' };
+  };
+  
+  // 获取任务的照片进度
+  const getPhotoTaskProgress = (taskId: string, targetCount: number) => {
+    const images = taskImages[taskId] || [];
+    const uploadedCount = images.length;
+    const progress = Math.min(100, Math.round((uploadedCount / targetCount) * 100));
+    return { uploadedCount, progress };
+  };
   
   // 编辑任务的状态
   const [editedTaskData, setEditedTaskData] = useState<Task | null>(null);
@@ -445,6 +479,9 @@ export default function NewTimelineView({
     try {
       setUploadingImage(taskId);
       
+      const task = allTasks.find(t => t.id === taskId);
+      if (!task) return;
+      
       const uploadedImages: TaskImage[] = [];
       
       // 上传所有选中的图片
@@ -461,7 +498,7 @@ export default function NewTimelineView({
         const newImage: TaskImage = {
           id: `img-${Date.now()}-${i}`,
           url: imageUrl,
-          type: i === 0 ? 'cover' : 'attachment', // 第一张为封面
+          type: 'attachment', // 统一管理封面，第一张自动为封面
           uploadedAt: new Date(),
         };
         
@@ -473,8 +510,48 @@ export default function NewTimelineView({
         [taskId]: [...(prev[taskId] || []), ...uploadedImages],
       }));
       
+      // 检查是否为照片任务
+      const { isPhotoTask, targetCount, unit } = detectPhotoTaskType(task.title);
+      
+      if (isPhotoTask) {
+        const { uploadedCount, progress } = getPhotoTaskProgress(taskId, targetCount);
+        const newCount = uploadedCount + uploadedImages.length;
+        
+        console.log(`📸 照片任务进度: ${newCount}/${targetCount} ${unit} (${Math.round((newCount / targetCount) * 100)}%)`);
+        
+        // 播放上传成功音效
+        SoundEffects.playCoinSound();
+        
+        // 如果达到目标数量，自动完成任务
+        if (newCount >= targetCount) {
+          console.log('🎉 照片任务已完成！');
+          
+          // 计算金币奖励
+          const goldReward = task.goldReward || Math.floor((task.durationMinutes || 60) * 0.8);
+          
+          // 添加金币
+          addGold(goldReward, `完成任务：${task.title}`, taskId, task.title);
+          
+          // 显示庆祝效果
+          setCelebrationGold(goldReward);
+          setShowCelebration(true);
+          
+          // 播放音效
+          SoundEffects.playSuccessSound();
+          SoundEffects.playCoinSound();
+          
+          // 语音提示
+          VoiceReminder.congratulateCompletion(task.title, goldReward);
+          
+          // 更新任务状态为完成
+          onTaskUpdate(taskId, { status: 'completed', isCompleted: true });
+        } else {
+          // 显示进度提示
+          console.log(`✅ 成功上传 ${uploadedImages.length} 张图片！还需 ${targetCount - newCount} ${unit}`);
+        }
+      } else {
       console.log(`✅ 成功上传 ${uploadedImages.length} 张图片`);
-      alert(`成功上传 ${uploadedImages.length} 张图片！`);
+      }
     } catch (error) {
       console.error('❌ 图片上传失败:', error);
       alert('图片上传失败，请重试');
@@ -626,6 +703,7 @@ export default function NewTimelineView({
         startGoldEarned: 0,
         completionGoldEarned: 0,
         totalGoldPenalty: 0,
+        startPenaltyGold: 0, // 启动阶段扣除的金币
       };
       
       setTaskVerifications(prev => ({
@@ -801,44 +879,106 @@ export default function NewTimelineView({
         const file = (e.target as HTMLInputElement).files?.[0];
         if (file) {
           try {
+        // 防止重复验证
+        if (type === 'start' && verification.status === 'started') {
+          alert('⚠️ 该任务已经完成启动验证，不能重复验证！');
+          setStartingTask(null);
+          setVerifyingTask(null);
+          setVerifyingType(null);
+          return;
+        }
+        
+        if (type === 'complete' && verification.status === 'completed') {
+          alert('⚠️ 该任务已经完成验证，不能重复验证！');
+          setCompletingTask(null);
+          setVerifyingTask(null);
+          setVerifyingType(null);
+          return;
+        }
+        
+        // 设置验证状态 - 显示"正在验证..."
+        setVerifyingTask(taskId);
+        setVerifyingType(type);
+        
         const keywords = type === 'start' ? verification.startKeywords : verification.completionKeywords;
         
         // 检查是否需要验证（如果没有关键词，直接通过）
         const needsVerification = keywords.length > 0;
         
         if (needsVerification) {
-          // 使用百度AI进行图像识别验证
-          console.log(`🔍 开始${type === 'start' ? '启动' : '完成'}验证，需要的关键词:`, keywords);
+          // 使用百度AI进行宽松的图像识别验证
+          console.log(`🔍 开始${type === 'start' ? '启动' : '完成'}验证（宽松模式）`);
+          console.log(`📝 您设定的规则关键词:`, keywords);
           
-          const verifyResult = await baiduImageRecognition.verifyImage(
+          const verifyResult = await baiduImageRecognition.smartVerifyImage(
             file,
             keywords,
-            0.3 // 至少匹配30%的关键词
+            0.3 // 30%匹配率（超宽松）
           );
           
-          console.log(`🔍 ${type === 'start' ? '启动' : '完成'}验证结果:`, verifyResult);
+          console.log(`✅ ${type === 'start' ? '启动' : '完成'}验证结果:`, verifyResult);
           
           if (!verifyResult.success) {
-            // 验证失败
-            throw new Error(`图像验证失败！\n需要的内容：${keywords.join('、')}\n识别到的内容：${verifyResult.recognizedKeywords.join('、') || '无'}\n匹配的关键词：${verifyResult.matchedKeywords.join('、') || '无'}`);
+            // 验证失败（极少发生）
+            setVerifyingTask(null);
+            setVerifyingType(null);
+            throw new Error(verifyResult.description);
           }
           
-          console.log(`✅ ${type === 'start' ? '启动' : '完成'}验证通过！匹配的关键词:`, verifyResult.matchedKeywords);
+          // 验证成功 - 显示简洁提示
+          console.log(`✅ ${type === 'start' ? '启动' : '完成'}验证通过！`);
         }
         
-            // 上传验证图片
-            const files = (e.target as HTMLInputElement).files;
-            if (files) {
-              await handleImageUpload(taskId, files, 'attachment');
+        // 保存验证照片到任务图片列表（统一管理）
+        try {
+          const compressedFile = await ImageUploader.compressImage(file);
+          const imageUrl = await ImageUploader.uploadImage(compressedFile);
+          
+          const newImage: TaskImage = {
+            id: `img-${Date.now()}-verification`,
+            url: imageUrl,
+            type: 'attachment',
+            uploadedAt: new Date(),
+          };
+          
+          setTaskImages(prev => ({
+            ...prev,
+            [taskId]: [...(prev[taskId] || []), newImage],
+          }));
+          
+          console.log('📸 验证照片已保存到任务图片列表');
+        } catch (error) {
+          console.error('⚠️ 验证照片保存失败，但验证已通过:', error);
             }
             
             const now = new Date();
+        const totalGold = task.goldReward || Math.floor((task.durationMinutes || 60) * 0.8);
             
         if (type === 'start') {
-          // 启动任务
-          const totalGold = task.goldReward || Math.floor((task.durationMinutes || 60) * 0.8);
+          // 启动验证通过 - 修正任务开始时间
+          const scheduledStart = new Date(task.scheduledStart!);
+          const delayMinutes = Math.floor((now.getTime() - scheduledStart.getTime()) / 60000);
+          
+          console.log(`⏰ 预设开始时间: ${scheduledStart.toLocaleTimeString()}`);
+          console.log(`⏰ 实际开始时间: ${now.toLocaleTimeString()}`);
+          console.log(`⏰ 延迟时间: ${delayMinutes} 分钟`);
+          
+          // 计算启动超时扣除的金币（已经在超时回调中扣除）
+          const timeoutCount = verification.startTimeoutCount || 0;
+          let totalPenalty = 0;
+          for (let i = 1; i <= timeoutCount; i++) {
+            totalPenalty += Math.round(totalGold * (i * 0.1)); // 10%, 20%, 30%...
+          }
+          
+          // 启动阶段奖励40%金币
           const startGold = Math.round(totalGold * 0.4);
           
+          console.log(`💰 启动验证通过奖励：${startGold} 金币`);
+          if (totalPenalty > 0) {
+            console.log(`⚠️ 启动超时已扣除：${totalPenalty} 金币（完成任务后会返还）`);
+          }
+          
+          // 更新验证状态
             setTaskVerifications(prev => ({
               ...prev,
               [taskId]: {
@@ -847,23 +987,77 @@ export default function NewTimelineView({
                 actualStartTime: now,
                 startFailedAttempts: 0,
               startGoldEarned: startGold,
+              startPenaltyGold: totalPenalty, // 记录启动阶段扣除的金币
               },
             }));
             
+          // 播放音效
             SoundEffects.playSuccessSound();
             SoundEffects.playCoinSound();
+          
+          // 添加金币
           addGold(startGold, `启动任务：${task.title}`, taskId, task.title);
+          
+          // 显示庆祝效果
           setCelebrationGold(startGold);
           setShowCelebration(true);
-          VoiceReminder.congratulateCompletion(task.title, startGold);
-            onTaskUpdate(taskId, { status: 'in_progress' });
-            
-            console.log('✅ 任务启动验证成功');
-        } else {
-          // 完成任务
-          const totalGold = task.goldReward || Math.floor((task.durationMinutes || 60) * 0.8);
-          const completionGold = Math.round(totalGold * 0.6);
           
+          // 语音提示
+          VoiceReminder.congratulateCompletion(task.title, startGold);
+          
+          // 修正任务开始时间和结束时间
+          const newEndTime = new Date(now.getTime() + (task.durationMinutes || 60) * 60000);
+          onTaskUpdate(taskId, { 
+            status: 'in_progress',
+            scheduledStart: now.toISOString(),
+            scheduledEnd: newEndTime.toISOString(),
+          });
+            
+          console.log('✅ 任务启动验证成功，时间已自动修正');
+        } else {
+          // 完成验证通过 - 计算提前完成奖励
+          const actualStartTime = verification.actualStartTime || new Date(task.scheduledStart!);
+          const actualDuration = Math.floor((now.getTime() - actualStartTime.getTime()) / 60000);
+          const scheduledDuration = task.durationMinutes || 60;
+          const savedMinutes = scheduledDuration - actualDuration;
+          const savedPercentage = (savedMinutes / scheduledDuration) * 100;
+          
+          console.log(`⏰ 预设时长: ${scheduledDuration} 分钟`);
+          console.log(`⏰ 实际时长: ${actualDuration} 分钟`);
+          console.log(`⏰ 提前完成: ${savedMinutes} 分钟 (${savedPercentage.toFixed(1)}%)`);
+          
+          // 完成阶段基础奖励60%金币
+          let completionGold = Math.round(totalGold * 0.6);
+          let bonusGold = 0;
+          let bonusMessage = '';
+          
+          // 计算提前完成奖励
+          if (savedPercentage >= 50) {
+            // 提前50%以上：额外奖励100%金币
+            bonusGold = totalGold;
+            bonusMessage = '🎉 提前50%以上完成！额外奖励100%金币！';
+          } else if (savedPercentage >= 20) {
+            // 提前20%-50%：额外奖励33%金币
+            bonusGold = Math.round(totalGold * 0.33);
+            bonusMessage = '🎉 提前20%-50%完成！额外奖励33%金币！';
+          }
+          
+          // 返还启动阶段扣除的金币
+          const startPenalty = verification.startPenaltyGold || 0;
+          
+          // 总金币 = 完成奖励 + 提前奖励 + 返还启动扣除
+          const finalGold = completionGold + bonusGold + startPenalty;
+          
+          console.log(`💰 完成验证通过奖励：${completionGold} 金币`);
+          if (bonusGold > 0) {
+            console.log(`🎁 提前完成奖励：${bonusGold} 金币`);
+          }
+          if (startPenalty > 0) {
+            console.log(`💰 返还启动扣除：${startPenalty} 金币`);
+          }
+          console.log(`💰 总计获得：${finalGold} 金币`);
+          
+          // 更新验证状态
           setTaskVerifications(prev => ({
             ...prev,
             [taskId]: {
@@ -871,21 +1065,45 @@ export default function NewTimelineView({
               status: 'completed',
               actualCompletionTime: now,
               completionFailedAttempts: 0,
-              completionGoldEarned: completionGold,
+              completionGoldEarned: finalGold,
             },
           }));
           
+          // 播放音效
           SoundEffects.playSuccessSound();
           SoundEffects.playCoinSound();
-          addGold(completionGold, `完成任务：${task.title}`, taskId, task.title);
-          setCelebrationGold(completionGold);
-          setShowCelebration(true);
-          VoiceReminder.congratulateCompletion(task.title, completionGold);
-          onTaskUpdate(taskId, { status: 'completed', isCompleted: true });
           
-          console.log('✅ 任务完成验证成功');
+          // 添加金币
+          addGold(finalGold, `完成任务：${task.title}${bonusMessage}`, taskId, task.title);
+          
+          // 显示庆祝效果
+          setCelebrationGold(finalGold);
+          setShowCelebration(true);
+          
+          // 语音提示
+          if (bonusMessage) {
+            VoiceReminder.speak(bonusMessage);
+          }
+          VoiceReminder.congratulateCompletion(task.title, finalGold);
+          
+          // 修正任务结束时间
+          onTaskUpdate(taskId, { 
+            status: 'completed', 
+            isCompleted: true,
+            scheduledEnd: now.toISOString(),
+          });
+          
+          console.log('✅ 任务完成验证成功，时间已自动修正');
         }
+        
+        // 清除验证状态
+        setVerifyingTask(null);
+        setVerifyingType(null);
           } catch (error) {
+        // 清除验证状态
+        setVerifyingTask(null);
+        setVerifyingType(null);
+        
             // 验证失败
         const failedAttemptsKey = type === 'start' ? 'startFailedAttempts' : 'completionFailedAttempts';
         const newFailedAttempts = (verification[failedAttemptsKey] || 0) + 1;
@@ -1445,6 +1663,21 @@ export default function NewTimelineView({
                   </div>
                 )}
 
+                {/* 验证中遮罩层 */}
+                {verifyingTask === block.id && (
+                  <div className="absolute inset-0 bg-black/70 backdrop-blur-sm z-20 flex flex-col items-center justify-center rounded-2xl">
+                    <div className="text-white text-center">
+                      <div className="text-4xl mb-3 animate-pulse">⏳</div>
+                      <div className="text-lg font-bold mb-2">
+                        正在进行{verifyingType === 'start' ? '启动' : '完成'}验证...
+                      </div>
+                      <div className="text-sm opacity-80">
+                        AI正在识别图片内容
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* 未展开：横向长条形布局 - 完全按照设计图，手机版缩小并压缩空白 */}
                 {!isExpanded && (
                   <div className={`${isMobile ? 'p-1.5' : 'p-2.5'} text-white`} style={{ color: getTextColor(block.color) }}>
@@ -1522,6 +1755,30 @@ export default function NewTimelineView({
                           </h3>
                           <span className={`${isMobile ? 'text-base' : 'text-lg'}`}>{block.emoji}</span>
                         </div>
+                        
+                        {/* 照片任务进度条 */}
+                        {(() => {
+                          const { isPhotoTask, targetCount, unit } = detectPhotoTaskType(block.title);
+                          if (isPhotoTask) {
+                            const { uploadedCount, progress } = getPhotoTaskProgress(block.id, targetCount);
+                            return (
+                              <div className={`${isMobile ? 'mb-0.5' : 'mb-1'}`}>
+                                <div className="flex items-center gap-1">
+                                  <div className="flex-1 h-1.5 bg-white/20 rounded-full overflow-hidden">
+                                    <div 
+                                      className="h-full bg-gradient-to-r from-yellow-400 to-yellow-600 transition-all duration-500"
+                                      style={{ width: `${progress}%` }}
+                                    />
+                                  </div>
+                                  <span className={`${isMobile ? 'text-[9px]' : 'text-[10px]'} font-bold whitespace-nowrap`}>
+                                    {uploadedCount}/{targetCount}{unit}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
                         
                         {/* 状态指示器 */}
                         {block.status === 'in_progress' && (
@@ -1639,6 +1896,21 @@ export default function NewTimelineView({
                   </div>
                 )}
 
+                {/* 验证中遮罩层（展开状态） */}
+                {verifyingTask === block.id && isExpanded && (
+                  <div className="absolute inset-0 bg-black/70 backdrop-blur-sm z-20 flex flex-col items-center justify-center rounded-2xl">
+                    <div className="text-white text-center">
+                      <div className="text-4xl mb-3 animate-pulse">⏳</div>
+                      <div className="text-lg font-bold mb-2">
+                        正在进行{verifyingType === 'start' ? '启动' : '完成'}验证...
+                      </div>
+                      <div className="text-sm opacity-80">
+                        AI正在识别图片内容
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* 展开：竖向长方形布局 */}
                 {isExpanded && (
                   <div className="p-4 text-white" style={{ color: getTextColor(block.color) }}>
@@ -1716,6 +1988,33 @@ export default function NewTimelineView({
                           </h3>
                           <span className="text-xl">{block.emoji}</span>
                         </div>
+                        
+                        {/* 照片任务进度条（展开状态） */}
+                        {(() => {
+                          const { isPhotoTask, targetCount, unit } = detectPhotoTaskType(block.title);
+                          if (isPhotoTask) {
+                            const { uploadedCount, progress } = getPhotoTaskProgress(block.id, targetCount);
+                            return (
+                              <div className="mb-2">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <div className="flex-1 h-2 bg-white/20 rounded-full overflow-hidden">
+                                    <div 
+                                      className="h-full bg-gradient-to-r from-yellow-400 to-yellow-600 transition-all duration-500"
+                                      style={{ width: `${progress}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-xs font-bold whitespace-nowrap">
+                                    {uploadedCount}/{targetCount}{unit}
+                                  </span>
+                                </div>
+                                <div className="text-[10px] opacity-80">
+                                  📸 每上传1张照片 = 完成{Math.round(100/targetCount)}%任务
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
                         
                         {/* 虚线 */}
                         <div 
@@ -1859,7 +2158,93 @@ export default function NewTimelineView({
 
                     {/* 展开区域：子任务和文件 */}
                     <div className="mt-3 pt-3 space-y-2" style={{ borderTop: '2px dashed rgba(255,255,255,0.3)' }}>
-                      {/* 子任务 */}
+                      {/* 照片任务：显示照片网格 */}
+                      {(() => {
+                        const { isPhotoTask, targetCount, unit } = detectPhotoTaskType(block.title);
+                        if (isPhotoTask) {
+                          const images = taskImages[block.id] || [];
+                          return (
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="text-sm font-medium opacity-90">
+                                  📸 照片任务进度
+                                </div>
+                                <div className="text-xs opacity-80">
+                                  {images.length}/{targetCount}{unit}
+                                </div>
+                              </div>
+                              
+                              {/* 照片网格 */}
+                              <div className="grid grid-cols-3 gap-2">
+                                {images.map((image, idx) => (
+                                  <div 
+                                    key={image.id}
+                                    className="relative aspect-square rounded-lg overflow-hidden group"
+                                    style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}
+                                  >
+                                    <img 
+                                      src={image.url} 
+                                      alt={`照片 ${idx + 1}`}
+                                      className="w-full h-full object-cover"
+                                    />
+                                    {idx === 0 && (
+                                      <div 
+                                        className="absolute top-1 left-1 px-1.5 py-0.5 rounded text-[10px] font-bold"
+                                        style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: 'white' }}
+                                      >
+                                        封面
+                                      </div>
+                                    )}
+                                    <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-500/80 text-white">
+                                      ✓ {idx + 1}
+                                    </div>
+                                    <button
+                                      onClick={() => {
+                                        if (confirm('确定要删除这张照片吗？')) {
+                                          setTaskImages(prev => ({
+                                            ...prev,
+                                            [block.id]: prev[block.id].filter(img => img.id !== image.id)
+                                          }));
+                                        }
+                                      }}
+                                      className="absolute bottom-1 right-1 p-1 bg-red-500/80 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                      <X className="w-3 h-3 text-white" />
+                                    </button>
+                                  </div>
+                                ))}
+                                
+                                {/* 添加照片按钮 */}
+                                {images.length < targetCount && (
+                                  <div 
+                                    onClick={() => handleOpenImagePicker(block.id)}
+                                    className="aspect-square rounded-lg flex flex-col items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
+                                    style={{ 
+                                      backgroundColor: 'rgba(255,255,255,0.15)',
+                                      border: '2px dashed rgba(255,255,255,0.4)'
+                                    }}
+                                  >
+                                    <Camera className="w-6 h-6 mb-1 opacity-60" />
+                                    <span className="text-[10px] opacity-80">
+                                      还需{targetCount - images.length}{unit}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                              
+                              {images.length >= targetCount && (
+                                <div className="text-center py-2 px-3 rounded-lg bg-green-500/20">
+                                  <span className="text-sm font-bold">🎉 已完成所有照片上传！</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+                      
+                      {/* 普通任务：显示文字子任务 */}
+                      {!detectPhotoTaskType(block.title).isPhotoTask && (
                       <div className="space-y-1.5">
                         {/* 显示已有子任务 */}
                         {(taskSubTasks[block.id] || []).map((subtask) => (
@@ -1948,9 +2333,10 @@ export default function NewTimelineView({
                           </button>
                         )}
                       </div>
+                      )}
 
-                      {/* 附件列表 */}
-                      {taskImages[block.id] && taskImages[block.id].length > 0 && (
+                      {/* 附件列表（仅普通任务显示） */}
+                      {!detectPhotoTaskType(block.title).isPhotoTask && taskImages[block.id] && taskImages[block.id].length > 0 && (
                         <div className="space-y-1.5">
                           <div className="text-xs font-medium opacity-80">附件列表</div>
                           <div className="grid grid-cols-3 gap-2">
@@ -1979,7 +2365,8 @@ export default function NewTimelineView({
                         </div>
                       )}
 
-                      {/* 文件上传区 */}
+                      {/* 文件上传区（仅普通任务显示） */}
+                      {!detectPhotoTaskType(block.title).isPhotoTask && (
                       <div 
                         onClick={() => handleOpenImagePicker(block.id)}
                         className="rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer transition-all hover:opacity-80"
@@ -1992,6 +2379,7 @@ export default function NewTimelineView({
                         <span className="text-xs font-medium opacity-80">点击添加照片/附件</span>
                         <span className="text-[10px] opacity-60 mt-1">支持多选，第一张为封面</span>
                       </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -2022,10 +2410,12 @@ export default function NewTimelineView({
                 {/* 间隔按钮 */}
                 <button
                   onClick={() => {
+                    // 使用当前时间作为开始时间
+                    const now = new Date();
                     const newTask = {
                       title: '新任务',
-                      scheduledStart: gap.startTime.toISOString(),
-                      durationMinutes: Math.min(60, gap.durationMinutes),
+                      scheduledStart: now.toISOString(),
+                      durationMinutes: 30, // 默认30分钟
                       taskType: 'work',
                       status: 'pending' as const,
                     };
@@ -2066,10 +2456,12 @@ export default function NewTimelineView({
           {/* 今日结束按钮 */}
           <button
             onClick={() => {
+              // 使用当前时间作为开始时间
+              const now = new Date();
               const newTask = {
                 title: '新任务',
-                scheduledStart: timeUntilEnd.startTime.toISOString(),
-                durationMinutes: Math.min(60, timeUntilEnd.totalMinutes),
+                scheduledStart: now.toISOString(),
+                durationMinutes: 30, // 默认30分钟
                 taskType: 'work',
                 status: 'pending' as const,
               };
@@ -2108,10 +2500,12 @@ export default function NewTimelineView({
           </p>
           <button
             onClick={() => {
+              // 使用当前时间作为开始时间
+              const now = new Date();
               const newTask = {
                 title: '新任务',
-                scheduledStart: new Date(selectedDate.setHours(9, 0, 0, 0)).toISOString(),
-                durationMinutes: 60,
+                scheduledStart: now.toISOString(),
+                durationMinutes: 30, // 默认30分钟
                 taskType: 'work',
                 status: 'pending' as const,
               };

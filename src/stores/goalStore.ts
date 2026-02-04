@@ -288,6 +288,31 @@ export const useGoalStore = create<GoalState>()(
     }),
     {
       name: 'goals-storage',
+      storage: {
+        getItem: (name) => {
+          try {
+            const str = localStorage.getItem(name);
+            return str ? JSON.parse(str) : null;
+          } catch (error) {
+            console.warn('读取存储失败:', error);
+            return null;
+          }
+        },
+        setItem: (name, value) => {
+          try {
+            localStorage.setItem(name, JSON.stringify(value));
+          } catch (error) {
+            console.warn('保存存储失败:', error);
+          }
+        },
+        removeItem: (name) => {
+          try {
+            localStorage.removeItem(name);
+          } catch (error) {
+            console.warn('删除存储失败:', error);
+          }
+        },
+      },
     }
   )
 );

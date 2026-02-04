@@ -32,6 +32,7 @@ import { useSideHustleStore } from '@/stores/sideHustleStore';
 import { useGoldStore } from '@/stores/goldStore';
 import GitHubCommitBadge from '@/components/ui/GitHubCommitBadge';
 import VersionInfo from '@/components/VersionInfo';
+import DailyReceipt from '@/components/receipt/DailyReceipt';
 
 interface Module {
   id: string;
@@ -207,6 +208,9 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
 
   // 坏习惯百分比（模拟数据）
   const [habitScore, setHabitScore] = useState(0); // 0-100，越高越差
+  
+  // 每日小票状态
+  const [showDailyReceipt, setShowDailyReceipt] = useState(false);
 
   // 从副业追踪器获取余额数据
   const { getTotalProfit, loadSideHustles } = useSideHustleStore();
@@ -218,7 +222,7 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
   // 顶部状态栏元素的位置和拖动状态
   const [topBarItems, setTopBarItems] = useState<Array<{
     id: string;
-    type: 'identity' | 'growth' | 'habits' | 'gold' | 'balance' | 'image' | 'github' | 'version';
+    type: 'identity' | 'growth' | 'habits' | 'gold' | 'balance' | 'image' | 'github' | 'version' | 'receipt';
     position: { x: number; y: number };
     imageUrl?: string;
     customSize?: { width: number; height: number };
@@ -228,16 +232,17 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
     { id: 'balance', type: 'balance', position: { x: 440, y: 0 } },
     { id: 'habits', type: 'habits', position: { x: 680, y: 0 } },
     { id: 'gold', type: 'gold', position: { x: 900, y: 0 } },
-    { id: 'github', type: 'github', position: { x: 1150, y: 0 } },
-    { id: 'version', type: 'version', position: { x: 1350, y: 0 } },
+    { id: 'receipt', type: 'receipt', position: { x: 1120, y: 0 } },
+    { id: 'github', type: 'github', position: { x: 1300, y: 0 } },
+    { id: 'version', type: 'version', position: { x: 1500, y: 0 } },
   ]);
   const [draggingTopBarItem, setDraggingTopBarItem] = useState<string | null>(null);
   const [topBarDragOffset, setTopBarDragOffset] = useState({ x: 0, y: 0 });
 
-  // 加载副业数据
+  // 加载副业数据（只在组件挂载时执行一次）
   useEffect(() => {
     loadSideHustles();
-  }, [loadSideHustles]);
+  }, []); // 移除 loadSideHustles 依赖，避免无限循环
 
   // 从 Supabase 加载模块配置
   useEffect(() => {
@@ -977,6 +982,32 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                 );
               }
 
+              if (item.type === 'receipt') {
+                return (
+                  <div
+                    key={item.id}
+                    className="absolute"
+                    style={{
+                      left: item.position.x,
+                      top: item.position.y,
+                      cursor: draggingTopBarItem === item.id ? 'grabbing' : 'grab',
+                    }}
+                    onMouseDown={(e) => handleTopBarDragStart(item.id, e)}
+                  >
+                    <button
+                      onClick={() => setShowDailyReceipt(true)}
+                      className="flex items-center space-x-2 px-4 py-2 rounded-2xl bg-gradient-to-r from-pink-50 to-rose-50 border border-pink-100/50 shadow-sm hover:scale-105 transition-all hover:shadow-md group"
+                    >
+                      <div className="text-2xl animate-bounce">🧾</div>
+                      <div>
+                        <div className="text-sm text-black font-semibold tracking-wide">每日小票</div>
+                        <div className="text-xs text-pink-600 font-medium">点击生成</div>
+                      </div>
+                    </button>
+                  </div>
+                );
+              }
+
               if (item.type === 'github') {
                 return (
                   <div
@@ -1555,6 +1586,16 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
             </div>
           </div>
         )}
+        
+        {/* 每日小票弹窗 */}
+        <DailyReceipt
+          show={showDailyReceipt}
+          onClose={() => setShowDailyReceipt(false)}
+          date={new Date()}
+          tasks={[]} // TODO: 传入实际任务数据
+          totalGold={goldBalance}
+          isDark={false}
+        />
       </div>
     </div>
   );
