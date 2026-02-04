@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Mic, X, Sparkles, MicOff, Edit2, ChevronUp, ChevronDown, Clock, Coins } from 'lucide-react';
+import { Send, Mic, X, Sparkles, MicOff, Edit2, ChevronUp, ChevronDown, Clock, Coins, Settings } from 'lucide-react';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
+import { useAIStore } from '@/stores/aiStore';
 import { AISmartProcessor } from '@/services/aiSmartService';
 import type { AIProcessRequest } from '@/services/aiSmartService';
+import AIConfigModal from './AIConfigModal';
 import { 
   VoiceRecognitionService, 
   VoiceFeedbackService, 
@@ -51,6 +53,7 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
   const [showTaskEditor, setShowTaskEditor] = useState(false);
   const [editingTasks, setEditingTasks] = useState<any[]>([]);
   const [editingField, setEditingField] = useState<{taskIndex: number, field: string} | null>(null);
+  const [showConfigModal, setShowConfigModal] = useState(false);
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
@@ -68,6 +71,7 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
     createSideHustle, 
     addDebt 
   } = useSideHustleStore();
+  const { isConfigured } = useAIStore();
 
   const cardBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
   const textColor = '#000000'; // 强制使用黑色文字，确保在任何背景下都可见
@@ -566,44 +570,62 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div 
-        className="rounded-2xl shadow-2xl w-full max-w-3xl h-[80vh] flex flex-col overflow-hidden"
-        style={{ backgroundColor: bgColor }}
-      >
-        {/* 头部 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
-          <div className="flex items-center space-x-2">
-            <Sparkles className="w-5 h-5" style={{ color: textColor }} />
-            <span className="font-semibold text-lg" style={{ color: textColor }}>AI智能助手</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={toggleVoiceMode}
-              className={`p-2 rounded-lg transition-all hover:scale-105 ${
-                isVoiceMode ? 'animate-pulse' : ''
-              }`}
-              style={{ 
-                backgroundColor: isVoiceMode ? (wakeState === 'listening' ? '#3B82F6' : buttonBg) : 'transparent',
-                color: textColor 
-              }}
-              title={isVoiceMode ? '关闭语音' : '语音输入'}
-            >
-              {isVoiceMode ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
-            </button>
+    <>
+      {/* API配置弹窗 */}
+      <AIConfigModal 
+        isOpen={showConfigModal} 
+        onClose={() => setShowConfigModal(false)} 
+      />
+      
+      {/* iOS风格全屏对话框 */}
+      <div className="fixed inset-0 z-50 bg-white flex flex-col">
+        {/* iOS风格头部 - 半透明毛玻璃效果 */}
+        <div className="flex-shrink-0 bg-white/80 backdrop-blur-xl border-b border-gray-200/50 px-4 py-3 safe-area-top">
+          <div className="flex items-center justify-between">
+            {/* 左侧：关闭按钮 */}
             <button
               onClick={onClose}
-              className="p-2 rounded-lg transition-all hover:scale-105"
-              style={{ backgroundColor: buttonBg, color: textColor }}
-              title="关闭"
+              className="flex items-center space-x-1 text-blue-600 font-medium active:opacity-50 transition-opacity"
             >
-              <X className="w-4 h-4" />
+              <X className="w-5 h-5" />
+              <span className="text-base">关闭</span>
+            </button>
+            
+            {/* 中间：标题 */}
+            <div className="flex items-center space-x-2">
+              <Sparkles className="w-5 h-5 text-purple-600" />
+              <span className="font-semibold text-base text-gray-900">AI智能助手</span>
+            </div>
+            
+            {/* 右侧：设置按钮 */}
+            <button
+              onClick={() => setShowConfigModal(true)}
+              className="p-2 rounded-full bg-gray-100 active:bg-gray-200 transition-colors"
+              title="API设置"
+            >
+              <Settings className="w-5 h-5 text-gray-700" />
             </button>
           </div>
+          
+          {/* API未配置提示 */}
+          {!isConfigured() && (
+            <div className="mt-2 px-3 py-2 bg-red-50 rounded-xl border border-red-200">
+              <div className="flex items-center space-x-2">
+                <span className="text-red-600 text-sm">⚠️</span>
+                <span className="text-red-700 text-xs font-medium">请先配置 API Key</span>
+                <button
+                  onClick={() => setShowConfigModal(true)}
+                  className="ml-auto text-xs text-red-600 font-semibold underline active:opacity-50"
+                >
+                  去设置
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* 对话区域 */}
-        <div ref={conversationRef} className="flex-1 overflow-y-auto p-6 space-y-4">
+        {/* iOS风格对话区域 - 浅灰色背景 */}
+        <div ref={conversationRef} className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
           {/* 语音状态提示 */}
           {isVoiceMode && wakeState !== 'sleeping' && (
             <div className="flex justify-center mb-4">
@@ -669,15 +691,39 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
               className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[80%] rounded-lg p-4`}
-                style={{
-                  backgroundColor: message.role === 'user' ? buttonBg : cardBg,
-                  color: textColor,
-                }}
+                className={`max-w-[85%] rounded-2xl px-4 py-3 shadow-sm ${
+                  message.role === 'user' 
+                    ? 'bg-blue-500 text-white' 
+                    : 'bg-white text-gray-900 border border-gray-200'
+                }`}
               >
-                <div className="whitespace-pre-wrap text-sm">{message.content}</div>
+                <div className="whitespace-pre-wrap text-[15px] leading-relaxed">{message.content}</div>
                 
-                {/* 冲突选项 - 压缩格式（2x2网格） */}
+                {/* iOS风格操作按钮 */}
+                {message.actions && message.actions.length > 0 && !message.data?.conflictOptions && (
+                  <div className="mt-3 space-y-2">
+                    {message.actions.map((action, index) => (
+                      <button
+                        key={index}
+                        onClick={() => {
+                          console.log('🖱️ 按钮点击:', action);
+                          if (action.type === 'create_task' && action.data.tasks) {
+                            console.log('🎯 打开任务编辑器，任务数量:', action.data.tasks.length);
+                            setEditingTasks(action.data.tasks);
+                            setShowTaskEditor(true);
+                          } else {
+                            executeActions([action]);
+                          }
+                        }}
+                        className="w-full px-4 py-3 rounded-xl font-medium transition-all active:scale-95 bg-blue-500 text-white shadow-sm"
+                      >
+                        {action.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                
+                {/* 冲突选项 - iOS风格 */}
                 {message.data?.conflictOptions && (
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     {message.data.conflictOptions.map((option: any) => (
@@ -746,11 +792,7 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
                             setMessages(prev => [...prev, confirmMsg]);
                           }
                         }}
-                        className="px-3 py-2 rounded-lg text-xs font-medium transition-all hover:scale-[1.02] text-left"
-                        style={{ 
-                          backgroundColor: buttonBg,
-                          color: textColor 
-                        }}
+                        className="px-3 py-2.5 rounded-xl text-xs font-medium transition-all active:scale-95 text-left bg-gray-100 text-gray-900"
                       >
                         <div className="font-semibold mb-0.5">{option.label}</div>
                         <div className="text-[10px] opacity-70">{option.description}</div>
@@ -759,163 +801,34 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
                   </div>
                 )}
                 
-                {/* 操作按钮 - 压缩格式 */}
-                {message.actions && message.actions.length > 0 && !message.data?.conflictOptions && (
-                  <div className="mt-3 space-y-1.5">
-                    {message.actions.map((action, index) => (
-                      <button
-                        key={index}
-                        onClick={() => {
-                          console.log('🖱️ 按钮点击:', action);
-                          console.log('📋 Action type:', action.type);
-                          console.log('📊 Action data:', action.data);
-                          console.log('✅ Has tasks?', action.data?.tasks);
-                          
-                          // 如果是创建任务，打开编辑器
-                          if (action.type === 'create_task' && action.data.tasks) {
-                            console.log('🎯 打开任务编辑器，任务数量:', action.data.tasks.length);
-                            setEditingTasks(action.data.tasks);
-                            setShowTaskEditor(true);
-                          } else {
-                            console.log('⚡ 直接执行操作');
-                            executeActions([action]);
-                          }
-                        }}
-                        
-                        className="w-full px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-[1.02]"
-                        style={{ 
-                          backgroundColor: buttonBg,
-                          color: textColor 
-                        }}
-                      >
-                        {action.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                
-                <div className="text-xs mt-2" style={{ color: accentColor }}>
+                <div className={`text-xs mt-2 ${message.role === 'user' ? 'text-white/70' : 'text-gray-500'}`}>
                   {message.timestamp.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
             </div>
           ))}
           
-          {/* 处理中状态 */}
+          {/* iOS风格处理中状态 */}
           {isProcessing && (
             <div className="flex justify-start">
-              <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
+              <div className="rounded-2xl px-4 py-3 bg-white border border-gray-200 shadow-sm">
                 <div className="flex items-center space-x-2">
                   <div className="flex space-x-1">
-                    <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: accentColor, animationDelay: '0ms' }} />
-                    <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: accentColor, animationDelay: '150ms' }} />
-                    <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: accentColor, animationDelay: '300ms' }} />
+                    <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '300ms' }} />
                   </div>
-                  <span className="text-xs" style={{ color: accentColor }}>AI正在思考...</span>
+                  <span className="text-xs text-gray-500">AI正在思考...</span>
                 </div>
               </div>
             </div>
           )}
         </div>
 
-        {/* 反馈动画 */}
-        {feedbackAnimation?.show && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-50 pointer-events-none">
-            <div 
-              className="px-8 py-6 rounded-2xl shadow-2xl animate-bounce"
-              style={{ backgroundColor: feedbackAnimation.color }}
-            >
-              <div className="text-center">
-                <div className="text-5xl mb-3">
-                  {feedbackAnimation.type === 'success' && '✅'}
-                  {feedbackAnimation.type === 'warning' && '⚠️'}
-                  {feedbackAnimation.type === 'alert' && '🔔'}
-                  {feedbackAnimation.type === 'question' && '❓'}
-                </div>
-                <div className="text-white font-semibold text-lg">
-                  {feedbackAnimation.text}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 快速指令 */}
-        <div className="px-6 py-3 border-t" style={{ 
-          borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-          backgroundColor: cardBg 
-        }}>
-          <div className="flex items-center space-x-2 overflow-x-auto">
-            <span className="text-xs whitespace-nowrap" style={{ color: accentColor }}>快速指令：</span>
-            {[
-              { key: 'decompose', label: '分解任务', icon: '📅' },
-              { key: 'timeline', label: '时间轴', icon: '🕒' },
-              { key: 'gold', label: '金币', icon: '💰' },
-              { key: 'mood', label: '心情', icon: '📝' },
-              { key: 'tags', label: '标签', icon: '🏷️' },
-            ].map((cmd) => (
-              <button
-                key={cmd.key}
-                onClick={() => handleQuickCommand(cmd.key)}
-                className="px-3 py-1 rounded-full text-xs font-medium transition-all hover:scale-105 whitespace-nowrap"
-                style={{ 
-                  backgroundColor: buttonBg,
-                  color: textColor 
-                }}
-              >
-                {cmd.icon} {cmd.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 输入区域 - 更紧凑 */}
-        <div className="p-3 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
-          {isVoiceMode ? (
-            // 语音模式界面
-            <div className="flex flex-col items-center space-y-4">
-              <div className="text-center">
-                <div className="text-sm mb-2" style={{ color: accentColor }}>
-                  {wakeState === 'sleeping' && '点击麦克风开始语音输入'}
-                  {wakeState === 'activated' && '正在激活...'}
-                  {wakeState === 'listening' && '请说出你的指令'}
-                  {wakeState === 'processing' && '正在处理...'}
-                </div>
-                
-                {/* 大麦克风按钮 */}
-                <button
-                  onClick={wakeState === 'sleeping' ? handleVoiceWake : undefined}
-                  disabled={wakeState !== 'sleeping'}
-                  className="relative w-20 h-20 rounded-full flex items-center justify-center transition-all hover:scale-110 disabled:opacity-50"
-                  style={{ 
-                    backgroundColor: wakeState === 'listening' ? '#3B82F6' : buttonBg,
-                    boxShadow: wakeState === 'listening' ? '0 0 30px rgba(59, 130, 246, 0.5)' : 'none',
-                  }}
-                >
-                  <Mic className="w-10 h-10" style={{ color: textColor }} />
-                  
-                  {/* 脉动波纹 */}
-                  {wakeState === 'listening' && (
-                    <>
-                      <div className="absolute inset-0 rounded-full bg-blue-500 opacity-30 animate-ping" />
-                      <div className="absolute inset-0 rounded-full bg-blue-500 opacity-20 animate-pulse" />
-                    </>
-                  )}
-                </button>
-              </div>
-              
-              {/* 切换到文字输入 */}
-              <button
-                onClick={() => setIsVoiceMode(false)}
-                className="text-sm px-4 py-2 rounded-lg transition-all hover:scale-105"
-                style={{ backgroundColor: buttonBg, color: textColor }}
-              >
-                切换到文字输入
-              </button>
-            </div>
-          ) : (
-            // 文字模式界面 - 更紧凑，文字改黑色
-            <div className="flex items-end space-x-2">
+        {/* iOS风格输入区域 - 固定在底部 */}
+        <div className="flex-shrink-0 bg-white border-t border-gray-200 px-4 py-3 safe-area-bottom">
+          <div className="flex items-end space-x-2">
+            <div className="flex-1 bg-gray-100 rounded-3xl px-4 py-2 flex items-center space-x-2">
               <textarea
                 ref={textareaRef}
                 value={inputValue}
@@ -923,225 +836,40 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
                 onKeyDown={handleKeyDown}
                 placeholder="对我说点什么..."
                 rows={1}
-                className="flex-1 px-3 py-2 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-opacity-50"
-                style={{
-                  backgroundColor: '#ffffff',
-                  color: '#000000',
-                  border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)'}`,
-                }}
+                className="flex-1 bg-transparent resize-none focus:outline-none text-[15px] text-gray-900 placeholder-gray-400"
+                style={{ maxHeight: '100px' }}
               />
-              <button
-                onClick={() => handleSend()}
-                disabled={!inputValue.trim() || isProcessing}
-                className="p-2 rounded-lg transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ 
-                  backgroundColor: buttonBg,
-                  color: textColor 
-                }}
-              >
-                <Send className="w-5 h-5" />
-              </button>
             </div>
-          )}
+            <button
+              onClick={() => handleSend()}
+              disabled={!inputValue.trim() || isProcessing || !isConfigured()}
+              className="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+            >
+              <Send className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* 任务编辑器弹窗 - 事件卡片形式（手机优化版） */}
+        {/* iOS风格任务编辑器弹窗 */}
         {showTaskEditor && (
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-2">
-            <div className="bg-white rounded-2xl shadow-2xl w-full h-[95%] flex flex-col">
-              {/* 头部 */}
-              <div className="flex-shrink-0 border-b border-gray-200 px-4 py-3 flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-bold text-gray-900">✏️ 编辑任务</h3>
-                  <p className="text-xs text-gray-500 mt-1">双击字段编辑，用箭头调整顺序</p>
-                </div>
+          <div className="absolute inset-0 bg-white z-50 flex flex-col">
+            {/* 头部 */}
+            <div className="flex-shrink-0 bg-white/80 backdrop-blur-xl border-b border-gray-200/50 px-4 py-3 safe-area-top">
+              <div className="flex items-center justify-between">
                 <button
                   onClick={() => {
                     setShowTaskEditor(false);
                     setEditingTasks([]);
                     setEditingField(null);
                   }}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                  title="关闭编辑器"
+                  className="text-blue-600 font-medium active:opacity-50"
                 >
-                  <X className="w-5 h-5 text-gray-600" />
+                  取消
                 </button>
-              </div>
-
-              {/* 任务卡片列表 - 可滚动 */}
-              <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                {editingTasks.map((task, index) => (
-                  <div
-                    key={index}
-                    className="rounded-xl p-3 border-2 shadow-sm bg-white"
-                    style={{
-                      borderColor: task.color,
-                    }}
-                  >
-                    {/* 第一行：序号 + 任务名称 + 上下移动 */}
-                    <div className="flex items-center gap-2 mb-2">
-                      {/* 序号 */}
-                      <div className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center font-bold text-white text-sm" style={{ backgroundColor: task.color }}>
-                        {index + 1}
-                      </div>
-
-                      {/* 任务名称 - 双击编辑 */}
-                      <div className="flex-1 min-w-0">
-                        {editingField?.taskIndex === index && editingField?.field === 'title' ? (
-                          <input
-                            type="text"
-                            value={task.title}
-                            onChange={(e) => updateTaskField(index, 'title', e.target.value)}
-                            onBlur={() => setEditingField(null)}
-                            onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
-                            autoFocus
-                            className="w-full px-2 py-1 text-sm font-bold rounded-lg focus:outline-none focus:ring-2 bg-white text-gray-900 border-2"
-                            style={{
-                              borderColor: task.color,
-                            }}
-                          />
-                        ) : (
-                          <div
-                            onDoubleClick={() => setEditingField({ taskIndex: index, field: 'title' })}
-                            className="text-sm font-bold cursor-pointer px-2 py-1 rounded-lg transition-colors text-gray-900"
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${task.color}10`}
-                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                            title="双击编辑"
-                          >
-                            {task.title}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* 上下移动按钮 */}
-                      <div className="flex-shrink-0 flex items-center gap-1">
-                        <button
-                          onClick={() => moveTaskUp(index)}
-                          disabled={index === 0}
-                          className="p-1.5 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all hover:scale-110"
-                          style={{
-                            backgroundColor: `${task.color}20`,
-                          }}
-                          title="上移"
-                        >
-                          <ChevronUp className="w-4 h-4" style={{ color: task.color }} />
-                        </button>
-                        <button
-                          onClick={() => moveTaskDown(index)}
-                          disabled={index === editingTasks.length - 1}
-                          className="p-1.5 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all hover:scale-110"
-                          style={{
-                            backgroundColor: `${task.color}20`,
-                          }}
-                          title="下移"
-                        >
-                          <ChevronDown className="w-4 h-4" style={{ color: task.color }} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* 第二行：所有详细信息 */}
-                    <div className="flex items-center gap-1.5 flex-wrap text-xs">
-                      {/* 时间 */}
-                      <div 
-                        className="flex items-center gap-1 rounded-lg px-2 py-1"
-                        style={{ backgroundColor: `${task.color}15` }}
-                      >
-                        <Clock className="w-3 h-3" style={{ color: task.color }} />
-                        <span className="font-semibold text-gray-900">{task.scheduled_start}</span>
-                        <span className="text-gray-500">→</span>
-                        <span className="font-semibold text-gray-900">{task.scheduled_end}</span>
-                      </div>
-
-                      {/* 时长 - 双击编辑 */}
-                      <div className="flex-shrink-0">
-                        {editingField?.taskIndex === index && editingField?.field === 'duration' ? (
-                          <input
-                            type="number"
-                            value={task.estimated_duration}
-                            onChange={(e) => updateTaskField(index, 'estimated_duration', parseInt(e.target.value) || 0)}
-                            onBlur={() => setEditingField(null)}
-                            onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
-                            autoFocus
-                            className="w-16 px-2 py-1 text-xs rounded-lg focus:outline-none focus:ring-2 bg-white text-gray-900 border-2"
-                            style={{
-                              borderColor: task.color,
-                            }}
-                          />
-                        ) : (
-                          <div
-                            onDoubleClick={() => setEditingField({ taskIndex: index, field: 'duration' })}
-                            className="cursor-pointer px-2 py-1 rounded-lg transition-colors"
-                            style={{ backgroundColor: `${task.color}15` }}
-                            title="双击编辑"
-                          >
-                            <span className="font-bold text-gray-900">{task.estimated_duration}分钟</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* 金币 */}
-                      <div className="flex-shrink-0">
-                        <div className="flex items-center gap-1 bg-yellow-50 rounded-lg px-2 py-1">
-                          <Coins className="w-3 h-3 text-yellow-600" />
-                          <span className="font-bold text-yellow-700">{task.gold}</span>
-                        </div>
-                      </div>
-
-                      {/* 位置 */}
-                      <div className="flex-shrink-0">
-                        <span 
-                          className="px-2 py-1 rounded-lg font-medium inline-flex items-center gap-0.5"
-                          style={{
-                            backgroundColor: `${task.color}15`,
-                            color: task.color,
-                          }}
-                        >
-                          📍 {task.location}
-                        </span>
-                      </div>
-
-                      {/* 标签 */}
-                      {task.tags.map((tag: string, tagIndex: number) => (
-                        <span
-                          key={tagIndex}
-                          className="px-2 py-1 rounded-lg font-medium"
-                          style={{
-                            backgroundColor: `${AISmartProcessor.getColorForTag(tag)}20`,
-                            color: AISmartProcessor.getColorForTag(tag),
-                          }}
-                        >
-                          {tag}
-                        </span>
-                      ))}
-
-                      {/* 目标 */}
-                      {task.goal && (
-                        <div className="flex items-center gap-1 bg-green-50 rounded-lg px-2 py-1">
-                          <span>🎯</span>
-                          <span className="font-medium text-green-700">{task.goal}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* 底部按钮 */}
-              <div className="flex-shrink-0 border-t border-gray-200 px-4 py-3 flex space-x-2">
-                <button
-                  onClick={() => {
-                    setShowTaskEditor(false);
-                    setEditingTasks([]);
-                    setEditingField(null);
-                  }}
-                  className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors text-sm"
-                >
-                  ❌ 取消
-                </button>
+                <div className="font-semibold text-base text-gray-900">编辑任务</div>
                 <button
                   onClick={async () => {
-                    // 添加新目标到长期目标系统
+                    // 添加新目标
                     for (const task of editingTasks) {
                       if (task.goal && task.isNewGoal) {
                         const existingGoal = goals.find(g => g.title === task.goal);
@@ -1157,7 +885,7 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
                       }
                     }
 
-                    // 创建任务并推送到时间轴
+                    // 创建任务
                     console.log('📤 开始推送任务到时间轴:', editingTasks);
                     await executeActions([{
                       type: 'create_task',
@@ -1165,12 +893,10 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
                       label: '确认',
                     }]);
                     
-                    // 关闭编辑器
                     setShowTaskEditor(false);
                     setEditingTasks([]);
                     setEditingField(null);
                     
-                    // 显示成功消息
                     const successMessage: AIMessage = {
                       id: `success-${Date.now()}`,
                       role: 'assistant',
@@ -1179,16 +905,137 @@ export default function AISmartInput({ isOpen, onClose, isDark = false, bgColor 
                     };
                     setMessages(prev => [...prev, successMessage]);
                   }}
-                  className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold transition-all transform hover:scale-105 shadow-lg text-sm"
+                  className="text-blue-600 font-semibold active:opacity-50"
                 >
-                  🚀 推送到时间轴
+                  完成
                 </button>
               </div>
+              <p className="text-xs text-gray-500 mt-2 text-center">双击字段编辑，用箭头调整顺序</p>
+            </div>
+
+            {/* 任务卡片列表 */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+              {editingTasks.map((task, index) => (
+                <div
+                  key={index}
+                  className="rounded-2xl p-4 bg-white shadow-sm border border-gray-200"
+                >
+                  {/* 第一行：序号 + 任务名称 + 上下移动 */}
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-white text-sm shadow-sm" style={{ backgroundColor: task.color }}>
+                      {index + 1}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      {editingField?.taskIndex === index && editingField?.field === 'title' ? (
+                        <input
+                          type="text"
+                          value={task.title}
+                          onChange={(e) => updateTaskField(index, 'title', e.target.value)}
+                          onBlur={() => setEditingField(null)}
+                          onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
+                          autoFocus
+                          className="w-full px-3 py-2 text-[15px] font-semibold rounded-xl focus:outline-none focus:ring-2 bg-gray-50 text-gray-900 border-2"
+                          style={{ borderColor: task.color }}
+                        />
+                      ) : (
+                        <div
+                          onDoubleClick={() => setEditingField({ taskIndex: index, field: 'title' })}
+                          className="text-[15px] font-semibold cursor-pointer px-3 py-2 rounded-xl transition-colors text-gray-900"
+                          style={{ 
+                            backgroundColor: editingField?.taskIndex === index ? `${task.color}10` : 'transparent' 
+                          }}
+                        >
+                          {task.title}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-shrink-0 flex items-center gap-1">
+                      <button
+                        onClick={() => moveTaskUp(index)}
+                        disabled={index === 0}
+                        className="p-2 rounded-full disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95 bg-gray-100"
+                      >
+                        <ChevronUp className="w-4 h-4 text-gray-700" />
+                      </button>
+                      <button
+                        onClick={() => moveTaskDown(index)}
+                        disabled={index === editingTasks.length - 1}
+                        className="p-2 rounded-full disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95 bg-gray-100"
+                      >
+                        <ChevronDown className="w-4 h-4 text-gray-700" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 详细信息 */}
+                  <div className="flex items-center gap-2 flex-wrap text-xs">
+                    <div className="flex items-center gap-1 bg-gray-100 rounded-full px-3 py-1.5">
+                      <Clock className="w-3 h-3 text-gray-600" />
+                      <span className="font-medium text-gray-900">{task.scheduled_start}</span>
+                      <span className="text-gray-400">→</span>
+                      <span className="font-medium text-gray-900">{task.scheduled_end}</span>
+                    </div>
+
+                    <div className="flex-shrink-0">
+                      {editingField?.taskIndex === index && editingField?.field === 'duration' ? (
+                        <input
+                          type="number"
+                          value={task.estimated_duration}
+                          onChange={(e) => updateTaskField(index, 'estimated_duration', parseInt(e.target.value) || 0)}
+                          onBlur={() => setEditingField(null)}
+                          onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
+                          autoFocus
+                          className="w-16 px-2 py-1 text-xs rounded-full focus:outline-none focus:ring-2 bg-gray-50 text-gray-900 border-2"
+                          style={{ borderColor: task.color }}
+                        />
+                      ) : (
+                        <div
+                          onDoubleClick={() => setEditingField({ taskIndex: index, field: 'duration' })}
+                          className="cursor-pointer px-3 py-1.5 rounded-full transition-colors bg-gray-100"
+                        >
+                          <span className="font-medium text-gray-900">{task.estimated_duration}分钟</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1 bg-yellow-50 rounded-full px-3 py-1.5">
+                      <Coins className="w-3 h-3 text-yellow-600" />
+                      <span className="font-semibold text-yellow-700">{task.gold}</span>
+                    </div>
+
+                    <span className="px-3 py-1.5 rounded-full font-medium bg-gray-100 text-gray-700">
+                      📍 {task.location}
+                    </span>
+
+                    {task.tags.map((tag: string, tagIndex: number) => (
+                      <span
+                        key={tagIndex}
+                        className="px-3 py-1.5 rounded-full font-medium"
+                        style={{
+                          backgroundColor: `${AISmartProcessor.getColorForTag(tag)}20`,
+                          color: AISmartProcessor.getColorForTag(tag),
+                        }}
+                      >
+                        {tag}
+                      </span>
+                    ))}
+
+                    {task.goal && (
+                      <div className="flex items-center gap-1 bg-green-50 rounded-full px-3 py-1.5">
+                        <span>🎯</span>
+                        <span className="font-medium text-green-700">{task.goal}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 
   // 重新计算所有任务的时间
