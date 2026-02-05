@@ -3,7 +3,6 @@ import { persist } from 'zustand/middleware';
 import type { User, UserSettings } from '@/types';
 import { STORAGE_KEYS } from '@/constants';
 import { generateId } from '@/utils';
-import { supabase, TABLES, isSupabaseConfigured, getCurrentUserId } from '@/lib/supabase';
 
 interface UserState {
   user: User | null;

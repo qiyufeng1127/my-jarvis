@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { supabase, TABLES, isSupabaseConfigured, getCurrentUserId } from '@/lib/supabase';
 
 // 情绪标签
 export const EMOTION_TAGS = [

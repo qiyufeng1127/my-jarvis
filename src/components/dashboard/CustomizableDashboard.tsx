@@ -27,7 +27,6 @@ import {
 import JournalModule from '@/components/journal/JournalModule';
 import PanoramaMemory from '@/components/memory/PanoramaMemory';
 import TaskInbox from '@/components/inbox/TaskInbox';
-import { supabase, isSupabaseConfigured, getCurrentUserId } from '@/lib/supabase';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
 import { useGoldStore } from '@/stores/goldStore';
 import GitHubCommitBadge from '@/components/ui/GitHubCommitBadge';

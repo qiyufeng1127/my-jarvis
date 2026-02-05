@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { LongTermGoal, GoalType } from '@/types';
-import { supabase, TABLES, isSupabaseConfigured, getCurrentUserId } from '@/lib/supabase';
 
 interface GoalState {
   goals: LongTermGoal[];
@@ -9,11 +8,11 @@ interface GoalState {
   error: string | null;
   
   // Actions
-  loadGoals: () => Promise<void>;
-  createGoal: (goal: Partial<LongTermGoal>) => Promise<LongTermGoal>;
-  updateGoal: (id: string, updates: Partial<LongTermGoal>) => Promise<void>;
-  deleteGoal: (id: string) => Promise<void>;
-  updateGoalProgress: (id: string, value: number) => Promise<void>;
+  loadGoals: () => void;
+  createGoal: (goal: Partial<LongTermGoal>) => LongTermGoal;
+  updateGoal: (id: string, updates: Partial<LongTermGoal>) => void;
+  deleteGoal: (id: string) => void;
+  updateGoalProgress: (id: string, value: number) => void;
   
   // Queries
   getActiveGoals: () => LongTermGoal[];
@@ -30,225 +29,70 @@ export const useGoalStore = create<GoalState>()(
   isLoading: false,
   error: null,
 
-  loadGoals: async () => {
-    set({ isLoading: true, error: null });
+  loadGoals: () => {
+    // 纯本地模式，persist 会自动加载
+    console.log('📦 使用本地存储的目标');
+  },
+
+  createGoal: (goalData) => {
+    const userId = 'local-user';
+    const newGoal: LongTermGoal = {
+      id: `goal-${Date.now()}`,
+      userId,
+      name: goalData.name || '',
+      description: goalData.description || '',
+      goalType: goalData.goalType || 'numeric',
+      targetValue: goalData.targetValue,
+      currentValue: goalData.currentValue || 0,
+      unit: goalData.unit,
+      deadline: goalData.deadline,
+      relatedDimensions: goalData.relatedDimensions || [],
+      milestones: goalData.milestones || [],
+      isActive: true,
+      isCompleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
     
-    try {
-      if (isSupabaseConfigured()) {
-        // 获取当前登录用户
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-          console.log('⚠️ 未登录，使用本地数据');
-          set({ isLoading: false });
-          return;
-        }
-        
-        const userId = session.user.id;
-        const { data, error } = await supabase
-          .from(TABLES.GOALS)
-          .select('*')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false });
-        
-        if (error) throw error;
-        
-        const goals: LongTermGoal[] = (data || []).map((row: any) => ({
-          id: row.id,
-          userId: row.user_id,
-          name: row.name,
-          description: row.description,
-          goalType: row.goal_type,
-          targetValue: row.target_value,
-          currentValue: row.current_value,
-          unit: row.unit,
-          deadline: row.deadline ? new Date(row.deadline) : undefined,
-          relatedDimensions: row.related_dimensions || [],
-          milestones: row.milestones || [],
-          isActive: row.is_active,
-          isCompleted: row.is_completed,
-          completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
-          createdAt: new Date(row.created_at),
-          updatedAt: new Date(row.updated_at),
-        }));
-        
-        set({ goals, isLoading: false });
-      } else {
-        // 从 localStorage 加载（离线模式）
-        const savedGoals = localStorage.getItem('goals-storage');
-        if (savedGoals) {
-          const parsed = JSON.parse(savedGoals);
-          const goals = (parsed.state?.goals || []).map((g: any) => ({
-            ...g,
-            deadline: g.deadline ? new Date(g.deadline) : undefined,
-            completedAt: g.completedAt ? new Date(g.completedAt) : undefined,
-            createdAt: new Date(g.createdAt),
-            updatedAt: new Date(g.updatedAt),
-          }));
-          set({ goals, isLoading: false });
-        } else {
-          set({ goals: [], isLoading: false });
-        }
-      }
-    } catch (error) {
-      set({ error: '加载目标失败', isLoading: false });
-      console.error('加载目标失败:', error);
-    }
-  },
-
-  createGoal: async (goalData) => {
-    set({ isLoading: true, error: null });
+    set({
+      goals: [...get().goals, newGoal],
+    });
     
-    try {
-      // 获取当前登录用户
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('未登录');
-      }
-      const userId = session.user.id;
-      const newGoal: LongTermGoal = {
-        id: `goal-${Date.now()}`,
-        userId,
-        name: goalData.name || '',
-        description: goalData.description || '',
-        goalType: goalData.goalType || 'numeric',
-        targetValue: goalData.targetValue,
-        currentValue: goalData.currentValue || 0,
-        unit: goalData.unit,
-        deadline: goalData.deadline,
-        relatedDimensions: goalData.relatedDimensions || [],
-        milestones: goalData.milestones || [],
-        isActive: true,
-        isCompleted: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      
-      // 先添加到本地状态
-      set({
-        goals: [...get().goals, newGoal],
-        isLoading: false,
-      });
-      
-      // 保存到 Supabase（如果已配置）
-      if (isSupabaseConfigured()) {
-        const { error } = await supabase.from(TABLES.GOALS).insert({
-          id: newGoal.id,
-          user_id: newGoal.userId,
-          name: newGoal.name,
-          description: newGoal.description,
-          goal_type: newGoal.goalType,
-          target_value: newGoal.targetValue,
-          current_value: newGoal.currentValue,
-          unit: newGoal.unit,
-          deadline: newGoal.deadline?.toISOString(),
-          related_dimensions: newGoal.relatedDimensions,
-          milestones: newGoal.milestones,
-          is_active: newGoal.isActive,
-          is_completed: newGoal.isCompleted,
-        });
-        
-        if (error) {
-          console.warn('⚠️ 目标创建云端同步失败:', error);
-        } else {
-          console.log('✅ 目标已同步到云端');
-        }
-      }
-      
-      return newGoal;
-    } catch (error) {
-      set({ error: '创建目标失败', isLoading: false });
-      console.error('创建目标失败:', error);
-      throw error;
-    }
+    console.log('🎯 目标已创建:', newGoal.name);
+    return newGoal;
   },
 
-  updateGoal: async (id, updates) => {
-    try {
-      const updatedGoal = {
-        ...get().goals.find((g) => g.id === id),
-        ...updates,
-        updatedAt: new Date(),
-      } as LongTermGoal;
-      
-      // 先更新本地状态
-      set({
-        goals: get().goals.map((g) => (g.id === id ? updatedGoal : g)),
-      });
-      
-      // 更新到 Supabase（如果已配置）
-      if (isSupabaseConfigured()) {
-        const { error } = await supabase
-          .from(TABLES.GOALS)
-          .update({
-            name: updatedGoal.name,
-            description: updatedGoal.description,
-            goal_type: updatedGoal.goalType,
-            target_value: updatedGoal.targetValue,
-            current_value: updatedGoal.currentValue,
-            unit: updatedGoal.unit,
-            deadline: updatedGoal.deadline?.toISOString(),
-            related_dimensions: updatedGoal.relatedDimensions,
-            milestones: updatedGoal.milestones,
-            is_active: updatedGoal.isActive,
-            is_completed: updatedGoal.isCompleted,
-            completed_at: updatedGoal.completedAt?.toISOString(),
-            updated_at: updatedGoal.updatedAt.toISOString(),
-          })
-          .eq('id', id);
-        
-        if (error) {
-          console.warn('⚠️ 目标更新云端同步失败:', error);
-        } else {
-          console.log('✅ 目标更新已同步到云端');
-        }
-      }
-    } catch (error) {
-      set({ error: '更新目标失败' });
-      console.error('更新目标失败:', error);
-    }
+  updateGoal: (id, updates) => {
+    const updatedGoal = {
+      ...get().goals.find((g) => g.id === id),
+      ...updates,
+      updatedAt: new Date(),
+    } as LongTermGoal;
+    
+    set({
+      goals: get().goals.map((g) => (g.id === id ? updatedGoal : g)),
+    });
+    
+    console.log('✅ 目标已更新:', id);
   },
 
-  deleteGoal: async (id) => {
-    try {
-      // 先从本地删除
-      set({ goals: get().goals.filter((g) => g.id !== id) });
-      
-      // 从 Supabase 删除（如果已配置）
-      if (isSupabaseConfigured()) {
-        const { error } = await supabase
-          .from(TABLES.GOALS)
-          .delete()
-          .eq('id', id);
-        
-        if (error) {
-          console.warn('⚠️ 目标删除云端同步失败:', error);
-        } else {
-          console.log('✅ 目标删除已同步到云端');
-        }
-      }
-    } catch (error) {
-      set({ error: '删除目标失败' });
-      console.error('删除目标失败:', error);
-    }
+  deleteGoal: (id) => {
+    set({ goals: get().goals.filter((g) => g.id !== id) });
+    console.log('🗑️ 目标已删除:', id);
   },
 
-  updateGoalProgress: async (id, value) => {
-    try {
-      const goal = get().goals.find((g) => g.id === id);
-      if (!goal) return;
-      
-      const isCompleted = value >= (goal.targetValue || 0);
-      const updates = {
-        currentValue: value,
-        isCompleted,
-        completedAt: isCompleted && !goal.completedAt ? new Date() : goal.completedAt,
-      };
-      
-      await get().updateGoal(id, updates);
-    } catch (error) {
-      set({ error: '更新目标进度失败' });
-      console.error('更新目标进度失败:', error);
-    }
+  updateGoalProgress: (id, value) => {
+    const goal = get().goals.find((g) => g.id === id);
+    if (!goal) return;
+    
+    const isCompleted = value >= (goal.targetValue || 0);
+    const updates = {
+      currentValue: value,
+      isCompleted,
+      completedAt: isCompleted && !goal.completedAt ? new Date() : goal.completedAt,
+    };
+    
+    get().updateGoal(id, updates);
   },
 
   getActiveGoals: () => {

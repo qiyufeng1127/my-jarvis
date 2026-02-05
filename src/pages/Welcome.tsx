@@ -1,29 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';
-import EmailAuth from '@/components/auth/EmailAuth';
-import { useUserStore } from '@/stores/userStore';
 
 export default function Welcome() {
-  const [showAuth, setShowAuth] = useState(false);
-  const { initializeUser } = useUserStore();
+  const navigate = useNavigate();
 
   useEffect(() => {
     document.title = 'ManifestOS - 欢迎';
   }, []);
 
-  const handleAuthSuccess = () => {
-    // 登录成功后初始化用户并刷新页面
-    initializeUser();
-    window.location.reload();
+  const handleStart = () => {
+    navigate('/');
   };
-
-  if (showAuth) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 p-4">
-        <EmailAuth onSuccess={handleAuthSuccess} />
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-beige-50">
@@ -91,7 +79,7 @@ export default function Welcome() {
 
         {/* 开始按钮 */}
         <button
-          onClick={() => setShowAuth(true)}
+          onClick={handleStart}
           className="px-12 py-4 bg-primary-500 text-white text-lg font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 hover:bg-primary-600"
         >
           开始我的成长之旅
@@ -99,7 +87,7 @@ export default function Welcome() {
 
         {/* 底部提示 */}
         <p className="mt-8 text-sm text-neutral-500">
-          使用邮箱登录，数据云端同步，多设备无缝切换
+          所有数据保存在本地，安全可靠
         </p>
       </div>
     </div>

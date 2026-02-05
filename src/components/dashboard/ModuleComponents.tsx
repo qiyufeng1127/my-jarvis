@@ -1,8 +1,6 @@
 import GrowthPanel from '@/components/growth/GrowthPanel';
 import { GoalsModule } from '@/components/growth/GoalsModule';
 import TimelineCalendar from '@/components/calendar/TimelineCalendar';
-import SyncCodeManager from '@/components/settings/SyncCodeManager';
-import AuthPanel from '@/components/settings/AuthPanel';
 import NotificationSettingsPanel from '@/components/settings/NotificationSettings';
 import { MoneyTracker } from '@/components/money';
 import { useTaskStore } from '@/stores/taskStore';
