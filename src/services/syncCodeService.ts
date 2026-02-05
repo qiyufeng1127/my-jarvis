@@ -68,51 +68,69 @@ export const syncCodeService = {
   // 2. 加入同步码
   async joinSyncCode(syncCode: string): Promise<boolean> {
     try {
-      console.log('🔗 加入同步码:', syncCode);
+      console.log('🔗 [1/5] 开始加入同步码:', syncCode);
       
       // 查找同步组
+      console.log('🔗 [2/5] 查询同步组...');
       const { data: group, error: groupError } = await supabase
         .from('sync_groups')
         .select('*')
         .eq('sync_code', syncCode)
-        .single();
+        .maybeSingle();
       
-      if (groupError || !group) {
-        console.error('同步组查询错误:', groupError);
-        throw new Error('同步码不存在或已失效');
+      console.log('查询结果:', { group, groupError });
+      
+      if (groupError) {
+        console.error('❌ 查询同步组失败:', groupError);
+        throw new Error('查询失败: ' + groupError.message);
       }
+      
+      if (!group) {
+        console.error('❌ 同步码不存在');
+        throw new Error('同步码不存在，请检查是否输入正确');
+      }
+      
+      console.log('✅ 找到同步组:', group.id);
       
       // 将当前设备加入同步组
       const deviceId = getDeviceId();
       const deviceName = getDeviceName();
       
-      console.log('设备信息:', { deviceId, deviceName, groupId: group.id });
+      console.log('🔗 [3/5] 设备信息:', { deviceId, deviceName, groupId: group.id });
       
       // 先检查设备是否已加入其他同步组
-      const { data: existingDevice } = await supabase
+      console.log('🔗 [4/5] 检查设备是否已存在...');
+      const { data: existingDevice, error: checkError } = await supabase
         .from('sync_devices')
         .select('*')
         .eq('device_id', deviceId)
         .maybeSingle();
       
+      console.log('设备检查结果:', { existingDevice, checkError });
+      
+      if (checkError) {
+        console.error('❌ 检查设备失败:', checkError);
+        throw new Error('检查设备失败: ' + checkError.message);
+      }
+      
       if (existingDevice) {
-        console.log('设备已存在，更新同步组...');
-        // 更新设备的同步组
+        console.log('🔗 [5/5] 设备已存在，更新同步组...');
         const { error: updateError } = await supabase
           .from('sync_devices')
           .update({ 
             sync_group_id: group.id,
+            device_name: deviceName,
             last_active_at: new Date().toISOString(),
           })
           .eq('device_id', deviceId);
         
         if (updateError) {
-          console.error('更新设备失败:', updateError);
-          throw updateError;
+          console.error('❌ 更新设备失败:', updateError);
+          throw new Error('更新设备失败: ' + updateError.message);
         }
+        console.log('✅ 设备更新成功');
       } else {
-        console.log('新设备，插入记录...');
-        // 新增设备
+        console.log('🔗 [5/5] 新设备，插入记录...');
         const { error: insertError } = await supabase
           .from('sync_devices')
           .insert({
@@ -122,21 +140,22 @@ export const syncCodeService = {
           });
         
         if (insertError) {
-          console.error('插入设备失败:', insertError);
-          throw insertError;
+          console.error('❌ 插入设备失败:', insertError);
+          throw new Error('插入设备失败: ' + insertError.message);
         }
+        console.log('✅ 设备插入成功');
       }
       
       // 保存同步码到本地
       localStorage.setItem('sync_code', syncCode);
       localStorage.setItem('sync_group_id', group.id);
       
-      console.log('✅ 加入同步组成功');
+      console.log('✅ 加入同步组成功！');
       return true;
       
     } catch (error: any) {
       console.error('❌ 加入同步码失败:', error);
-      throw new Error(error.message || '加入失败，请检查同步码是否正确');
+      throw new Error(error.message || '加入失败，请重试');
     }
   },
 

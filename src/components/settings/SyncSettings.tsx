@@ -55,12 +55,18 @@ export default function SyncSettings() {
 
     try {
       setError('');
+      console.log('开始加入同步码:', inputCode);
       await joinSyncCode(inputCode);
+      console.log('加入成功');
       setInputCode('');
       setShowJoinInput(false);
       await loadDevices();
+      alert('✅ 加入同步组成功！');
     } catch (err: any) {
-      setError(err.message || '加入失败，请检查同步码是否正确');
+      console.error('加入失败:', err);
+      const errorMsg = err.message || '加入失败，请检查同步码是否正确';
+      setError(errorMsg);
+      alert('❌ ' + errorMsg);
     }
   };
 
