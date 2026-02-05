@@ -7,6 +7,7 @@ import { useGoalStore } from '@/stores/goalStore';
 import { useThemeStore } from '@/stores/themeStore';
 import { useTaskHistoryStore } from '@/stores/taskHistoryStore';
 import { useTaskTemplateStore } from '@/stores/taskTemplateStore';
+import { useSyncStore } from '@/stores/syncStore';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { migrateStorage, shouldMigrate } from '@/utils/migrateStorage';
 import { cloudSyncService } from '@/services/cloudSyncService';
@@ -27,6 +28,7 @@ function App() {
   const { loadFromCloud: loadTaskHistoryFromCloud } = useTaskHistoryStore();
   const { loadFromCloud: loadTaskTemplatesFromCloud } = useTaskTemplateStore();
   const { updateEffectiveTheme } = useThemeStore();
+  const { isInSyncGroup, startAutoSync, syncNow } = useSyncStore();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [syncProgress, setSyncProgress] = useState<string>('');
@@ -35,6 +37,19 @@ function App() {
   useEffect(() => {
     updateEffectiveTheme();
   }, [updateEffectiveTheme]);
+
+  // 🔥 启动同步码自动同步（后台运行，不阻塞界面）
+  useEffect(() => {
+    if (isInSyncGroup) {
+      console.log('🔄 启动同步码后台自动同步');
+      startAutoSync();
+      
+      // 立即同步一次
+      setTimeout(() => {
+        syncNow();
+      }, 1000);
+    }
+  }, [isInSyncGroup]);
 
   useEffect(() => {
     let mounted = true;

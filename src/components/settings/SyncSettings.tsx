@@ -1,153 +1,101 @@
-import React, { useState, useEffect } from 'react';
-import { Copy, RefreshCw, Check, Clock, Smartphone, Monitor, Tablet } from 'lucide-react';
-import { useUserStore } from '@/stores/userStore';
-
-interface SyncCode {
-  code: string;
-  expiresAt: Date;
-  isExpired: boolean;
-}
+import { useState, useEffect } from 'react';
+import { Copy, RefreshCw, Check, Smartphone, Monitor, Tablet, X } from 'lucide-react';
+import { useSyncStore } from '@/stores/syncStore';
+import { syncCodeService } from '@/services/syncCodeService';
 
 export default function SyncSettings() {
-  const [syncCode, setSyncCode] = useState<SyncCode | null>(null);
+  const { 
+    syncCode, 
+    isInSyncGroup, 
+    isSyncing,
+    lastSyncTime,
+    generateSyncCode, 
+    joinSyncCode, 
+    leaveSyncGroup,
+    syncNow,
+  } = useSyncStore();
+
+  const [inputCode, setInputCode] = useState('');
   const [copied, setCopied] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const { user, updateSettings } = useUserStore();
-  
-  // 从云端加载API配置
-  const [baiduApiKey, setBaiduApiKey] = useState('');
-  const [baiduSecretKey, setBaiduSecretKey] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
+  const [devices, setDevices] = useState<any[]>([]);
+  const [error, setError] = useState('');
+  const [showJoinInput, setShowJoinInput] = useState(false);
 
-  // 生成6位同步码
-  const generateSyncCode = () => {
-    setIsGenerating(true);
-    
-    // 生成随机6位数字码
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 10); // 10分钟后过期
+  // 加载设备列表
+  useEffect(() => {
+    if (isInSyncGroup) {
+      loadDevices();
+      const interval = setInterval(loadDevices, 30000); // 每30秒刷新
+      return () => clearInterval(interval);
+    }
+  }, [isInSyncGroup]);
 
-    setTimeout(() => {
-      setSyncCode({
-        code,
-        expiresAt,
-        isExpired: false,
-      });
-      setIsGenerating(false);
-      
-      // 保存到 localStorage
-      localStorage.setItem('syncCode', JSON.stringify({ code, expiresAt: expiresAt.toISOString() }));
-    }, 500);
+  const loadDevices = async () => {
+    const deviceList = await syncCodeService.getDevices();
+    setDevices(deviceList);
+  };
+
+  // 生成同步码
+  const handleGenerate = async () => {
+    try {
+      setError('');
+      await generateSyncCode();
+      await loadDevices();
+    } catch (err: any) {
+      setError(err.message || '生成失败');
+    }
+  };
+
+  // 加入同步码
+  const handleJoin = async () => {
+    if (!inputCode || inputCode.length !== 6) {
+      setError('请输入6位数字同步码');
+      return;
+    }
+
+    try {
+      setError('');
+      await joinSyncCode(inputCode);
+      setInputCode('');
+      setShowJoinInput(false);
+      await loadDevices();
+    } catch (err: any) {
+      setError(err.message || '加入失败，请检查同步码是否正确');
+    }
+  };
+
+  // 退出同步组
+  const handleLeave = async () => {
+    if (!confirm('确定要退出同步组吗？退出后将无法继续同步数据。')) {
+      return;
+    }
+
+    try {
+      await leaveSyncGroup();
+      setDevices([]);
+    } catch (err: any) {
+      setError(err.message || '退出失败');
+    }
   };
 
   // 复制同步码
-  const copySyncCode = () => {
+  const handleCopy = () => {
     if (syncCode) {
-      navigator.clipboard.writeText(syncCode.code);
+      navigator.clipboard.writeText(syncCode);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
   };
 
-  // 检查同步码是否过期
-  useEffect(() => {
-    if (!syncCode) return;
-
-    const checkExpiration = setInterval(() => {
-      if (new Date() > syncCode.expiresAt) {
-        setSyncCode(prev => prev ? { ...prev, isExpired: true } : null);
-      }
-    }, 1000);
-
-    return () => clearInterval(checkExpiration);
-  }, [syncCode]);
-
-  // 加载已保存的同步码
-  useEffect(() => {
-    const saved = localStorage.getItem('syncCode');
-    if (saved) {
-      try {
-        const { code, expiresAt } = JSON.parse(saved);
-        const expireDate = new Date(expiresAt);
-        const isExpired = new Date() > expireDate;
-        
-        if (!isExpired) {
-          setSyncCode({ code, expiresAt: expireDate, isExpired: false });
-        }
-      } catch (error) {
-        console.error('加载同步码失败:', error);
-      }
+  // 获取设备图标
+  const getDeviceIcon = (deviceName: string) => {
+    if (deviceName.includes('iPhone') || deviceName.includes('iPad')) {
+      return <Smartphone className="w-6 h-6 text-blue-600" />;
     }
-  }, []);
-
-  // 从云端加载API配置
-  useEffect(() => {
-    if (user?.settings) {
-      setBaiduApiKey(user.settings.baiduApiKey || 's8Hva3oqIiFaeU9uoYpCmvV9');
-      setBaiduSecretKey(user.settings.baiduSecretKey || 'VvugzlhsmyZ8HBk707HMqkGa9YMvb8Ly');
+    if (deviceName.includes('Android')) {
+      return <Tablet className="w-6 h-6 text-green-600" />;
     }
-  }, [user]);
-
-  // 保存API配置到云端
-  const saveApiConfig = async () => {
-    if (!baiduApiKey || !baiduSecretKey) {
-      alert('请填写完整的API配置');
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      await updateSettings({
-        baiduApiKey,
-        baiduSecretKey,
-      });
-      
-      // 同时保存到localStorage作为备份
-      localStorage.setItem('baidu_api_key', baiduApiKey);
-      localStorage.setItem('baidu_secret_key', baiduSecretKey);
-      
-      alert('✅ API配置已保存到云端，所有设备将自动同步');
-    } catch (error) {
-      console.error('保存API配置失败:', error);
-      alert('❌ 保存失败：' + error);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // 测试API连接
-  const testApiConnection = async () => {
-    if (!baiduApiKey || !baiduSecretKey) {
-      alert('请先填写 API Key 和 Secret Key');
-      return;
-    }
-
-    try {
-      const url = `https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id=${baiduApiKey}&client_secret=${baiduSecretKey}`;
-      const response = await fetch(url, { method: 'POST' });
-      const data = await response.json();
-      
-      if (data.access_token) {
-        alert('✅ API配置成功！可以正常使用图像识别功能了');
-      } else {
-        alert('❌ API配置失败：' + (data.error_description || '未知错误'));
-      }
-    } catch (error) {
-      alert('❌ 测试失败：' + error);
-    }
-  };
-
-  // 计算剩余时间
-  const getRemainingTime = () => {
-    if (!syncCode || syncCode.isExpired) return '已过期';
-    
-    const now = new Date();
-    const diff = syncCode.expiresAt.getTime() - now.getTime();
-    const minutes = Math.floor(diff / 60000);
-    const seconds = Math.floor((diff % 60000) / 1000);
-    
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    return <Monitor className="w-6 h-6 text-purple-600" />;
   };
 
   return (
@@ -156,286 +104,201 @@ export default function SyncSettings() {
         {/* 头部 */}
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-8">
           <h1 className="text-3xl font-bold mb-2">☁️ 云同步设置</h1>
-          <p className="text-blue-100">在多个设备间同步你的数据</p>
+          <p className="text-blue-100">使用同步码在多个设备间同步数据</p>
         </div>
 
         <div className="p-6 space-y-6">
-          {/* 同步码生成区域 */}
-          <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-6 border-2 border-blue-200">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">🔑 生成同步码</h2>
-            
-            {!syncCode || syncCode.isExpired ? (
-              <div className="text-center py-8">
-                <div className="mb-4">
-                  <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
-                    <RefreshCw className="w-10 h-10 text-white" />
-                  </div>
-                </div>
-                <p className="text-gray-600 mb-6">
-                  生成一个临时同步码，在其他设备上输入此码即可同步数据
+          {/* 错误提示 */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
+
+          {!isInSyncGroup ? (
+            <>
+              {/* 未加入同步组 - 显示生成和加入选项 */}
+              <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-6 border-2 border-blue-200">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">🔑 还没有同步码？</h2>
+                <p className="text-gray-600 mb-4">
+                  生成一个永久有效的同步码，可以在任意数量的设备上使用
                 </p>
                 <button
-                  onClick={generateSyncCode}
-                  disabled={isGenerating}
-                  className="px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-medium hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={handleGenerate}
+                  className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:scale-105 transition-all font-medium"
                 >
-                  {isGenerating ? '生成中...' : '生成同步码'}
+                  生成同步码
                 </button>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {/* 同步码显示 */}
-                <div className="bg-white rounded-lg p-6 border-2 border-blue-300">
-                  <div className="text-center">
-                    <div className="text-sm text-gray-600 mb-2">你的同步码</div>
-                    <div className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 tracking-wider mb-4">
-                      {syncCode.code}
-                    </div>
-                    <div className="flex items-center justify-center space-x-4">
-                      <button
-                        onClick={copySyncCode}
-                        className="flex items-center space-x-2 px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors"
-                      >
-                        {copied ? (
-                          <>
-                            <Check className="w-4 h-4" />
-                            <span>已复制</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-4 h-4" />
-                            <span>复制</span>
-                          </>
-                        )}
-                      </button>
-                      <button
-                        onClick={generateSyncCode}
-                        className="flex items-center space-x-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
-                      >
-                        <RefreshCw className="w-4 h-4" />
-                        <span>重新生成</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
 
-                {/* 倒计时 */}
-                <div className="flex items-center justify-center space-x-2 text-sm">
-                  <Clock className="w-4 h-4 text-orange-500" />
-                  <span className="text-gray-600">有效期剩余：</span>
-                  <span className="font-mono font-bold text-orange-600">
-                    {getRemainingTime()}
-                  </span>
+              {/* 分隔线 */}
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300"></div>
                 </div>
-
-                {/* 使用说明 */}
-                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                  <h3 className="font-semibold text-blue-900 mb-2">📱 如何使用</h3>
-                  <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
-                    <li>在另一台设备上打开 ManifestOS</li>
-                    <li>进入"云同步设置"</li>
-                    <li>点击"输入同步码"</li>
-                    <li>输入上方的6位数字码</li>
-                    <li>等待数据同步完成</li>
-                  </ol>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white text-gray-500">或</span>
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* 输入同步码区域 */}
-          <div className="bg-gradient-to-br from-green-50 to-teal-50 rounded-xl p-6 border-2 border-green-200">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">📥 输入同步码</h2>
-            <p className="text-gray-600 mb-4">
-              在其他设备上生成了同步码？在这里输入以同步数据
-            </p>
-            
-            <div className="flex space-x-3">
-              <input
-                type="text"
-                placeholder="输入6位同步码"
-                maxLength={6}
-                className="flex-1 px-4 py-3 rounded-lg border-2 border-green-300 focus:outline-none focus:ring-2 focus:ring-green-500 text-center text-2xl font-mono tracking-wider"
-              />
-              <button className="px-6 py-3 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-lg font-medium hover:scale-105 transition-all">
-                开始同步
+              {/* 加入同步码 */}
+              <div className="bg-gradient-to-br from-green-50 to-teal-50 rounded-xl p-6 border-2 border-green-200">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">📱 已有同步码？</h2>
+                
+                {!showJoinInput ? (
+                  <button
+                    onClick={() => setShowJoinInput(true)}
+                    className="w-full py-3 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-lg hover:scale-105 transition-all font-medium"
+                  >
+                    加入已有同步码
+                  </button>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={inputCode}
+                        onChange={(e) => setInputCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder="输入6位数字"
+                        className="flex-1 px-4 py-3 border-2 border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-center text-2xl font-mono tracking-wider"
+                        maxLength={6}
+                      />
+                      <button
+                        onClick={handleJoin}
+                        disabled={inputCode.length !== 6}
+                        className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        加入
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowJoinInput(false);
+                        setInputCode('');
+                        setError('');
+                      }}
+                      className="w-full py-2 text-sm text-gray-600 hover:text-gray-900"
+                    >
+                      取消
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* 说明 */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="font-semibold text-blue-900 mb-2">💡 什么是云同步码？</h3>
+                <p className="text-sm text-blue-800 mb-2">
+                  云同步码是一个6位数字，用于在多个设备间同步数据。
+                </p>
+                <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
+                  <li>同步码永久有效，不会过期</li>
+                  <li>可以在无限个设备上使用</li>
+                  <li>数据每30秒自动同步一次</li>
+                  <li>在后台同步，不影响使用</li>
+                </ul>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* 已加入同步组 - 显示同步码和设备列表 */}
+              <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-6 border-2 border-blue-200">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">🔑 当前同步码</h2>
+                <div className="flex items-center gap-2 p-4 bg-white rounded-lg border-2 border-blue-300">
+                  <div className="flex-1 text-center">
+                    <div className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 tracking-wider">
+                      {syncCode}
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleCopy}
+                    className="p-3 hover:bg-gray-100 rounded-lg transition-colors"
+                    title="复制同步码"
+                  >
+                    {copied ? (
+                      <Check className="w-5 h-5 text-green-600" />
+                    ) : (
+                      <Copy className="w-5 h-5 text-gray-600" />
+                    )}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 text-center mt-3">
+                  将这个同步码分享给其他设备，即可实现多端同步
+                </p>
+              </div>
+
+              {/* 同步状态 */}
+              <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold text-gray-900">📊 同步状态</h2>
+                  <button
+                    onClick={syncNow}
+                    disabled={isSyncing}
+                    className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                    {isSyncing ? '同步中...' : '立即同步'}
+                  </button>
+                </div>
+                <div className="p-4 bg-white rounded-lg border border-gray-200">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">上次同步</span>
+                    <span className="text-gray-900 font-medium">
+                      {lastSyncTime 
+                        ? lastSyncTime.toLocaleTimeString('zh-CN')
+                        : '从未同步'
+                      }
+                    </span>
+                  </div>
+                  <div className="mt-2 text-xs text-gray-500">
+                    💡 数据会在后台自动同步，每30秒一次
+                  </div>
+                </div>
+              </div>
+
+              {/* 设备列表 */}
+              <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">📱 已连接设备</h2>
+                <div className="space-y-3">
+                  {devices.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      还没有设备连接
+                    </div>
+                  ) : (
+                    devices.map((device) => (
+                      <div
+                        key={device.id}
+                        className="flex items-center gap-3 p-4 bg-white rounded-lg border border-gray-200"
+                      >
+                        <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-purple-100 rounded-lg flex items-center justify-center">
+                          {getDeviceIcon(device.device_name)}
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-900">
+                            {device.device_name}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            最后活跃: {new Date(device.last_active_at).toLocaleString('zh-CN')}
+                          </div>
+                        </div>
+                        <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                          在线
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* 退出同步组 */}
+              <button
+                onClick={handleLeave}
+                className="w-full py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium"
+              >
+                退出同步组
               </button>
-            </div>
-          </div>
-
-          {/* 已连接设备 */}
-          <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">📱 已连接设备</h2>
-            
-            <div className="space-y-3">
-              {/* 当前设备 */}
-              <div className="bg-white rounded-lg p-4 border-2 border-blue-300">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <Monitor className="w-6 h-6 text-blue-600" />
-                    </div>
-                    <div>
-                      <div className="font-semibold text-gray-900">当前设备</div>
-                      <div className="text-sm text-gray-500">Windows PC · 最后同步：刚刚</div>
-                    </div>
-                  </div>
-                  <span className="px-3 py-1 bg-green-100 text-green-700 text-sm font-medium rounded-full">
-                    在线
-                  </span>
-                </div>
-              </div>
-
-              {/* 示例设备 */}
-              <div className="bg-white rounded-lg p-4 border border-gray-200 opacity-50">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                      <Smartphone className="w-6 h-6 text-gray-600" />
-                    </div>
-                    <div>
-                      <div className="font-semibold text-gray-900">iPhone 15</div>
-                      <div className="text-sm text-gray-500">最后同步：2小时前</div>
-                    </div>
-                  </div>
-                  <span className="px-3 py-1 bg-gray-100 text-gray-600 text-sm font-medium rounded-full">
-                    离线
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 text-center text-sm text-gray-500">
-              💡 提示：使用同步码连接新设备后，设备会自动出现在这里
-            </div>
-          </div>
-
-          {/* 同步设置 */}
-          <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">⚙️ 同步设置</h2>
-            
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium text-gray-900">自动同步</div>
-                  <div className="text-sm text-gray-500">在后台自动同步数据</div>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" className="sr-only peer" defaultChecked />
-                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                </label>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium text-gray-900">同步照片</div>
-                  <div className="text-sm text-gray-500">同步任务验证照片</div>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" className="sr-only peer" />
-                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                </label>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium text-gray-900">同步间隔</div>
-                  <div className="text-sm text-gray-500">自动同步的时间间隔</div>
-                </div>
-                <select className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option>5分钟</option>
-                  <option>15分钟</option>
-                  <option>30分钟</option>
-                  <option>1小时</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* 图像识别设置 */}
-          <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-xl p-6 border-2 border-orange-200">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">🔍 图像识别设置</h2>
-                <p className="text-sm text-gray-600 mt-1">
-                  配置百度AI图像识别API，用于任务验证时的图片识别功能
-                </p>
-              </div>
-              <div className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
-                ☁️ 云端同步
-              </div>
-            </div>
-            
-            <div className="space-y-4">
-              {/* API Key 输入 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  API Key
-                </label>
-                <input
-                  type="text"
-                  placeholder="请输入百度AI的API Key"
-                  value={baiduApiKey}
-                  onChange={(e) => setBaiduApiKey(e.target.value)}
-                  className="w-full px-4 py-3 rounded-lg border-2 border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-500 font-mono text-sm"
-                />
-              </div>
-
-              {/* Secret Key 输入 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Secret Key
-                </label>
-                <input
-                  type="text"
-                  placeholder="请输入百度AI的Secret Key"
-                  value={baiduSecretKey}
-                  onChange={(e) => setBaiduSecretKey(e.target.value)}
-                  className="w-full px-4 py-3 rounded-lg border-2 border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-500 font-mono text-sm"
-                />
-              </div>
-
-              {/* 使用说明 */}
-              <div className="bg-orange-50 rounded-lg p-4 border border-orange-200">
-                <h3 className="font-semibold text-orange-900 mb-2">📖 如何获取API密钥</h3>
-                <ol className="text-sm text-orange-800 space-y-1 list-decimal list-inside">
-                  <li>访问 <a href="https://ai.baidu.com/" target="_blank" rel="noopener noreferrer" className="underline hover:text-orange-600">百度AI开放平台</a></li>
-                  <li>注册/登录百度账号</li>
-                  <li>进入控制台 → 创建应用</li>
-                  <li>选择"图像识别"服务</li>
-                  <li>获取 API Key 和 Secret Key</li>
-                  <li>将密钥填写到上方输入框中</li>
-                </ol>
-              </div>
-
-              {/* 按钮组 */}
-              <div className="flex space-x-3">
-                <button
-                  onClick={saveApiConfig}
-                  disabled={isSaving}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-medium hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isSaving ? '保存中...' : '💾 保存到云端'}
-                </button>
-                <button
-                  onClick={testApiConnection}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-lg font-medium hover:scale-105 transition-all"
-                >
-                  🧪 测试连接
-                </button>
-              </div>
-
-              {/* 云同步提示 */}
-              <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
-                <div className="flex items-start space-x-2">
-                  <div className="text-lg">☁️</div>
-                  <div className="flex-1 text-sm text-blue-800">
-                    <strong>云端同步：</strong>配置保存后，会自动同步到你的所有设备（手机、iPad、电脑等），无需重复配置
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+            </>
+          )}
 
           {/* 安全提示 */}
           <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
@@ -444,11 +307,11 @@ export default function SyncSettings() {
               <div className="flex-1">
                 <h3 className="font-semibold text-yellow-900 mb-1">安全提示</h3>
                 <ul className="text-sm text-yellow-800 space-y-1">
-                  <li>• 同步码仅在10分钟内有效，过期后需重新生成</li>
+                  <li>• 同步码永久有效，请妥善保管</li>
                   <li>• 请勿将同步码分享给他人</li>
                   <li>• 所有数据传输均经过加密处理</li>
-                  <li>• 可以随时断开设备连接</li>
-                  <li>• API密钥保存在云端，会自动同步到所有设备</li>
+                  <li>• 可以随时退出同步组</li>
+                  <li>• 后台自动同步，不影响使用</li>
                 </ul>
               </div>
             </div>
@@ -458,4 +321,3 @@ export default function SyncSettings() {
     </div>
   );
 }
-

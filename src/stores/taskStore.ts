@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Task, TaskStatus, TaskType } from '@/types';
 import { supabase, TABLES, isSupabaseConfigured, getCurrentUserId, ensureUserExists } from '@/lib/supabase';
+import { syncCodeService } from '@/services/syncCodeService';
 
 interface TaskState {
   tasks: Task[];
@@ -215,6 +216,9 @@ export const useTaskStore = create<TaskState>()(
         isLoading: false,
       }));
       
+      // 🔥 后台上传到同步码（不阻塞界面）
+      syncCodeService.uploadData('tasks', newTask.id, newTask);
+      
       // 异步保存到 Supabase（仅在已登录且配置了 Supabase 时）
       if (isSupabaseConfigured() && session) {
         // 在后台异步执行，不等待结果
@@ -278,6 +282,9 @@ export const useTaskStore = create<TaskState>()(
         tasks: state.tasks.map((t) => (t.id === id ? updatedTask : t)),
       }));
       
+      // 🔥 后台上传到同步码（不阻塞界面）
+      syncCodeService.uploadData('tasks', id, updatedTask);
+      
       // 更新到 Supabase（如果已配置）
       if (isSupabaseConfigured()) {
         const { error } = await supabase
@@ -322,6 +329,9 @@ export const useTaskStore = create<TaskState>()(
       set((state) => ({
         tasks: state.tasks.filter((t) => t.id !== id),
       }));
+      
+      // 🔥 后台标记删除到同步码（不阻塞界面）
+      syncCodeService.uploadData('tasks', id, { deleted: true });
       
       // 从 Supabase 删除（如果已配置）
       if (isSupabaseConfigured()) {
