@@ -2,6 +2,7 @@ import GrowthPanel from '@/components/growth/GrowthPanel';
 import { GoalsModule } from '@/components/growth/GoalsModule';
 import TimelineCalendar from '@/components/calendar/TimelineCalendar';
 import NotificationSettingsPanel from '@/components/settings/NotificationSettings';
+import DataBackupPanel from '@/components/settings/DataBackupPanel';
 import { MoneyTracker } from '@/components/money';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
@@ -1274,7 +1275,7 @@ export function ReportsModule({ isDark = false }: { isDark?: boolean }) {
 
 // 设置模块
 export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: boolean; bgColor?: string }) {
-  const [activeTab, setActiveTab] = useState<'auth' | 'sync' | 'growth' | 'identity' | 'procrastination' | 'economy' | 'appearance' | 'notification'>('appearance');
+  const [activeTab, setActiveTab] = useState<'backup' | 'baidu' | 'growth' | 'identity' | 'procrastination' | 'economy' | 'appearance' | 'notification'>('backup');
   const [strictnessLevel, setStrictnessLevel] = useState(2); // 0=低, 1=中, 2=高
   
   // 使用真正的主题 store
@@ -1326,11 +1327,10 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
   const buttonBg = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)';
 
   const tabs = [
-    { id: 'auth', label: '邮箱登录', icon: '🔐' },
-    { id: 'sync', label: '云同步', icon: '☁️' },
-    { id: 'baidu', label: '百度AI', icon: '🤖' },
+    { id: 'backup', label: '数据备份', icon: '💾' },
     { id: 'appearance', label: '外观体验', icon: '🎨' },
     { id: 'notification', label: '通知语音', icon: '🔔' },
+    { id: 'baidu', label: '百度AI', icon: '🤖' },
     { id: 'growth', label: '成长维度', icon: '📊' },
     { id: 'identity', label: '身份系统', icon: '👤' },
     { id: 'procrastination', label: '防拖延', icon: '⚡' },
@@ -1357,6 +1357,11 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
           </button>
         ))}
       </div>
+
+      {/* 数据备份 */}
+      {activeTab === 'backup' && (
+        <DataBackupPanel />
+      )}
 
       {/* 邮箱登录 */}
       {activeTab === 'auth' && (
