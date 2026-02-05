@@ -2044,7 +2044,7 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
 
       {/* 通知与语音 */}
       {activeTab === 'notification' && (
-        <NotificationSettingsPanel isDark={isDark} accentColor={primaryColor} />
+        <NotificationSettingsPanel isDark={isDark} accentColor={ACCENT_COLORS[themeAccentColor].primary} />
       )}
     </div>
   );
