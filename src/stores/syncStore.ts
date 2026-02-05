@@ -53,20 +53,30 @@ export const useSyncStore = create<SyncStore>((set, get) => ({
   // 加入同步码
   joinSyncCode: async (code: string) => {
     try {
+      console.log('📱 syncStore: 开始加入同步码');
       await syncCodeService.joinSyncCode(code);
+      
+      console.log('📱 syncStore: 更新状态');
       set({ 
         syncCode: code, 
         isInSyncGroup: true 
       });
       
-      // 立即下载数据
-      await get().syncNow();
-      
+      console.log('📱 syncStore: 启动自动同步');
       // 启动自动同步
       get().startAutoSync();
       
-    } catch (error) {
-      console.error('加入同步码失败:', error);
+      // 延迟1秒后进行第一次同步，避免立即同步导致问题
+      setTimeout(() => {
+        console.log('📱 syncStore: 执行首次同步');
+        get().syncNow();
+      }, 1000);
+      
+      console.log('✅ syncStore: 加入同步码完成');
+      
+    } catch (error: any) {
+      console.error('❌ syncStore: 加入同步码失败:', error);
+      // 重新抛出错误，保留原始错误信息
       throw error;
     }
   },
