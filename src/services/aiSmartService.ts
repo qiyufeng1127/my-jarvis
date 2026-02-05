@@ -414,7 +414,53 @@ export class AISmartProcessor {
       }
     }
     
-    // 匹配 "HH:MM" 格式
+    // 6. 识别中文时间表达（如"十点半"、"九点"、"下午三点"）
+    const chineseTimeMatch = input.match(/([上下早晚中]?[午晨]?)?([零一二三四五六七八九十百]+)点([一二三四五]?十?[零一二三四五六七八九]?分?|半|整)?/);
+    if (chineseTimeMatch) {
+      const period = chineseTimeMatch[1] || ''; // 上午/下午/早上/晚上
+      const hourStr = chineseTimeMatch[2];
+      const minuteStr = chineseTimeMatch[3] || '整';
+      
+      // 转换中文数字到阿拉伯数字
+      const hours = this.chineseNumberToArabic(hourStr);
+      let minutes = 0;
+      
+      if (minuteStr === '半') {
+        minutes = 30;
+      } else if (minuteStr === '整' || !minuteStr) {
+        minutes = 0;
+      } else {
+        // 解析"十五分"、"四十五分"等
+        const minStr = minuteStr.replace(/分$/, '');
+        minutes = this.chineseNumberToArabic(minStr);
+      }
+      
+      // 智能识别上午/下午
+      let finalHours = hours;
+      if (period.includes('下午') || period.includes('午后')) {
+        finalHours = hours === 12 ? 12 : hours + 12;
+      } else if (period.includes('晚上') || period.includes('夜')) {
+        finalHours = hours === 12 ? 0 : hours + 12;
+      } else if (period.includes('上午') || period.includes('早') || period.includes('晨')) {
+        finalHours = hours;
+      } else {
+        // 没有明确指定，使用智能判断
+        finalHours = this.smartDetectTimeOfDay(input, hours);
+      }
+      
+      const targetTime = targetDate ? new Date(targetDate) : new Date(now);
+      targetTime.setHours(finalHours, minutes, 0, 0);
+      
+      // 如果没有明确日期关键词，且时间已过，设置为明天
+      if (!targetDate && targetTime < now) {
+        targetTime.setDate(targetTime.getDate() + 1);
+      }
+      
+      console.log(`⏰ 识别到中文时间: ${hourStr}点${minuteStr} → ${finalHours}:${minutes.toString().padStart(2, '0')}`);
+      return targetTime;
+    }
+    
+    // 7. 匹配 "HH:MM" 格式
     const timeMatch = input.match(/(\d{1,2})[:：](\d{2})/);
     if (timeMatch) {
       const hours = parseInt(timeMatch[1]);
@@ -461,6 +507,59 @@ export class AISmartProcessor {
     }
     
     return null;
+  }
+  
+  // 中文数字转阿拉伯数字
+  static chineseNumberToArabic(chineseNum: string): number {
+    const chineseMap: Record<string, number> = {
+      '零': 0, '一': 1, '二': 2, '三': 3, '四': 4,
+      '五': 5, '六': 6, '七': 7, '八': 8, '九': 9,
+      '十': 10, '百': 100
+    };
+    
+    // 处理特殊情况
+    if (chineseNum === '十') return 10;
+    if (chineseNum === '百') return 100;
+    
+    let result = 0;
+    let temp = 0;
+    let hasShiPrefix = false;
+    
+    for (let i = 0; i < chineseNum.length; i++) {
+      const char = chineseNum[i];
+      const num = chineseMap[char];
+      
+      if (num === undefined) continue;
+      
+      if (num === 10) {
+        if (temp === 0 && i === 0) {
+          // "十X" 表示 10+X
+          hasShiPrefix = true;
+          temp = 10;
+        } else if (temp > 0) {
+          // "X十" 表示 X*10
+          temp = temp * 10;
+        }
+      } else if (num === 100) {
+        temp = temp * 100;
+      } else {
+        if (hasShiPrefix || temp === 10) {
+          // "十X" → 10 + X
+          result = temp + num;
+          temp = 0;
+          hasShiPrefix = false;
+        } else if (temp > 0 && temp % 10 === 0) {
+          // "X十Y" → X*10 + Y
+          result = temp + num;
+          temp = 0;
+        } else {
+          temp = num;
+        }
+      }
+    }
+    
+    result += temp;
+    return result || 0;
   }
   
   // 智能识别时间是上午还是晚上
