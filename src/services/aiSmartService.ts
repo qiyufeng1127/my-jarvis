@@ -4,6 +4,7 @@
 
 import { MoneyAIProcessor } from './moneyAIService';
 import { useAIStore } from '@/stores/aiStore';
+import { useTaskHistoryStore } from '@/stores/taskHistoryStore';
 
 export interface AIProcessRequest {
   user_input: string;
@@ -260,6 +261,50 @@ export class AISmartProcessor {
     }
 
     return 'general';
+  }
+
+  // 清理语音输入（去除语气词、重复表述）
+  static cleanVoiceInput(input: string): string {
+    let cleaned = input;
+    
+    // 1. 去除常见语气词
+    const fillerWords = [
+      '那个', '这个', '就是', '然后呢', '嗯', '啊', '呃', '哦', '哎',
+      '把那个', '把这个', '那个那个', '这个这个',
+    ];
+    
+    fillerWords.forEach(word => {
+      const regex = new RegExp(word, 'g');
+      cleaned = cleaned.replace(regex, '');
+    });
+    
+    // 2. 去除重复的动词短语（如"把那个把那个"）
+    cleaned = cleaned.replace(/(.{1,3})\1+/g, '$1');
+    
+    // 3. 方言/口语转书面语
+    const dialectMap: Record<string, string> = {
+      '整一下': '处理',
+      '搞一下': '处理',
+      '弄一下': '处理',
+      '搞定': '完成',
+      '整好': '完成',
+      '咋办': '怎么办',
+      '咋整': '怎么做',
+      '木有': '没有',
+      '酱紫': '这样',
+    };
+    
+    Object.entries(dialectMap).forEach(([dialect, standard]) => {
+      const regex = new RegExp(dialect, 'g');
+      cleaned = cleaned.replace(regex, standard);
+    });
+    
+    // 4. 去除多余空格
+    cleaned = cleaned.replace(/\s+/g, ' ').trim();
+    
+    console.log('🎤 语音输入清理:', { original: input, cleaned });
+    
+    return cleaned;
   }
 
   // 智能分割任务（支持多种分隔符）
@@ -607,14 +652,16 @@ export class AISmartProcessor {
     return null;
   }
 
-  // 使用 AI 智能分析任务（替代所有手动规则）
-  static async analyzeTaskWithAI(taskTitle: string, extractedDuration?: number): Promise<{
+  // 使用 AI 智能分析任务（增强版：支持优先级识别和语义理解）
+  static async analyzeTaskWithAI(taskTitle: string, extractedDuration?: number, context?: string): Promise<{
     tags: string[];
     location: string;
     duration: number;
     taskType: string;
     category: string;
     color: string;
+    priority: number; // 1=低, 2=中, 3=高
+    actionSteps?: string[]; // 动作步骤分解
   }> {
     // 从 AI Store 获取配置
     const { config, isConfigured } = useAIStore.getState();
@@ -629,10 +676,17 @@ export class AISmartProcessor {
     // 强制使用 deepseek-chat 而不是 deepseek-reasoner（reasoner 不适合结构化输出）
     const useModel = model === 'deepseek-reasoner' ? 'deepseek-chat' : (model || 'deepseek-chat');
     
-    const prompt = `分析任务并返回JSON。
+    const prompt = `你是任务分析专家。请深度分析任务，识别核心动作、优先级和执行步骤。
 
 任务：${taskTitle}
-${extractedDuration ? `时长：${extractedDuration}分钟` : ''}
+${extractedDuration ? `指定时长：${extractedDuration}分钟` : ''}
+${context ? `上下文：${context}` : ''}
+
+分析要求：
+1. 识别任务的核心动作和目标
+2. 判断任务的紧急程度和重要性
+3. 如果任务包含多个动作，拆解为具体步骤
+4. 推断任务的执行位置和所需时长
 
 返回格式（纯JSON，无注释）：
 {
@@ -640,11 +694,24 @@ ${extractedDuration ? `时长：${extractedDuration}分钟` : ''}
   "location": "位置",
   "duration": ${extractedDuration || 30},
   "taskType": "life",
-  "category": "分类"
+  "category": "分类",
+  "priority": 2,
+  "actionSteps": ["步骤1", "步骤2"]
 }
 
 位置选项：厕所、工作区、客厅、卧室、拍摄间、厨房、全屋、室外
 taskType选项：work, study, health, life, finance, creative, rest
+priority说明：
+  - 1（低）：日常琐事、可延期的任务
+  - 2（中）：常规任务、需按时完成
+  - 3（高）：紧急重要、有截止日期、考试、寄件等
+
+优先级判断规则：
+- 包含"考试"、"截止"、"紧急"、"重要"、"必须" → 高优先级(3)
+- 包含"寄件"、"快递"、"预约"、"会议" → 高优先级(3)
+- 包含"身份证"、"准考证"等重要物品 → 高优先级(3)
+- 工作、学习相关 → 中优先级(2)
+- 日常家务、休闲娱乐 → 低优先级(1)
 
 只返回JSON对象，不要任何其他文字。`;
 
@@ -744,6 +811,10 @@ taskType选项：work, study, health, life, finance, creative, rest
         console.warn('⚠️ duration字段缺失，使用默认值');
         result.duration = extractedDuration || 30;
       }
+      if (!result.priority || result.priority < 1 || result.priority > 3) {
+        console.warn('⚠️ priority字段缺失或无效，使用默认值');
+        result.priority = 2;
+      }
       
       // 根据第一个标签获取颜色
       const color = this.getColorForTag(result.tags[0]);
@@ -754,6 +825,8 @@ taskType选项：work, study, health, life, finance, creative, rest
         color: color,
         location: result.location,
         duration: result.duration,
+        priority: result.priority,
+        actionSteps: result.actionSteps,
       });
       
       return {
@@ -763,6 +836,8 @@ taskType选项：work, study, health, life, finance, creative, rest
         taskType: result.taskType || 'life',
         category: result.category || '生活事务',
         color: color,
+        priority: result.priority || 2,
+        actionSteps: result.actionSteps || [],
       };
     } catch (error: any) {
       console.error('❌ AI分析失败，使用默认值:', error);
@@ -788,8 +863,82 @@ taskType选项：work, study, health, life, finance, creative, rest
         taskType: 'life',
         category: '生活事务',
         color: '#6A7334',
+        priority: 2,
+        actionSteps: [],
       };
     }
+  }
+
+  // 检测重复任务（智能合并）
+  static detectDuplicateTasks(tasks: any[]): { duplicates: any[][]; suggestions: string[] } {
+    const duplicates: any[][] = [];
+    const suggestions: string[] = [];
+    const processed = new Set<number>();
+
+    for (let i = 0; i < tasks.length; i++) {
+      if (processed.has(i)) continue;
+
+      const task1 = tasks[i];
+      const relatedTasks = [task1];
+
+      for (let j = i + 1; j < tasks.length; j++) {
+        if (processed.has(j)) continue;
+
+        const task2 = tasks[j];
+        
+        // 检测重复关键词
+        const keywords1 = this.extractKeywords(task1.title);
+        const keywords2 = this.extractKeywords(task2.title);
+        
+        const commonKeywords = keywords1.filter(k => keywords2.includes(k));
+        
+        // 如果有共同关键词，认为是相关任务
+        if (commonKeywords.length > 0) {
+          relatedTasks.push(task2);
+          processed.add(j);
+        }
+      }
+
+      if (relatedTasks.length > 1) {
+        duplicates.push(relatedTasks);
+        
+        // 生成合并建议
+        const titles = relatedTasks.map(t => t.title).join('、');
+        const mergedTitle = this.generateMergedTitle(relatedTasks);
+        suggestions.push(`建议合并：${titles} → ${mergedTitle}`);
+      }
+    }
+
+    return { duplicates, suggestions };
+  }
+
+  // 提取关键词
+  static extractKeywords(text: string): string[] {
+    const keywords: string[] = [];
+    const importantWords = ['身份证', '准考证', '钥匙', '手机', '钱包', '考试', '寄件', '快递', '照片', '文档'];
+    
+    importantWords.forEach(word => {
+      if (text.includes(word)) {
+        keywords.push(word);
+      }
+    });
+    
+    return keywords;
+  }
+
+  // 生成合并后的标题
+  static generateMergedTitle(tasks: any[]): string {
+    const keywords = new Set<string>();
+    tasks.forEach(task => {
+      this.extractKeywords(task.title).forEach(k => keywords.add(k));
+    });
+    
+    if (keywords.size > 0) {
+      const keywordList = Array.from(keywords);
+      return `准备${keywordList.join('和')}（${tasks[0].category || '待办'}）`;
+    }
+    
+    return tasks[0].title;
   }
 
   // 处理任务分解（使用AI智能分析）
@@ -879,6 +1028,8 @@ taskType选项：work, study, health, life, finance, creative, rest
             goal: goal,
             gold: this.calculateGold({ estimated_duration: aiAnalysis.duration, task_type: aiAnalysis.taskType }),
             color: aiAnalysis.color,
+            priority: aiAnalysis.priority || 2, // 添加优先级
+            actionSteps: aiAnalysis.actionSteps || [], // 添加动作步骤
           };
 
           decomposedTasks.push(task);
@@ -908,6 +1059,9 @@ taskType选项：work, study, health, life, finance, creative, rest
       };
     }
 
+    // 检测重复任务并提供合并建议
+    const { duplicates, suggestions } = this.detectDuplicateTasks(decomposedTasks);
+    
     const groupedByLocation = this.groupTasksByLocation(decomposedTasks);
     console.log('✅ AI智能分析完成:', decomposedTasks);
 
@@ -917,7 +1071,8 @@ taskType选项：work, study, health, life, finance, creative, rest
       : `✅ AI已智能分析 ${decomposedTasks.length} 个任务：\n\n`;
     
     decomposedTasks.forEach((task, index) => {
-      message += `${task.sequence}. **${task.title}** 📍${task.location}\n`;
+      const priorityEmoji = task.priority === 3 ? '🔴' : task.priority === 2 ? '🟡' : '🟢';
+      message += `${task.sequence}. ${priorityEmoji} **${task.title}** 📍${task.location}\n`;
       message += `   ⏰ ${task.scheduled_start}-${task.scheduled_end} | ${task.estimated_duration}分钟 | 💰${task.gold}\n`;
       message += `   🏷️ ${task.tags.join(' ')}`;
       if (task.goal) {
@@ -930,6 +1085,13 @@ taskType选项：work, study, health, life, finance, creative, rest
     const totalGold = decomposedTasks.reduce((sum, t) => sum + t.gold, 0);
 
     message += `📊 总计：${totalDuration}分钟 | 💰${totalGold}金币\n\n`;
+    
+    // 显示重复任务合并建议
+    if (suggestions.length > 0) {
+      message += `💡 智能建议：\n`;
+      suggestions.forEach(s => message += `   • ${s}\n`);
+      message += `\n`;
+    }
     
     if (hasError) {
       message += `⚠️ 错误信息：${errorMessage}\n\n`;
@@ -947,6 +1109,7 @@ taskType选项：work, study, health, life, finance, creative, rest
         total_duration: totalDuration,
         total_gold: totalGold,
         grouped_by_location: groupedByLocation,
+        duplicate_suggestions: suggestions,
       },
       actions: [
         {
@@ -975,17 +1138,23 @@ taskType选项：work, study, health, life, finance, creative, rest
     return grouped;
   }
 
-  // 按位置排序任务（相同位置的任务连续安排）
-  static sortTasksByLocation(grouped: Record<string, any[]>): any[] {
+  // 按位置排序任务（增强版：优先级+动线优化）
+  static sortTasksByLocationAndPriority(grouped: Record<string, any[]>): any[] {
     const sorted: any[] = [];
     let currentTime = new Date();
     
     // 位置优先级（按照用户家里的实际格局和动线）
     const locationPriority = ['厕所', '工作区', '客厅', '卧室', '拍摄间', '厨房', '全屋', '室外'];
     
+    // 按位置分组后，每组内按优先级排序
     locationPriority.forEach(location => {
       if (grouped[location]) {
-        grouped[location].forEach(task => {
+        // 组内按优先级排序（高优先级优先）
+        const sortedByPriority = grouped[location].sort((a, b) => {
+          return (b.priority || 2) - (a.priority || 2);
+        });
+        
+        sortedByPriority.forEach(task => {
           // 重新计算时间
           const start = new Date(currentTime);
           const end = new Date(start.getTime() + task.estimated_duration * 60000);
@@ -1003,6 +1172,27 @@ taskType选项：work, study, health, life, finance, creative, rest
     });
     
     return sorted;
+  }
+
+  // 生成区域批次任务包
+  static generateLocationBatches(tasks: any[]): { location: string; tasks: any[]; totalDuration: number; totalGold: number }[] {
+    const grouped = this.groupTasksByLocation(tasks);
+    const batches: { location: string; tasks: any[]; totalDuration: number; totalGold: number }[] = [];
+    
+    Object.entries(grouped).forEach(([location, locationTasks]) => {
+      const totalDuration = locationTasks.reduce((sum, t) => sum + t.estimated_duration, 0);
+      const totalGold = locationTasks.reduce((sum, t) => sum + t.gold, 0);
+      
+      batches.push({
+        location,
+        tasks: locationTasks,
+        totalDuration,
+        totalGold,
+      });
+    });
+    
+    // 按任务数量排序（任务多的区域优先）
+    return batches.sort((a, b) => b.tasks.length - a.tasks.length);
   }
 
   // 根据标签获取颜色（使用用户提供的色号）
@@ -1203,10 +1393,43 @@ taskType选项：work, study, health, life, finance, creative, rest
     return '生活事务';
   }
 
-  // 估算任务时长（简化版，用于编辑器实时更新）
-  static estimateTaskDuration(taskTitle: string): number {
+  // 估算任务时长（增强版：基于历史数据）
+  static estimateTaskDuration(taskTitle: string, taskType?: string, category?: string): number {
     const title = taskTitle.toLowerCase();
     
+    // 1. 优先从历史记录中获取
+    try {
+      const historyStore = useTaskHistoryStore.getState();
+      
+      // 尝试获取相似任务的平均时长
+      const avgDuration = historyStore.getAverageDuration(taskTitle);
+      if (avgDuration) {
+        console.log(`📊 基于历史数据预估时长: ${avgDuration}分钟`);
+        return avgDuration;
+      }
+      
+      // 尝试按类型获取
+      if (taskType) {
+        const typeDuration = historyStore.getAverageDurationByType(taskType);
+        if (typeDuration) {
+          console.log(`📊 基于任务类型预估时长: ${typeDuration}分钟`);
+          return typeDuration;
+        }
+      }
+      
+      // 尝试按分类获取
+      if (category) {
+        const categoryDuration = historyStore.getAverageDurationByCategory(category);
+        if (categoryDuration) {
+          console.log(`📊 基于任务分类预估时长: ${categoryDuration}分钟`);
+          return categoryDuration;
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ 无法从历史记录获取时长，使用默认规则');
+    }
+    
+    // 2. 使用默认规则
     // 快速任务（5-15分钟）
     if (title.includes('刷牙') || title.includes('洗脸') || title.includes('喝水')) {
       return 5;
@@ -1233,88 +1456,6 @@ taskType选项：work, study, health, life, finance, creative, rest
     
     // 默认30分钟
     return 30;
-  }
-
-  // 根据标签获取颜色（使用用户提供的色号）
-  static getColorForTag(tag: string): string {
-    const colorMap: Record<string, string> = {
-      // 家务类 - Muddy Green (泥绿色)
-      '家务': '#6A7334',
-      '清洁': '#6A7334',
-      '日常': '#6A7334',
-      '猫咪': '#6A7334',
-      '拖地': '#6A7334',
-      '扫地': '#6A7334',
-      '洗衣服': '#6A7334',
-      '铲猫砂': '#6A7334',
-      '收纳': '#6A7334',
-      '整理': '#6A7334',
-      '打扫': '#6A7334',
-      '卫生': '#6A7334',
-      
-      // 工作类 - Carolina Blue (卡罗莱纳蓝)
-      '工作': '#A0BBEB',
-      '重要': '#A0BBEB',
-      '会议': '#A0BBEB',
-      '编程': '#A0BBEB',
-      '设计': '#A0BBEB',
-      '开发': '#A0BBEB',
-      '技术': '#A0BBEB',
-      '文档': '#A0BBEB',
-      '职业': '#A0BBEB',
-      
-      // 社交类 - Raspberry Rose (覆盆子玫瑰)
-      '社交': '#B34568',
-      '朋友': '#B34568',
-      '聚会': '#B34568',
-      '人际': '#B34568',
-      '关系': '#B34568',
-      
-      // 娱乐类 - Illusion (幻影粉)
-      '娱乐': '#FB9FC9',
-      '休闲': '#FB9FC9',
-      '游戏': '#FB9FC9',
-      '放松': '#FB9FC9',
-      
-      // 学习类 - Pastel Purple (淡紫色)
-      '学习': '#AA9FBE',
-      '成长': '#AA9FBE',
-      '阅读': '#AA9FBE',
-      '课程': '#AA9FBE',
-      '教育': '#AA9FBE',
-      '提升': '#AA9FBE',
-      
-      // 运动健康类 - Brass (黄铜色)
-      '运动': '#A6B13C',
-      '健康': '#A6B13C',
-      '健身': '#A6B13C',
-      '跑步': '#A6B13C',
-      '锻炼': '#A6B13C',
-      '瑜伽': '#A6B13C',
-      
-      // 饮食类 - Butter Yellow (奶油黄)
-      '饮食': '#FFE288',
-      '个人护理': '#F1E69F',
-      '早餐': '#FFE288',
-      '午餐': '#FFE288',
-      '晚餐': '#FFE288',
-      '做饭': '#FFE288',
-      '美容': '#F1E69F',
-      '护肤': '#F1E69F',
-      
-      // 外出类 - Muddy Green (泥绿色)
-      '购物': '#6A7334',
-      '室外': '#6A7334',
-      '外出': '#6A7334',
-    };
-    
-    return colorMap[tag] || '#6A7334'; // 默认返回泥绿色
-  }
-
-  // 获取任务的主色调（基于第一个标签）
-  static getTaskColor(tags: string[]): string {
-    if (tags.length === 0) return '#6A7334';
-    return this.getColorForTag(tags[0]);
   }
 
   // 识别关联的长期目标
