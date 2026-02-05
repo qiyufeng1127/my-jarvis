@@ -67,78 +67,49 @@ function App() {
       // 1. 初始化本地用户（快速，不阻塞）
       initializeUser();
       
-      // 2. 检查登录状态
+      // 🔥 立即显示界面，不等待云端同步
+      setIsCheckingAuth(false);
+      
+      // 2. 在后台静默同步云端数据（不阻塞界面）
       if (!isSupabaseConfigured()) {
         console.log('⚠️ Supabase 未配置，使用本地模式');
-        if (mounted) {
-          setIsCheckingAuth(false);
-          setIsAuthenticated(false);
-        }
         return;
       }
 
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!mounted) return;
-        
-        if (session) {
-          console.log('✅ 用户已登录:', session.user.email);
-          setIsAuthenticated(true);
+      // 后台异步执行，不阻塞界面
+      (async () => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
           
-          // 3. 全量加载云端数据（智能合并，不覆盖本地数据）
-          console.log('📥 开始全量同步云端数据...');
-          setSyncProgress('正在同步数据...');
+          if (!mounted) return;
           
-          const syncAllData = async () => {
+          if (session) {
+            console.log('✅ 用户已登录，后台同步数据:', session.user.email);
+            setIsAuthenticated(true);
+            
+            // 后台静默同步，不显示进度
             try {
-              // 按优先级顺序同步各个模块
-              setSyncProgress('同步金币数据...');
               await loadGoldFromCloud();
-              
-              setSyncProgress('同步任务数据...');
               await loadTasks();
-              
-              setSyncProgress('同步目标数据...');
               await loadGoals();
-              
-              setSyncProgress('同步任务历史...');
               await loadTaskHistoryFromCloud();
-              
-              setSyncProgress('同步任务模板...');
               await loadTaskTemplatesFromCloud();
               
-              // TODO: 添加其他store的同步
-              // await loadSideHustlesFromCloud();
-              // await loadMemoriesFromCloud();
-              // await loadNotificationsFromCloud();
-              // await loadGrowthDataFromCloud();
-              
-              console.log('✅ 全量云端数据同步完成');
-              setSyncProgress('');
+              console.log('✅ 后台数据同步完成');
             } catch (error) {
-              console.error('❌ 云端数据同步失败，继续使用本地数据:', error);
-              setSyncProgress('');
-            } finally {
-              if (mounted) {
-                setIsCheckingAuth(false);
-              }
+              console.error('❌ 后台数据同步失败:', error);
             }
-          };
-          
-          syncAllData();
-        } else {
-          console.log('👤 游客模式：数据保存在本地');
-          setIsAuthenticated(false);
-          setIsCheckingAuth(false);
+          } else {
+            console.log('👤 游客模式：数据保存在本地');
+            setIsAuthenticated(false);
+          }
+        } catch (error) {
+          console.error('❌ 检查登录状态失败:', error);
+          if (mounted) {
+            setIsAuthenticated(false);
+          }
         }
-      } catch (error) {
-        console.error('❌ 检查登录状态失败:', error);
-        if (mounted) {
-          setIsAuthenticated(false);
-          setIsCheckingAuth(false);
-        }
-      }
+      })();
     };
 
     initialize();
@@ -148,44 +119,26 @@ function App() {
       console.log('🔐 认证状态变化:', event, session ? '已登录' : '未登录');
       
       if (event === 'SIGNED_IN' && session) {
-        console.log('✅ 用户登录成功:', session.user.email);
+        console.log('✅ 用户登录成功，后台同步数据:', session.user.email);
         setIsAuthenticated(true);
         
-        // 登录成功后全量同步云端数据（智能合并）
-        console.log('📥 登录后全量同步云端数据...');
-        setSyncProgress('正在同步数据...');
-        
-        const syncAllData = async () => {
+        // 后台静默同步
+        (async () => {
           try {
-            setSyncProgress('同步金币数据...');
             await loadGoldFromCloud();
-            
-            setSyncProgress('同步任务数据...');
             await loadTasks();
-            
-            setSyncProgress('同步目标数据...');
             await loadGoals();
-            
-            setSyncProgress('同步任务历史...');
             await loadTaskHistoryFromCloud();
-            
-            setSyncProgress('同步任务模板...');
             await loadTaskTemplatesFromCloud();
             
-            console.log('✅ 登录后全量数据同步完成');
-            setSyncProgress('');
+            console.log('✅ 登录后数据同步完成');
           } catch (error) {
             console.error('❌ 登录后数据同步失败:', error);
-            setSyncProgress('');
           }
-        };
-        
-        syncAllData();
+        })();
       } else if (event === 'SIGNED_OUT') {
         console.log('👋 用户已登出，保留本地数据');
         setIsAuthenticated(false);
-        setSyncProgress('');
-        // 注意：不清除本地数据，用户下次登录时会自动同步
       }
     });
 
@@ -195,21 +148,8 @@ function App() {
     };
   }, []); // 空依赖数组，只在组件挂载时执行一次
 
-  // 加载中状态
-  if (isCheckingAuth) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-neutral-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-neutral-600">{syncProgress || '加载中...'}</p>
-          {syncProgress && (
-            <p className="text-sm text-neutral-400 mt-2">正在从云端恢复您的数据</p>
-          )}
-        </div>
-      </div>
-    );
-  }
-
+  // 不再显示加载界面，直接显示应用
+  // 数据在后台静默加载
   return (
     <Router>
       <div className="min-h-screen bg-neutral-50">

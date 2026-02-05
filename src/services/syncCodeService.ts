@@ -78,36 +78,53 @@ export const syncCodeService = {
         .single();
       
       if (groupError || !group) {
-        throw new Error('同步码不存在');
+        console.error('同步组查询错误:', groupError);
+        throw new Error('同步码不存在或已失效');
       }
       
       // 将当前设备加入同步组
       const deviceId = getDeviceId();
       const deviceName = getDeviceName();
       
-      // 先检查设备是否已加入
+      console.log('设备信息:', { deviceId, deviceName, groupId: group.id });
+      
+      // 先检查设备是否已加入其他同步组
       const { data: existingDevice } = await supabase
         .from('sync_devices')
         .select('*')
         .eq('device_id', deviceId)
-        .single();
+        .maybeSingle();
       
       if (existingDevice) {
+        console.log('设备已存在，更新同步组...');
         // 更新设备的同步组
-        await supabase
+        const { error: updateError } = await supabase
           .from('sync_devices')
           .update({ 
             sync_group_id: group.id,
             last_active_at: new Date().toISOString(),
           })
           .eq('device_id', deviceId);
+        
+        if (updateError) {
+          console.error('更新设备失败:', updateError);
+          throw updateError;
+        }
       } else {
+        console.log('新设备，插入记录...');
         // 新增设备
-        await supabase.from('sync_devices').insert({
-          sync_group_id: group.id,
-          device_id: deviceId,
-          device_name: deviceName,
-        });
+        const { error: insertError } = await supabase
+          .from('sync_devices')
+          .insert({
+            sync_group_id: group.id,
+            device_id: deviceId,
+            device_name: deviceName,
+          });
+        
+        if (insertError) {
+          console.error('插入设备失败:', insertError);
+          throw insertError;
+        }
       }
       
       // 保存同步码到本地
@@ -117,9 +134,9 @@ export const syncCodeService = {
       console.log('✅ 加入同步组成功');
       return true;
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ 加入同步码失败:', error);
-      throw error;
+      throw new Error(error.message || '加入失败，请检查同步码是否正确');
     }
   },
 
