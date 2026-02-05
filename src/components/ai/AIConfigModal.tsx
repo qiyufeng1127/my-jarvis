@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAIStore } from '@/stores/aiStore';
 import { Key, Check, X, AlertCircle, ExternalLink } from 'lucide-react';
 
@@ -9,11 +9,25 @@ interface AIConfigModalProps {
 
 export default function AIConfigModal({ isOpen, onClose }: AIConfigModalProps) {
   const { config, setApiKey, setApiEndpoint, setModel, isConfigured } = useAIStore();
-  const [localApiKey, setLocalApiKey] = useState(config.apiKey || 'sk-feff761a4a744e789711f2d88801d80b');
+  const [localApiKey, setLocalApiKey] = useState(config.apiKey || '');
   const [localEndpoint, setLocalEndpoint] = useState(config.apiEndpoint || 'https://api.deepseek.com/v1/chat/completions');
   const [localModel, setLocalModel] = useState(config.model || 'deepseek-chat');
   const [showKey, setShowKey] = useState(false);
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+
+  // 当配置加载后，自动填充到表单
+  useEffect(() => {
+    if (config.apiKey) {
+      setLocalApiKey(config.apiKey);
+      console.log('✅ 已自动填充 API Key');
+    }
+    if (config.apiEndpoint) {
+      setLocalEndpoint(config.apiEndpoint);
+    }
+    if (config.model) {
+      setLocalModel(config.model);
+    }
+  }, [config.apiKey, config.apiEndpoint, config.model]);
 
   if (!isOpen) return null;
 
@@ -21,6 +35,8 @@ export default function AIConfigModal({ isOpen, onClose }: AIConfigModalProps) {
     setApiKey(localApiKey);
     setApiEndpoint(localEndpoint);
     setModel(localModel);
+    console.log('💾 AI 配置已保存到 localStorage');
+    alert('✅ AI 配置已保存！\n\n配置会自动保存到本地，刷新页面后依然有效。');
     onClose();
   };
 

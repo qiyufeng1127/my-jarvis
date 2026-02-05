@@ -534,6 +534,65 @@ export default function UnifiedTaskEditor({
                   )}
                 </div>
               </div>
+
+              {/* 子任务列表（如果有） */}
+              {task.subtasks && task.subtasks.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-gray-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs md:text-sm font-bold text-gray-700">📋 子任务 ({task.subtasks.length}个)</span>
+                    <span className="text-xs text-gray-500">展开查看详情</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {task.subtasks.map((subtask: any, subIndex: number) => (
+                      <div
+                        key={subtask.id}
+                        className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                      >
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-gray-300 text-gray-700 text-xs font-bold flex items-center justify-center">
+                          {subtask.order}
+                        </span>
+                        <span className="flex-1 text-xs md:text-sm text-gray-800">{subtask.title}</span>
+                        <span className="flex-shrink-0 text-xs text-gray-500">{subtask.durationMinutes}分钟</span>
+                        <button
+                          onClick={() => {
+                            const newTasks = [...editingTasks];
+                            newTasks[index].subtasks = newTasks[index].subtasks.filter((_: any, i: number) => i !== subIndex);
+                            setEditingTasks(newTasks);
+                          }}
+                          className="flex-shrink-0 p-1 hover:bg-red-100 rounded transition-colors"
+                          title="删除子任务"
+                        >
+                          <X className="w-3 h-3 text-red-500" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => {
+                      const title = prompt('输入子任务标题：');
+                      if (title) {
+                        const duration = parseInt(prompt('输入子任务时长（分钟）：') || '10');
+                        const newTasks = [...editingTasks];
+                        if (!newTasks[index].subtasks) {
+                          newTasks[index].subtasks = [];
+                        }
+                        newTasks[index].subtasks.push({
+                          id: crypto.randomUUID(),
+                          title,
+                          isCompleted: false,
+                          durationMinutes: duration,
+                          order: newTasks[index].subtasks.length + 1,
+                        });
+                        setEditingTasks(newTasks);
+                      }
+                    }}
+                    className="mt-2 w-full py-1.5 border border-dashed border-gray-300 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-colors flex items-center justify-center gap-1 text-gray-600"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span className="text-xs font-medium">添加子任务</span>
+                  </button>
+                </div>
+              )}
             </div>
           ))}
 

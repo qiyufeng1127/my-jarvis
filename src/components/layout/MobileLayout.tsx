@@ -194,7 +194,7 @@ export default function MobileLayout() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-neutral-50">
+    <div className="h-screen flex flex-col bg-white dark:bg-black">
       {/* 通知容器 */}
       <NotificationContainer />
 
@@ -223,7 +223,7 @@ export default function MobileLayout() {
       )}
 
       {/* 顶部状态栏 - 增加顶部间距避免与系统时间重叠 */}
-      <div className="bg-white border-b border-neutral-200 px-3 pt-12 pb-2 shrink-0">
+      <div className="bg-white dark:bg-black border-b border-neutral-200 dark:border-gray-800 px-3 pt-12 pb-2 shrink-0">
         <div className="flex items-center justify-between">
           {/* 左侧：身份等级 */}
           <div className="flex items-center space-x-1.5">
@@ -298,8 +298,7 @@ export default function MobileLayout() {
 
       {/* 底部导航栏 - 固定在底部 */}
       <div 
-        className="fixed bottom-0 left-0 right-0 border-t border-neutral-200 px-2 py-2 safe-area-bottom z-40"
-        style={{ backgroundColor: navColor }}
+        className="fixed bottom-0 left-0 right-0 border-t border-neutral-200 dark:border-gray-800 px-2 py-2 safe-area-bottom z-40 bg-white dark:bg-black"
       >
         <div className="flex items-center justify-around">
           {visibleNavItems.map((item) => (
@@ -313,8 +312,8 @@ export default function MobileLayout() {
               onMouseLeave={handleLongPressEnd}
               className={`flex flex-col items-center justify-center px-3 py-2 rounded-xl transition-all min-w-[60px] ${
                 activeTab === item.id
-                  ? 'bg-blue-50 text-blue-600'
-                  : 'text-neutral-600 active:bg-neutral-100'
+                  ? 'bg-blue-500 text-white'
+                  : 'text-neutral-600 dark:text-gray-300 active:bg-neutral-100 dark:active:bg-gray-800'
               }`}
               data-tour={item.id === 'timeline' ? 'timeline' : item.id === 'inbox' ? 'inbox' : undefined}
             >
@@ -327,7 +326,7 @@ export default function MobileLayout() {
           {hasMore && (
             <button
               onClick={() => setShowMoreModal(true)}
-              className="flex flex-col items-center justify-center px-3 py-2 rounded-xl transition-all min-w-[60px] text-neutral-600 active:bg-neutral-100"
+              className="flex flex-col items-center justify-center px-3 py-2 rounded-xl transition-all min-w-[60px] text-neutral-600 dark:text-gray-300 active:bg-neutral-100 dark:active:bg-gray-800"
             >
               <span className="text-2xl mb-1">⋯</span>
               <span className="text-xs font-medium">更多</span>
@@ -339,10 +338,10 @@ export default function MobileLayout() {
       {/* 更多功能弹窗 */}
       {showMoreModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end">
-          <div className="bg-white rounded-t-3xl w-full max-h-[70vh] overflow-hidden flex flex-col">
+          <div className="bg-white dark:bg-gray-900 rounded-t-3xl w-full max-h-[70vh] overflow-hidden flex flex-col">
             {/* 头部 */}
-            <div className="flex items-center justify-between p-4 border-b border-neutral-200">
-              <h3 className="text-lg font-bold text-gray-900">更多功能</h3>
+            <div className="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-gray-800">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">更多功能</h3>
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => {
@@ -350,15 +349,15 @@ export default function MobileLayout() {
                     setEditingItems([...navItems]);
                     setShowEditModal(true);
                   }}
-                  className="p-2 rounded-lg bg-gray-100 active:bg-gray-200"
+                  className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700"
                 >
-                  <Settings className="w-5 h-5 text-gray-900" />
+                  <Settings className="w-5 h-5 text-gray-900 dark:text-white" />
                 </button>
                 <button
                   onClick={() => setShowMoreModal(false)}
-                  className="p-2 rounded-lg bg-gray-100 active:bg-gray-200"
+                  className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700"
                 >
-                  <X className="w-5 h-5 text-gray-900" />
+                  <X className="w-5 h-5 text-gray-900 dark:text-white" />
                 </button>
               </div>
             </div>
@@ -376,7 +375,7 @@ export default function MobileLayout() {
                     className={`flex flex-col items-center justify-center p-4 rounded-xl transition-all shadow-sm ${
                       activeTab === item.id
                         ? 'bg-blue-500 text-white'
-                        : 'bg-white text-gray-900 active:bg-gray-50 border-2 border-gray-200'
+                        : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white active:bg-gray-50 dark:active:bg-gray-700 border-2 border-gray-200 dark:border-gray-700'
                     }`}
                   >
                     <span className="text-3xl mb-2">{item.icon}</span>

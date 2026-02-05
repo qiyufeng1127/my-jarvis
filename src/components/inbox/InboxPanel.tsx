@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Sparkles, Calendar, Clock, Coins, ChevronRight } from 'lucide-react';
 import { useTaskStore } from '@/stores/taskStore';
 import type { Task } from '@/types';
@@ -14,14 +14,45 @@ interface InboxTask extends Partial<Task> {
   isScheduled?: boolean; // 是否已添加到待安排
 }
 
+// localStorage 存储键
+const INBOX_STORAGE_KEY = 'task_inbox_panel';
+const SCHEDULED_STORAGE_KEY = 'task_scheduled_panel';
+
 export default function InboxPanel({ isDark = false, bgColor = '#ffffff' }: InboxPanelProps) {
   const { createTask } = useTaskStore();
   
-  const [inboxTasks, setInboxTasks] = useState<InboxTask[]>([]);
+  // 从 localStorage 加载数据
+  const [inboxTasks, setInboxTasks] = useState<InboxTask[]>(() => {
+    try {
+      const saved = localStorage.getItem(INBOX_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const [scheduledTasks, setScheduledTasks] = useState<InboxTask[]>([]);
+  
+  const [scheduledTasks, setScheduledTasks] = useState<InboxTask[]>(() => {
+    try {
+      const saved = localStorage.getItem(SCHEDULED_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // 保存收集箱数据到 localStorage
+  useEffect(() => {
+    localStorage.setItem(INBOX_STORAGE_KEY, JSON.stringify(inboxTasks));
+  }, [inboxTasks]);
+
+  // 保存待安排数据到 localStorage
+  useEffect(() => {
+    localStorage.setItem(SCHEDULED_STORAGE_KEY, JSON.stringify(scheduledTasks));
+  }, [scheduledTasks]);
 
   // iOS 风格颜色
   const textColor = isDark ? '#ffffff' : '#000000';

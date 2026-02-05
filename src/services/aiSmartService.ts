@@ -208,35 +208,7 @@ export class AISmartProcessor {
       return 'timeline_operation';
     }
 
-    // 任务分解型（多个任务）- 优化识别逻辑
-    // 1. 包含明确的连接词
-    if (
-      lowerInput.includes('然后') || 
-      lowerInput.includes('之后') || 
-      lowerInput.includes('接着') ||
-      lowerInput.includes('、') ||
-      lowerInput.includes('，')
-    ) {
-      return 'task_decomposition';
-    }
-    
-    // 2. 移除时间前缀后，检查是否包含多个动词（表示多个任务）
-    const cleanInput = input.replace(/^[一二三四五六七八九十\d]+分钟[后之]后?/i, '').trim();
-    const actionVerbs = ['去', '吃', '洗', '刷', '做', '打扫', '收拾', '整理', '拖', '扫', '倒', '喂', '买', '看', '读', '写', '学', '练', '跑', '走', '睡', '起', '穿', '换', '拿', '放'];
-    let verbCount = 0;
-    for (const verb of actionVerbs) {
-      const regex = new RegExp(verb, 'g');
-      const matches = cleanInput.match(regex);
-      if (matches) {
-        verbCount += matches.length;
-      }
-    }
-    // 如果包含2个或以上动词，认为是任务分解
-    if (verbCount >= 2) {
-      return 'task_decomposition';
-    }
-
-    // 指定时间添加任务
+    // 指定时间添加任务（优先级高于任务分解）
     if (
       lowerInput.match(/\d+[:：]\d+/) || // 匹配时间格式
       lowerInput.includes('在') ||
@@ -245,22 +217,10 @@ export class AISmartProcessor {
       return 'scheduled_task';
     }
 
-    // 心情记录型
-    if (lowerInput.includes('心情') || lowerInput.includes('感觉') || lowerInput.includes('今天')) {
-      return 'mood_record';
-    }
-
-    // 金币计算型
-    if (lowerInput.includes('金币') || lowerInput.includes('奖励')) {
-      return 'gold_calculation';
-    }
-
-    // 标签生成型
-    if (lowerInput.includes('标签') || lowerInput.includes('分类')) {
-      return 'tag_generation';
-    }
-
-    return 'general';
+    // 任务分解型 - 重要修改：现在所有任务都走这个流程
+    // AI 会自动判断是否需要拆分子任务
+    // 只要不是上面的特殊类型，都作为任务处理
+    return 'task_decomposition';
   }
 
   // 清理语音输入（去除语气词、重复表述）
@@ -652,7 +612,7 @@ export class AISmartProcessor {
     return null;
   }
 
-  // 使用 AI 智能分析任务（增强版：支持优先级识别和语义理解）
+  // 使用 AI 智能分析任务（增强版：支持优先级识别、语义理解、子任务拆分）
   static async analyzeTaskWithAI(taskTitle: string, extractedDuration?: number, context?: string): Promise<{
     tags: string[];
     location: string;
@@ -662,6 +622,9 @@ export class AISmartProcessor {
     color: string;
     priority: number; // 1=低, 2=中, 3=高
     actionSteps?: string[]; // 动作步骤分解
+    isComplex?: boolean; // 是否是复杂任务
+    optimizedTitle?: string; // 优化后的标题（纠正错别字、简化表达）
+    subtasks?: Array<{ title: string; duration: number; order: number }>; // 子任务列表
   }> {
     // 从 AI Store 获取配置
     const { config, isConfigured } = useAIStore.getState();
@@ -676,27 +639,57 @@ export class AISmartProcessor {
     // 强制使用 deepseek-chat 而不是 deepseek-reasoner（reasoner 不适合结构化输出）
     const useModel = model === 'deepseek-reasoner' ? 'deepseek-chat' : (model || 'deepseek-chat');
     
-    const prompt = `你是任务分析专家。请深度分析任务，识别核心动作、优先级和执行步骤。
+    const prompt = `你是任务分析专家。请深度分析任务，识别任务复杂度、纠正错误、优化表达、拆解子任务。
 
 任务：${taskTitle}
 ${extractedDuration ? `指定时长：${extractedDuration}分钟` : ''}
 ${context ? `上下文：${context}` : ''}
 
+用户家庭布局：
+- 楼下：厕所、工作区、厨房（含猫砂和猫相关物品）、客厅
+- 楼上：拍摄间、卧室
+
 分析要求：
-1. 识别任务的核心动作和目标
-2. 判断任务的紧急程度和重要性
-3. 如果任务包含多个动作，拆解为具体步骤
-4. 推断任务的执行位置和所需时长
+1. **纠错优化**：纠正错别字、语法错误、口语化表达，生成简洁清晰的标题
+2. **复杂度识别**（重要！严格判断）：
+   - **简单任务**（不拆分子任务）：
+     * 15个字以内的任务
+     * 单一动作（如"洗澡"、"吃饭"、"铲粑粑"、"收拾垃圾"、"拖地"、"扫地"）
+     * 日常琐事、家务活
+     * 不包含"把...全部"、"整套"、"流程"、"步骤"等关键词
+     → isComplex: false，subtasks: []
+   
+   - **复杂任务**（需要拆分子任务）：
+     * 包含"把...全部"、"整套"、"一系列"、"流程"、"步骤"等关键词
+     * 用户已经在描述中列出了多个步骤或要求
+     * 需要多个阶段完成的工作
+     → isComplex: true，拆分为3-6个子任务
+
+3. **子任务拆分原则**（仅复杂任务）：
+   - **严格基于用户的原始描述**，不要自己想象或添加内容
+   - 从用户的描述中提取关键步骤，不要编造新的步骤
+   - 例如："把一整套Ins穿搭图的sop相关的工作流跟步骤全部都写好"
+     → 拆分为：1. 整理工作流 2. 编写步骤 3. 完善文档
+     → 而不是：1. 前期策划与准备 2. 场景与设备准备 3. 模特准备与造型...（这些都是瞎编的）
+   - 每个子任务要具体、可执行、有明确的完成标准
+   - 子任务按执行顺序排列（order: 1, 2, 3...）
+   - 每个子任务估算时长（duration，单位：分钟）
+
+4. **位置优化**：根据用户家庭布局，推断任务位置，优化任务顺序以减少走动
+5. **优先级判断**：识别任务的紧急程度和重要性
 
 返回格式（纯JSON，无注释）：
 {
+  "optimizedTitle": "优化后的标题（纠正错别字、简化表达）",
+  "isComplex": false,
   "tags": ["标签1", "标签2"],
   "location": "位置",
   "duration": ${extractedDuration || 30},
   "taskType": "life",
   "category": "分类",
   "priority": 2,
-  "actionSteps": ["步骤1", "步骤2"]
+  "actionSteps": ["步骤1", "步骤2"],
+  "subtasks": []
 }
 
 位置选项：厕所、工作区、客厅、卧室、拍摄间、厨房、全屋、室外
@@ -712,6 +705,13 @@ priority说明：
 - 包含"身份证"、"准考证"等重要物品 → 高优先级(3)
 - 工作、学习相关 → 中优先级(2)
 - 日常家务、休闲娱乐 → 低优先级(1)
+
+注意：
+- **大部分任务都是简单任务，不需要拆分子任务**
+- 只有明确包含多个步骤或阶段的任务才拆分
+- 拆分时严格基于用户的原始描述，不要自己想象
+- 如果是简单任务，subtasks 必须返回空数组 []
+- 如果是复杂任务，子任务数量控制在3-6个
 
 只返回JSON对象，不要任何其他文字。`;
 
@@ -821,12 +821,15 @@ priority说明：
       
       console.log('🤖 AI分析结果:', {
         title: taskTitle,
+        optimizedTitle: result.optimizedTitle,
+        isComplex: result.isComplex,
         tags: result.tags,
         color: color,
         location: result.location,
         duration: result.duration,
         priority: result.priority,
         actionSteps: result.actionSteps,
+        subtasks: result.subtasks,
       });
       
       return {
@@ -838,6 +841,9 @@ priority说明：
         color: color,
         priority: result.priority || 2,
         actionSteps: result.actionSteps || [],
+        isComplex: result.isComplex || false,
+        optimizedTitle: result.optimizedTitle || taskTitle,
+        subtasks: result.subtasks || [],
       };
     } catch (error: any) {
       console.error('❌ AI分析失败，使用默认值:', error);
@@ -865,6 +871,9 @@ priority说明：
         color: '#6A7334',
         priority: 2,
         actionSteps: [],
+        isComplex: false,
+        optimizedTitle: taskTitle,
+        subtasks: [],
       };
     }
   }
@@ -942,6 +951,7 @@ priority说明：
   }
 
   // 处理任务分解（使用AI智能分析）
+  // 重要：一条输入 = 一个大任务，拆分的步骤作为子任务
   static async handleTaskDecomposition(input: string, context: any): Promise<AIProcessResponse> {
     console.log('🔍 开始处理任务分解:', input);
     
@@ -962,165 +972,129 @@ priority说明：
     }
     console.log('⏰ 起始时间:', startTime.toLocaleString('zh-CN'));
     
-    // 分割任务（原始输入，包含时长信息）
+    // 清理输入（移除时间前缀）
     const rawInput = input.replace(/^[一二三四五六七八九十\d]+分钟[后之]后?/i, '').trim();
     
     console.log('📋 清理后的输入:', rawInput);
-    console.log('📋 输入长度:', rawInput.length);
-    console.log('📋 输入字符:', Array.from(rawInput).map((c, i) => `${i}:${c}(${c.charCodeAt(0)})`).join(' '));
     
-    const splitResult = rawInput.split(/[、，,]|然后|之后|接着/);
-    console.log('📋 分割结果（未过滤）:', splitResult);
-    console.log('📋 分割结果数量:', splitResult.length);
-    
-    const rawTasks = splitResult
-      .map(t => t.trim())
-      .filter(Boolean);
-    
-    console.log('📋 原始任务列表:', rawTasks);
-    console.log('📋 任务数量:', rawTasks.length);
-    
-    if (rawTasks.length === 0) {
+    if (!rawInput) {
       return {
         message: '抱歉，我没有识别到任何任务。请重新输入。',
         autoExecute: false,
       };
     }
 
-    // 使用AI分析每个任务
-    const decomposedTasks = [];
-    let currentTime = new Date(startTime);
+    // 关键修改：将整条输入作为一个大任务，让 AI 决定是否需要拆分子任务
     let hasError = false;
     let errorMessage = '';
     
     try {
-      for (let index = 0; index < rawTasks.length; index++) {
-        const rawTask = rawTasks[index];
-        
-        // 提取时长信息
-        const extractedDuration = this.extractDurationFromTask(rawTask);
-        
-        // 清理任务标题（移除时长）
-        const cleanTitle = rawTask.replace(/\d+分钟$/i, '').trim();
-        
-        console.log(`📝 任务 ${index + 1}: "${cleanTitle}", 指定时长: ${extractedDuration || '无'}`);
-        
-        try {
-          // 使用AI智能分析任务
-          const aiAnalysis = await this.analyzeTaskWithAI(cleanTitle, extractedDuration || undefined);
-          
-          const start = new Date(currentTime);
-          const end = new Date(currentTime.getTime() + aiAnalysis.duration * 60000);
-          const goal = this.identifyGoal(cleanTitle);
-          
-          const task = {
-            sequence: index + 1,
-            title: cleanTitle,
-            description: cleanTitle,
-            estimated_duration: aiAnalysis.duration,
-            scheduled_start: start.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-            scheduled_end: end.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-            scheduled_start_iso: start.toISOString(),
-            task_type: aiAnalysis.taskType,
-            category: aiAnalysis.category,
-            location: aiAnalysis.location,
-            tags: aiAnalysis.tags,
-            goal: goal,
-            gold: this.calculateGold({ estimated_duration: aiAnalysis.duration, task_type: aiAnalysis.taskType }),
-            color: aiAnalysis.color,
-            priority: aiAnalysis.priority || 2, // 添加优先级
-            actionSteps: aiAnalysis.actionSteps || [], // 添加动作步骤
-          };
-
-          decomposedTasks.push(task);
-          
-          // 下一个任务开始时间
-          currentTime = new Date(end.getTime());
-        } catch (taskError: any) {
-          console.error(`❌ 任务 ${index + 1} 分析失败:`, taskError);
-          hasError = true;
-          errorMessage = taskError.message || '任务分析失败';
-          break;
-        }
-      }
-    } catch (error: any) {
-      console.error('❌ 任务分解过程出错:', error);
-      return {
-        message: `❌ 任务分解失败\n\n${error.message || '未知错误'}\n\n请检查：\n1. API Key 是否正确\n2. 网络连接是否正常\n3. API 端点是否可访问`,
-        autoExecute: false,
+      // 提取时长信息（如果有）
+      const extractedDuration = this.extractDurationFromTask(rawInput);
+      
+      // 清理任务标题（移除时长）
+      const cleanTitle = rawInput.replace(/\d+分钟$/i, '').trim();
+      
+      console.log(`📝 大任务: "${cleanTitle}", 指定时长: ${extractedDuration || '无'}`);
+      
+      // 使用AI智能分析任务（AI 会自动判断是否需要拆分子任务）
+      const aiAnalysis = await this.analyzeTaskWithAI(cleanTitle, extractedDuration || undefined, rawInput);
+      
+      const start = new Date(startTime);
+      const end = new Date(startTime.getTime() + aiAnalysis.duration * 60000);
+      const goal = this.identifyGoal(cleanTitle);
+      
+      // 使用优化后的标题（纠正错别字）
+      const finalTitle = aiAnalysis.optimizedTitle || cleanTitle;
+      
+      // 构建子任务列表（如果 AI 判断需要拆分）
+      const subtasks = aiAnalysis.isComplex && aiAnalysis.subtasks && aiAnalysis.subtasks.length > 0
+        ? aiAnalysis.subtasks.map((sub, idx) => ({
+            id: crypto.randomUUID(),
+            title: sub.title,
+            isCompleted: false,
+            durationMinutes: sub.duration,
+            order: sub.order || idx + 1,
+          }))
+        : undefined;
+      
+      // 创建唯一的大任务
+      const mainTask = {
+        sequence: 1,
+        title: finalTitle,
+        description: finalTitle,
+        estimated_duration: aiAnalysis.duration,
+        scheduled_start: start.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        scheduled_end: end.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        scheduled_start_iso: start.toISOString(),
+        task_type: aiAnalysis.taskType,
+        category: aiAnalysis.category,
+        location: aiAnalysis.location,
+        tags: aiAnalysis.tags,
+        goal: goal,
+        gold: this.calculateGold({ estimated_duration: aiAnalysis.duration, task_type: aiAnalysis.taskType }),
+        color: aiAnalysis.color,
+        priority: aiAnalysis.priority || 2,
+        actionSteps: aiAnalysis.actionSteps || [],
+        isComplex: aiAnalysis.isComplex || false,
+        subtasks: subtasks, // 子任务（如果有）
       };
-    }
 
-    // 如果有错误且没有成功分析任何任务
-    if (hasError && decomposedTasks.length === 0) {
-      return {
-        message: `❌ 任务分解失败\n\n${errorMessage}\n\n请检查：\n1. API Key 是否正确配置\n2. 网络连接是否正常\n3. API 端点是否可访问\n\n你可以在右上角 ⚙️ 中重新配置 API。`,
-        autoExecute: false,
-      };
-    }
+      console.log('✅ AI智能分析完成:', mainTask);
 
-    // 检测重复任务并提供合并建议
-    const { duplicates, suggestions } = this.detectDuplicateTasks(decomposedTasks);
-    
-    const groupedByLocation = this.groupTasksByLocation(decomposedTasks);
-    console.log('✅ AI智能分析完成:', decomposedTasks);
-
-    // 构建消息
-    let message = hasError 
-      ? `⚠️ 部分任务分析成功（${decomposedTasks.length}/${rawTasks.length}）：\n\n`
-      : `✅ AI已智能分析 ${decomposedTasks.length} 个任务：\n\n`;
-    
-    decomposedTasks.forEach((task, index) => {
-      const priorityEmoji = task.priority === 3 ? '🔴' : task.priority === 2 ? '🟡' : '🟢';
-      message += `${task.sequence}. ${priorityEmoji} **${task.title}** 📍${task.location}\n`;
-      message += `   ⏰ ${task.scheduled_start}-${task.scheduled_end} | ${task.estimated_duration}分钟 | 💰${task.gold}\n`;
-      message += `   🏷️ ${task.tags.join(' ')}`;
-      if (task.goal) {
-        message += ` | 🎯 ${task.goal}`;
+      // 构建消息
+      const priorityEmoji = mainTask.priority === 3 ? '🔴' : mainTask.priority === 2 ? '🟡' : '🟢';
+      const complexEmoji = mainTask.isComplex ? '📦' : '📝';
+      
+      let message = `✅ AI已智能分析任务：\n\n`;
+      message += `${priorityEmoji}${complexEmoji} **${mainTask.title}** 📍${mainTask.location}\n`;
+      message += `⏰ ${mainTask.scheduled_start}-${mainTask.scheduled_end} | ${mainTask.estimated_duration}分钟 | 💰${mainTask.gold}\n`;
+      message += `🏷️ ${mainTask.tags.join(' ')}`;
+      if (mainTask.goal) {
+        message += ` | 🎯 ${mainTask.goal}`;
       }
-      message += `\n\n`;
-    });
-
-    const totalDuration = decomposedTasks.reduce((sum, t) => sum + t.estimated_duration, 0);
-    const totalGold = decomposedTasks.reduce((sum, t) => sum + t.gold, 0);
-
-    message += `📊 总计：${totalDuration}分钟 | 💰${totalGold}金币\n\n`;
-    
-    // 显示重复任务合并建议
-    if (suggestions.length > 0) {
-      message += `💡 智能建议：\n`;
-      suggestions.forEach(s => message += `   • ${s}\n`);
       message += `\n`;
-    }
-    
-    if (hasError) {
-      message += `⚠️ 错误信息：${errorMessage}\n\n`;
-    }
-    
-    message += `💡 正在打开事件卡片编辑器，你可以：\n`;
-    message += `   • 双击任意字段进行编辑\n`;
-    message += `   • 使用上下箭头调整任务顺序\n`;
-    message += `   • 修改完成后点击"🚀 全部推送到时间轴"`;
+      
+      // 显示子任务（如果有）
+      if (mainTask.subtasks && mainTask.subtasks.length > 0) {
+        message += `\n📋 子任务 (${mainTask.subtasks.length}个):\n`;
+        mainTask.subtasks.forEach((sub: any) => {
+          message += `   ${sub.order}. ${sub.title} (${sub.durationMinutes}分钟)\n`;
+        });
+        message += `\n`;
+      }
+      
+      message += `\n💡 正在打开事件卡片编辑器，你可以：\n`;
+      message += `   • 双击任意字段进行编辑\n`;
+      message += `   • 查看和管理子任务\n`;
+      message += `   • 修改完成后点击"🚀 推送到时间轴"`;
 
-    return {
-      message,
-      data: {
-        decomposed_tasks: decomposedTasks,
-        total_duration: totalDuration,
-        total_gold: totalGold,
-        grouped_by_location: groupedByLocation,
-        duplicate_suggestions: suggestions,
-      },
-      actions: [
-        {
-          type: 'create_task' as const,
-          data: { tasks: decomposedTasks },
-          label: '✅ 确认并添加到时间轴',
+      return {
+        message,
+        data: {
+          decomposed_tasks: [mainTask], // 只有一个大任务
+          total_duration: mainTask.estimated_duration,
+          total_gold: mainTask.gold,
+          grouped_by_location: { [mainTask.location]: [mainTask] },
+          duplicate_suggestions: [],
         },
-      ],
-      needsConfirmation: true,
-      autoExecute: false,
-    };
+        actions: [
+          {
+            type: 'create_task' as const,
+            data: { tasks: [mainTask] },
+            label: '✅ 确认并添加到时间轴',
+          },
+        ],
+        needsConfirmation: true,
+        autoExecute: false,
+      };
+    } catch (error: any) {
+      console.error('❌ 任务分析失败:', error);
+      return {
+        message: `❌ 任务分析失败\n\n${error.message || '未知错误'}\n\n请检查：\n1. API Key 是否正确配置\n2. 网络连接是否正常\n3. API 端点是否可访问\n\n你可以在右上角 ⚙️ 中重新配置 API。`,
+        autoExecute: false,
+      };
+    }
   }
 
   // 按位置分组任务
@@ -1138,13 +1112,16 @@ priority说明：
     return grouped;
   }
 
-  // 按位置排序任务（增强版：优先级+动线优化）
+  // 按位置排序任务（增强版：优先级+动线优化+家庭布局）
   static sortTasksByLocationAndPriority(grouped: Record<string, any[]>): any[] {
     const sorted: any[] = [];
     let currentTime = new Date();
     
     // 位置优先级（按照用户家里的实际格局和动线）
-    const locationPriority = ['厕所', '工作区', '客厅', '卧室', '拍摄间', '厨房', '全屋', '室外'];
+    // 楼下：厕所 → 工作区 → 厨房（含猫） → 客厅
+    // 楼上：拍摄间 → 卧室
+    // 优化原则：先完成楼下的事情，再上楼；同一楼层按动线顺序
+    const locationPriority = ['厕所', '工作区', '厨房', '客厅', '拍摄间', '卧室', '全屋', '室外'];
     
     // 按位置分组后，每组内按优先级排序
     locationPriority.forEach(location => {

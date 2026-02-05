@@ -14,12 +14,21 @@ import NotificationToast from '@/components/notifications/NotificationToast';
 
 function App() {
   const { initializeUser } = useUserStore();
-  const { updateEffectiveTheme } = useThemeStore();
+  const { effectiveTheme, updateEffectiveTheme } = useThemeStore();
 
   // 初始化主题
   useEffect(() => {
     updateEffectiveTheme();
   }, [updateEffectiveTheme]);
+
+  // 应用暗色主题到 HTML 根元素
+  useEffect(() => {
+    if (effectiveTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [effectiveTheme]);
 
   useEffect(() => {
     // 初始化应用
@@ -43,7 +52,7 @@ function App() {
 
   return (
     <Router>
-      <div className="min-h-screen bg-neutral-50">
+      <div className="min-h-screen bg-white dark:bg-black transition-colors">
         {/* 全局通知系统 */}
         <NotificationToast />
         

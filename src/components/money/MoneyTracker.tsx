@@ -52,8 +52,7 @@ export default function MoneyTracker({ isDark = false, bgColor = '#ffffff' }: Mo
 
   return (
     <div 
-      className="h-full overflow-auto p-3 md:p-4" 
-      style={{ backgroundColor: bgColor }}
+      className="h-full overflow-auto p-3 md:p-4 bg-white dark:bg-black" 
     >
       {/* 顶部标题栏 - 紧凑 */}
       <div className="flex items-center justify-between mb-3">

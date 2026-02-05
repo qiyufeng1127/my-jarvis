@@ -170,12 +170,12 @@ export default function TimelineCalendar({
   const timelineHeight = getTimelineHeight();
 
   return (
-    <div className="flex flex-col h-full" style={{ backgroundColor: bgColor }}>
+    <div className="flex flex-col h-full bg-white dark:bg-black">
       {/* 上半部分：日历视图 */}
       <div className="flex-shrink-0" style={{ borderBottom: `2px solid ${borderColor}` }}>
         {/* 手机版：简化的周视图头部 */}
         {isMobile ? (
-          <div className="px-3 py-2" style={{ backgroundColor: bgColor }}>
+          <div className="px-3 py-2 bg-white dark:bg-black">
             {/* 周数标题 - 可左右滑动 */}
             <div 
               className="flex items-center justify-center mb-2"
@@ -204,7 +204,7 @@ export default function TimelineCalendar({
               }}
               onTouchEnd={() => setTouchStart(null)}
             >
-              <span className="text-sm font-semibold" style={{ color: textColor }}>
+              <span className="text-sm font-semibold text-gray-800 dark:text-white">
                 {selectedDate.toLocaleDateString('zh-CN', { month: 'long' })}第{Math.ceil(selectedDate.getDate() / 7)}周
               </span>
             </div>
@@ -212,7 +212,7 @@ export default function TimelineCalendar({
             {/* 星期标题 */}
             <div className="grid grid-cols-7 gap-1 mb-2">
               {['日', '一', '二', '三', '四', '五', '六'].map((day, index) => (
-                <div key={index} className="text-center text-xs font-semibold py-1" style={{ color: textColor }}>
+                <div key={index} className="text-center text-xs font-semibold py-1 text-gray-800 dark:text-white">
                   {day}
                 </div>
               ))}
@@ -265,7 +265,7 @@ export default function TimelineCalendar({
           /* 电脑版：保持原样 */
           <>
             {/* 日历工具栏 */}
-            <div className="flex items-center justify-between px-6 py-3" style={{ backgroundColor: bgColor, borderBottom: `1px solid ${borderColor}` }}>
+            <div className="flex items-center justify-between px-6 py-3 bg-white dark:bg-black" style={{ borderBottom: `1px solid ${borderColor}` }}>
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => {
@@ -437,7 +437,7 @@ export default function TimelineCalendar({
         {/* 时间轴主体区域 - 新设计 */}
         <div 
           ref={timelineRef}
-          className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4"
+          className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 text-gray-800 dark:text-white"
         >
           <NewTimelineView
             tasks={tasks}

@@ -68,7 +68,7 @@ export function GoalsModule({ isDark = false, bgColor = '#ffffff' }: GoalsModule
     const progress = Math.min((goal.currentValue / (goal.targetValue || 1)) * 100, 100);
 
     return (
-      <div className="h-full overflow-auto p-4" style={{ backgroundColor: bgColor }}>
+      <div className="h-full overflow-auto p-4 bg-white dark:bg-black">
         <button
           onClick={() => setShowDetail(false)}
           className="mb-4 px-3 py-1 rounded-lg text-sm"
@@ -160,7 +160,7 @@ export function GoalsModule({ isDark = false, bgColor = '#ffffff' }: GoalsModule
 
   // 目标列表视图
   return (
-    <div className="h-full overflow-auto p-4" style={{ backgroundColor: bgColor }}>
+    <div className="h-full overflow-auto p-4 bg-white dark:bg-black">
       <div style={{ color: textColor }}>
         <LongTermGoals
           goals={goals}

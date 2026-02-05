@@ -3,6 +3,7 @@ import { GoalsModule } from '@/components/growth/GoalsModule';
 import TimelineCalendar from '@/components/calendar/TimelineCalendar';
 import NotificationSettingsPanel from '@/components/settings/NotificationSettings';
 import DataBackupPanel from '@/components/settings/DataBackupPanel';
+import AppearanceSettings from '@/components/settings/AppearanceSettings';
 import { MoneyTracker } from '@/components/money';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
@@ -17,7 +18,7 @@ export { GoalsModule } from '@/components/growth/GoalsModule';
 // 副业追踪模块
 export function MoneyModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: boolean; bgColor?: string }) {
   return (
-    <div className="h-full overflow-auto" style={{ backgroundColor: bgColor }}>
+    <div className="h-full overflow-auto bg-white dark:bg-black">
       <MoneyTracker isDark={isDark} bgColor={bgColor} />
     </div>
   );
@@ -26,7 +27,7 @@ export function MoneyModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: 
 // 成长系统模块
 export function GrowthModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: boolean; bgColor?: string }) {
   return (
-    <div className="h-full overflow-auto" style={{ backgroundColor: bgColor }}>
+    <div className="h-full overflow-auto bg-white dark:bg-black">
       <GrowthPanel isDark={isDark} bgColor={bgColor} />
     </div>
   );
@@ -37,7 +38,7 @@ export function TasksModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: 
   const { tasks, updateTask, createTask, deleteTask } = useTaskStore();
   
   return (
-    <div className="h-full overflow-auto" style={{ backgroundColor: bgColor }}>
+    <div className="h-full overflow-auto bg-white dark:bg-black">
       <TimelineCalendar 
         tasks={tasks}
         onTaskUpdate={updateTask}
@@ -151,7 +152,7 @@ export function GoldModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: b
   // 添加奖励弹窗
   if (showAddReward) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 p-4 bg-white dark:bg-black">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold" style={{ color: textColor }}>➕ 添加自定义奖励</h3>
           <button
@@ -259,7 +260,7 @@ export function GoldModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: b
 
   if (showShop) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 p-4 bg-white dark:bg-black">
         {/* 商店头部 */}
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold" style={{ color: textColor }}>🛍️ 奖励商店</h3>
@@ -347,7 +348,7 @@ export function GoldModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: b
 
   if (showHistory) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 p-4 bg-white dark:bg-black">
         {/* 历史记录头部 */}
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold" style={{ color: textColor }}>📜 交易记录</h3>
@@ -414,7 +415,7 @@ export function GoldModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: b
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-4 bg-white dark:bg-black">
       {/* 金币余额卡片 */}
       <div className="rounded-lg p-6" style={{ backgroundColor: cardBg }}>
         <div className="text-sm mb-2" style={{ color: accentColor }}>金币余额</div>
@@ -498,7 +499,7 @@ export function HabitsModule({ isDark = false }: { isDark?: boolean }) {
   // 时间分布热力图视图
   if (view === 'heatmap') {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 p-4 bg-white dark:bg-black">
         <div className="flex items-center justify-between">
           <button
             onClick={() => setView('overview')}
@@ -580,7 +581,7 @@ export function HabitsModule({ isDark = false }: { isDark?: boolean }) {
   // 添加记录视图
   if (showAddRecord) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 p-4 bg-white dark:bg-black">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold" style={{ color: textColor }}>📝 记录坏习惯</h3>
           <button
@@ -684,7 +685,7 @@ export function HabitsModule({ isDark = false }: { isDark?: boolean }) {
   // 坏习惯详情视图
   if (view === 'detail' && selectedHabit) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 p-4 bg-white dark:bg-black">
         <div className="flex items-center justify-between">
           <button
             onClick={() => setView('overview')}
@@ -779,7 +780,7 @@ export function HabitsModule({ isDark = false }: { isDark?: boolean }) {
   // 改进计划视图
   if (view === 'plan') {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 p-4 bg-white dark:bg-black">
         <div className="flex items-center justify-between">
           <button
             onClick={() => setView('detail')}
@@ -838,7 +839,7 @@ export function HabitsModule({ isDark = false }: { isDark?: boolean }) {
 
   // 主视图
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-4 bg-white dark:bg-black">
       {/* 纯净度仪表盘 */}
       <div className="rounded-lg p-6 text-center" style={{ backgroundColor: cardBg }}>
         <div className="text-sm mb-2" style={{ color: accentColor }}>纯净度</div>
@@ -958,7 +959,7 @@ export function ReportsModule({ isDark = false }: { isDark?: boolean }) {
     const story = storyContent[storyType];
 
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 p-4 bg-white dark:bg-black">
         <div className="flex items-center justify-between">
           <button
             onClick={() => setShowStory(false)}
@@ -1040,7 +1041,7 @@ export function ReportsModule({ isDark = false }: { isDark?: boolean }) {
         ];
 
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 p-4 bg-white dark:bg-black">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold" style={{ color: textColor }}>
             解锁{unlockType === 'weekly' ? '周报' : '月报'}
@@ -1099,7 +1100,7 @@ export function ReportsModule({ isDark = false }: { isDark?: boolean }) {
   // 详细报告视图
   if (showDetail) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 p-4 bg-white dark:bg-black">
         <div className="flex items-center justify-between">
           <button
             onClick={() => setShowDetail(false)}
@@ -1174,7 +1175,7 @@ export function ReportsModule({ isDark = false }: { isDark?: boolean }) {
 
   // 主视图
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-4 bg-white dark:bg-black">
       {/* 报告生成状态 */}
       <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
         <div className="flex items-center space-x-2 mb-3">
@@ -1275,51 +1276,20 @@ export function ReportsModule({ isDark = false }: { isDark?: boolean }) {
 
 // 设置模块
 export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: boolean; bgColor?: string }) {
-  const [activeTab, setActiveTab] = useState<'backup' | 'baidu' | 'growth' | 'identity' | 'procrastination' | 'economy' | 'appearance' | 'notification'>('backup');
-  const [strictnessLevel, setStrictnessLevel] = useState(2); // 0=低, 1=中, 2=高
+  const [activeTab, setActiveTab] = useState<'backup' | 'appearance' | 'notification' | 'baidu'>('backup');
   
   // 使用真正的主题 store
-  const { mode, accentColor: themeAccentColor, effectiveTheme, setMode, setAccentColor } = useThemeStore();
-  
-  // 本地UI设置
-  const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>('medium');
-  const [density, setDensity] = useState<'compact' | 'standard' | 'comfortable'>('standard');
-  const [defaultView, setDefaultView] = useState<'dashboard' | 'tasks' | 'timeline'>('dashboard');
+  const { effectiveTheme } = useThemeStore();
   
   // 根据主题更新 isDark
   useEffect(() => {
     isDark = effectiveTheme === 'dark';
   }, [effectiveTheme]);
   
-  // 通知设置状态
-  const [notifications, setNotifications] = useState({
-    taskReminder: true,
-    growthReminder: true,
-    dailyReport: true,
-    habitWarning: false,
-    goldChange: false,
-  });
-  const [quietHours, setQuietHours] = useState({ start: '22:00', end: '08:00' });
-  const [voiceType, setVoiceType] = useState('gentle_female');
-  const [voiceSpeed, setVoiceSpeed] = useState<'slow' | 'normal' | 'fast'>('normal');
-  const [wakeSensitivity, setWakeSensitivity] = useState<'low' | 'medium' | 'high'>('medium');
-
-  // API 配置状态
-  const [supabaseUrl, setSupabaseUrl] = useState(import.meta.env.VITE_SUPABASE_URL || '');
-  const [supabaseKey, setSupabaseKey] = useState(import.meta.env.VITE_SUPABASE_ANON_KEY || '');
-  const [openaiKey, setOpenaiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY || '');
-  const [openaiBaseUrl, setOpenaiBaseUrl] = useState(import.meta.env.VITE_OPENAI_BASE_URL || 'https://api.openai.com/v1');
-  
   // 百度AI配置状态
-  const [baiduApiKey, setBaiduApiKey] = useState(localStorage.getItem('baidu_api_key') || import.meta.env.VITE_BAIDU_API_KEY || 's8Hva3oqIiFaeU9uoYpCmvV9');
-  const [baiduSecretKey, setBaiduSecretKey] = useState(localStorage.getItem('baidu_secret_key') || import.meta.env.VITE_BAIDU_SECRET_KEY || 'VvugzlhsmyZ8HBk707HMqkGa9YM8Lvb8Ly');
+  const [baiduApiKey, setBaiduApiKey] = useState(localStorage.getItem('baidu_api_key') || import.meta.env.VITE_BAIDU_API_KEY || '');
+  const [baiduSecretKey, setBaiduSecretKey] = useState(localStorage.getItem('baidu_secret_key') || import.meta.env.VITE_BAIDU_SECRET_KEY || '');
   const [showBaiduKey, setShowBaiduKey] = useState(false);
-
-  // 云同步设置状态
-  const [autoSync, setAutoSync] = useState(true);
-  const [syncInterval, setSyncInterval] = useState<'realtime' | '1min' | '5min' | '15min'>('realtime');
-  const [syncOnStartup, setSyncOnStartup] = useState(true);
-  const [conflictResolution, setConflictResolution] = useState<'cloud' | 'local' | 'manual'>('cloud');
 
   const cardBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
   const textColor = isDark ? '#ffffff' : '#000000';
@@ -1328,32 +1298,27 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
 
   const tabs = [
     { id: 'backup', label: '数据备份', icon: '💾' },
-    { id: 'appearance', label: '外观体验', icon: '🎨' },
-    { id: 'notification', label: '通知语音', icon: '🔔' },
-    { id: 'baidu', label: '百度AI', icon: '🤖' },
-    { id: 'growth', label: '成长维度', icon: '📊' },
-    { id: 'identity', label: '身份系统', icon: '👤' },
-    { id: 'procrastination', label: '防拖延', icon: '⚡' },
-    { id: 'economy', label: '金币经济', icon: '💰' },
+    { id: 'appearance', label: '外观', icon: '🎨' },
+    { id: 'notification', label: '通知', icon: '🔔' },
+    { id: 'baidu', label: 'AI', icon: '🤖' },
   ];
 
   return (
-    <div className="space-y-5">
-      {/* 选项卡 - 增大文字和间距 */}
-      <div className="grid grid-cols-2 gap-3">
+    <div className="space-y-4 p-4 bg-white dark:bg-black">
+      {/* 选项卡 - 紧凑布局 */}
+      <div className="grid grid-cols-4 gap-2">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className="py-3 px-3 rounded-lg text-sm font-medium transition-all"
-            style={{
-              backgroundColor: activeTab === tab.id ? buttonBg : 'transparent',
-              color: textColor,
-              border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}`,
-            }}
+            className={`py-2 px-2 rounded-lg text-xs font-medium transition-all ${
+              activeTab === tab.id 
+                ? 'bg-blue-500 text-white shadow-md' 
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+            }`}
           >
-            <div className="text-xl">{tab.icon}</div>
-            <div className="mt-1.5">{tab.label}</div>
+            <div className="text-lg mb-0.5">{tab.icon}</div>
+            <div>{tab.label}</div>
           </button>
         ))}
       </div>
@@ -1507,10 +1472,9 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
               localStorage.setItem('baidu_api_key', baiduApiKey);
               localStorage.setItem('baidu_secret_key', baiduSecretKey);
               
-              // 同时保存到用户设置（云端同步）
-              // TODO: 调用 useUserStore 的 updateSettings 方法
+              console.log('💾 百度 AI 配置已保存到 localStorage');
               
-              alert('✅ 百度AI配置已保存！\n\n现在可以使用照片验证功能了。');
+              alert('✅ 百度AI配置已保存！\n\n配置会自动保存到本地，刷新页面或关机后依然有效。\n\n现在可以使用照片验证功能了。');
             }}
             disabled={!baiduApiKey || !baiduSecretKey}
             className="w-full py-3 rounded-lg text-sm font-semibold transition-all hover:scale-[1.02]"
@@ -1863,186 +1827,9 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
         </div>
       )}
 
-      {/* 外观与体验 */}
+      {/* 外观设置 */}
       {activeTab === 'appearance' && (
-        <div className="space-y-4">
-          {/* 主题设置 */}
-          <div>
-            <h4 className="font-semibold text-base mb-2" style={{ color: textColor }}>主题设置</h4>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { value: 'light', label: '明亮', icon: '☀️' },
-                { value: 'dark', label: '暗色', icon: '🌙' },
-                { value: 'auto', label: '自动', icon: '🌓' }
-              ].map((themeOption) => (
-                <button 
-                  key={themeOption.value}
-                  onClick={() => setMode(themeOption.value as any)}
-                  className="py-3 rounded-lg text-sm font-medium transition-all active:scale-95" 
-                  style={{ 
-                    backgroundColor: mode === themeOption.value ? buttonBg : 'transparent', 
-                    color: textColor, 
-                    border: `2px solid ${mode === themeOption.value ? (isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.2)') : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)')}` 
-                  }}
-                >
-                  <div className="text-xl mb-0.5">{themeOption.icon}</div>
-                  <div className="text-xs">{themeOption.label}</div>
-                </button>
-              ))}
-            </div>
-            <div className="mt-1.5 text-xs text-center" style={{ color: accentColor }}>
-              {mode === 'auto' && '将跟随系统设置自动切换'}
-              {mode === 'light' && '始终使用明亮主题'}
-              {mode === 'dark' && '始终使用暗色主题'}
-            </div>
-          </div>
-
-          {/* 主色调 */}
-          <div>
-            <h4 className="font-semibold text-base mb-2" style={{ color: textColor }}>主色调</h4>
-            <div className="grid grid-cols-3 gap-2">
-              {Object.entries(ACCENT_COLORS).map(([key, color]) => (
-                <button 
-                  key={key}
-                  onClick={() => setAccentColor(key as any)}
-                  className="p-2 rounded-lg transition-all active:scale-95 relative" 
-                  style={{ 
-                    backgroundColor: color.light,
-                    border: `2px solid ${themeAccentColor === key ? color.primary : 'transparent'}`
-                  }}
-                >
-                  <div className="w-full aspect-square rounded-md mb-1" style={{ backgroundColor: color.primary }} />
-                  <div className="text-xs font-medium text-center" style={{ color: color.dark }}>
-                    {color.name}
-                  </div>
-                  {themeAccentColor === key && (
-                    <div className="absolute top-1 right-1 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-md">
-                      <div className="text-xs">✓</div>
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 实时预览 */}
-          <div className="rounded-lg p-3" style={{ backgroundColor: cardBg }}>
-            <h4 className="text-sm font-semibold mb-2" style={{ color: textColor }}>✨ 实时预览</h4>
-            <div className="p-2 rounded-lg" style={{ backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.8)' }}>
-              <div className="text-sm font-medium mb-1" style={{ color: textColor }}>示例卡片</div>
-              <div className="text-xs mb-2" style={{ color: accentColor }}>这是在当前主题下的样子</div>
-              <button 
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold"
-                style={{ 
-                  backgroundColor: ACCENT_COLORS[themeAccentColor].primary,
-                  color: 'white'
-                }}
-              >
-                主色调按钮
-              </button>
-            </div>
-          </div>
-
-          {/* 界面设置 */}
-          <div>
-            <h4 className="font-semibold text-base mb-2" style={{ color: textColor }}>界面设置</h4>
-            <div className="space-y-2">
-              <div className="rounded-lg p-2.5" style={{ backgroundColor: cardBg }}>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium" style={{ color: textColor }}>字体大小</span>
-                  <select 
-                    value={fontSize}
-                    onChange={(e) => setFontSize(e.target.value as any)}
-                    className="px-3 py-1.5 rounded-lg text-xs cursor-pointer font-medium" 
-                    style={{ backgroundColor: buttonBg, color: textColor, border: 'none' }}
-                  >
-                    <option value="small">小</option>
-                    <option value="medium">中</option>
-                    <option value="large">大</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="rounded-lg p-2.5" style={{ backgroundColor: cardBg }}>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium" style={{ color: textColor }}>界面密度</span>
-                  <select 
-                    value={density}
-                    onChange={(e) => setDensity(e.target.value as any)}
-                    className="px-3 py-1.5 rounded-lg text-xs cursor-pointer font-medium" 
-                    style={{ backgroundColor: buttonBg, color: textColor, border: 'none' }}
-                  >
-                    <option value="compact">紧凑</option>
-                    <option value="standard">标准</option>
-                    <option value="comfortable">宽松</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 交互偏好 */}
-          <div>
-            <h4 className="font-semibold text-base mb-2" style={{ color: textColor }}>交互偏好</h4>
-            <div className="rounded-lg p-2.5" style={{ backgroundColor: cardBg }}>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium" style={{ color: textColor }}>默认视图</span>
-                <select 
-                  value={defaultView}
-                  onChange={(e) => setDefaultView(e.target.value as any)}
-                  className="px-3 py-1.5 rounded-lg text-xs cursor-pointer font-medium" 
-                  style={{ backgroundColor: buttonBg, color: textColor, border: 'none' }}
-                >
-                  <option value="dashboard">仪表盘</option>
-                  <option value="tasks">任务列表</option>
-                  <option value="timeline">时间轴</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* 当前设置 */}
-          <div className="rounded-lg p-3" style={{ backgroundColor: cardBg }}>
-            <h4 className="text-sm font-semibold mb-2" style={{ color: textColor }}>📋 当前设置</h4>
-            <div className="space-y-1.5 text-xs" style={{ color: accentColor }}>
-              <div className="flex items-center justify-between">
-                <span>主题:</span>
-                <span className="font-medium" style={{ color: textColor }}>
-                  {mode === 'light' ? '☀️ 明亮' : mode === 'dark' ? '🌙 暗色' : '🌓 自动'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>主色调:</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="font-medium" style={{ color: textColor }}>{ACCENT_COLORS[themeAccentColor].name}</span>
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: ACCENT_COLORS[themeAccentColor].primary }} />
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>字体:</span>
-                <span className="font-medium" style={{ color: textColor }}>
-                  {fontSize === 'small' ? '小' : fontSize === 'medium' ? '中' : '大'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>密度:</span>
-                <span className="font-medium" style={{ color: textColor }}>
-                  {density === 'compact' ? '紧凑' : density === 'standard' ? '标准' : '宽松'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* 提示 */}
-          <div className="rounded-lg p-2.5" style={{ backgroundColor: ACCENT_COLORS[themeAccentColor].light + '40' }}>
-            <div className="text-xs font-medium mb-0.5" style={{ color: ACCENT_COLORS[themeAccentColor].dark }}>
-              💡 提示
-            </div>
-            <div className="text-xs leading-relaxed" style={{ color: ACCENT_COLORS[themeAccentColor].dark }}>
-              主题和主色调设置会立即生效，并自动保存。刷新页面后依然保持。
-            </div>
-          </div>
-        </div>
+        <AppearanceSettings />
       )}
 
       {/* 通知与语音 */}

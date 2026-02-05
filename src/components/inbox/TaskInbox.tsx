@@ -174,35 +174,56 @@ export default function TaskInbox({ isDark = false, bgColor = '#ffffff' }: TaskI
       let message = '✨ AI 智能分析完成！\n\n';
       let successCount = 0;
 
-      // 处理任务（分配到时间轴）- 使用 AI 智能处理器（与AI智能助手完全相同）
+      // 处理任务（分配到时间轴）- 每个收集箱项目生成一个独立的大任务
       if (grouped.timeline.length > 0) {
-        // 收集所有任务内容，用顿号分隔（让 AI 识别为任务分解）
-        const taskContents = grouped.timeline.map(({ item }) => item.content).join('、');
-        
-        console.log('📋 收集箱任务:', taskContents);
+        console.log('📋 收集箱任务数量:', grouped.timeline.length);
         
         try {
-          // 使用 AISmartProcessor 处理（与 AI 智能助手相同的逻辑）
-          const aiResponse = await AISmartProcessor.handleTaskDecomposition(
-            `5分钟后${taskContents}`,
-            {
-              user_id: 'current-user',
-              current_time: new Date().toLocaleTimeString('zh-CN'),
-              current_date: new Date().toLocaleDateString('zh-CN'),
-              existing_tasks: useTaskStore.getState().tasks || [],
+          const allTasks: any[] = [];
+          let currentTime = new Date(Date.now() + 5 * 60000); // 5分钟后开始
+          
+          // 为每个收集箱项目单独调用 AI 分析
+          for (const { item } of grouped.timeline) {
+            console.log(`📝 分析任务: "${item.content}"`);
+            
+            const aiResponse = await AISmartProcessor.handleTaskDecomposition(
+              item.content, // 直接传入任务内容，不添加时间前缀
+              {
+                user_id: 'current-user',
+                current_time: currentTime.toLocaleTimeString('zh-CN'),
+                current_date: currentTime.toLocaleDateString('zh-CN'),
+                existing_tasks: useTaskStore.getState().tasks || [],
+              }
+            );
+            
+            // 检查是否有任务分解结果
+            if (aiResponse.data && aiResponse.data.decomposed_tasks) {
+              const tasks = aiResponse.data.decomposed_tasks;
+              console.log(`✅ 任务 "${item.content}" 分析完成，生成 ${tasks.length} 个任务`);
+              
+              // 更新每个任务的开始时间
+              tasks.forEach((task: any) => {
+                task.scheduled_start_iso = currentTime.toISOString();
+                const duration = task.estimated_duration || 30;
+                const endTime = new Date(currentTime.getTime() + duration * 60000);
+                task.scheduled_start = currentTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                task.scheduled_end = endTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                
+                // 下一个任务的开始时间
+                currentTime = new Date(endTime.getTime());
+              });
+              
+              allTasks.push(...tasks);
             }
-          );
+          }
           
-          console.log('✅ AI 响应:', aiResponse);
-          
-          // 检查是否有任务分解结果
-          if (aiResponse.data && aiResponse.data.decomposed_tasks) {
-            const tasks = aiResponse.data.decomposed_tasks;
-            console.log('🎯 打开任务编辑器，任务数量:', tasks.length);
+          if (allTasks.length > 0) {
+            console.log(`🎯 打开任务编辑器，总共 ${allTasks.length} 个任务`);
             
             // 打开统一任务编辑器
-            setEditingTasks(tasks);
+            setEditingTasks(allTasks);
             setShowTaskEditor(true);
+            setIsAnalyzing(false);
             // 直接返回，不显示 alert，不删除项目
             return;
           }
@@ -315,9 +336,11 @@ export default function TaskInbox({ isDark = false, bgColor = '#ffffff' }: TaskI
   };
 
   return (
-    <div className="h-full flex flex-col p-3 pb-32 md:pb-3" style={{ backgroundColor: bgColor }}>
-      {/* 标题 */}
-      <div className="flex items-center justify-between mb-3">
+    <div className="h-full flex flex-col bg-white dark:bg-black">
+      {/* 内容区域 - 可滚动 */}
+      <div className="flex-1 overflow-auto p-3">
+        {/* 标题 */}
+        <div className="flex items-center justify-between mb-3">
         <h2 className="text-base font-semibold flex items-center gap-2" style={{ color: textColor }}>
           📥 万能收集箱
           <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: cardBg, color: secondaryColor }}>
@@ -349,7 +372,7 @@ export default function TaskInbox({ isDark = false, bgColor = '#ffffff' }: TaskI
       </div>
 
       {/* 项目列表 */}
-      <div className="flex-1 overflow-auto space-y-2 mb-3">
+      <div className="space-y-2 mb-3">
         {inboxItems.map((item) => {
           const typeInfo = getContentTypeInfo(item.contentType);
           const isSelected = selectedItems.includes(item.id);
@@ -415,9 +438,10 @@ export default function TaskInbox({ isDark = false, bgColor = '#ffffff' }: TaskI
           </div>
         )}
       </div>
+      </div>
 
-      {/* 底部操作区 */}
-      <div className="space-y-2">
+      {/* 底部操作区 - 固定在底部导航栏上方 */}
+      <div className="fixed bottom-24 left-0 right-0 bg-white dark:bg-black border-t border-gray-200 dark:border-gray-800 p-3 space-y-2 shadow-lg">
         {/* 智能分配按钮 */}
         {selectedItems.length > 0 && (
           <button
@@ -444,24 +468,36 @@ export default function TaskInbox({ isDark = false, bgColor = '#ffffff' }: TaskI
           </button>
         )}
 
-        {/* 输入框 */}
-        <div className="flex gap-2">
-          <input
-            type="text"
+        {/* 输入框 - 改为 textarea 支持自动增高 */}
+        <div className="flex gap-2 items-end">
+          <textarea
             value={newItemContent}
-            onChange={(e) => setNewItemContent(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleAddToInbox()}
+            onChange={(e) => {
+              setNewItemContent(e.target.value);
+              // 自动调整高度
+              e.target.style.height = 'auto';
+              e.target.style.height = e.target.scrollHeight + 'px';
+            }}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleAddToInbox();
+              }
+            }}
             placeholder="输入任何内容：任务、心情、想法、感恩..."
-            className="flex-1 px-3 py-2.5 rounded-lg text-sm"
+            className="flex-1 px-3 py-2.5 rounded-lg text-sm resize-none overflow-hidden"
             style={{
               backgroundColor: cardBg,
               border: `1px solid ${borderColor}`,
               color: textColor,
+              minHeight: '42px',
+              maxHeight: '120px',
             }}
+            rows={1}
           />
           <button
             onClick={handleAddToInbox}
-            className="px-4 py-2.5 rounded-lg transition-all"
+            className="px-4 py-2.5 rounded-lg transition-all flex-shrink-0"
             style={{
               backgroundColor: '#34C759',
               color: '#ffffff',
