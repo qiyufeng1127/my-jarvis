@@ -951,7 +951,7 @@ priority说明：
   }
 
   // 处理任务分解（使用AI智能分析）
-  // 重要：一条输入 = 一个大任务，拆分的步骤作为子任务
+  // 智能识别：如果包含多个"然后"，拆分成多个大任务；否则作为一个大任务
   static async handleTaskDecomposition(input: string, context: any): Promise<AIProcessResponse> {
     console.log('🔍 开始处理任务分解:', input);
     
@@ -984,110 +984,231 @@ priority说明：
       };
     }
 
-    // 关键修改：将整条输入作为一个大任务，让 AI 决定是否需要拆分子任务
+    // 智能判断：如果包含多个"然后"或"，"，说明用户想要多个独立的任务
+    const hasMultipleTasks = (rawInput.match(/然后|，|、/g) || []).length >= 2;
+    
+    console.log('🤔 是否包含多个任务:', hasMultipleTasks);
+    
     let hasError = false;
     let errorMessage = '';
     
     try {
-      // 提取时长信息（如果有）
-      const extractedDuration = this.extractDurationFromTask(rawInput);
-      
-      // 清理任务标题（移除时长）
-      const cleanTitle = rawInput.replace(/\d+分钟$/i, '').trim();
-      
-      console.log(`📝 大任务: "${cleanTitle}", 指定时长: ${extractedDuration || '无'}`);
-      
-      // 使用AI智能分析任务（AI 会自动判断是否需要拆分子任务）
-      const aiAnalysis = await this.analyzeTaskWithAI(cleanTitle, extractedDuration || undefined, rawInput);
-      
-      const start = new Date(startTime);
-      const end = new Date(startTime.getTime() + aiAnalysis.duration * 60000);
-      const goal = this.identifyGoal(cleanTitle);
-      
-      // 使用优化后的标题（纠正错别字）
-      const finalTitle = aiAnalysis.optimizedTitle || cleanTitle;
-      
-      // 构建子任务列表（如果 AI 判断需要拆分）
-      const subtasks = aiAnalysis.isComplex && aiAnalysis.subtasks && aiAnalysis.subtasks.length > 0
-        ? aiAnalysis.subtasks.map((sub, idx) => ({
-            id: crypto.randomUUID(),
-            title: sub.title,
-            isCompleted: false,
-            durationMinutes: sub.duration,
-            order: sub.order || idx + 1,
-          }))
-        : undefined;
-      
-      // 创建唯一的大任务
-      const mainTask = {
-        sequence: 1,
-        title: finalTitle,
-        description: finalTitle,
-        estimated_duration: aiAnalysis.duration,
-        scheduled_start: start.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-        scheduled_end: end.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-        scheduled_start_iso: start.toISOString(),
-        task_type: aiAnalysis.taskType,
-        category: aiAnalysis.category,
-        location: aiAnalysis.location,
-        tags: aiAnalysis.tags,
-        goal: goal,
-        gold: this.calculateGold({ estimated_duration: aiAnalysis.duration, task_type: aiAnalysis.taskType }),
-        color: aiAnalysis.color,
-        priority: aiAnalysis.priority || 2,
-        actionSteps: aiAnalysis.actionSteps || [],
-        isComplex: aiAnalysis.isComplex || false,
-        subtasks: subtasks, // 子任务（如果有）
-      };
-
-      console.log('✅ AI智能分析完成:', mainTask);
-
-      // 构建消息
-      const priorityEmoji = mainTask.priority === 3 ? '🔴' : mainTask.priority === 2 ? '🟡' : '🟢';
-      const complexEmoji = mainTask.isComplex ? '📦' : '📝';
-      
-      let message = `✅ AI已智能分析任务：\n\n`;
-      message += `${priorityEmoji}${complexEmoji} **${mainTask.title}** 📍${mainTask.location}\n`;
-      message += `⏰ ${mainTask.scheduled_start}-${mainTask.scheduled_end} | ${mainTask.estimated_duration}分钟 | 💰${mainTask.gold}\n`;
-      message += `🏷️ ${mainTask.tags.join(' ')}`;
-      if (mainTask.goal) {
-        message += ` | 🎯 ${mainTask.goal}`;
-      }
-      message += `\n`;
-      
-      // 显示子任务（如果有）
-      if (mainTask.subtasks && mainTask.subtasks.length > 0) {
-        message += `\n📋 子任务 (${mainTask.subtasks.length}个):\n`;
-        mainTask.subtasks.forEach((sub: any) => {
-          message += `   ${sub.order}. ${sub.title} (${sub.durationMinutes}分钟)\n`;
+      // 如果包含多个任务，按分隔符拆分
+      if (hasMultipleTasks) {
+        console.log('📋 检测到多个任务，开始拆分...');
+        
+        // 按"然后"、"，"、"、"拆分
+        const taskList = rawInput
+          .split(/然后|，|、/)
+          .map(t => t.trim())
+          .filter(Boolean);
+        
+        console.log('📋 拆分结果:', taskList);
+        
+        const allTasks: any[] = [];
+        let currentTime = new Date(startTime);
+        
+        // 为每个任务单独调用 AI 分析
+        for (let i = 0; i < taskList.length; i++) {
+          const taskText = taskList[i];
+          const extractedDuration = this.extractDurationFromTask(taskText);
+          const cleanTitle = taskText.replace(/\d+分钟$/i, '').trim();
+          
+          console.log(`📝 任务 ${i + 1}: "${cleanTitle}"`);
+          
+          try {
+            const aiAnalysis = await this.analyzeTaskWithAI(cleanTitle, extractedDuration || undefined);
+            
+            const start = new Date(currentTime);
+            const end = new Date(currentTime.getTime() + aiAnalysis.duration * 60000);
+            const goal = this.identifyGoal(cleanTitle);
+            const finalTitle = aiAnalysis.optimizedTitle || cleanTitle;
+            
+            const subtasks = aiAnalysis.isComplex && aiAnalysis.subtasks && aiAnalysis.subtasks.length > 0
+              ? aiAnalysis.subtasks.map((sub, idx) => ({
+                  id: crypto.randomUUID(),
+                  title: sub.title,
+                  isCompleted: false,
+                  durationMinutes: sub.duration,
+                  order: sub.order || idx + 1,
+                }))
+              : undefined;
+            
+            const task = {
+              sequence: i + 1,
+              title: finalTitle,
+              description: finalTitle,
+              estimated_duration: aiAnalysis.duration,
+              scheduled_start: start.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+              scheduled_end: end.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+              scheduled_start_iso: start.toISOString(),
+              task_type: aiAnalysis.taskType,
+              category: aiAnalysis.category,
+              location: aiAnalysis.location,
+              tags: aiAnalysis.tags,
+              goal: goal,
+              gold: this.calculateGold({ estimated_duration: aiAnalysis.duration, task_type: aiAnalysis.taskType }),
+              color: aiAnalysis.color,
+              priority: aiAnalysis.priority || 2,
+              actionSteps: aiAnalysis.actionSteps || [],
+              isComplex: aiAnalysis.isComplex || false,
+              subtasks: subtasks,
+            };
+            
+            allTasks.push(task);
+            currentTime = new Date(end.getTime());
+          } catch (taskError: any) {
+            console.error(`❌ 任务 ${i + 1} 分析失败:`, taskError);
+            hasError = true;
+            errorMessage = taskError.message || '任务分析失败';
+            break;
+          }
+        }
+        
+        if (allTasks.length === 0) {
+          throw new Error('没有成功分析任何任务');
+        }
+        
+        console.log(`✅ 成功分析 ${allTasks.length} 个任务`);
+        
+        // 构建消息
+        let message = hasError 
+          ? `⚠️ 部分任务分析成功（${allTasks.length}/${taskList.length}）：\n\n`
+          : `✅ AI已智能分析 ${allTasks.length} 个任务：\n\n`;
+        
+        allTasks.forEach((task) => {
+          const priorityEmoji = task.priority === 3 ? '🔴' : task.priority === 2 ? '🟡' : '🟢';
+          const complexEmoji = task.isComplex ? '📦' : '📝';
+          message += `${task.sequence}. ${priorityEmoji}${complexEmoji} **${task.title}** 📍${task.location}\n`;
+          message += `   ⏰ ${task.scheduled_start}-${task.scheduled_end} | ${task.estimated_duration}分钟 | 💰${task.gold}\n`;
+          message += `   🏷️ ${task.tags.join(' ')}`;
+          if (task.goal) {
+            message += ` | 🎯 ${task.goal}`;
+          }
+          if (task.subtasks && task.subtasks.length > 0) {
+            message += `\n   📋 子任务 (${task.subtasks.length}个):\n`;
+            task.subtasks.forEach((sub: any) => {
+              message += `      ${sub.order}. ${sub.title} (${sub.durationMinutes}分钟)\n`;
+            });
+          }
+          message += `\n`;
         });
-        message += `\n`;
-      }
-      
-      message += `\n💡 正在打开事件卡片编辑器，你可以：\n`;
-      message += `   • 双击任意字段进行编辑\n`;
-      message += `   • 查看和管理子任务\n`;
-      message += `   • 修改完成后点击"🚀 推送到时间轴"`;
-
-      return {
-        message,
-        data: {
-          decomposed_tasks: [mainTask], // 只有一个大任务
-          total_duration: mainTask.estimated_duration,
-          total_gold: mainTask.gold,
-          grouped_by_location: { [mainTask.location]: [mainTask] },
-          duplicate_suggestions: [],
-        },
-        actions: [
-          {
-            type: 'create_task' as const,
-            data: { tasks: [mainTask] },
-            label: '✅ 确认并添加到时间轴',
+        
+        const totalDuration = allTasks.reduce((sum, t) => sum + t.estimated_duration, 0);
+        const totalGold = allTasks.reduce((sum, t) => sum + t.gold, 0);
+        message += `📊 总计：${totalDuration}分钟 | 💰${totalGold}金币\n\n`;
+        message += `💡 正在打开事件卡片编辑器，你可以编辑后推送到时间轴`;
+        
+        return {
+          message,
+          data: {
+            decomposed_tasks: allTasks,
+            total_duration: totalDuration,
+            total_gold: totalGold,
+            grouped_by_location: this.groupTasksByLocation(allTasks),
+            duplicate_suggestions: [],
           },
-        ],
-        needsConfirmation: true,
-        autoExecute: false,
-      };
+          actions: [
+            {
+              type: 'create_task' as const,
+              data: { tasks: allTasks },
+              label: '✅ 确认并添加到时间轴',
+            },
+          ],
+          needsConfirmation: true,
+          autoExecute: false,
+        };
+      } else {
+        // 单个任务，作为一个大任务处理
+        console.log('📝 单个任务，作为大任务处理');
+        
+        const extractedDuration = this.extractDurationFromTask(rawInput);
+        const cleanTitle = rawInput.replace(/\d+分钟$/i, '').trim();
+        
+        console.log(`📝 大任务: "${cleanTitle}", 指定时长: ${extractedDuration || '无'}`);
+        
+        const aiAnalysis = await this.analyzeTaskWithAI(cleanTitle, extractedDuration || undefined, rawInput);
+        
+        const start = new Date(startTime);
+        const end = new Date(startTime.getTime() + aiAnalysis.duration * 60000);
+        const goal = this.identifyGoal(cleanTitle);
+        const finalTitle = aiAnalysis.optimizedTitle || cleanTitle;
+        
+        const subtasks = aiAnalysis.isComplex && aiAnalysis.subtasks && aiAnalysis.subtasks.length > 0
+          ? aiAnalysis.subtasks.map((sub, idx) => ({
+              id: crypto.randomUUID(),
+              title: sub.title,
+              isCompleted: false,
+              durationMinutes: sub.duration,
+              order: sub.order || idx + 1,
+            }))
+          : undefined;
+        
+        const mainTask = {
+          sequence: 1,
+          title: finalTitle,
+          description: finalTitle,
+          estimated_duration: aiAnalysis.duration,
+          scheduled_start: start.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+          scheduled_end: end.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+          scheduled_start_iso: start.toISOString(),
+          task_type: aiAnalysis.taskType,
+          category: aiAnalysis.category,
+          location: aiAnalysis.location,
+          tags: aiAnalysis.tags,
+          goal: goal,
+          gold: this.calculateGold({ estimated_duration: aiAnalysis.duration, task_type: aiAnalysis.taskType }),
+          color: aiAnalysis.color,
+          priority: aiAnalysis.priority || 2,
+          actionSteps: aiAnalysis.actionSteps || [],
+          isComplex: aiAnalysis.isComplex || false,
+          subtasks: subtasks,
+        };
+
+        console.log('✅ AI智能分析完成:', mainTask);
+
+        const priorityEmoji = mainTask.priority === 3 ? '🔴' : mainTask.priority === 2 ? '🟡' : '🟢';
+        const complexEmoji = mainTask.isComplex ? '📦' : '📝';
+        
+        let message = `✅ AI已智能分析任务：\n\n`;
+        message += `${priorityEmoji}${complexEmoji} **${mainTask.title}** 📍${mainTask.location}\n`;
+        message += `⏰ ${mainTask.scheduled_start}-${mainTask.scheduled_end} | ${mainTask.estimated_duration}分钟 | 💰${mainTask.gold}\n`;
+        message += `🏷️ ${mainTask.tags.join(' ')}`;
+        if (mainTask.goal) {
+          message += ` | 🎯 ${mainTask.goal}`;
+        }
+        message += `\n`;
+        
+        if (mainTask.subtasks && mainTask.subtasks.length > 0) {
+          message += `\n📋 子任务 (${mainTask.subtasks.length}个):\n`;
+          mainTask.subtasks.forEach((sub: any) => {
+            message += `   ${sub.order}. ${sub.title} (${sub.durationMinutes}分钟)\n`;
+          });
+          message += `\n`;
+        }
+        
+        message += `\n💡 正在打开事件卡片编辑器，你可以编辑后推送到时间轴`;
+
+        return {
+          message,
+          data: {
+            decomposed_tasks: [mainTask],
+            total_duration: mainTask.estimated_duration,
+            total_gold: mainTask.gold,
+            grouped_by_location: { [mainTask.location]: [mainTask] },
+            duplicate_suggestions: [],
+          },
+          actions: [
+            {
+              type: 'create_task' as const,
+              data: { tasks: [mainTask] },
+              label: '✅ 确认并添加到时间轴',
+            },
+          ],
+          needsConfirmation: true,
+          autoExecute: false,
+        };
+      }
     } catch (error: any) {
       console.error('❌ 任务分析失败:', error);
       return {
