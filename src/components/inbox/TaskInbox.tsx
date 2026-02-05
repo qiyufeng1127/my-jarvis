@@ -49,22 +49,36 @@ export default function TaskInbox({ isDark = false, bgColor = '#ffffff' }: TaskI
   }, []);
 
   const loadInboxItems = () => {
-    const saved = localStorage.getItem('universal_inbox_items');
-    if (saved) {
-      try {
+    try {
+      const saved = localStorage.getItem('universal_inbox_items');
+      console.log('📂 尝试加载收集箱数据...');
+      console.log('📦 localStorage 中的数据:', saved);
+      
+      if (saved) {
         const items = JSON.parse(saved);
-        setInboxItems(items.map((item: any) => ({
+        const loadedItems = items.map((item: any) => ({
           ...item,
           createdAt: new Date(item.createdAt),
-        })));
-      } catch (error) {
-        console.error('加载收集箱失败:', error);
+        }));
+        setInboxItems(loadedItems);
+        console.log('✅ 收集箱加载成功，共', loadedItems.length, '个项目');
+      } else {
+        console.log('📭 收集箱为空');
       }
+    } catch (error) {
+      console.error('❌ 加载收集箱失败:', error);
     }
   };
 
   const saveInboxItems = (items: InboxItem[]) => {
-    localStorage.setItem('universal_inbox_items', JSON.stringify(items));
+    try {
+      localStorage.setItem('universal_inbox_items', JSON.stringify(items));
+      console.log('💾 收集箱已保存，共', items.length, '个项目');
+      console.log('📦 保存的数据:', items);
+    } catch (error) {
+      console.error('❌ 保存收集箱失败:', error);
+      alert('⚠️ 保存失败！\n\n可能原因：\n1. 浏览器隐私模式\n2. localStorage 已满\n3. 浏览器禁用了存储');
+    }
   };
 
 
