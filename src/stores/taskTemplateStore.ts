@@ -4,9 +4,12 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { cloudSyncService } from '@/services/cloudSyncService';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export interface TaskTemplate {
   id: string;
+  userId?: string;
   name: string; // 模板名称（如"文创设计"、"照片处理"）
   description: string; // 模板描述
   category: string; // 分类
@@ -14,6 +17,7 @@ export interface TaskTemplate {
   isBuiltIn: boolean; // 是否内置模板
   tasks: TaskTemplateItem[]; // 子任务列表
   createdAt: Date;
+  updatedAt?: Date;
   usageCount: number; // 使用次数
 }
 
@@ -31,14 +35,16 @@ interface TaskTemplateState {
   templates: TaskTemplate[];
   
   // Actions
-  addTemplate: (template: Omit<TaskTemplate, 'id' | 'createdAt' | 'usageCount'>) => void;
-  updateTemplate: (id: string, updates: Partial<TaskTemplate>) => void;
-  deleteTemplate: (id: string) => void;
+  addTemplate: (template: Omit<TaskTemplate, 'id' | 'createdAt' | 'usageCount' | 'userId' | 'updatedAt'>) => Promise<void>;
+  updateTemplate: (id: string, updates: Partial<TaskTemplate>) => Promise<void>;
+  deleteTemplate: (id: string) => Promise<void>;
   getTemplateById: (id: string) => TaskTemplate | undefined;
   getTemplatesByCategory: (category: string) => TaskTemplate[];
-  incrementUsage: (id: string) => void;
+  incrementUsage: (id: string) => Promise<void>;
   getPopularTemplates: (limit?: number) => TaskTemplate[];
   searchTemplates: (keyword: string) => TaskTemplate[];
+  loadFromCloud: () => Promise<void>;
+  syncToCloud: () => Promise<void>;
 }
 
 // 内置模板
@@ -252,11 +258,16 @@ export const useTaskTemplateStore = create<TaskTemplateState>()(
       templates: [],
       
       // 添加模板
-      addTemplate: (template) => {
+      addTemplate: async (template) => {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id || 'local-user';
+        
         const newTemplate: TaskTemplate = {
           ...template,
           id: crypto.randomUUID(),
+          userId,
           createdAt: new Date(),
+          updatedAt: new Date(),
           usageCount: 0,
         };
         
@@ -265,19 +276,55 @@ export const useTaskTemplateStore = create<TaskTemplateState>()(
         }));
         
         console.log('📋 模板已添加:', newTemplate.name);
+        
+        // 同步到云端
+        if (isSupabaseConfigured() && session) {
+          cloudSyncService.addToQueue('taskTemplateStore', 'upsert', {
+            id: newTemplate.id,
+            user_id: userId,
+            name: newTemplate.name,
+            description: newTemplate.description,
+            category: newTemplate.category,
+            icon: newTemplate.icon,
+            is_built_in: newTemplate.isBuiltIn,
+            tasks: newTemplate.tasks,
+            usage_count: newTemplate.usageCount,
+            created_at: newTemplate.createdAt.toISOString(),
+          });
+        }
       },
       
       // 更新模板
-      updateTemplate: (id, updates) => {
+      updateTemplate: async (id, updates) => {
         set((state) => ({
           templates: state.templates.map(t => 
-            t.id === id ? { ...t, ...updates } : t
+            t.id === id ? { ...t, ...updates, updatedAt: new Date() } : t
           ),
         }));
+        
+        // 同步到云端
+        const { data: { session } } = await supabase.auth.getSession();
+        if (isSupabaseConfigured() && session) {
+          const template = get().templates.find(t => t.id === id);
+          if (template) {
+            cloudSyncService.addToQueue('taskTemplateStore', 'upsert', {
+              id: template.id,
+              user_id: session.user.id,
+              name: template.name,
+              description: template.description,
+              category: template.category,
+              icon: template.icon,
+              is_built_in: template.isBuiltIn,
+              tasks: template.tasks,
+              usage_count: template.usageCount,
+              updated_at: new Date().toISOString(),
+            });
+          }
+        }
       },
       
       // 删除模板
-      deleteTemplate: (id) => {
+      deleteTemplate: async (id) => {
         const template = get().templates.find(t => t.id === id);
         if (template?.isBuiltIn) {
           console.warn('⚠️ 不能删除内置模板');
@@ -287,6 +334,12 @@ export const useTaskTemplateStore = create<TaskTemplateState>()(
         set((state) => ({
           templates: state.templates.filter(t => t.id !== id),
         }));
+        
+        // 同步到云端
+        const { data: { session } } = await supabase.auth.getSession();
+        if (isSupabaseConfigured() && session) {
+          cloudSyncService.addToQueue('taskTemplateStore', 'delete', { id });
+        }
       },
       
       // 根据ID获取模板
@@ -300,12 +353,26 @@ export const useTaskTemplateStore = create<TaskTemplateState>()(
       },
       
       // 增加使用次数
-      incrementUsage: (id) => {
+      incrementUsage: async (id) => {
         set((state) => ({
           templates: state.templates.map(t => 
-            t.id === id ? { ...t, usageCount: t.usageCount + 1 } : t
+            t.id === id ? { ...t, usageCount: t.usageCount + 1, updatedAt: new Date() } : t
           ),
         }));
+        
+        // 同步到云端
+        const { data: { session } } = await supabase.auth.getSession();
+        if (isSupabaseConfigured() && session) {
+          const template = get().templates.find(t => t.id === id);
+          if (template) {
+            cloudSyncService.addToQueue('taskTemplateStore', 'upsert', {
+              id: template.id,
+              user_id: session.user.id,
+              usage_count: template.usageCount,
+              updated_at: new Date().toISOString(),
+            });
+          }
+        }
       },
       
       // 获取热门模板
@@ -323,6 +390,81 @@ export const useTaskTemplateStore = create<TaskTemplateState>()(
           t.description.toLowerCase().includes(lowerKeyword) ||
           t.category.toLowerCase().includes(lowerKeyword)
         );
+      },
+      
+      // 从云端加载
+      loadFromCloud: async () => {
+        if (!isSupabaseConfigured()) {
+          console.log('⚠️ Supabase 未配置，使用本地数据');
+          return;
+        }
+        
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) {
+            console.log('⚠️ 未登录，使用本地数据');
+            return;
+          }
+          
+          const cloudData = await cloudSyncService.loadFromCloud<TaskTemplate>(
+            'taskTemplateStore',
+            (row: any) => ({
+              id: row.id,
+              userId: row.user_id,
+              name: row.name,
+              description: row.description,
+              category: row.category,
+              icon: row.icon,
+              isBuiltIn: row.is_built_in,
+              tasks: row.tasks || [],
+              usageCount: row.usage_count || 0,
+              createdAt: new Date(row.created_at),
+              updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
+            })
+          );
+          
+          if (cloudData.length > 0) {
+            const localTemplates = get().templates;
+            const merged = cloudSyncService.mergeData(localTemplates, cloudData);
+            set({ templates: merged });
+            console.log(`✅ 任务模板已从云端加载: ${merged.length}个`);
+          }
+        } catch (error) {
+          console.error('❌ 加载任务模板失败:', error);
+        }
+      },
+      
+      // 同步到云端
+      syncToCloud: async () => {
+        if (!isSupabaseConfigured()) {
+          return;
+        }
+        
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) {
+            return;
+          }
+          
+          const templates = get().templates;
+          for (const template of templates) {
+            cloudSyncService.addToQueue('taskTemplateStore', 'upsert', {
+              id: template.id,
+              user_id: session.user.id,
+              name: template.name,
+              description: template.description,
+              category: template.category,
+              icon: template.icon,
+              is_built_in: template.isBuiltIn,
+              tasks: template.tasks,
+              usage_count: template.usageCount,
+              created_at: template.createdAt.toISOString(),
+              updated_at: template.updatedAt?.toISOString(),
+            });
+          }
+        } catch (error) {
+          console.error('❌ 同步任务模板失败:', error);
+        }
       },
     }),
     {

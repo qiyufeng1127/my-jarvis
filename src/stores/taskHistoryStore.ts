@@ -4,9 +4,12 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { cloudSyncService } from '@/services/cloudSyncService';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export interface TaskHistoryRecord {
   id: string;
+  userId?: string;
   taskTitle: string;
   taskType: string;
   category: string;
@@ -15,18 +18,22 @@ export interface TaskHistoryRecord {
   actualDuration: number; // 实际时长（分钟）
   completedAt: Date;
   tags: string[];
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 interface TaskHistoryState {
   records: TaskHistoryRecord[];
   
   // Actions
-  addRecord: (record: Omit<TaskHistoryRecord, 'id' | 'completedAt'>) => void;
+  addRecord: (record: Omit<TaskHistoryRecord, 'id' | 'completedAt' | 'userId' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   getAverageDuration: (taskTitle: string) => number | null;
   getAverageDurationByType: (taskType: string) => number | null;
   getAverageDurationByCategory: (category: string) => number | null;
   getSimilarTasks: (taskTitle: string, limit?: number) => TaskHistoryRecord[];
   clearHistory: () => void;
+  loadFromCloud: () => Promise<void>;
+  syncToCloud: () => Promise<void>;
 }
 
 export const useTaskHistoryStore = create<TaskHistoryState>()(
@@ -35,11 +42,17 @@ export const useTaskHistoryStore = create<TaskHistoryState>()(
       records: [],
       
       // 添加历史记录
-      addRecord: (record) => {
+      addRecord: async (record) => {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id || 'local-user';
+        
         const newRecord: TaskHistoryRecord = {
           ...record,
           id: crypto.randomUUID(),
+          userId,
           completedAt: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
         };
         
         set((state) => ({
@@ -47,6 +60,23 @@ export const useTaskHistoryStore = create<TaskHistoryState>()(
         }));
         
         console.log('📊 任务历史已记录:', newRecord);
+        
+        // 同步到云端
+        if (isSupabaseConfigured() && session) {
+          cloudSyncService.addToQueue('taskHistoryStore', 'upsert', {
+            id: newRecord.id,
+            user_id: userId,
+            task_title: newRecord.taskTitle,
+            task_type: newRecord.taskType,
+            category: newRecord.category,
+            location: newRecord.location,
+            estimated_duration: newRecord.estimatedDuration,
+            actual_duration: newRecord.actualDuration,
+            completed_at: newRecord.completedAt.toISOString(),
+            tags: newRecord.tags,
+            created_at: newRecord.createdAt?.toISOString(),
+          });
+        }
       },
       
       // 获取特定任务的平均时长
@@ -121,6 +151,82 @@ export const useTaskHistoryStore = create<TaskHistoryState>()(
       // 清空历史记录
       clearHistory: () => {
         set({ records: [] });
+      },
+      
+      // 从云端加载
+      loadFromCloud: async () => {
+        if (!isSupabaseConfigured()) {
+          console.log('⚠️ Supabase 未配置，使用本地数据');
+          return;
+        }
+        
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) {
+            console.log('⚠️ 未登录，使用本地数据');
+            return;
+          }
+          
+          const cloudData = await cloudSyncService.loadFromCloud<TaskHistoryRecord>(
+            'taskHistoryStore',
+            (row: any) => ({
+              id: row.id,
+              userId: row.user_id,
+              taskTitle: row.task_title,
+              taskType: row.task_type,
+              category: row.category,
+              location: row.location,
+              estimatedDuration: row.estimated_duration,
+              actualDuration: row.actual_duration,
+              completedAt: new Date(row.completed_at),
+              tags: row.tags || [],
+              createdAt: row.created_at ? new Date(row.created_at) : undefined,
+              updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
+            })
+          );
+          
+          if (cloudData.length > 0) {
+            const localRecords = get().records;
+            const merged = cloudSyncService.mergeData(localRecords, cloudData);
+            set({ records: merged });
+            console.log(`✅ 任务历史已从云端加载: ${merged.length}条`);
+          }
+        } catch (error) {
+          console.error('❌ 加载任务历史失败:', error);
+        }
+      },
+      
+      // 同步到云端
+      syncToCloud: async () => {
+        if (!isSupabaseConfigured()) {
+          return;
+        }
+        
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) {
+            return;
+          }
+          
+          const records = get().records;
+          for (const record of records) {
+            cloudSyncService.addToQueue('taskHistoryStore', 'upsert', {
+              id: record.id,
+              user_id: session.user.id,
+              task_title: record.taskTitle,
+              task_type: record.taskType,
+              category: record.category,
+              location: record.location,
+              estimated_duration: record.estimatedDuration,
+              actual_duration: record.actualDuration,
+              completed_at: record.completedAt.toISOString(),
+              tags: record.tags,
+              created_at: record.createdAt?.toISOString(),
+            });
+          }
+        } catch (error) {
+          console.error('❌ 同步任务历史失败:', error);
+        }
       },
     }),
     {

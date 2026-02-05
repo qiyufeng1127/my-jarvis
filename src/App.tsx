@@ -5,8 +5,11 @@ import { useGoldStore } from '@/stores/goldStore';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGoalStore } from '@/stores/goalStore';
 import { useThemeStore } from '@/stores/themeStore';
+import { useTaskHistoryStore } from '@/stores/taskHistoryStore';
+import { useTaskTemplateStore } from '@/stores/taskTemplateStore';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { migrateStorage, shouldMigrate } from '@/utils/migrateStorage';
+import { cloudSyncService } from '@/services/cloudSyncService';
 
 // 页面组件（稍后创建）
 import Dashboard from '@/pages/Dashboard';
@@ -18,12 +21,15 @@ import NotificationToast from '@/components/notifications/NotificationToast';
 
 function App() {
   const { user, initializeUser } = useUserStore();
-  const { loadFromCloud } = useGoldStore();
+  const { loadFromCloud: loadGoldFromCloud } = useGoldStore();
   const { loadTasks } = useTaskStore();
   const { loadGoals } = useGoalStore();
+  const { loadFromCloud: loadTaskHistoryFromCloud } = useTaskHistoryStore();
+  const { loadFromCloud: loadTaskTemplatesFromCloud } = useTaskTemplateStore();
   const { updateEffectiveTheme } = useThemeStore();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<string>('');
 
   // 初始化主题
   useEffect(() => {
@@ -65,23 +71,47 @@ function App() {
           console.log('✅ 用户已登录:', session.user.email);
           setIsAuthenticated(true);
           
-          // 3. 加载云端数据（智能合并，不覆盖本地数据）
-          console.log('📥 开始同步云端数据...');
-          Promise.all([
-            loadFromCloud(),
-            loadTasks(),
-            loadGoals(),
-          ]).then(() => {
-            console.log('✅ 云端数据同步完成');
-            if (mounted) {
-              setIsCheckingAuth(false);
+          // 3. 全量加载云端数据（智能合并，不覆盖本地数据）
+          console.log('📥 开始全量同步云端数据...');
+          setSyncProgress('正在同步数据...');
+          
+          const syncAllData = async () => {
+            try {
+              // 按优先级顺序同步各个模块
+              setSyncProgress('同步金币数据...');
+              await loadGoldFromCloud();
+              
+              setSyncProgress('同步任务数据...');
+              await loadTasks();
+              
+              setSyncProgress('同步目标数据...');
+              await loadGoals();
+              
+              setSyncProgress('同步任务历史...');
+              await loadTaskHistoryFromCloud();
+              
+              setSyncProgress('同步任务模板...');
+              await loadTaskTemplatesFromCloud();
+              
+              // TODO: 添加其他store的同步
+              // await loadSideHustlesFromCloud();
+              // await loadMemoriesFromCloud();
+              // await loadNotificationsFromCloud();
+              // await loadGrowthDataFromCloud();
+              
+              console.log('✅ 全量云端数据同步完成');
+              setSyncProgress('');
+            } catch (error) {
+              console.error('❌ 云端数据同步失败，继续使用本地数据:', error);
+              setSyncProgress('');
+            } finally {
+              if (mounted) {
+                setIsCheckingAuth(false);
+              }
             }
-          }).catch((error) => {
-            console.error('❌ 云端数据同步失败，继续使用本地数据:', error);
-            if (mounted) {
-              setIsCheckingAuth(false);
-            }
-          });
+          };
+          
+          syncAllData();
         } else {
           console.log('👤 游客模式：数据保存在本地');
           setIsAuthenticated(false);
@@ -106,20 +136,40 @@ function App() {
         console.log('✅ 用户登录成功:', session.user.email);
         setIsAuthenticated(true);
         
-        // 登录成功后同步云端数据（智能合并）
-        console.log('📥 登录后同步云端数据...');
-        Promise.all([
-          loadFromCloud(),
-          loadTasks(),
-          loadGoals(),
-        ]).then(() => {
-          console.log('✅ 登录后数据同步完成');
-        }).catch((error) => {
-          console.error('❌ 登录后数据同步失败:', error);
-        });
+        // 登录成功后全量同步云端数据（智能合并）
+        console.log('📥 登录后全量同步云端数据...');
+        setSyncProgress('正在同步数据...');
+        
+        const syncAllData = async () => {
+          try {
+            setSyncProgress('同步金币数据...');
+            await loadGoldFromCloud();
+            
+            setSyncProgress('同步任务数据...');
+            await loadTasks();
+            
+            setSyncProgress('同步目标数据...');
+            await loadGoals();
+            
+            setSyncProgress('同步任务历史...');
+            await loadTaskHistoryFromCloud();
+            
+            setSyncProgress('同步任务模板...');
+            await loadTaskTemplatesFromCloud();
+            
+            console.log('✅ 登录后全量数据同步完成');
+            setSyncProgress('');
+          } catch (error) {
+            console.error('❌ 登录后数据同步失败:', error);
+            setSyncProgress('');
+          }
+        };
+        
+        syncAllData();
       } else if (event === 'SIGNED_OUT') {
         console.log('👋 用户已登出，保留本地数据');
         setIsAuthenticated(false);
+        setSyncProgress('');
         // 注意：不清除本地数据，用户下次登录时会自动同步
       }
     });
@@ -136,7 +186,10 @@ function App() {
       <div className="min-h-screen flex items-center justify-center bg-neutral-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-neutral-600">加载中...</p>
+          <p className="text-neutral-600">{syncProgress || '加载中...'}</p>
+          {syncProgress && (
+            <p className="text-sm text-neutral-400 mt-2">正在从云端恢复您的数据</p>
+          )}
         </div>
       </div>
     );
