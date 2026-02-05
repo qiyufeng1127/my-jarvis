@@ -287,31 +287,56 @@ export const useGoalStore = create<GoalState>()(
   },
     }),
     {
-      name: 'goals-storage',
+      name: 'manifestos-goals-storage', // 使用唯一的存储 key
+      version: 1, // 添加版本号
+      partialize: (state) => ({ 
+        goals: state.goals, // 只持久化 goals
+      }),
       storage: {
         getItem: (name) => {
           try {
             const str = localStorage.getItem(name);
-            return str ? JSON.parse(str) : null;
+            if (!str) return null;
+            const parsed = JSON.parse(str);
+            // 恢复日期对象
+            if (parsed?.state?.goals) {
+              parsed.state.goals = parsed.state.goals.map((goal: any) => ({
+                ...goal,
+                deadline: goal.deadline ? new Date(goal.deadline) : undefined,
+                completedAt: goal.completedAt ? new Date(goal.completedAt) : undefined,
+                createdAt: new Date(goal.createdAt),
+                updatedAt: new Date(goal.updatedAt),
+              }));
+            }
+            return parsed;
           } catch (error) {
-            console.warn('读取存储失败:', error);
+            console.warn('⚠️ 读取目标存储失败:', error);
             return null;
           }
         },
         setItem: (name, value) => {
           try {
             localStorage.setItem(name, JSON.stringify(value));
+            console.log('💾 目标数据已保存到本地存储，共', value?.state?.goals?.length || 0, '个目标');
           } catch (error) {
-            console.warn('保存存储失败:', error);
+            console.error('❌ 保存目标存储失败:', error);
           }
         },
         removeItem: (name) => {
           try {
             localStorage.removeItem(name);
           } catch (error) {
-            console.warn('删除存储失败:', error);
+            console.warn('⚠️ 删除目标存储失败:', error);
           }
         },
+      },
+      // 合并策略：保留本地数据
+      merge: (persistedState: any, currentState: any) => {
+        console.log('🔄 合并目标数据...');
+        return {
+          ...currentState,
+          goals: persistedState?.goals || currentState.goals,
+        };
       },
     }
   )

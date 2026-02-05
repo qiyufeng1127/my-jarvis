@@ -187,32 +187,53 @@ export const useUserStore = create<UserState>()(
       },
     }),
     {
-      name: 'user-storage',
-      partialize: (state) => ({ user: state.user, goldBalance: state.goldBalance }),
+      name: 'manifestos-user-storage', // 使用唯一的存储 key
+      version: 1, // 添加版本号
+      partialize: (state) => ({ 
+        user: state.user, 
+        goldBalance: state.goldBalance 
+      }),
       storage: {
         getItem: (name) => {
           try {
             const str = localStorage.getItem(name);
-            return str ? JSON.parse(str) : null;
+            if (!str) return null;
+            const parsed = JSON.parse(str);
+            // 恢复日期对象
+            if (parsed?.state?.user) {
+              parsed.state.user.createdAt = new Date(parsed.state.user.createdAt);
+              parsed.state.user.updatedAt = new Date(parsed.state.user.updatedAt);
+            }
+            return parsed;
           } catch (error) {
-            console.warn('读取存储失败:', error);
+            console.warn('⚠️ 读取用户存储失败:', error);
             return null;
           }
         },
         setItem: (name, value) => {
           try {
             localStorage.setItem(name, JSON.stringify(value));
+            console.log('💾 用户数据已保存到本地存储');
           } catch (error) {
-            console.warn('保存存储失败:', error);
+            console.error('❌ 保存用户存储失败:', error);
           }
         },
         removeItem: (name) => {
           try {
             localStorage.removeItem(name);
           } catch (error) {
-            console.warn('删除存储失败:', error);
+            console.warn('⚠️ 删除用户存储失败:', error);
           }
         },
+      },
+      // 合并策略：保留本地数据
+      merge: (persistedState: any, currentState: any) => {
+        console.log('🔄 合并用户数据...');
+        return {
+          ...currentState,
+          user: persistedState?.user || currentState.user,
+          goldBalance: persistedState?.goldBalance ?? currentState.goldBalance,
+        };
       },
     }
   )

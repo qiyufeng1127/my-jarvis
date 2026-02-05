@@ -4,14 +4,20 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = 'https://nucvylmszllecoupjfbh.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51Y3Z5bG1zemxsZWNvdXBqZmJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1MTU3MTksImV4cCI6MjA4MzA5MTcxOX0.RJHmvesPdQWe-vYxxVjK_yLJ9PvpFc07S6p_ecnuT9o';
 
-// 创建 Supabase 客户端
+// 创建 Supabase 客户端 - 确保登录状态永久保存
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    storage: window.localStorage,
-    storageKey: 'supabase.auth.token',
+    persistSession: true, // 持久化会话
+    autoRefreshToken: true, // 自动刷新 token
+    detectSessionInUrl: true, // 检测 URL 中的会话
+    storage: window.localStorage, // 使用 localStorage（永久存储）
+    storageKey: 'manifestos-auth-token', // 使用自定义 key，避免冲突
+    flowType: 'pkce', // 使用更安全的 PKCE 流程
+  },
+  global: {
+    headers: {
+      'x-client-info': 'manifestos-web-app',
+    },
   },
 });
 
@@ -31,7 +37,7 @@ export const isSupabaseConfigured = () => {
 // 获取当前用户ID（同步版本，从session获取）
 export const getCurrentUserId = () => {
   // 从localStorage直接读取session，避免异步问题
-  const sessionStr = localStorage.getItem('supabase.auth.token');
+  const sessionStr = localStorage.getItem('manifestos-auth-token');
   if (sessionStr) {
     try {
       const session = JSON.parse(sessionStr);

@@ -276,31 +276,61 @@ export const useGoldStore = create<GoldState>()(
       },
     }),
     {
-      name: 'gold-storage',
+      name: 'manifestos-gold-storage', // 使用唯一的存储 key
+      version: 1, // 添加版本号
+      partialize: (state) => ({ 
+        balance: state.balance,
+        todayEarned: state.todayEarned,
+        todaySpent: state.todaySpent,
+        transactions: state.transactions,
+        lastResetDate: state.lastResetDate,
+      }),
       storage: {
         getItem: (name) => {
           try {
             const str = localStorage.getItem(name);
-            return str ? JSON.parse(str) : null;
+            if (!str) return null;
+            const parsed = JSON.parse(str);
+            // 恢复日期对象
+            if (parsed?.state?.transactions) {
+              parsed.state.transactions = parsed.state.transactions.map((t: any) => ({
+                ...t,
+                timestamp: new Date(t.timestamp),
+              }));
+            }
+            return parsed;
           } catch (error) {
-            console.warn('读取存储失败:', error);
+            console.warn('⚠️ 读取金币存储失败:', error);
             return null;
           }
         },
         setItem: (name, value) => {
           try {
             localStorage.setItem(name, JSON.stringify(value));
+            console.log('💾 金币数据已保存到本地存储，余额:', value?.state?.balance || 0);
           } catch (error) {
-            console.warn('保存存储失败:', error);
+            console.error('❌ 保存金币存储失败:', error);
           }
         },
         removeItem: (name) => {
           try {
             localStorage.removeItem(name);
           } catch (error) {
-            console.warn('删除存储失败:', error);
+            console.warn('⚠️ 删除金币存储失败:', error);
           }
         },
+      },
+      // 合并策略：保留本地数据
+      merge: (persistedState: any, currentState: any) => {
+        console.log('🔄 合并金币数据...');
+        return {
+          ...currentState,
+          balance: persistedState?.balance ?? currentState.balance,
+          todayEarned: persistedState?.todayEarned ?? currentState.todayEarned,
+          todaySpent: persistedState?.todaySpent ?? currentState.todaySpent,
+          transactions: persistedState?.transactions || currentState.transactions,
+          lastResetDate: persistedState?.lastResetDate || currentState.lastResetDate,
+        };
       },
     }
   )

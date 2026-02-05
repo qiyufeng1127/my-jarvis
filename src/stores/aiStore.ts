@@ -66,31 +66,48 @@ export const useAIStore = create<AIStore>()(
       },
     }),
     {
-      name: 'ai-config-storage',
+      name: 'manifestos-ai-config-storage', // 使用唯一的存储 key
+      version: 1, // 添加版本号
+      partialize: (state) => ({ 
+        config: state.config, // 只持久化 config
+      }),
       storage: {
         getItem: (name) => {
           try {
             const str = localStorage.getItem(name);
-            return str ? JSON.parse(str) : null;
+            if (!str) return null;
+            return JSON.parse(str);
           } catch (error) {
-            console.warn('读取存储失败:', error);
+            console.warn('⚠️ 读取 AI 配置存储失败:', error);
             return null;
           }
         },
         setItem: (name, value) => {
           try {
             localStorage.setItem(name, JSON.stringify(value));
+            console.log('💾 AI 配置已保存到本地存储');
           } catch (error) {
-            console.warn('保存存储失败:', error);
+            console.error('❌ 保存 AI 配置存储失败:', error);
           }
         },
         removeItem: (name) => {
           try {
             localStorage.removeItem(name);
           } catch (error) {
-            console.warn('删除存储失败:', error);
+            console.warn('⚠️ 删除 AI 配置存储失败:', error);
           }
         },
+      },
+      // 合并策略：保留本地配置
+      merge: (persistedState: any, currentState: any) => {
+        console.log('🔄 合并 AI 配置数据...');
+        return {
+          ...currentState,
+          config: {
+            ...currentState.config,
+            ...persistedState?.config,
+          },
+        };
       },
     }
   )

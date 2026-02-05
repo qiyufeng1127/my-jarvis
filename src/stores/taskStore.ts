@@ -371,31 +371,58 @@ export const useTaskStore = create<TaskState>()(
   },
     }),
     {
-      name: 'tasks-storage',
+      name: 'manifestos-tasks-storage', // 使用唯一的存储 key
+      version: 1, // 添加版本号，防止数据格式冲突
+      partialize: (state) => ({ 
+        tasks: state.tasks, // 只持久化 tasks，不持久化临时状态
+      }),
       storage: {
         getItem: (name) => {
           try {
             const str = localStorage.getItem(name);
-            return str ? JSON.parse(str) : null;
+            if (!str) return null;
+            const parsed = JSON.parse(str);
+            // 恢复日期对象
+            if (parsed?.state?.tasks) {
+              parsed.state.tasks = parsed.state.tasks.map((task: any) => ({
+                ...task,
+                scheduledStart: task.scheduledStart ? new Date(task.scheduledStart) : undefined,
+                scheduledEnd: task.scheduledEnd ? new Date(task.scheduledEnd) : undefined,
+                actualStart: task.actualStart ? new Date(task.actualStart) : undefined,
+                actualEnd: task.actualEnd ? new Date(task.actualEnd) : undefined,
+                createdAt: new Date(task.createdAt),
+                updatedAt: new Date(task.updatedAt),
+              }));
+            }
+            return parsed;
           } catch (error) {
-            console.warn('读取存储失败:', error);
+            console.warn('⚠️ 读取任务存储失败:', error);
             return null;
           }
         },
         setItem: (name, value) => {
           try {
             localStorage.setItem(name, JSON.stringify(value));
+            console.log('💾 任务已保存到本地存储，共', value?.state?.tasks?.length || 0, '个任务');
           } catch (error) {
-            console.warn('保存存储失败:', error);
+            console.error('❌ 保存任务存储失败:', error);
           }
         },
         removeItem: (name) => {
           try {
             localStorage.removeItem(name);
           } catch (error) {
-            console.warn('删除存储失败:', error);
+            console.warn('⚠️ 删除任务存储失败:', error);
           }
         },
+      },
+      // 合并策略：保留本地数据，不被云端覆盖
+      merge: (persistedState: any, currentState: any) => {
+        console.log('🔄 合并任务数据...');
+        return {
+          ...currentState,
+          tasks: persistedState?.tasks || currentState.tasks,
+        };
       },
     }
   )

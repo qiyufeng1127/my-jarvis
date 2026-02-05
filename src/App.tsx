@@ -6,6 +6,7 @@ import { useTaskStore } from '@/stores/taskStore';
 import { useGoalStore } from '@/stores/goalStore';
 import { useThemeStore } from '@/stores/themeStore';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { migrateStorage, shouldMigrate } from '@/utils/migrateStorage';
 
 // 页面组件（稍后创建）
 import Dashboard from '@/pages/Dashboard';
@@ -34,6 +35,14 @@ function App() {
     
     // 初始化应用
     const initialize = async () => {
+      console.log('🚀 应用初始化开始...');
+      
+      // 0. 首先执行数据迁移（如果需要）
+      if (shouldMigrate()) {
+        console.log('🔄 检测到旧数据，开始迁移...');
+        migrateStorage();
+      }
+      
       // 1. 初始化本地用户（快速，不阻塞）
       initializeUser();
       
@@ -56,18 +65,19 @@ function App() {
           console.log('✅ 用户已登录:', session.user.email);
           setIsAuthenticated(true);
           
-          // 3. 加载云端数据（等待完成后再显示界面，确保数据同步）
+          // 3. 加载云端数据（智能合并，不覆盖本地数据）
+          console.log('📥 开始同步云端数据...');
           Promise.all([
             loadFromCloud(),
             loadTasks(),
             loadGoals(),
           ]).then(() => {
-            console.log('✅ 云端数据加载完成');
+            console.log('✅ 云端数据同步完成');
             if (mounted) {
               setIsCheckingAuth(false);
             }
           }).catch((error) => {
-            console.error('❌ 云端数据加载失败，使用本地数据:', error);
+            console.error('❌ 云端数据同步失败，继续使用本地数据:', error);
             if (mounted) {
               setIsCheckingAuth(false);
             }
@@ -90,19 +100,27 @@ function App() {
 
     // 监听认证状态变化
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔐 认证状态变化:', event);
-      if (session) {
+      console.log('🔐 认证状态变化:', event, session ? '已登录' : '未登录');
+      
+      if (event === 'SIGNED_IN' && session) {
+        console.log('✅ 用户登录成功:', session.user.email);
         setIsAuthenticated(true);
-        // 登录成功后加载所有云端数据
+        
+        // 登录成功后同步云端数据（智能合并）
+        console.log('📥 登录后同步云端数据...');
         Promise.all([
           loadFromCloud(),
           loadTasks(),
           loadGoals(),
         ]).then(() => {
-          console.log('✅ 云端数据同步完成');
+          console.log('✅ 登录后数据同步完成');
+        }).catch((error) => {
+          console.error('❌ 登录后数据同步失败:', error);
         });
-      } else {
+      } else if (event === 'SIGNED_OUT') {
+        console.log('👋 用户已登出，保留本地数据');
         setIsAuthenticated(false);
+        // 注意：不清除本地数据，用户下次登录时会自动同步
       }
     });
 
