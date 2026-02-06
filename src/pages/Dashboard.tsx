@@ -3,7 +3,7 @@ import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
 import { X } from 'lucide-react';
 import NotificationContainer from '@/components/ui/NotificationContainer';
-import AIChat from '@/components/ai/AIChat';
+import FloatingAIChat from '@/components/ai/FloatingAIChat';
 import AISmartInput from '@/components/ai/AISmartInput';
 import TimelineCalendar from '@/components/calendar/TimelineCalendar';
 import ResponsiveLayout from '@/components/layout/ResponsiveLayout';
@@ -57,8 +57,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* AI 对话框 */}
-      <AIChat isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} />
+      {/* AI 对话框 - 使用 FloatingAIChat */}
+      <FloatingAIChat isFullScreen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} />
 
       {/* AI 智能输入框 */}
       <AISmartInput isOpen={isAISmartOpen} onClose={() => setIsAISmartOpen(false)} />
