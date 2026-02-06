@@ -27,6 +27,7 @@ import {
 import JournalModule from '@/components/journal/JournalModule';
 import PanoramaMemory from '@/components/memory/PanoramaMemory';
 import TaskInbox from '@/components/inbox/TaskInbox';
+import { TagManagerV2 } from '@/components/tags';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
 import { useGoldStore } from '@/stores/goldStore';
 import GitHubCommitBadge from '@/components/ui/GitHubCommitBadge';
@@ -155,6 +156,14 @@ const availableModules: ModuleDefinition[] = [
     component: TaskInbox,
   },
   {
+    id: 'tags',
+    type: 'tags',
+    title: '标签管理',
+    icon: <span className="text-2xl">🏷️</span>,
+    defaultColor: '#F59E0B',
+    component: () => null, // 标签管理使用弹窗，不需要内容组件
+  },
+  {
     id: 'image-widget',
     type: 'image-widget',
     title: '图片组件',
@@ -210,6 +219,9 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
   
   // 每日小票状态
   const [showDailyReceipt, setShowDailyReceipt] = useState(false);
+  
+  // 标签管理状态
+  const [showTagManager, setShowTagManager] = useState(false);
 
   // 从副业追踪器获取余额数据
   const { getTotalProfit, loadSideHustles } = useSideHustleStore();
@@ -402,6 +414,12 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
 
   // 添加模块到主页
   const addModule = (moduleDefinition: ModuleDefinition) => {
+    // 标签管理特殊处理：打开弹窗
+    if (moduleDefinition.type === 'tags') {
+      setShowTagManager(true);
+      return;
+    }
+    
     // 图片组件特殊处理：每次点击都添加新的
     if (moduleDefinition.type === 'image-widget') {
       const newModule: Module = {
@@ -1593,6 +1611,13 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
           date={new Date()}
           tasks={[]} // TODO: 传入实际任务数据
           totalGold={goldBalance}
+          isDark={false}
+        />
+        
+        {/* 标签管理弹窗 */}
+        <TagManagerV2
+          isOpen={showTagManager}
+          onClose={() => setShowTagManager(false)}
           isDark={false}
         />
       </div>

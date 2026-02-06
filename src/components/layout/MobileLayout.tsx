@@ -23,8 +23,9 @@ import TaskInbox from '@/components/inbox/TaskInbox';
 import DailyReceipt from '@/components/receipt/DailyReceipt';
 import MobileWelcome from '@/components/tutorial/MobileWelcome';
 import OnboardingTooltip, { ONBOARDING_STEPS } from '@/components/tutorial/OnboardingTooltip';
+import { TagManagerV2 } from '@/components/tags';
 
-type TabType = 'timeline' | 'goals' | 'journal' | 'memory' | 'gold' | 'habits' | 'reports' | 'settings' | 'inbox' | 'ai' | 'more' | 'money';
+type TabType = 'timeline' | 'goals' | 'journal' | 'memory' | 'gold' | 'habits' | 'reports' | 'settings' | 'inbox' | 'ai' | 'more' | 'money' | 'tags';
 
 interface NavItem {
   id: TabType;
@@ -38,6 +39,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { id: 'goals', label: '目标', icon: '🎯', component: GoalsModule },
   { id: 'money', label: '副业', icon: '💰', component: MoneyModule },
   { id: 'inbox', label: '收集箱', icon: '📥', component: TaskInbox },
+  { id: 'tags', label: '标签', icon: '🏷️' }, // 标签管理（特殊处理，不是模块）
   { id: 'journal', label: '日记', icon: '📔', component: JournalModule },
   // AI助手已移除，改为浮动按钮
   { id: 'memory', label: '记忆', icon: '🧠', component: PanoramaMemory },
@@ -83,6 +85,7 @@ export default function MobileLayout() {
   const [navColor, setNavColor] = useState(() => localStorage.getItem('mobile_nav_color') || '#ffffff');
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showAISmartInput, setShowAISmartInput] = useState(false); // AI 智能输入状态
+  const [showTagManager, setShowTagManager] = useState(false); // 标签管理状态
 
   useEffect(() => {
     loadTasks();
@@ -295,6 +298,13 @@ export default function MobileLayout() {
         isOpen={showAISmartInput} 
         onClose={() => setShowAISmartInput(false)} 
       />
+      
+      {/* 标签管理弹窗 - V2 优化版 */}
+      <TagManagerV2
+        isOpen={showTagManager}
+        onClose={() => setShowTagManager(false)}
+        isDark={false}
+      />
 
       {/* 底部导航栏 - 固定在底部 */}
       <div 
@@ -304,7 +314,14 @@ export default function MobileLayout() {
           {visibleNavItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => {
+                // 标签管理特殊处理：打开弹窗而不是切换标签页
+                if (item.id === 'tags') {
+                  setShowTagManager(true);
+                } else {
+                  setActiveTab(item.id);
+                }
+              }}
               onTouchStart={handleLongPressStart}
               onTouchEnd={handleLongPressEnd}
               onMouseDown={handleLongPressStart}
@@ -369,8 +386,14 @@ export default function MobileLayout() {
                   <button
                     key={item.id}
                     onClick={() => {
-                      setActiveTab(item.id);
-                      setShowMoreModal(false);
+                      // 标签管理特殊处理：打开弹窗
+                      if (item.id === 'tags') {
+                        setShowTagManager(true);
+                        setShowMoreModal(false);
+                      } else {
+                        setActiveTab(item.id);
+                        setShowMoreModal(false);
+                      }
                     }}
                     className={`flex flex-col items-center justify-center p-4 rounded-xl transition-all shadow-sm ${
                       activeTab === item.id
