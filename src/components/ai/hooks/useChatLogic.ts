@@ -4,7 +4,9 @@ import { useGoalStore } from '@/stores/goalStore';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
 import { useAIStore } from '@/stores/aiStore';
 import { AISmartProcessor } from '@/services/aiSmartService';
+import { SmartScheduleService } from '@/services/smartScheduleService';
 import type { AIProcessRequest } from '@/services/aiSmartService';
+import type { ScheduleTask } from '@/services/smartScheduleService';
 
 export interface AIMessage {
   id: string;
@@ -19,7 +21,7 @@ export interface AIMessage {
 }
 
 export interface AIAction {
-  type: 'create_task' | 'update_timeline' | 'add_tags' | 'record_memory' | 'calculate_gold' | 'add_income' | 'add_expense' | 'create_side_hustle' | 'add_debt';
+  type: 'create_task' | 'update_timeline' | 'add_tags' | 'record_memory' | 'calculate_gold' | 'add_income' | 'add_expense' | 'create_side_hustle' | 'add_debt' | 'smart_schedule';
   data: any;
   label: string;
 }
@@ -285,6 +287,52 @@ export function useChatLogic() {
             dueDate: action.data.dueDate,
             isPaid: action.data.isPaid || false,
           });
+          break;
+          
+        case 'smart_schedule':
+          // 智能分配任务到时间轴
+          if (action.data.tasks && Array.isArray(action.data.tasks)) {
+            const tasksToSchedule: ScheduleTask[] = action.data.tasks.map((task: any) => ({
+              id: task.id,
+              title: task.title,
+              durationMinutes: task.durationMinutes || task.estimated_duration || 30,
+              priority: task.priority || 2,
+              tags: task.tags || [],
+              location: task.location,
+              goldReward: task.goldReward || task.gold || 0,
+              taskType: task.taskType || task.task_type || 'life',
+              category: task.category,
+              color: task.color,
+              description: task.description,
+              subtasks: task.subtasks,
+            }));
+            
+            // 提取时间信息
+            const tasksWithTime = SmartScheduleService.extractTimesFromTasks(tasksToSchedule);
+            
+            // 智能分配
+            const results = SmartScheduleService.scheduleTasks(tasksWithTime, allTasks);
+            
+            // 创建任务
+            for (const result of results) {
+              if (!result.isConflict) {
+                await createTask({
+                  title: result.task.title,
+                  description: result.task.description || '',
+                  durationMinutes: result.task.durationMinutes,
+                  taskType: result.task.taskType || 'life',
+                  scheduledStart: result.scheduledStart.toISOString(),
+                  scheduledEnd: result.scheduledEnd.toISOString(),
+                  priority: result.task.priority || 2,
+                  tags: result.task.tags || [],
+                  status: 'pending',
+                  goldReward: result.task.goldReward || 0,
+                  color: result.task.color,
+                  location: result.task.location,
+                });
+              }
+            }
+          }
           break;
       }
     }

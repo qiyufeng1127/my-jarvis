@@ -23,6 +23,7 @@ import {
   AISmartModule,
   TimelineModule,
   MoneyModule,
+  MoodWeeklyModule,
 } from './ModuleComponents';
 import JournalModule from '@/components/journal/JournalModule';
 import PanoramaMemory from '@/components/memory/PanoramaMemory';
@@ -33,6 +34,8 @@ import { useGoldStore } from '@/stores/goldStore';
 import GitHubCommitBadge from '@/components/ui/GitHubCommitBadge';
 import VersionInfo from '@/components/VersionInfo';
 import DailyReceipt from '@/components/receipt/DailyReceipt';
+import UserProfileModal from '@/components/profile/UserProfileModal';
+import DailyReviewModal from '@/components/review/DailyReviewModal';
 
 interface Module {
   id: string;
@@ -140,6 +143,14 @@ const availableModules: ModuleDefinition[] = [
     component: JournalModule,
   },
   {
+    id: 'mood-weekly',
+    type: 'mood-weekly',
+    title: '心情周报',
+    icon: <span className="text-2xl">😊</span>,
+    defaultColor: '#EC4899',
+    component: MoodWeeklyModule,
+  },
+  {
     id: 'memory',
     type: 'memory',
     title: '全景记忆栏',
@@ -191,6 +202,7 @@ const moduleSpecificSizes: Record<string, { width?: number; height?: number }> =
   'kiki': { height: 400 },           // Kiki宝宝 - 内容少
   'ai-smart': { width: 350, height: 500 },  // AI智能输入 - 竖长方形，长宽比约4:3（高:宽）
   'journal': { height: 750 },        // 成功&感恩日记
+  'mood-weekly': { width: 500, height: 900 },  // 心情周报 - 可爱的柱状图
   'memory': { height: 800 },         // 全景记忆栏
   'inbox': { width: 700, height: 600 },  // 收集箱 - 需要宽度来显示左右两栏
 };
@@ -222,6 +234,12 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
   
   // 标签管理状态
   const [showTagManager, setShowTagManager] = useState(false);
+  
+  // 用户画像状态
+  const [showUserProfile, setShowUserProfile] = useState(false);
+  
+  // 日复盘状态
+  const [showDailyReview, setShowDailyReview] = useState(false);
 
   // 从副业追踪器获取余额数据
   const { getTotalProfit, loadSideHustles } = useSideHustleStore();
@@ -233,7 +251,7 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
   // 顶部状态栏元素的位置和拖动状态
   const [topBarItems, setTopBarItems] = useState<Array<{
     id: string;
-    type: 'identity' | 'growth' | 'habits' | 'gold' | 'balance' | 'image' | 'github' | 'version' | 'receipt';
+    type: 'identity' | 'growth' | 'habits' | 'gold' | 'balance' | 'image' | 'github' | 'version' | 'receipt' | 'profile' | 'review';
     position: { x: number; y: number };
     imageUrl?: string;
     customSize?: { width: number; height: number };
@@ -243,9 +261,11 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
     { id: 'balance', type: 'balance', position: { x: 440, y: 0 } },
     { id: 'habits', type: 'habits', position: { x: 680, y: 0 } },
     { id: 'gold', type: 'gold', position: { x: 900, y: 0 } },
-    { id: 'receipt', type: 'receipt', position: { x: 1120, y: 0 } },
-    { id: 'github', type: 'github', position: { x: 1300, y: 0 } },
-    { id: 'version', type: 'version', position: { x: 1500, y: 0 } },
+    { id: 'profile', type: 'profile', position: { x: 1120, y: 0 } },
+    { id: 'review', type: 'review', position: { x: 1300, y: 0 } },
+    { id: 'receipt', type: 'receipt', position: { x: 1480, y: 0 } },
+    { id: 'github', type: 'github', position: { x: 1660, y: 0 } },
+    { id: 'version', type: 'version', position: { x: 1860, y: 0 } },
   ]);
   const [draggingTopBarItem, setDraggingTopBarItem] = useState<string | null>(null);
   const [topBarDragOffset, setTopBarDragOffset] = useState({ x: 0, y: 0 });
@@ -999,6 +1019,58 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                 );
               }
 
+              if (item.type === 'profile') {
+                return (
+                  <div
+                    key={item.id}
+                    className="absolute"
+                    style={{
+                      left: item.position.x,
+                      top: item.position.y,
+                      cursor: draggingTopBarItem === item.id ? 'grabbing' : 'grab',
+                    }}
+                    onMouseDown={(e) => handleTopBarDragStart(item.id, e)}
+                  >
+                    <button
+                      onClick={() => setShowUserProfile(true)}
+                      className="flex items-center space-x-2 px-4 py-2 rounded-2xl bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100/50 shadow-sm hover:scale-105 transition-all hover:shadow-md group"
+                    >
+                      <div className="text-2xl">💕</div>
+                      <div>
+                        <div className="text-sm text-black font-semibold tracking-wide">我了解的你</div>
+                        <div className="text-xs text-purple-600 font-medium">动态画像</div>
+                      </div>
+                    </button>
+                  </div>
+                );
+              }
+
+              if (item.type === 'review') {
+                return (
+                  <div
+                    key={item.id}
+                    className="absolute"
+                    style={{
+                      left: item.position.x,
+                      top: item.position.y,
+                      cursor: draggingTopBarItem === item.id ? 'grabbing' : 'grab',
+                    }}
+                    onMouseDown={(e) => handleTopBarDragStart(item.id, e)}
+                  >
+                    <button
+                      onClick={() => setShowDailyReview(true)}
+                      className="flex items-center space-x-2 px-4 py-2 rounded-2xl bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-100/50 shadow-sm hover:scale-105 transition-all hover:shadow-md group"
+                    >
+                      <div className="text-2xl">📊</div>
+                      <div>
+                        <div className="text-sm text-black font-semibold tracking-wide">今日复盘</div>
+                        <div className="text-xs text-purple-600 font-medium">深度分析</div>
+                      </div>
+                    </button>
+                  </div>
+                );
+              }
+
               if (item.type === 'receipt') {
                 return (
                   <div
@@ -1619,6 +1691,18 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
           isOpen={showTagManager}
           onClose={() => setShowTagManager(false)}
           isDark={false}
+        />
+        
+        {/* 用户画像弹窗 */}
+        <UserProfileModal
+          isOpen={showUserProfile}
+          onClose={() => setShowUserProfile(false)}
+        />
+        
+        {/* 日复盘弹窗 */}
+        <DailyReviewModal
+          isOpen={showDailyReview}
+          onClose={() => setShowDailyReview(false)}
         />
       </div>
     </div>

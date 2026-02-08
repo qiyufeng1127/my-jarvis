@@ -1,7 +1,7 @@
 {
-  "name": "ManifestOS - 我要变好",
+  "name": "ManifestOS",
   "short_name": "ManifestOS",
-  "description": "大女主成长操作系统，让每一个日常行动都转化为通往理想自我的坚实步伐",
+  "description": "Personal growth operating system",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#e2d9bc",

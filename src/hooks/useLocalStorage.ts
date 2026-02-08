@@ -58,7 +58,7 @@ export function useLocalStorage<T>(
 
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, [key, deserializer]);
+  }, [key]); // 移除 deserializer 依赖，避免无限循环
 
   return [storedValue, setValue] as const;
 }

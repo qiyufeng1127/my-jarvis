@@ -98,8 +98,11 @@ export function GoalsModule({ isDark = false, bgColor = '#ffffff' }: GoalsModule
               </div>
               <div className="w-full h-4 bg-neutral-200 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-blue-600 rounded-full transition-all"
-                  style={{ width: `${progress}%` }}
+                  className="h-full rounded-full transition-all"
+                  style={{ 
+                    width: `${progress}%`,
+                    backgroundColor: '#6D9978'
+                  }}
                 />
               </div>
               <div className="text-center text-sm font-bold mt-1" style={{ color: textColor }}>

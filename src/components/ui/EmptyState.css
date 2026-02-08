@@ -1,0 +1,73 @@
+/* ============================================
+   Empty State Styles
+   ============================================ */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-12) var(--spacing-6);
+  text-align: center;
+  min-height: 300px;
+}
+
+/* ========== Icon ========== */
+.empty-state__icon {
+  margin-bottom: var(--spacing-4);
+}
+
+.empty-state__emoji {
+  font-size: 64px;
+  line-height: 1;
+  display: block;
+  animation: empty-state-float 3s ease-in-out infinite;
+}
+
+@keyframes empty-state-float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* ========== Title ========== */
+.empty-state__title {
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  margin: 0 0 var(--spacing-2);
+}
+
+/* ========== Description ========== */
+.empty-state__description {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin: 0 0 var(--spacing-6);
+  max-width: 400px;
+  line-height: var(--leading-relaxed);
+}
+
+/* ========== Action ========== */
+.empty-state__action {
+  margin-top: var(--spacing-2);
+}
+
+/* ========== Responsive ========== */
+@media (max-width: 768px) {
+  .empty-state {
+    padding: var(--spacing-8) var(--spacing-4);
+    min-height: 240px;
+  }
+
+  .empty-state__emoji {
+    font-size: 48px;
+  }
+
+  .empty-state__title {
+    font-size: var(--text-lg);
+  }
+}
+

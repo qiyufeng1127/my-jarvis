@@ -5,12 +5,197 @@ import NotificationSettingsPanel from '@/components/settings/NotificationSetting
 import DataBackupPanel from '@/components/settings/DataBackupPanel';
 import AppearanceSettings from '@/components/settings/AppearanceSettings';
 import { MoneyTracker } from '@/components/money';
+import MoodWeeklyChart from '@/components/journal/MoodWeeklyChart';
+import FloatingAIChat from '@/components/ai/FloatingAIChat';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
 import { useGoldStore } from '@/stores/goldStore';
 import { useThemeStore, ACCENT_COLORS } from '@/stores/themeStore';
+import { useDeviceStore } from '@/stores/deviceStore';
+import { DeviceIdentityService } from '@/services/deviceIdentityService';
 import { TrendingUp, Target, CheckCircle, Clock, ShoppingBag, History, Plus } from 'lucide-react';
 import { useState, useEffect } from 'react';
+
+// 设备信息面板组件
+function DeviceInfoPanel({ isDark, cardBg, textColor, accentColor, buttonBg }: { 
+  isDark: boolean; 
+  cardBg: string; 
+  textColor: string; 
+  accentColor: string; 
+  buttonBg: string;
+}) {
+  const { identity, updateDeviceName, updateDeviceAvatar, clearAllData } = useDeviceStore();
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const avatarPool = DeviceIdentityService.getAvatarPool();
+
+  useEffect(() => {
+    if (identity) {
+      setNewName(identity.deviceName);
+    }
+  }, [identity]);
+
+  if (!identity) {
+    return (
+      <div className="rounded-lg p-6 text-center" style={{ backgroundColor: cardBg }}>
+        <div className="text-sm" style={{ color: accentColor }}>正在加载设备信息...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <h4 className="font-semibold text-base" style={{ color: textColor }}>📱 设备信息</h4>
+
+      {/* 设备标识卡片 */}
+      <div className="rounded-lg p-6" style={{ backgroundColor: cardBg }}>
+        <div className="flex items-center space-x-4 mb-4">
+          {/* 头像 */}
+          <button
+            onClick={() => setShowAvatarPicker(!showAvatarPicker)}
+            className="text-5xl hover:scale-110 transition-transform"
+          >
+            {identity.avatar}
+          </button>
+          
+          {/* 设备信息 */}
+          <div className="flex-1">
+            {isEditingName ? (
+              <div className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  className="flex-1 px-3 py-2 rounded-lg text-sm"
+                  style={{
+                    backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)',
+                    color: textColor,
+                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}`,
+                  }}
+                  autoFocus
+                />
+                <button
+                  onClick={() => {
+                    updateDeviceName(newName);
+                    setIsEditingName(false);
+                  }}
+                  className="px-3 py-2 rounded-lg text-xs font-semibold"
+                  style={{ backgroundColor: buttonBg, color: textColor }}
+                >
+                  保存
+                </button>
+                <button
+                  onClick={() => {
+                    setNewName(identity.deviceName);
+                    setIsEditingName(false);
+                  }}
+                  className="px-3 py-2 rounded-lg text-xs"
+                  style={{ color: accentColor }}
+                >
+                  取消
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-2">
+                <div className="text-lg font-bold" style={{ color: textColor }}>
+                  {identity.deviceName}
+                </div>
+                <button
+                  onClick={() => setIsEditingName(true)}
+                  className="text-xs px-2 py-1 rounded"
+                  style={{ backgroundColor: buttonBg, color: textColor }}
+                >
+                  ✏️ 编辑
+                </button>
+              </div>
+            )}
+            <div className="text-xs mt-1" style={{ color: accentColor }}>
+              {identity.deviceType === 'mobile' ? '📱 手机设备' : '💻 电脑设备'} · {identity.browser}
+            </div>
+          </div>
+        </div>
+
+        {/* 头像选择器 */}
+        {showAvatarPicker && (
+          <div className="mb-4 p-4 rounded-lg" style={{ backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)' }}>
+            <div className="text-xs mb-2" style={{ color: accentColor }}>选择头像</div>
+            <div className="grid grid-cols-8 gap-2">
+              {avatarPool.map((avatar, index) => (
+                <button
+                  key={index}
+                  onClick={() => {
+                    updateDeviceAvatar(avatar);
+                    setShowAvatarPicker(false);
+                  }}
+                  className="text-2xl hover:scale-125 transition-transform"
+                >
+                  {avatar}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 设备ID */}
+        <div className="rounded-lg p-3" style={{ backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)' }}>
+          <div className="text-xs mb-1" style={{ color: accentColor }}>设备唯一ID</div>
+          <div className="font-mono text-sm" style={{ color: textColor }}>{identity.deviceId}</div>
+        </div>
+      </div>
+
+      {/* 数据持久化说明 */}
+      <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
+        <h5 className="text-sm font-semibold mb-2" style={{ color: textColor }}>💾 数据持久化</h5>
+        <div className="text-xs leading-relaxed space-y-2" style={{ color: accentColor }}>
+          <p>✅ 您的所有数据已安全保存在本设备</p>
+          <p>✅ 刷新页面、更新版本、重启浏览器后数据不会丢失</p>
+          <p>✅ 只要设备ID不变，数据永久保留</p>
+          <p>⚠️ 不同设备或不同浏览器的数据相互独立</p>
+        </div>
+      </div>
+
+      {/* 设备统计 */}
+      <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
+        <h5 className="text-sm font-semibold mb-3" style={{ color: textColor }}>📊 设备统计</h5>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs" style={{ color: accentColor }}>创建时间</span>
+            <span className="text-xs font-medium" style={{ color: textColor }}>
+              {new Date(identity.createdAt).toLocaleDateString('zh-CN')}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs" style={{ color: accentColor }}>最后访问</span>
+            <span className="text-xs font-medium" style={{ color: textColor }}>
+              {new Date(identity.lastAccessAt).toLocaleString('zh-CN')}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs" style={{ color: accentColor }}>使用天数</span>
+            <span className="text-xs font-medium" style={{ color: textColor }}>
+              {Math.floor((Date.now() - new Date(identity.createdAt).getTime()) / (1000 * 60 * 60 * 24))} 天
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* 危险操作区 */}
+      <div className="rounded-lg p-4 border-2 border-red-500/30" style={{ backgroundColor: cardBg }}>
+        <h5 className="text-sm font-semibold mb-2 text-red-500">⚠️ 危险操作</h5>
+        <div className="text-xs mb-3" style={{ color: accentColor }}>
+          清除所有本地数据将删除：设备标识、任务、目标、日记、标签、设置、AI Key等所有数据。此操作不可恢复！
+        </div>
+        <button
+          onClick={clearAllData}
+          className="w-full py-3 rounded-lg text-sm font-semibold bg-red-500 text-white hover:bg-red-600 transition-colors"
+        >
+          🗑️ 清除所有本地数据
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // 重新导出 GoalsModule
 export { GoalsModule } from '@/components/growth/GoalsModule';
@@ -1276,7 +1461,7 @@ export function ReportsModule({ isDark = false }: { isDark?: boolean }) {
 
 // 设置模块
 export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: boolean; bgColor?: string }) {
-  const [activeTab, setActiveTab] = useState<'backup' | 'appearance' | 'notification' | 'baidu'>('backup');
+  const [activeTab, setActiveTab] = useState<'device' | 'backup' | 'appearance' | 'notification' | 'baidu'>('device');
   
   // 使用真正的主题 store
   const { effectiveTheme } = useThemeStore();
@@ -1290,6 +1475,15 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
   const [baiduApiKey, setBaiduApiKey] = useState(localStorage.getItem('baidu_api_key') || import.meta.env.VITE_BAIDU_API_KEY || '');
   const [baiduSecretKey, setBaiduSecretKey] = useState(localStorage.getItem('baidu_secret_key') || import.meta.env.VITE_BAIDU_SECRET_KEY || '');
   const [showBaiduKey, setShowBaiduKey] = useState(false);
+  
+  // 云同步设置状态（这些变量在代码中被使用但未定义）
+  const [autoSync, setAutoSync] = useState(false);
+  const [syncInterval, setSyncInterval] = useState<'realtime' | '1min' | '5min' | '15min'>('realtime');
+  const [syncOnStartup, setSyncOnStartup] = useState(true);
+  const [conflictResolution, setConflictResolution] = useState<'cloud' | 'local' | 'manual'>('cloud');
+  
+  // 防拖延设置状态
+  const [strictnessLevel, setStrictnessLevel] = useState(1);
 
   const cardBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
   const textColor = isDark ? '#ffffff' : '#000000';
@@ -1297,7 +1491,8 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
   const buttonBg = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)';
 
   const tabs = [
-    { id: 'backup', label: '数据备份', icon: '💾' },
+    { id: 'device', label: '设备', icon: '📱' },
+    { id: 'backup', label: '备份', icon: '💾' },
     { id: 'appearance', label: '外观', icon: '🎨' },
     { id: 'notification', label: '通知', icon: '🔔' },
     { id: 'baidu', label: 'AI', icon: '🤖' },
@@ -1306,7 +1501,7 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
   return (
     <div className="space-y-4 p-4 bg-white dark:bg-black">
       {/* 选项卡 - 紧凑布局 */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-5 gap-2">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -1322,6 +1517,11 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
           </button>
         ))}
       </div>
+
+      {/* 设备信息 */}
+      {activeTab === 'device' && (
+        <DeviceInfoPanel isDark={isDark} cardBg={cardBg} textColor={textColor} accentColor={accentColor} buttonBg={buttonBg} />
+      )}
 
       {/* 数据备份 */}
       {activeTab === 'backup' && (
@@ -1834,7 +2034,7 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
 
       {/* 通知与语音 */}
       {activeTab === 'notification' && (
-        <NotificationSettingsPanel isDark={isDark} accentColor={ACCENT_COLORS[themeAccentColor].primary} />
+        <NotificationSettingsPanel isDark={isDark} accentColor={accentColor} />
       )}
     </div>
   );
@@ -1868,17 +2068,138 @@ export { default as AISmartModule } from '@/components/ai/AISmartModule';
 // 时间轴模块
 export function TimelineModule({ isDark = false, bgColor = '#ffffff', moduleSize }: { isDark?: boolean; bgColor?: string; moduleSize?: { width: number; height: number } }) {
   const { tasks, updateTask, createTask, deleteTask } = useTaskStore();
+  const [showAIChat, setShowAIChat] = useState(false);
+  const [showConfigPrompt, setShowConfigPrompt] = useState(false);
+  
+  // 检查AI是否已配置
+  const checkAIConfig = () => {
+    const aiConfig = localStorage.getItem('manifestos-ai-config-storage');
+    if (aiConfig) {
+      try {
+        const config = JSON.parse(aiConfig);
+        return config?.state?.config?.apiKey ? true : false;
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  };
+  
+  const handleAIButtonClick = () => {
+    const isConfigured = checkAIConfig();
+    if (!isConfigured) {
+      setShowConfigPrompt(true);
+    } else {
+      setShowAIChat(true);
+    }
+  };
   
   return (
-    <div className="h-full" style={{ backgroundColor: bgColor }}>
-      <TimelineCalendar 
-        tasks={tasks}
-        onTaskUpdate={updateTask}
-        onTaskCreate={createTask}
-        onTaskDelete={deleteTask}
-        bgColor={bgColor}
-        moduleSize={moduleSize}
-      />
+    <>
+      <div className="h-full" style={{ backgroundColor: bgColor }}>
+        <TimelineCalendar 
+          tasks={tasks}
+          onTaskUpdate={updateTask}
+          onTaskCreate={createTask}
+          onTaskDelete={deleteTask}
+          bgColor={bgColor}
+          moduleSize={moduleSize}
+        />
+      </div>
+      
+      {/* AI助手浮动按钮 - 黄色背景白色图标 */}
+      <button
+        onClick={handleAIButtonClick}
+        className="fixed w-16 h-16 rounded-full shadow-2xl hover:scale-110 transition-all flex items-center justify-center"
+        style={{ 
+          backgroundColor: '#E8C259',
+          color: '#ffffff',
+          zIndex: 99999,
+          bottom: '88px',
+          right: '16px',
+        }}
+        title="AI助手"
+      >
+        <span className="text-3xl">🤖</span>
+      </button>
+      
+      {/* AI配置提示弹窗 */}
+      {showConfigPrompt && (
+        <div className="fixed inset-0 z-[100000] bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            <div className="text-center mb-6">
+              <div className="text-6xl mb-4">🤖</div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">AI 功能需要配置</h2>
+              <p className="text-sm text-gray-600">
+                配置 API Key 后可以使用：
+              </p>
+            </div>
+            
+            <div className="bg-purple-50 rounded-lg p-4 mb-6">
+              <ul className="space-y-2 text-sm text-gray-700">
+                <li>✅ 智能识别心情、碎碎念、待办</li>
+                <li>✅ 自动打情绪和分类标签</li>
+                <li>✅ 智能任务分解到时间轴</li>
+                <li>✅ 自然语言对话</li>
+                <li>✅ AI 思考过程可视化</li>
+                <li>✅ 智能动线优化</li>
+              </ul>
+            </div>
+            
+            <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 mb-6">
+              <h3 className="text-sm font-semibold text-blue-900 mb-2">💡 推荐使用 DeepSeek</h3>
+              <p className="text-xs text-blue-800 mb-2">
+                国内大模型，速度快、价格便宜、效果好
+              </p>
+              <a
+                href="https://platform.deepseek.com/api_keys"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-600 hover:text-blue-800 underline"
+              >
+                👉 点击获取 DeepSeek API Key
+              </a>
+            </div>
+            
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowConfigPrompt(false)}
+                className="flex-1 py-3 rounded-lg bg-gray-200 text-gray-700 font-semibold hover:bg-gray-300 transition-colors"
+              >
+                稍后配置
+              </button>
+              <button
+                onClick={() => {
+                  setShowConfigPrompt(false);
+                  setShowAIChat(true);
+                }}
+                className="flex-1 py-3 rounded-lg bg-purple-600 text-white font-semibold hover:bg-purple-700 transition-colors"
+              >
+                立即配置
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* AI对话全屏弹窗 */}
+      {showAIChat && (
+        <div className="fixed inset-0 z-[100000] bg-white">
+          <FloatingAIChat 
+            isFullScreen={true}
+            onClose={() => setShowAIChat(false)}
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
+// 心情周报模块
+export function MoodWeeklyModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: boolean; bgColor?: string }) {
+  return (
+    <div className="h-full overflow-auto" style={{ backgroundColor: bgColor }}>
+      <MoodWeeklyChart isDark={isDark} bgColor={bgColor} />
     </div>
   );
 }

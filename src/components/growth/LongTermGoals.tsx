@@ -57,9 +57,9 @@ export default function LongTermGoals({
   // 获取目标类型标签
   const getTypeLabel = (type: Goal['type']) => {
     const labels = {
-      numeric: { label: '数值型', emoji: '📊', color: 'bg-blue-100 text-blue-700' },
-      milestone: { label: '里程碑', emoji: '🏁', color: 'bg-purple-100 text-purple-700' },
-      habit: { label: '习惯型', emoji: '🔄', color: 'bg-green-100 text-green-700' },
+      numeric: { label: '数值型', emoji: '📊', color: 'text-white', bgColor: '#6D9978' },
+      milestone: { label: '里程碑', emoji: '🏁', color: 'text-white', bgColor: '#DD617C' },
+      habit: { label: '习惯型', emoji: '🔄', color: 'text-white', bgColor: '#E8C259' },
     };
     return labels[type];
   };
@@ -69,11 +69,11 @@ export default function LongTermGoals({
     const progress = getProgress(goal);
     const daysRemaining = getDaysRemaining(goal.deadline);
 
-    if (progress >= 100) return '#10B981'; // 绿色 - 已完成
-    if (daysRemaining !== null && daysRemaining < 7 && progress < 50) return '#EF4444'; // 红色 - 紧急
-    if (progress >= 75) return '#3B82F6'; // 蓝色 - 接近完成
-    if (progress >= 50) return '#F59E0B'; // 橙色 - 进行中
-    return '#6B7280'; // 灰色 - 刚开始
+    if (progress >= 100) return '#6D9978'; // 绿色 - 已完成
+    if (daysRemaining !== null && daysRemaining < 7 && progress < 50) return '#AC0327'; // 红色 - 紧急
+    if (progress >= 75) return '#DD617C'; // 粉色 - 接近完成
+    if (progress >= 50) return '#E8C259'; // 黄色 - 进行中
+    return '#D1CBBA'; // 米色 - 刚开始
   };
 
   return (
@@ -86,7 +86,10 @@ export default function LongTermGoals({
         </div>
         <button
           onClick={onCreateGoal}
-          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          className="flex items-center space-x-2 px-4 py-2 text-white rounded-lg transition-colors"
+          style={{ backgroundColor: '#DD617C' }}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#c94d68'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#DD617C'}
         >
           <Plus className="w-4 h-4" />
           <span>创建新目标</span>
@@ -104,6 +107,9 @@ export default function LongTermGoals({
                 ? 'bg-white text-neutral-900 shadow-sm'
                 : 'text-neutral-600 hover:text-neutral-900'
             }`}
+            style={filter === f ? { 
+              boxShadow: '0 0 0 2px #DD617C' 
+            } : undefined}
           >
             {f === 'all' && `全部 (${goals.length})`}
             {f === 'active' && `进行中 (${goals.filter(g => g.currentValue < g.targetValue).length})`}
@@ -139,11 +145,23 @@ export default function LongTermGoals({
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-2">
-                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${typeInfo.color}`}>
+                        <span 
+                          className="px-2 py-1 rounded-full text-xs font-semibold"
+                          style={{ 
+                            backgroundColor: typeInfo.bgColor,
+                            color: typeInfo.color 
+                          }}
+                        >
                           {typeInfo.emoji} {typeInfo.label}
                         </span>
                         {isCompleted && (
-                          <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                          <span 
+                            className="px-2 py-1 rounded-full text-xs font-semibold"
+                            style={{ 
+                              backgroundColor: '#6D9978',
+                              color: '#ffffff'
+                            }}
+                          >
                             ✓ 已完成
                           </span>
                         )}
@@ -259,7 +277,10 @@ export default function LongTermGoals({
           {filter !== 'completed' && (
             <button
               onClick={onCreateGoal}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="px-6 py-3 text-white rounded-lg transition-colors"
+              style={{ backgroundColor: '#DD617C' }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#c94d68'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#DD617C'}
             >
               创建新目标
             </button>
@@ -272,17 +293,17 @@ export default function LongTermGoals({
         <div className="grid grid-cols-3 gap-4">
           <div className="bg-white rounded-xl shadow-md p-4">
             <div className="text-neutral-600 text-sm mb-1">总目标数</div>
-            <div className="text-2xl font-bold text-blue-600">{goals.length}</div>
+            <div className="text-2xl font-bold" style={{ color: '#DD617C' }}>{goals.length}</div>
           </div>
           <div className="bg-white rounded-xl shadow-md p-4">
             <div className="text-neutral-600 text-sm mb-1">进行中</div>
-            <div className="text-2xl font-bold text-orange-600">
+            <div className="text-2xl font-bold" style={{ color: '#E8C259' }}>
               {goals.filter(g => g.currentValue < g.targetValue).length}
             </div>
           </div>
           <div className="bg-white rounded-xl shadow-md p-4">
             <div className="text-neutral-600 text-sm mb-1">已完成</div>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold" style={{ color: '#6D9978' }}>
               {goals.filter(g => g.currentValue >= g.targetValue).length}
             </div>
           </div>

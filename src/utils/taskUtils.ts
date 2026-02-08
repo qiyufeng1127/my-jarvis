@@ -159,17 +159,25 @@ export function optimizeTasksByLocation<T extends { location?: string }>(tasks: 
 export function parseStartTime(message: string): Date {
   const startTime = new Date();
   
-  // 检查用户是否指定了开始时间
-  const minuteMatch = message.match(/(\d+)分钟(之后|后)/);
-  const hourMatch = message.match(/(\d+)(个)?小时(之后|后)/);
+  console.log('🔍 [parseStartTime] 原始消息:', message);
+  
+  // 检查用户是否指定了开始时间（支持空格）
+  const minuteMatch = message.match(/(\d+)\s*分钟\s*(之后|后)/);
+  const hourMatch = message.match(/(\d+)\s*(个)?\s*小时\s*(之后|后)/);
   
   if (hourMatch) {
     const hours = parseInt(hourMatch[1]);
+    console.log(`🔍 [parseStartTime] 匹配到小时: ${hours}小时后`);
     startTime.setHours(startTime.getHours() + hours);
   } else if (minuteMatch) {
     const minutes = parseInt(minuteMatch[1]);
+    console.log(`🔍 [parseStartTime] 匹配到分钟: ${minutes}分钟后`);
     startTime.setMinutes(startTime.getMinutes() + minutes);
+  } else {
+    console.log('🔍 [parseStartTime] 未匹配到延迟时间，使用当前时间');
   }
+  
+  console.log('🔍 [parseStartTime] 解析后的时间:', startTime.toLocaleTimeString('zh-CN'));
   
   return startTime;
 }

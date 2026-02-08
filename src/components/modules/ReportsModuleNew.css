@@ -1,0 +1,141 @@
+/* ============================================
+   Reports Module Styles
+   ============================================ */
+
+.reports-module {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-6);
+}
+
+/* ========== Period Selector ========== */
+.reports-module__period {
+  display: flex;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2);
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  width: fit-content;
+}
+
+/* ========== Stats Grid ========== */
+.reports-module__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--spacing-3);
+}
+
+/* ========== Section ========== */
+.reports-module__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.reports-module__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.reports-module__section-title {
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/* ========== Highlights ========== */
+.reports-module__highlights {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.reports-module__highlight-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.reports-module__highlight-icon {
+  font-size: var(--text-2xl);
+  flex-shrink: 0;
+}
+
+.reports-module__highlight-text {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/* ========== Improvements ========== */
+.reports-module__improvements {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.reports-module__improvement-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.reports-module__improvement-text {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/* ========== Suggestions ========== */
+.reports-module__suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.reports-module__suggestion-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.reports-module__suggestion-icon {
+  font-size: var(--text-xl);
+  flex-shrink: 0;
+}
+
+.reports-module__suggestion-text {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: var(--leading-relaxed);
+}
+
+/* ========== Empty Hint ========== */
+.reports-module__empty-hint {
+  text-align: center;
+  padding: var(--spacing-6);
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}
+
+/* ========== Responsive ========== */
+@media (max-width: 768px) {
+  .reports-module__stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .reports-module__period {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+

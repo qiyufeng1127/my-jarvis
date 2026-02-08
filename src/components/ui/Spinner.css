@@ -1,0 +1,149 @@
+/* ============================================
+   Spinner Styles
+   ============================================ */
+
+/* ========== Spinner (Circle) ========== */
+.spinner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spinner__circle {
+  border-radius: var(--radius-full);
+  border: 3px solid transparent;
+  border-top-color: currentColor;
+}
+
+/* Sizes */
+.spinner--sm .spinner__circle {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+}
+
+.spinner--md .spinner__circle {
+  width: 24px;
+  height: 24px;
+  border-width: 3px;
+}
+
+.spinner--lg .spinner__circle {
+  width: 40px;
+  height: 40px;
+  border-width: 4px;
+}
+
+/* Colors */
+.spinner--pink { color: var(--color-pink-500); }
+.spinner--yellow { color: var(--color-yellow-500); }
+.spinner--blue { color: var(--color-blue-500); }
+.spinner--green { color: var(--color-green-500); }
+.spinner--purple { color: var(--color-purple-500); }
+.spinner--brown { color: var(--color-brown-500); }
+
+/* ========== Spinner Dots ========== */
+.spinner-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.spinner-dots__dot {
+  border-radius: var(--radius-full);
+}
+
+/* Sizes */
+.spinner-dots--sm .spinner-dots__dot {
+  width: 6px;
+  height: 6px;
+}
+
+.spinner-dots--md .spinner-dots__dot {
+  width: 8px;
+  height: 8px;
+}
+
+.spinner-dots--lg .spinner-dots__dot {
+  width: 12px;
+  height: 12px;
+}
+
+/* Colors */
+.spinner-dots__dot--pink { background-color: var(--color-pink-500); }
+.spinner-dots__dot--yellow { background-color: var(--color-yellow-500); }
+.spinner-dots__dot--blue { background-color: var(--color-blue-500); }
+.spinner-dots__dot--green { background-color: var(--color-green-500); }
+.spinner-dots__dot--purple { background-color: var(--color-purple-500); }
+.spinner-dots__dot--brown { background-color: var(--color-brown-500); }
+
+/* ========== Spinner Pulse ========== */
+.spinner-pulse {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spinner-pulse__ring {
+  position: absolute;
+  border-radius: var(--radius-full);
+  border: 3px solid currentColor;
+}
+
+/* Sizes */
+.spinner-pulse--sm .spinner-pulse__ring {
+  width: 24px;
+  height: 24px;
+  border-width: 2px;
+}
+
+.spinner-pulse--md .spinner-pulse__ring {
+  width: 40px;
+  height: 40px;
+  border-width: 3px;
+}
+
+.spinner-pulse--lg .spinner-pulse__ring {
+  width: 64px;
+  height: 64px;
+  border-width: 4px;
+}
+
+/* Colors */
+.spinner-pulse__ring--pink { color: var(--color-pink-500); }
+.spinner-pulse__ring--yellow { color: var(--color-yellow-500); }
+.spinner-pulse__ring--blue { color: var(--color-blue-500); }
+.spinner-pulse__ring--green { color: var(--color-green-500); }
+.spinner-pulse__ring--purple { color: var(--color-purple-500); }
+.spinner-pulse__ring--brown { color: var(--color-brown-500); }
+
+/* ========== Loading Overlay ========== */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+}
+
+.loading-overlay__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+}
+
+.loading-overlay__message {
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+  color: var(--color-white);
+  margin: 0;
+}
+

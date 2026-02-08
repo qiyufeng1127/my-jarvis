@@ -1,0 +1,297 @@
+/* ============================================
+   设计系统 - 低饱和复古色系
+   ============================================ */
+
+:root {
+  /* ========== 主色调 - 用户自定义配色 ========== */
+  
+  /* 粉色系 - 基于 #DD617C */
+  --color-pink-50: #fef5f7;
+  --color-pink-100: #fde8ed;
+  --color-pink-200: #fbd1db;
+  --color-pink-300: #f9aac0;
+  --color-pink-400: #f57d9d;
+  --color-pink-500: #DD617C;
+  --color-pink-600: #c94d68;
+  
+  /* 黄色系 - 基于 #E8C259 */
+  --color-yellow-50: #fef9ed;
+  --color-yellow-100: #fdf2d4;
+  --color-yellow-200: #fbe5a9;
+  --color-yellow-300: #f5d67e;
+  --color-yellow-400: #eec85e;
+  --color-yellow-500: #E8C259;
+  --color-yellow-600: #d4a93d;
+  
+  /* 蓝色系 - 保持原有 */
+  --color-blue-50: #f0f4f8;
+  --color-blue-100: #e0e8f0;
+  --color-blue-200: #c1d4e0;
+  --color-blue-300: #9ab8cc;
+  --color-blue-400: #7a9fb5;
+  --color-blue-500: #6b8fa3;
+  --color-blue-600: #5a7a8c;
+  
+  /* 绿色系 - 基于 #6D9978 */
+  --color-green-50: #f0f4f1;
+  --color-green-100: #dce6df;
+  --color-green-200: #b9cdbf;
+  --color-green-300: #96b49f;
+  --color-green-400: #819d8b;
+  --color-green-500: #6D9978;
+  --color-green-600: #5a8064;
+  
+  /* 紫色系 - 保持原有 */
+  --color-purple-50: #f5f0f8;
+  --color-purple-100: #ebe0f0;
+  --color-purple-200: #d7c1e0;
+  --color-purple-300: #bf9dcc;
+  --color-purple-400: #a67db5;
+  --color-purple-500: #9370a3;
+  --color-purple-600: #7d5f8c;
+  
+  /* 棕色系 - 基于 #AC0327 */
+  --color-brown-50: #fef5f5;
+  --color-brown-100: #fde8e8;
+  --color-brown-200: #fbd0d0;
+  --color-brown-300: #f7a8a8;
+  --color-brown-400: #f17979;
+  --color-brown-500: #AC0327;
+  --color-brown-600: #980222;
+  
+  /* 米色系 - 基于 #D1CBBA */
+  --color-beige-50: #fdfcfa;
+  --color-beige-100: #f9f7f3;
+  --color-beige-200: #f3efe7;
+  --color-beige-300: #ebe5d9;
+  --color-beige-400: #e1d8c7;
+  --color-beige-500: #D1CBBA;
+  --color-beige-600: #b8b09d;
+  
+  /* ========== 中性色 ========== */
+  --color-white: #ffffff;
+  --color-cream: #faf9f7;
+  --color-beige: #f5f3f0;
+  --color-gray-50: #fafafa;
+  --color-gray-100: #f5f5f5;
+  --color-gray-200: #e5e5e5;
+  --color-gray-300: #d4d4d4;
+  --color-gray-400: #a3a3a3;
+  --color-gray-500: #737373;
+  --color-gray-600: #525252;
+  --color-gray-700: #404040;
+  --color-gray-800: #262626;
+  --color-gray-900: #171717;
+  --color-black: #1a1a1a;
+  
+  /* ========== 语义化颜色 ========== */
+  --color-primary: #DD617C;
+  --color-primary-light: #f9aac0;
+  --color-primary-dark: #c94d68;
+  
+  --color-secondary: #6D9978;
+  --color-secondary-light: #96b49f;
+  --color-secondary-dark: #5a8064;
+  
+  --color-accent: #E8C259;
+  --color-accent-light: #f5d67e;
+  --color-accent-dark: #d4a93d;
+  
+  --color-success: #6D9978;
+  --color-warning: #E8C259;
+  --color-error: #AC0327;
+  --color-info: #6b8fa3;
+  
+  /* ========== 背景色 ========== */
+  --bg-primary: var(--color-cream);
+  --bg-secondary: var(--color-beige);
+  --bg-card: var(--color-white);
+  --bg-hover: var(--color-gray-50);
+  --bg-active: var(--color-gray-100);
+  
+  /* ========== 文字颜色 ========== */
+  --text-primary: var(--color-gray-900);
+  --text-secondary: var(--color-gray-600);
+  --text-tertiary: var(--color-gray-400);
+  --text-inverse: var(--color-white);
+  
+  /* ========== 边框颜色 ========== */
+  --border-light: var(--color-gray-200);
+  --border-medium: var(--color-gray-300);
+  --border-dark: var(--color-gray-400);
+  
+  /* ========== 渐变色 ========== */
+  --gradient-pink: linear-gradient(135deg, #f9aac0 0%, #DD617C 100%);
+  --gradient-yellow: linear-gradient(135deg, #f5d67e 0%, #E8C259 100%);
+  --gradient-blue: linear-gradient(135deg, #9ab8cc 0%, #6b8fa3 100%);
+  --gradient-green: linear-gradient(135deg, #96b49f 0%, #6D9978 100%);
+  --gradient-purple: linear-gradient(135deg, #bf9dcc 0%, #9370a3 100%);
+  --gradient-brown: linear-gradient(135deg, #f7a8a8 0%, #AC0327 100%);
+  
+  --gradient-sunset: linear-gradient(135deg, #E8C259 0%, #DD617C 100%);
+  --gradient-ocean: linear-gradient(135deg, #6D9978 0%, #6b8fa3 100%);
+  --gradient-forest: linear-gradient(135deg, #6D9978 0%, #D1CBBA 100%);
+  
+  /* ========== 字体系统 ========== */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+  
+  /* 字体大小 */
+  --text-xs: 0.75rem;      /* 12px */
+  --text-sm: 0.875rem;     /* 14px */
+  --text-base: 1rem;       /* 16px */
+  --text-lg: 1.125rem;     /* 18px */
+  --text-xl: 1.25rem;      /* 20px */
+  --text-2xl: 1.5rem;      /* 24px */
+  --text-3xl: 1.875rem;    /* 30px */
+  --text-4xl: 2.25rem;     /* 36px */
+  --text-5xl: 3rem;        /* 48px */
+  
+  /* 字重 */
+  --font-light: 300;
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+  
+  /* 行高 */
+  --leading-none: 1;
+  --leading-tight: 1.25;
+  --leading-snug: 1.375;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+  --leading-loose: 2;
+  
+  /* ========== 间距系统 ========== */
+  --spacing-0: 0;
+  --spacing-1: 0.25rem;    /* 4px */
+  --spacing-2: 0.5rem;     /* 8px */
+  --spacing-3: 0.75rem;    /* 12px */
+  --spacing-4: 1rem;       /* 16px */
+  --spacing-5: 1.25rem;    /* 20px */
+  --spacing-6: 1.5rem;     /* 24px */
+  --spacing-8: 2rem;       /* 32px */
+  --spacing-10: 2.5rem;    /* 40px */
+  --spacing-12: 3rem;      /* 48px */
+  --spacing-16: 4rem;      /* 64px */
+  --spacing-20: 5rem;      /* 80px */
+  --spacing-24: 6rem;      /* 96px */
+  
+  /* ========== 圆角系统 ========== */
+  --radius-none: 0;
+  --radius-sm: 0.5rem;     /* 8px */
+  --radius-md: 0.75rem;    /* 12px */
+  --radius-lg: 1rem;       /* 16px */
+  --radius-xl: 1.25rem;    /* 20px */
+  --radius-2xl: 1.5rem;    /* 24px */
+  --radius-3xl: 2rem;      /* 32px */
+  --radius-full: 9999px;
+  
+  /* ========== 阴影系统 ========== */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  
+  /* 彩色阴影 */
+  --shadow-pink: 0 10px 25px -5px rgba(221, 97, 124, 0.3);
+  --shadow-yellow: 0 10px 25px -5px rgba(232, 194, 89, 0.3);
+  --shadow-blue: 0 10px 25px -5px rgba(107, 143, 163, 0.3);
+  --shadow-green: 0 10px 25px -5px rgba(109, 153, 120, 0.3);
+  --shadow-purple: 0 10px 25px -5px rgba(147, 112, 163, 0.3);
+  
+  /* ========== 过渡动画 ========== */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slower: 500ms cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* 缓动函数 */
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  --ease-elastic: cubic-bezier(0.68, -0.6, 0.32, 1.6);
+  
+  /* ========== Z-index 层级 ========== */
+  --z-base: 0;
+  --z-dropdown: 1000;
+  --z-sticky: 1100;
+  --z-fixed: 1200;
+  --z-modal-backdrop: 1300;
+  --z-modal: 1400;
+  --z-popover: 1500;
+  --z-tooltip: 1600;
+  --z-notification: 1700;
+  
+  /* ========== 断点 ========== */
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
+}
+
+/* ========== 全局样式重置 ========== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: var(--font-normal);
+  line-height: var(--leading-normal);
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+}
+
+/* ========== 滚动条样式 ========== */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-gray-300);
+  border-radius: var(--radius-full);
+  transition: background var(--transition-base);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-gray-400);
+}
+
+/* ========== 选中文本样式 ========== */
+::selection {
+  background-color: var(--color-pink-200);
+  color: var(--text-primary);
+}
+
+/* ========== 焦点样式 ========== */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ========== 禁用状态 ========== */
+:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+

@@ -4,7 +4,7 @@ import { useGrowthStore } from '@/stores/growthStore';
 import { X } from 'lucide-react';
 import NotificationContainer from '@/components/ui/NotificationContainer';
 import FloatingAIChat from '@/components/ai/FloatingAIChat';
-import AISmartInput from '@/components/ai/AISmartInput';
+// import AISmartInput from '@/components/ai/AISmartInput'; // 临时注释
 import TimelineCalendar from '@/components/calendar/TimelineCalendar';
 import ResponsiveLayout from '@/components/layout/ResponsiveLayout';
 
@@ -14,6 +14,7 @@ export default function Dashboard() {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [isAISmartOpen, setIsAISmartOpen] = useState(false);
+  const [currentModule, setCurrentModule] = useState<string>('timeline'); // 跟踪当前模块
 
   useEffect(() => {
     document.title = 'ManifestOS - 主控面板';
@@ -27,7 +28,10 @@ export default function Dashboard() {
       <NotificationContainer />
 
       {/* 响应式布局 - 自动适配电脑端和手机端 */}
-      <ResponsiveLayout onOpenAISmart={() => setIsAISmartOpen(true)} />
+      <ResponsiveLayout 
+        onOpenAISmart={() => setIsAISmartOpen(true)}
+        onModuleChange={(module) => setCurrentModule(module)}
+      />
 
       {/* 日历时间轴 */}
       {isCalendarOpen && (
@@ -57,11 +61,13 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* AI 对话框 - 使用 FloatingAIChat */}
-      <FloatingAIChat isFullScreen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} />
+      {/* AI 对话框 - 使用 FloatingAIChat - 只在时间轴界面显示 */}
+      {currentModule === 'timeline' && (
+        <FloatingAIChat isFullScreen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} />
+      )}
 
-      {/* AI 智能输入框 */}
-      <AISmartInput isOpen={isAISmartOpen} onClose={() => setIsAISmartOpen(false)} />
+      {/* AI 智能输入框 - 临时禁用 */}
+      {/* <AISmartInput isOpen={isAISmartOpen} onClose={() => setIsAISmartOpen(false)} /> */}
     </div>
   );
 }

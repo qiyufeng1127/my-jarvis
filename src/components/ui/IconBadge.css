@@ -1,0 +1,151 @@
+/* ============================================
+   Icon Badge Component Styles
+   ============================================ */
+
+.icon-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+  transition: all var(--transition-base);
+}
+
+/* ========== Sizes ========== */
+.icon-badge--sm {
+  width: 32px;
+  height: 32px;
+  font-size: var(--text-sm);
+}
+
+.icon-badge--md {
+  width: 40px;
+  height: 40px;
+  font-size: var(--text-base);
+}
+
+.icon-badge--lg {
+  width: 48px;
+  height: 48px;
+  font-size: var(--text-lg);
+}
+
+.icon-badge--xl {
+  width: 64px;
+  height: 64px;
+  font-size: var(--text-2xl);
+}
+
+/* ========== Variants ========== */
+
+/* Solid */
+.icon-badge--solid.icon-badge--pink {
+  background-color: var(--color-pink-500);
+  color: var(--text-inverse);
+}
+
+.icon-badge--solid.icon-badge--yellow {
+  background-color: var(--color-yellow-500);
+  color: var(--text-primary);
+}
+
+.icon-badge--solid.icon-badge--blue {
+  background-color: var(--color-blue-500);
+  color: var(--text-inverse);
+}
+
+.icon-badge--solid.icon-badge--green {
+  background-color: var(--color-green-500);
+  color: var(--text-inverse);
+}
+
+.icon-badge--solid.icon-badge--purple {
+  background-color: var(--color-purple-500);
+  color: var(--text-inverse);
+}
+
+.icon-badge--solid.icon-badge--brown {
+  background-color: var(--color-brown-500);
+  color: var(--text-inverse);
+}
+
+/* Soft */
+.icon-badge--soft.icon-badge--pink {
+  background-color: var(--color-pink-100);
+  color: var(--color-pink-600);
+}
+
+.icon-badge--soft.icon-badge--yellow {
+  background-color: var(--color-yellow-100);
+  color: var(--color-yellow-600);
+}
+
+.icon-badge--soft.icon-badge--blue {
+  background-color: var(--color-blue-100);
+  color: var(--color-blue-600);
+}
+
+.icon-badge--soft.icon-badge--green {
+  background-color: var(--color-green-100);
+  color: var(--color-green-600);
+}
+
+.icon-badge--soft.icon-badge--purple {
+  background-color: var(--color-purple-100);
+  color: var(--color-purple-600);
+}
+
+.icon-badge--soft.icon-badge--brown {
+  background-color: var(--color-brown-100);
+  color: var(--color-brown-600);
+}
+
+/* Outline */
+.icon-badge--outline.icon-badge--pink {
+  background-color: transparent;
+  border: 2px solid var(--color-pink-500);
+  color: var(--color-pink-600);
+}
+
+.icon-badge--outline.icon-badge--yellow {
+  background-color: transparent;
+  border: 2px solid var(--color-yellow-500);
+  color: var(--color-yellow-600);
+}
+
+.icon-badge--outline.icon-badge--blue {
+  background-color: transparent;
+  border: 2px solid var(--color-blue-500);
+  color: var(--color-blue-600);
+}
+
+.icon-badge--outline.icon-badge--green {
+  background-color: transparent;
+  border: 2px solid var(--color-green-500);
+  color: var(--color-green-600);
+}
+
+.icon-badge--outline.icon-badge--purple {
+  background-color: transparent;
+  border: 2px solid var(--color-purple-500);
+  color: var(--color-purple-600);
+}
+
+.icon-badge--outline.icon-badge--brown {
+  background-color: transparent;
+  border: 2px solid var(--color-brown-500);
+  color: var(--color-brown-600);
+}
+
+/* ========== Icon Sizing ========== */
+.icon-badge svg {
+  width: 60%;
+  height: 60%;
+}
+
+.icon-badge img {
+  width: 60%;
+  height: 60%;
+  object-fit: contain;
+}
+

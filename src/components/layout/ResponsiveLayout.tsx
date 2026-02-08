@@ -4,9 +4,10 @@ import MobileLayout from './MobileLayout';
 
 interface ResponsiveLayoutProps {
   onOpenAISmart?: () => void;
+  onModuleChange?: (module: string) => void;
 }
 
-export default function ResponsiveLayout({ onOpenAISmart }: ResponsiveLayoutProps) {
+export default function ResponsiveLayout({ onOpenAISmart, onModuleChange }: ResponsiveLayoutProps) {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -27,11 +28,11 @@ export default function ResponsiveLayout({ onOpenAISmart }: ResponsiveLayoutProp
 
   // 手机端使用 MobileLayout
   if (isMobile) {
-    return <MobileLayout />;
+    return <MobileLayout onModuleChange={onModuleChange} />;
   }
 
   // 电脑端使用 CustomizableDashboard
-  return <CustomizableDashboard onOpenAISmart={onOpenAISmart} />;
+  return <CustomizableDashboard onOpenAISmart={onOpenAISmart} onModuleChange={onModuleChange} />;
 }
 
 

@@ -15,6 +15,7 @@ export interface TagData {
   createdAt: Date;
   isDisabled?: boolean; // 是否禁用
   tagType?: TagType; // 标签类型
+  folderId?: string; // 所属文件夹ID
   
   // 财务数据
   totalIncome: number; // 总收入
@@ -64,14 +65,26 @@ export interface TagGroup {
   order: number;
 }
 
+// 标签文件夹（分类）
+export interface TagFolder {
+  id: string;
+  name: string;
+  emoji: string;
+  color: string; // 文件夹颜色，会应用到所有子标签的任务卡片背景色
+  tagNames: string[]; // 该文件夹下的标签
+  order: number;
+  createdAt: Date;
+}
+
 interface TagState {
   tags: Record<string, TagData>; // key: 标签名称
   durationRecords: TagDurationRecord[];
   financeRecords: TagFinanceRecord[];
   groups: TagGroup[];
+  folders: TagFolder[]; // 标签文件夹
   
   // 标签操作
-  addTag: (name: string, emoji?: string, color?: string, tagType?: TagType) => void;
+  addTag: (name: string, emoji?: string, color?: string, tagType?: TagType, folderId?: string) => void;
   updateTag: (oldName: string, newName: string, emoji?: string, color?: string) => void;
   deleteTag: (name: string) => void;
   disableTag: (name: string) => void;
@@ -79,6 +92,18 @@ interface TagState {
   mergeTags: (tagNames: string[], newName: string) => void;
   setTagType: (tagName: string, tagType: TagType) => void;
   batchSetTagType: (tagNames: string[], tagType: TagType) => void;
+  
+  // 文件夹操作
+  createFolder: (name: string, emoji: string, color: string, tagNames?: string[]) => string;
+  updateFolder: (folderId: string, updates: Partial<TagFolder>) => void;
+  deleteFolder: (folderId: string) => void;
+  addTagToFolder: (tagName: string, folderId: string) => void;
+  removeTagFromFolder: (tagName: string, folderId: string) => void;
+  getFolderById: (folderId: string) => TagFolder | undefined;
+  getAllFolders: () => TagFolder[];
+  getTagsByFolder: (folderId: string) => TagData[];
+  getTagColor: (tagName: string) => string; // 获取标签的颜色（优先使用文件夹颜色）
+  initializeDefaultFolders: () => void;
   
   // 标签使用记录
   recordTagUsage: (tagName: string, taskId: string, taskTitle: string, duration: number, isInvalid?: boolean) => void;
@@ -246,8 +271,9 @@ export const useTagStore = create<TagState>()(
       durationRecords: [],
       financeRecords: [],
       groups: [],
+      folders: [],
       
-      addTag: (name, emoji, color, tagType) => {
+      addTag: (name, emoji, color, tagType, folderId) => {
         const tags = get().tags;
         if (tags[name]) {
           // 标签已存在，增加使用次数
@@ -263,27 +289,40 @@ export const useTagStore = create<TagState>()(
           });
         } else {
           // 新标签
+          const newTag: TagData = {
+            name,
+            emoji: emoji || generateEmojiForTag(name),
+            color: color || generateColorForTag(name),
+            usageCount: 1,
+            totalDuration: 0,
+            lastUsedAt: new Date(),
+            createdAt: new Date(),
+            isDisabled: false,
+            tagType: tagType || 'business',
+            folderId: folderId,
+            totalIncome: 0,
+            totalExpense: 0,
+            netIncome: 0,
+            hourlyRate: 0,
+            invalidDuration: 0,
+          };
+          
           set({
             tags: {
               ...tags,
-              [name]: {
-                name,
-                emoji: emoji || generateEmojiForTag(name),
-                color: color || generateColorForTag(name),
-                usageCount: 1,
-                totalDuration: 0,
-                lastUsedAt: new Date(),
-                createdAt: new Date(),
-                isDisabled: false,
-                tagType: tagType || 'business',
-                totalIncome: 0,
-                totalExpense: 0,
-                netIncome: 0,
-                hourlyRate: 0,
-                invalidDuration: 0,
-              },
+              [name]: newTag,
             },
           });
+          
+          // 如果指定了文件夹，将标签添加到文件夹
+          if (folderId) {
+            const folder = get().folders.find(f => f.id === folderId);
+            if (folder && !folder.tagNames.includes(name)) {
+              get().updateFolder(folderId, {
+                tagNames: [...folder.tagNames, name],
+              });
+            }
+          }
         }
       },
       
@@ -366,22 +405,40 @@ export const useTagStore = create<TagState>()(
         // 计算合并后的统计数据
         let totalUsageCount = 0;
         let totalDuration = 0;
+        let totalIncome = 0;
+        let totalExpense = 0;
+        let invalidDuration = 0;
         let earliestCreatedAt = new Date();
         let latestUsedAt = new Date(0);
+        let tagType: TagType = 'business';
         
         tagNames.forEach(name => {
           const tag = tags[name];
           if (tag) {
             totalUsageCount += tag.usageCount;
             totalDuration += tag.totalDuration;
+            totalIncome += tag.totalIncome;
+            totalExpense += tag.totalExpense;
+            invalidDuration += tag.invalidDuration;
+            
             if (tag.createdAt < earliestCreatedAt) {
               earliestCreatedAt = tag.createdAt;
             }
             if (tag.lastUsedAt > latestUsedAt) {
               latestUsedAt = tag.lastUsedAt;
             }
+            
+            // 如果有任何一个是生活必需，则合并后也是生活必需
+            if (tag.tagType === 'life_essential') {
+              tagType = 'life_essential';
+            }
           }
         });
+        
+        // 计算合并后的财务数据
+        const netIncome = totalIncome - totalExpense;
+        const effectiveDuration = totalDuration - invalidDuration;
+        const hourlyRate = effectiveDuration > 0 ? (netIncome / (effectiveDuration / 60)) : 0;
         
         // 删除旧标签
         const newTags = { ...tags };
@@ -396,9 +453,15 @@ export const useTagStore = create<TagState>()(
           color: generateColorForTag(newName),
           usageCount: totalUsageCount,
           totalDuration: totalDuration,
+          totalIncome: totalIncome,
+          totalExpense: totalExpense,
+          netIncome: netIncome,
+          hourlyRate: hourlyRate,
+          invalidDuration: invalidDuration,
           lastUsedAt: latestUsedAt,
           createdAt: earliestCreatedAt,
           isDisabled: false,
+          tagType: tagType,
         };
         
         set({ tags: newTags });
@@ -406,6 +469,15 @@ export const useTagStore = create<TagState>()(
         // 更新时长记录
         set({
           durationRecords: get().durationRecords.map(record =>
+            tagNames.includes(record.tagName)
+              ? { ...record, tagName: newName }
+              : record
+          ),
+        });
+        
+        // 更新财务记录
+        set({
+          financeRecords: get().financeRecords.map(record =>
             tagNames.includes(record.tagName)
               ? { ...record, tagName: newName }
               : record
@@ -866,6 +938,270 @@ export const useTagStore = create<TagState>()(
               break;
           }
         });
+      },
+      
+      // 文件夹操作
+      createFolder: (name, emoji, color, tagNames = []) => {
+        const folders = get().folders;
+        const newFolder: TagFolder = {
+          id: crypto.randomUUID(),
+          name,
+          emoji,
+          color,
+          tagNames,
+          order: folders.length,
+          createdAt: new Date(),
+        };
+        
+        set({
+          folders: [...folders, newFolder],
+        });
+        
+        return newFolder.id;
+      },
+      
+      updateFolder: (folderId, updates) => {
+        set({
+          folders: get().folders.map(f =>
+            f.id === folderId ? { ...f, ...updates } : f
+          ),
+        });
+      },
+      
+      deleteFolder: (folderId) => {
+        // 删除文件夹时，将其中的标签的folderId设为undefined
+        const folder = get().folders.find(f => f.id === folderId);
+        if (folder) {
+          const tags = get().tags;
+          const updatedTags = { ...tags };
+          folder.tagNames.forEach(tagName => {
+            if (updatedTags[tagName]) {
+              updatedTags[tagName] = {
+                ...updatedTags[tagName],
+                folderId: undefined,
+              };
+            }
+          });
+          set({ tags: updatedTags });
+        }
+        
+        set({
+          folders: get().folders.filter(f => f.id !== folderId),
+        });
+      },
+      
+      addTagToFolder: (tagName, folderId) => {
+        const folder = get().folders.find(f => f.id === folderId);
+        if (folder && !folder.tagNames.includes(tagName)) {
+          get().updateFolder(folderId, {
+            tagNames: [...folder.tagNames, tagName],
+          });
+          
+          // 更新标签的folderId
+          const tags = get().tags;
+          if (tags[tagName]) {
+            set({
+              tags: {
+                ...tags,
+                [tagName]: {
+                  ...tags[tagName],
+                  folderId,
+                },
+              },
+            });
+          }
+        }
+      },
+      
+      removeTagFromFolder: (tagName, folderId) => {
+        const folder = get().folders.find(f => f.id === folderId);
+        if (folder) {
+          get().updateFolder(folderId, {
+            tagNames: folder.tagNames.filter(name => name !== tagName),
+          });
+          
+          // 清除标签的folderId
+          const tags = get().tags;
+          if (tags[tagName]) {
+            set({
+              tags: {
+                ...tags,
+                [tagName]: {
+                  ...tags[tagName],
+                  folderId: undefined,
+                },
+              },
+            });
+          }
+        }
+      },
+      
+      getFolderById: (folderId) => {
+        return get().folders.find(f => f.id === folderId);
+      },
+      
+      getAllFolders: () => {
+        return get().folders.sort((a, b) => a.order - b.order);
+      },
+      
+      getTagsByFolder: (folderId) => {
+        const folder = get().folders.find(f => f.id === folderId);
+        if (!folder) return [];
+        
+        const tags = get().tags;
+        return folder.tagNames
+          .map(name => tags[name])
+          .filter(tag => tag !== undefined);
+      },
+      
+      getTagColor: (tagName) => {
+        const tag = get().tags[tagName];
+        if (!tag) return '#6A7334'; // 默认颜色
+        
+        // 如果标签属于某个文件夹，使用文件夹的颜色
+        if (tag.folderId) {
+          const folder = get().folders.find(f => f.id === tag.folderId);
+          if (folder) {
+            return folder.color;
+          }
+        }
+        
+        // 否则使用标签自己的颜色
+        return tag.color;
+      },
+      
+      initializeDefaultFolders: () => {
+        const existingFolders = get().folders;
+        if (existingFolders.length > 0) {
+          console.log('✅ 默认文件夹已存在，跳过初始化');
+          return;
+        }
+        
+        console.log('🎨 初始化12个默认标签文件夹...');
+        
+        const defaultFolders = [
+          {
+            name: '享受生活',
+            emoji: '🌸',
+            color: '#FF7BAC', // BUBBLEGUM 粉色
+            tags: ['旅行', '美食', '电影', '音乐', '阅读', '游戏'],
+          },
+          {
+            name: '最美的自己',
+            emoji: '💄',
+            color: '#F4BEAE', // PEACH FROST 桃色
+            tags: ['护肤', '化妆', '穿搭', '健身', '瑜伽', '美容'],
+          },
+          {
+            name: '文创插画',
+            emoji: '🎨',
+            color: '#D3B6D3', // LILACS 淡紫色
+            tags: ['绘画', '插画', '设计', '创作', '灵感', '作品'],
+          },
+          {
+            name: '照相馆工作',
+            emoji: '📷',
+            color: '#52A5CE', // BLUEBERRY 蓝色
+            tags: ['拍摄', '修图', '客户沟通', '预约管理', '设备维护', '照相馆工作'],
+          },
+          {
+            name: '学习成长',
+            emoji: '📚',
+            color: '#6D1F42', // GRAPE JUICE 葡萄紫
+            tags: ['学习', '阅读', '课程', '笔记', '思考', '成长'],
+          },
+          {
+            name: '开发软件',
+            emoji: '💻',
+            color: '#B8CEE8', // ICED BLUE 冰蓝色
+            tags: ['编程', '开发', '调试', '学习技术', '项目', '代码'],
+          },
+          {
+            name: '家务',
+            emoji: '🧹',
+            color: '#AACC96', // TEA GREEN 茶绿色
+            tags: ['打扫', '洗衣', '整理', '收纳', '清洁', '家务'],
+          },
+          {
+            name: '日常生活',
+            emoji: '📝',
+            color: '#EFCE7B', // BUTTER YELLOW 黄油黄
+            tags: ['购物', '做饭', '洗漱', '休息', '日常', '生活'],
+          },
+          {
+            name: '副业思考准备',
+            emoji: '💡',
+            color: '#EF6F3C', // BLOOD ORANGE 血橙色
+            tags: ['副业', '思考', '计划', '准备', '调研', '尝试'],
+          },
+          {
+            name: '健康',
+            emoji: '💪',
+            color: '#25533F', // FOREST 森林绿
+            tags: ['运动', '健身', '体检', '吃药', '健康', '锻炼'],
+          },
+          {
+            name: '睡眠',
+            emoji: '😴',
+            color: '#876029', // DRY EARTH 干土色
+            tags: ['睡觉', '午休', '休息', '睡眠', '放松'],
+          },
+          {
+            name: 'AI相关',
+            emoji: '🤖',
+            color: '#AFAB23', // OLIVE GREEN 橄榄绿
+            tags: ['AI学习', 'AI工具', 'ChatGPT', 'AI项目', 'AI研究', 'AI相关'],
+          },
+        ];
+        
+        const newFolders: TagFolder[] = [];
+        const newTags: Record<string, TagData> = { ...get().tags };
+        
+        defaultFolders.forEach((folderData, index) => {
+          const folderId = crypto.randomUUID();
+          
+          // 创建文件夹
+          const folder: TagFolder = {
+            id: folderId,
+            name: folderData.name,
+            emoji: folderData.emoji,
+            color: folderData.color,
+            tagNames: folderData.tags,
+            order: index,
+            createdAt: new Date(),
+          };
+          newFolders.push(folder);
+          
+          // 创建文件夹下的标签
+          folderData.tags.forEach(tagName => {
+            if (!newTags[tagName]) {
+              newTags[tagName] = {
+                name: tagName,
+                emoji: generateEmojiForTag(tagName),
+                color: folderData.color, // 使用文件夹颜色
+                usageCount: 0,
+                totalDuration: 0,
+                lastUsedAt: new Date(),
+                createdAt: new Date(),
+                isDisabled: false,
+                tagType: 'business',
+                folderId: folderId,
+                totalIncome: 0,
+                totalExpense: 0,
+                netIncome: 0,
+                hourlyRate: 0,
+                invalidDuration: 0,
+              };
+            }
+          });
+        });
+        
+        set({
+          folders: newFolders,
+          tags: newTags,
+        });
+        
+        console.log('✅ 成功创建12个默认文件夹和', Object.keys(newTags).length, '个标签');
       },
     }),
     {

@@ -1,0 +1,193 @@
+/* ============================================
+   Design System Demo Page Styles
+   ============================================ */
+
+.design-demo {
+  min-height: 100vh;
+  background: var(--bg-primary);
+  padding: var(--spacing-8) var(--spacing-4);
+}
+
+.design-demo__container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* ========== Header ========== */
+.design-demo__header {
+  text-align: center;
+  margin-bottom: var(--spacing-12);
+}
+
+.design-demo__title {
+  font-size: var(--text-5xl);
+  font-weight: var(--font-bold);
+  color: var(--color-pink-500);
+  margin-bottom: var(--spacing-3);
+}
+
+.design-demo__subtitle {
+  font-size: var(--text-xl);
+  color: var(--text-secondary);
+  font-weight: var(--font-medium);
+}
+
+/* ========== Section ========== */
+.design-demo__section {
+  margin-bottom: var(--spacing-16);
+}
+
+.design-demo__section-title {
+  font-size: var(--text-3xl);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-6);
+  padding-bottom: var(--spacing-3);
+  border-bottom: 2px solid var(--border-light);
+}
+
+/* ========== Grid Layout ========== */
+.design-demo__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--spacing-4);
+  margin-bottom: var(--spacing-6);
+}
+
+/* ========== Cards ========== */
+.design-demo__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--spacing-6);
+  margin-bottom: var(--spacing-6);
+}
+
+.design-demo__cards h3 {
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
+  margin-bottom: var(--spacing-2);
+}
+
+.design-demo__cards p {
+  font-size: var(--text-base);
+  line-height: var(--leading-relaxed);
+  opacity: 0.9;
+}
+
+/* ========== Badges ========== */
+.design-demo__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-4);
+  margin-bottom: var(--spacing-6);
+  align-items: center;
+}
+
+.design-demo__badge-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.design-demo__badge-group span {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/* ========== Tags ========== */
+.design-demo__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-6);
+}
+
+/* ========== Colors ========== */
+.design-demo__colors {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--spacing-4);
+  margin-bottom: var(--spacing-6);
+}
+
+.color-swatch {
+  height: 100px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: var(--font-semibold);
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition-base);
+}
+
+.color-swatch:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-xl);
+}
+
+/* ========== Gradients ========== */
+.design-demo__gradients {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--spacing-4);
+  margin-bottom: var(--spacing-6);
+}
+
+.gradient-swatch {
+  height: 120px;
+  border-radius: var(--radius-xl);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: var(--font-semibold);
+  font-size: var(--text-lg);
+  box-shadow: var(--shadow-lg);
+  transition: all var(--transition-base);
+}
+
+.gradient-swatch:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: var(--shadow-2xl);
+}
+
+/* ========== Responsive ========== */
+@media (max-width: 768px) {
+  .design-demo {
+    padding: var(--spacing-6) var(--spacing-3);
+  }
+
+  .design-demo__title {
+    font-size: var(--text-3xl);
+  }
+
+  .design-demo__subtitle {
+    font-size: var(--text-lg);
+  }
+
+  .design-demo__section-title {
+    font-size: var(--text-2xl);
+  }
+
+  .design-demo__grid {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: var(--spacing-3);
+  }
+
+  .design-demo__cards {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-4);
+  }
+
+  .design-demo__colors {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .design-demo__gradients {
+    grid-template-columns: 1fr;
+  }
+}
+

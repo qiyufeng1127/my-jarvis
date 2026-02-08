@@ -10,7 +10,10 @@ export { default as SmartTagRecommender } from './SmartTagRecommender';
 // V2 组件（优化版，推荐使用）
 export { default as TagManagerV2 } from './TagManagerV2';
 export { default as TagListV2 } from './TagListV2';
+export { default as TagRankingList } from './TagRankingList';
 export { default as TagFinanceAnalysis } from './TagFinanceAnalysis';
 export { default as TagEfficiencyAnalysis } from './TagEfficiencyAnalysis';
 export { default as TagAnalysisModalV2 } from './TagAnalysisModalV2';
+export { default as TagStatisticsView } from './TagStatisticsView';
+export { default as SmartTagMergeModal } from './SmartTagMergeModal';
 

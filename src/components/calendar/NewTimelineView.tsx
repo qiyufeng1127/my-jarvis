@@ -1292,11 +1292,75 @@ export default function NewTimelineView({
     
     return { hours, mins, totalMinutes: remainingMinutes, startTime: lastEndTime };
   };
+  
+  // 计算今日已过去的时间
+  const calculateTimePassedToday = () => {
+    if (timeBlocks.length === 0) return null;
+    
+    const now = new Date();
+    const startOfDay = new Date(selectedDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    
+    const firstBlock = timeBlocks[0];
+    const firstStartTime = firstBlock.startTime;
+    
+    // 如果第一个任务还没开始，计算从今天0点到第一个任务开始的时间
+    if (firstStartTime > now) {
+      const passedMinutes = Math.floor((now.getTime() - startOfDay.getTime()) / 60000);
+      const hours = Math.floor(passedMinutes / 60);
+      const mins = passedMinutes % 60;
+      return { hours, mins, totalMinutes: passedMinutes, endTime: now };
+    }
+    
+    // 如果第一个任务已经开始，计算从今天0点到第一个任务开始的时间
+    const passedMinutes = Math.floor((firstStartTime.getTime() - startOfDay.getTime()) / 60000);
+    const hours = Math.floor(passedMinutes / 60);
+    const mins = passedMinutes % 60;
+    return { hours, mins, totalMinutes: passedMinutes, endTime: firstStartTime };
+  };
 
   const timeUntilEnd = calculateTimeUntilEndOfDay();
+  const timePassed = calculateTimePassedToday();
 
   return (
     <div className="space-y-3 pb-4 relative">
+      {/* 今日已过去提示 - 在第一个任务前 */}
+      {timePassed && timePassed.totalMinutes > 0 && (
+        <div className="flex items-center gap-3 mb-2">
+          {/* 左侧时间对齐 */}
+          <div className="w-12 flex-shrink-0 text-left">
+            <div className="text-sm font-semibold" style={{ color: accentColor }}>
+              00:00
+            </div>
+          </div>
+
+          {/* 今日已过去按钮 */}
+          <button
+            onClick={() => {
+              // 可以添加一些交互，比如显示详细统计
+              alert(`今天已经过去了 ${timePassed.hours}小时${timePassed.mins}分钟`);
+            }}
+            className="flex-1 rounded-xl p-3 flex items-center gap-3 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            style={{
+              background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(147, 51, 234, 0.2) 100%)',
+              border: `2px solid ${borderColor}`,
+            }}
+          >
+            <div 
+              className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{ backgroundColor: 'rgba(59, 130, 246, 0.3)' }}
+            >
+              <Clock className="w-5 h-5 text-blue-500" />
+            </div>
+            <span className="text-sm font-semibold" style={{ color: textColor }}>
+              今日已过去
+              {timePassed.hours > 0 && ` ${timePassed.hours}小时`}
+              {timePassed.mins > 0 && ` ${timePassed.mins}分钟`}
+            </span>
+          </button>
+        </div>
+      )}
+      
       {/* 庆祝效果 */}
       <CelebrationEffect 
         show={showCelebration} 

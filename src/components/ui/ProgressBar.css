@@ -1,0 +1,218 @@
+/* ============================================
+   Progress Bar Styles
+   ============================================ */
+
+/* ========== Linear Progress Bar ========== */
+.progress-bar {
+  width: 100%;
+}
+
+.progress-bar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-2);
+}
+
+.progress-bar__label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--text-primary);
+}
+
+.progress-bar__value {
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: var(--text-secondary);
+}
+
+.progress-bar__track {
+  width: 100%;
+  background-color: var(--color-gray-200);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.progress-bar__fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width var(--transition-slow);
+}
+
+/* Sizes */
+.progress-bar--sm .progress-bar__track {
+  height: 4px;
+}
+
+.progress-bar--md .progress-bar__track {
+  height: 8px;
+}
+
+.progress-bar--lg .progress-bar__track {
+  height: 12px;
+}
+
+/* Colors */
+.progress-bar__fill--pink { background-color: var(--color-pink-500); }
+.progress-bar__fill--yellow { background-color: var(--color-yellow-500); }
+.progress-bar__fill--blue { background-color: var(--color-blue-500); }
+.progress-bar__fill--green { background-color: var(--color-green-500); }
+.progress-bar__fill--purple { background-color: var(--color-purple-500); }
+.progress-bar__fill--brown { background-color: var(--color-brown-500); }
+
+/* ========== Circular Progress ========== */
+.circular-progress {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.circular-progress__track {
+  fill: none;
+  stroke: var(--color-gray-200);
+}
+
+.circular-progress__fill {
+  fill: none;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: center;
+}
+
+.circular-progress__fill--pink { stroke: var(--color-pink-500); }
+.circular-progress__fill--yellow { stroke: var(--color-yellow-500); }
+.circular-progress__fill--blue { stroke: var(--color-blue-500); }
+.circular-progress__fill--green { stroke: var(--color-green-500); }
+.circular-progress__fill--purple { stroke: var(--color-purple-500); }
+.circular-progress__fill--brown { stroke: var(--color-brown-500); }
+
+.circular-progress__label {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.circular-progress__value {
+  font-size: var(--text-xl);
+  font-weight: var(--font-bold);
+  color: var(--text-primary);
+}
+
+/* ========== Step Progress ========== */
+.step-progress {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+}
+
+.step-progress__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.step-progress__circle {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-gray-200);
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  transition: all var(--transition-base);
+  z-index: 1;
+}
+
+.step-progress__circle--active {
+  color: var(--color-white);
+}
+
+.step-progress__circle--active.step-progress__circle--pink {
+  background-color: var(--color-pink-500);
+}
+
+.step-progress__circle--active.step-progress__circle--yellow {
+  background-color: var(--color-yellow-500);
+}
+
+.step-progress__circle--active.step-progress__circle--blue {
+  background-color: var(--color-blue-500);
+}
+
+.step-progress__circle--active.step-progress__circle--green {
+  background-color: var(--color-green-500);
+}
+
+.step-progress__circle--active.step-progress__circle--purple {
+  background-color: var(--color-purple-500);
+}
+
+.step-progress__circle--active.step-progress__circle--brown {
+  background-color: var(--color-brown-500);
+}
+
+.step-progress__label {
+  margin-top: var(--spacing-2);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.step-progress__line {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  right: -50%;
+  height: 2px;
+  background-color: var(--color-gray-200);
+  transition: background-color var(--transition-base);
+}
+
+.step-progress__line--active.step-progress__line--pink {
+  background-color: var(--color-pink-500);
+}
+
+.step-progress__line--active.step-progress__line--yellow {
+  background-color: var(--color-yellow-500);
+}
+
+.step-progress__line--active.step-progress__line--blue {
+  background-color: var(--color-blue-500);
+}
+
+.step-progress__line--active.step-progress__line--green {
+  background-color: var(--color-green-500);
+}
+
+.step-progress__line--active.step-progress__line--purple {
+  background-color: var(--color-purple-500);
+}
+
+.step-progress__line--active.step-progress__line--brown {
+  background-color: var(--color-brown-500);
+}
+
+/* ========== Responsive ========== */
+@media (max-width: 768px) {
+  .step-progress__circle {
+    width: 32px;
+    height: 32px;
+    font-size: var(--text-xs);
+  }
+
+  .step-progress__line {
+    top: 16px;
+  }
+
+  .step-progress__label {
+    font-size: 10px;
+  }
+}
+

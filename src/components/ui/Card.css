@@ -1,0 +1,105 @@
+/* ============================================
+   Card Component Styles
+   ============================================ */
+
+.card {
+  position: relative;
+  background-color: var(--bg-card);
+  border-radius: var(--radius-2xl);
+  overflow: hidden;
+  transition: all var(--transition-base);
+}
+
+/* ========== Variants ========== */
+.card--default {
+  background-color: var(--bg-card);
+}
+
+.card--glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* ========== Padding ========== */
+.card--padding-none {
+  padding: 0;
+}
+
+.card--padding-sm {
+  padding: var(--spacing-4);
+}
+
+.card--padding-md {
+  padding: var(--spacing-6);
+}
+
+.card--padding-lg {
+  padding: var(--spacing-8);
+}
+
+/* ========== Shadow ========== */
+.card--shadow-none {
+  box-shadow: none;
+}
+
+.card--shadow-sm {
+  box-shadow: var(--shadow-sm);
+}
+
+.card--shadow-md {
+  box-shadow: var(--shadow-md);
+}
+
+.card--shadow-lg {
+  box-shadow: var(--shadow-lg);
+}
+
+.card--shadow-xl {
+  box-shadow: var(--shadow-xl);
+}
+
+/* ========== States ========== */
+.card--hover:hover {
+  box-shadow: var(--shadow-xl);
+}
+
+.card--clickable {
+  cursor: pointer;
+}
+
+.card--clickable:active {
+  transform: scale(0.98);
+}
+
+/* ========== Card Sections ========== */
+.card__header {
+  padding-bottom: var(--spacing-4);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.card__body {
+  padding: var(--spacing-4) 0;
+}
+
+.card__footer {
+  padding-top: var(--spacing-4);
+  border-top: 1px solid var(--border-light);
+}
+
+/* ========== Responsive ========== */
+@media (max-width: 768px) {
+  .card--padding-sm {
+    padding: var(--spacing-3);
+  }
+
+  .card--padding-md {
+    padding: var(--spacing-4);
+  }
+
+  .card--padding-lg {
+    padding: var(--spacing-6);
+  }
+}
+

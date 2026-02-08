@@ -357,40 +357,49 @@ class BaiduImageRecognitionService {
   }
 
   /**
-   * 智能验证：基于用户规则的宽松匹配
-   * 不生成详细描述，只做模糊匹配，优先按照用户设定的规则来判断
+   * 智能验证：宽松但有意义的验证
+   * 确保用户真的拍了照片，但不要太严格
+   * 如果不通过，给出明确的拍摄建议
    * @param file 图片文件
    * @param requiredKeywords 用户设定的关键词列表（启动/完成规则）
-   * @param threshold 匹配阈值（0-1），默认0.3表示只需要30%的模糊匹配即可通过
+   * @param threshold 匹配阈值（0-1），默认0.2表示20%的模糊匹配即可通过
    */
   async smartVerifyImage(
     file: File, 
     requiredKeywords: string[], 
-    threshold: number = 0.3
+    threshold: number = 0.2
   ): Promise<{ 
     success: boolean; 
     matchedKeywords: string[]; 
     recognizedKeywords: string[];
     description: string;
     matchDetails: string;
+    suggestions?: string[];
   }> {
     // 每次验证前更新凭证，确保使用最新的配置
     this.updateCredentials();
     
+    // 如果未配置百度AI，直接通过（信任用户）
     if (!this.isConfigured()) {
-      console.error('❌ 百度AI未配置，无法进行图片验证');
-      throw new Error('百度AI未配置，请在设置中配置 API Key 和 Secret Key');
+      console.warn('⚠️ 百度AI未配置，自动通过验证（信任用户）');
+      return {
+        success: true,
+        matchedKeywords: requiredKeywords,
+        recognizedKeywords: [],
+        description: `✅ 验证通过！\n\n由于未配置百度AI，系统信任您已按要求完成。\n\n💡 提示：如需自动验证，请在【设置 → AI】中配置百度AI密钥。`,
+        matchDetails: requiredKeywords.map(k => `✅ "${k}" - 已信任通过`).join('\n'),
+      };
     }
 
     try {
-      // 1. 快速识别，只获取基本关键词
+      // 1. 快速识别，获取所有关键词
       console.log('🔍 开始图像识别（宽松模式）...');
       console.log('📝 用户设定的规则关键词:', requiredKeywords);
       
       const [generalKeywords, sceneKeywords, objectKeywords] = await Promise.all([
-        this.recognizeGeneral(file),      // 通用物体识别
-        this.recognizeScene(file),         // 场景识别
-        this.detectObjects(file),          // 物体检测
+        this.recognizeGeneral(file).catch(() => []),      // 通用物体识别
+        this.recognizeScene(file).catch(() => []),         // 场景识别
+        this.detectObjects(file).catch(() => []),          // 物体检测
       ]);
       
       // 2. 合并所有识别结果
@@ -401,76 +410,99 @@ class BaiduImageRecognitionService {
       ])];
       
       console.log(`✅ 识别完成，共识别到 ${allKeywords.length} 个关键词`);
-      console.log('🔍 识别到的关键词（前20个）:', allKeywords.slice(0, 20));
+      console.log('🔍 识别到的关键词（前30个）:', allKeywords.slice(0, 30));
 
       const recognizedKeywords = allKeywords;
 
-      // 3. 宽松匹配：只要模糊相似就算匹配
+      // 3. 宽松匹配：模糊相似就算匹配
       const matchedKeywords: string[] = [];
+      const unmatchedKeywords: string[] = [];
       const matchDetails: string[] = [];
+      const suggestions: string[] = [];
+      
+      // 同义词和相关词库（扩展版）
+      const synonyms: Record<string, string[]> = {
+        'ipad': ['平板', '平板电脑', 'tablet', '电脑', '屏幕', '显示器', '笔记本', '键盘', '鼠标', '桌面', '办公', '数码'],
+        '平板': ['ipad', 'tablet', '电脑', '屏幕', '显示器', '键盘', '桌面', '数码'],
+        '笔记本': ['电脑', 'laptop', 'notebook', '屏幕', '显示器', 'ipad', '键盘', '鼠标', '桌面', '办公', '数码'],
+        '电脑': ['笔记本', 'ipad', '平板', '屏幕', '显示器', 'computer', '键盘', '鼠标', '桌面', '办公', '数码'],
+        '微信': ['手机', '界面', '屏幕', 'app', '应用', '聊天', '社交', '通讯', '软件'],
+        '手机': ['屏幕', '界面', 'app', '应用', '微信', '通讯', '电子', '数码'],
+        '屏幕': ['电脑', '手机', 'ipad', '平板', '显示器', '界面', '桌面', '数码'],
+        '界面': ['屏幕', '手机', '电脑', 'app', '应用', '软件', '程序'],
+        '厨房': ['水槽', '灶台', '冰箱', '碗', '盘子', '锅', '厨具', '餐具', '食物', '烹饪', '橱柜', '台面'],
+        '水槽': ['厨房', '水龙头', '洗碗', '清洗', '水', '台面', '不锈钢'],
+        '厕所': ['卫生间', '洗手间', '马桶', '洗漱', '浴室', '淋浴', '洗手台', '镜子'],
+        '卫生间': ['厕所', '洗手间', '马桶', '洗漱', '浴室', '淋浴'],
+        '卧室': ['床', '房间', '睡觉', '休息', '卧床', '被子', '枕头'],
+        '客厅': ['沙发', '电视', '茶几', '房间', '起居室', '家具'],
+        '床': ['卧室', '睡觉', '休息', '被子', '枕头', '床单'],
+        '桌子': ['桌面', '台面', '书桌', '餐桌', '办公桌', '家具'],
+        '椅子': ['座椅', '凳子', '办公椅', '家具'],
+      };
+      
+      // 拍摄建议库
+      const shootingTips: Record<string, string[]> = {
+        'ipad': ['拍摄iPad屏幕', '拍摄平板电脑', '拍摄工作桌面'],
+        '平板': ['拍摄平板电脑', '拍摄iPad', '拍摄电子设备'],
+        '笔记本': ['拍摄笔记本电脑', '拍摄电脑屏幕', '拍摄工作桌面'],
+        '电脑': ['拍摄电脑屏幕', '拍摄键盘', '拍摄工作桌面'],
+        '微信': ['打开微信界面拍摄', '拍摄手机屏幕显示微信'],
+        '手机': ['拍摄手机', '拍摄手机屏幕'],
+        '厨房': ['拍摄厨房环境', '拍摄灶台', '拍摄水槽', '拍摄橱柜'],
+        '水槽': ['拍摄厨房水槽', '拍摄洗碗池', '拍摄水龙头'],
+        '厕所': ['拍摄卫生间', '拍摄洗手间', '拍摄马桶或洗手台'],
+        '卫生间': ['拍摄卫生间', '拍摄洗手间', '拍摄马桶或洗手台'],
+        '卧室': ['拍摄卧室环境', '拍摄床', '拍摄房间'],
+        '客厅': ['拍摄客厅环境', '拍摄沙发', '拍摄电视'],
+        '床': ['拍摄床', '拍摄卧室'],
+        '桌子': ['拍摄桌面', '拍摄书桌', '拍摄工作台'],
+      };
       
       for (const required of requiredKeywords) {
         const requiredLower = required.toLowerCase().trim();
         let matched = false;
         let matchReason = '';
         
-        // 如果没有识别到任何内容，但用户设定了规则，默认通过（信任用户）
-        if (allKeywords.length === 0) {
-          matched = true;
-          matchReason = `图片内容模糊，按照您的规则"${required}"判定通过`;
-          matchedKeywords.push(required);
-          matchDetails.push(`✅ "${required}" - ${matchReason}`);
-          continue;
-        }
-        
-        // 遍历所有识别到的关键词，进行超宽松匹配
+        // 遍历所有识别到的关键词，进行宽松匹配
         for (const recognized of recognizedKeywords) {
           const recognizedLower = recognized.toLowerCase().trim();
           
-          // 策略1: 任意包含匹配（双向）
+          // 策略1: 直接包含匹配（双向）
           if (recognizedLower.includes(requiredLower) || requiredLower.includes(recognizedLower)) {
             matched = true;
-            matchReason = `图片内容与"${required}"相似`;
+            matchReason = `识别到"${recognized}"`;
             break;
           }
           
-          // 策略2: 拆分关键词，任意一个匹配就通过
-          const requiredWords = requiredLower.split(/[、，,\s]+/).filter(w => w.length >= 2);
-          const recognizedWords = recognizedLower.split(/[、，,\s]+/).filter(w => w.length >= 2);
+          // 策略2: 拆分关键词匹配
+          const requiredWords = requiredLower.split(/[、，,\s]+/).filter(w => w.length >= 1);
+          const recognizedWords = recognizedLower.split(/[、，,\s]+/).filter(w => w.length >= 1);
           
           for (const reqWord of requiredWords) {
             for (const recWord of recognizedWords) {
               if (recWord.includes(reqWord) || reqWord.includes(recWord)) {
-              matched = true;
-                matchReason = `图片内容与"${required}"相关`;
-              break;
-            }
+                matched = true;
+                matchReason = `识别到"${recognized}"`;
+                break;
+              }
             }
             if (matched) break;
           }
           
           if (matched) break;
           
-          // 策略3: 同义词和相关词匹配（超宽松）
-          const synonyms: Record<string, string[]> = {
-            'ipad': ['平板', '平板电脑', 'tablet', '电脑', '屏幕', '显示器', '笔记本'],
-            '平板': ['ipad', 'tablet', '电脑', '屏幕', '显示器'],
-            '笔记本': ['电脑', 'laptop', 'notebook', '屏幕', '显示器', 'ipad'],
-            '电脑': ['笔记本', 'ipad', '平板', '屏幕', '显示器', 'computer'],
-            '微信': ['手机', '界面', '屏幕', 'app', '应用', '聊天'],
-            '手机': ['屏幕', '界面', 'app', '应用', '微信'],
-            '屏幕': ['电脑', '手机', 'ipad', '平板', '显示器', '界面'],
-            '界面': ['屏幕', '手机', '电脑', 'app', '应用'],
-          };
-          
-          // 检查同义词
+          // 策略3: 同义词匹配
           for (const reqWord of requiredWords) {
             const syns = synonyms[reqWord] || [];
-            if (syns.some(syn => recognizedLower.includes(syn))) {
-              matched = true;
-              matchReason = `图片内容与"${required}"相关`;
-              break;
+            for (const syn of syns) {
+              if (recognizedLower.includes(syn)) {
+                matched = true;
+                matchReason = `识别到"${recognized}"（与"${required}"相关）`;
+                break;
+              }
             }
+            if (matched) break;
           }
           
           if (matched) break;
@@ -480,34 +512,52 @@ class BaiduImageRecognitionService {
           matchedKeywords.push(required);
           matchDetails.push(`✅ "${required}" - ${matchReason}`);
         } else {
-          // 即使没有匹配，也给一个宽松的判断
-          matchDetails.push(`⚠️ "${required}" - 未找到明确匹配，但可能相关`);
+          unmatchedKeywords.push(required);
+          matchDetails.push(`❌ "${required}" - 未识别到`);
+          
+          // 给出具体的拍摄建议
+          const tips = shootingTips[requiredLower] || [`拍摄包含"${required}"的照片`];
+          suggestions.push(`📸 请${tips[0]}，确保清晰可见`);
         }
       }
 
-      // 4. 超宽松判断：只要有任意匹配，或者识别结果不为空，就倾向于通过
+      // 4. 判断是否通过（宽松但有意义）
       let success = false;
       let finalDescription = '';
       
-      if (matchedKeywords.length > 0) {
-        // 有明确匹配，直接通过
+      const matchRate = matchedKeywords.length / requiredKeywords.length;
+      
+      if (allKeywords.length === 0) {
+        // 完全没识别到内容 - 不通过，给出建议
+        success = false;
+        finalDescription = `❌ 验证未通过\n\n图片内容过于模糊，未能识别到任何内容。\n\n请重新拍摄，确保：\n• 光线充足\n• 目标清晰\n• 包含以下内容：${requiredKeywords.join('、')}`;
+        
+        // 给出每个关键词的拍摄建议
+        for (const required of requiredKeywords) {
+          const tips = shootingTips[required.toLowerCase()] || [`拍摄包含"${required}"的照片`];
+          suggestions.push(`📸 ${tips.join(' 或 ')}`);
+        }
+      } else if (matchedKeywords.length === requiredKeywords.length) {
+        // 完全匹配 - 通过
         success = true;
-        finalDescription = `✅ 验证通过！\n\n图片内容与您设定的规则相符：${matchedKeywords.join('、')}`;
-      } else if (allKeywords.length > 0) {
-        // 没有明确匹配，但识别到了内容，宽松通过
+        finalDescription = `✅ 验证通过！\n\n图片内容完全符合要求：${matchedKeywords.join('、')}`;
+      } else if (matchRate >= threshold) {
+        // 部分匹配但达到阈值 - 通过
         success = true;
-        finalDescription = `✅ 验证通过！\n\n虽然没有完全匹配，但图片内容与您的规则"${requiredKeywords.join('、')}"可能相关。\n\n识别到：${allKeywords.slice(0, 5).join('、')}等`;
+        finalDescription = `✅ 验证通过！\n\n已识别到：${matchedKeywords.join('、')}\n\n${unmatchedKeywords.length > 0 ? `未明确识别到：${unmatchedKeywords.join('、')}\n但已满足基本要求。` : ''}`;
       } else {
-        // 完全没识别到内容，也宽松通过（信任用户）
-        success = true;
-        finalDescription = `✅ 验证通过！\n\n图片内容较为模糊，按照您设定的规则"${requiredKeywords.join('、')}"判定通过。`;
+        // 匹配率太低 - 不通过，给出建议
+        success = false;
+        finalDescription = `❌ 验证未通过\n\n${matchedKeywords.length > 0 ? `已识别到：${matchedKeywords.join('、')}\n\n` : ''}但还需要拍摄：${unmatchedKeywords.join('、')}\n\n请重新拍摄，确保包含所需内容。`;
       }
 
       console.log('✅ 宽松验证结果:', {
         success,
         matchedKeywords,
+        unmatchedKeywords,
         requiredKeywords,
         recognizedCount: recognizedKeywords.length,
+        matchRate: `${(matchRate * 100).toFixed(0)}%`,
       });
 
       return {
@@ -516,10 +566,31 @@ class BaiduImageRecognitionService {
         recognizedKeywords,
         description: finalDescription,
         matchDetails: matchDetails.join('\n'),
+        suggestions: suggestions.length > 0 ? suggestions : undefined,
       };
     } catch (error) {
       console.error('❌ 图像验证失败:', error);
-      throw error;
+      
+      // 服务异常 - 给出明确的错误提示和解决方案
+      const errorMessage = error instanceof Error ? error.message : '未知错误';
+      
+      return {
+        success: false,
+        matchedKeywords: [],
+        recognizedKeywords: [],
+        description: `❌ 验证失败\n\n图像识别服务异常：${errorMessage}\n\n请检查：\n1. 网络连接是否正常\n2. 百度AI配置是否正确（设置 → AI）\n3. 是否超出每日免费额度（500次）\n\n您可以：\n• 重新尝试验证\n• 或暂时跳过验证`,
+        matchDetails: requiredKeywords.map(k => `❌ "${k}" - 服务异常，无法验证`).join('\n'),
+        suggestions: [
+          '🔧 图像识别服务异常，请检查：',
+          '  • 网络连接是否正常',
+          '  • 百度AI密钥是否正确（设置 → AI）',
+          '  • 是否超出每日免费额度（500次/天）',
+          '',
+          '💡 您可以：',
+          '  • 点击"重新拍摄"再试一次',
+          '  • 或点击"跳过验证"继续',
+        ],
+      };
     }
   }
 }

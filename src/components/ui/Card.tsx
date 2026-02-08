@@ -1,32 +1,86 @@
-import { ReactNode } from 'react';
-import { cn } from '@/utils';
+import React from 'react';
+import { motion } from 'framer-motion';
+import './Card.css';
 
-interface CardProps {
-  children: ReactNode;
-  className?: string;
+export interface CardProps {
+  children: React.ReactNode;
+  variant?: 'default' | 'glass';
   padding?: 'none' | 'sm' | 'md' | 'lg';
+  shadow?: 'none' | 'sm' | 'md' | 'lg' | 'xl';
   hover?: boolean;
+  className?: string;
+  onClick?: () => void;
 }
 
-export default function Card({ children, className, padding = 'md', hover = false }: CardProps) {
-  const paddings = {
-    none: '',
-    sm: 'p-4',
-    md: 'p-6',
-    lg: 'p-8',
-  };
+export const Card: React.FC<CardProps> = ({
+  children,
+  variant = 'default',
+  padding = 'md',
+  shadow = 'md',
+  hover = false,
+  className = '',
+  onClick,
+}) => {
+  const baseClass = 'card';
+  const variantClass = `card--${variant}`;
+  const paddingClass = `card--padding-${padding}`;
+  const shadowClass = `card--shadow-${shadow}`;
+  const hoverClass = hover ? 'card--hover' : '';
+  const clickableClass = onClick ? 'card--clickable' : '';
+  
+  const classes = [
+    baseClass,
+    variantClass,
+    paddingClass,
+    shadowClass,
+    hoverClass,
+    clickableClass,
+    className
+  ].filter(Boolean).join(' ');
 
-  return (
-    <div
-      className={cn(
-        'bg-white rounded-lg shadow-sm border border-neutral-200',
-        paddings[padding],
-        hover && 'transition-shadow hover:shadow-md',
-        className
-      )}
-    >
+  const cardContent = (
+    <div className={classes} onClick={onClick}>
       {children}
     </div>
   );
+
+  if (hover || onClick) {
+    return (
+      <motion.div
+        whileHover={{ y: -4, scale: 1.01 }}
+        transition={{ duration: 0.2 }}
+      >
+        {cardContent}
+      </motion.div>
+    );
+  }
+
+  return cardContent;
+};
+
+export interface CardHeaderProps {
+  children: React.ReactNode;
+  className?: string;
 }
 
+export const CardHeader: React.FC<CardHeaderProps> = ({ children, className = '' }) => {
+  return <div className={`card__header ${className}`}>{children}</div>;
+};
+
+export interface CardBodyProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+export const CardBody: React.FC<CardBodyProps> = ({ children, className = '' }) => {
+  return <div className={`card__body ${className}`}>{children}</div>;
+};
+
+export interface CardFooterProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+export const CardFooter: React.FC<CardFooterProps> = ({ children, className = '' }) => {
+  return <div className={`card__footer ${className}`}>{children}</div>;
+};

@@ -1,0 +1,68 @@
+/* ============================================
+   Module Container Styles
+   ============================================ */
+
+.module-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--bg-primary);
+}
+
+/* ========== Header ========== */
+.module-container__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-4);
+  background-color: var(--bg-card);
+  border-bottom: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+
+.module-container__title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.module-container__icon {
+  font-size: var(--text-2xl);
+  line-height: 1;
+}
+
+.module-container__title-text {
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.module-container__action {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+/* ========== Content ========== */
+.module-container__content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-4);
+}
+
+/* ========== Responsive ========== */
+@media (max-width: 768px) {
+  .module-container__header {
+    padding: var(--spacing-3);
+  }
+
+  .module-container__title-text {
+    font-size: var(--text-lg);
+  }
+
+  .module-container__content {
+    padding: var(--spacing-3);
+  }
+}
+

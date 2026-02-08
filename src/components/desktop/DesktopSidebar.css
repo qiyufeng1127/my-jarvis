@@ -1,0 +1,212 @@
+/* ============================================
+   Desktop Sidebar Styles
+   ============================================ */
+
+.desktop-sidebar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 240px;
+  background-color: var(--bg-card);
+  border-right: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  transition: width var(--transition-base);
+  z-index: var(--z-fixed);
+  box-shadow: var(--shadow-md);
+}
+
+.desktop-sidebar--collapsed {
+  width: 80px;
+}
+
+/* ========== Header ========== */
+.desktop-sidebar__header {
+  padding: var(--spacing-6) var(--spacing-4);
+  border-bottom: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+
+.desktop-sidebar__logo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  cursor: pointer;
+  user-select: none;
+}
+
+.desktop-sidebar__logo-icon {
+  font-size: var(--text-2xl);
+  line-height: 1;
+}
+
+.desktop-sidebar__logo-text {
+  font-size: var(--text-xl);
+  font-weight: var(--font-bold);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+/* ========== Navigation ========== */
+.desktop-sidebar__nav {
+  flex: 1;
+  padding: var(--spacing-4) var(--spacing-2);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+/* ========== Nav Item ========== */
+.desktop-sidebar__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
+  border-radius: var(--radius-lg);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  text-align: left;
+  width: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.desktop-sidebar__item:hover {
+  background-color: var(--bg-hover);
+}
+
+.desktop-sidebar__item--active {
+  background-color: var(--bg-active);
+}
+
+.desktop-sidebar__item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.desktop-sidebar__icon-text {
+  font-size: var(--text-2xl);
+  line-height: 1;
+}
+
+.desktop-sidebar__item-label {
+  flex: 1;
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.desktop-sidebar__item--active .desktop-sidebar__item-label {
+  font-weight: var(--font-semibold);
+}
+
+/* ========== Active Indicator ========== */
+.desktop-sidebar__item-indicator {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 60%;
+  background-color: var(--color-primary);
+  border-radius: 0 var(--radius-full) var(--radius-full) 0;
+}
+
+/* ========== Footer ========== */
+.desktop-sidebar__footer {
+  padding: var(--spacing-4);
+  border-top: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+
+.desktop-sidebar__collapse-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
+  border-radius: var(--radius-lg);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  width: 100%;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+}
+
+.desktop-sidebar__collapse-btn:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.desktop-sidebar__collapse-icon {
+  font-size: var(--text-xl);
+  line-height: 1;
+}
+
+.desktop-sidebar__collapse-text {
+  white-space: nowrap;
+}
+
+/* ========== Collapsed State ========== */
+.desktop-sidebar--collapsed .desktop-sidebar__logo {
+  justify-content: center;
+}
+
+.desktop-sidebar--collapsed .desktop-sidebar__item {
+  justify-content: center;
+  padding: var(--spacing-3);
+}
+
+.desktop-sidebar--collapsed .desktop-sidebar__collapse-btn {
+  justify-content: center;
+  padding: var(--spacing-3);
+}
+
+/* ========== Scrollbar ========== */
+.desktop-sidebar__nav::-webkit-scrollbar {
+  width: 4px;
+}
+
+.desktop-sidebar__nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.desktop-sidebar__nav::-webkit-scrollbar-thumb {
+  background: var(--color-gray-300);
+  border-radius: var(--radius-full);
+}
+
+.desktop-sidebar__nav::-webkit-scrollbar-thumb:hover {
+  background: var(--color-gray-400);
+}
+
+/* ========== Responsive ========== */
+@media (max-width: 1024px) {
+  .desktop-sidebar {
+    width: 80px;
+  }
+  
+  .desktop-sidebar__logo-text,
+  .desktop-sidebar__item-label,
+  .desktop-sidebar__collapse-text {
+    display: none;
+  }
+  
+  .desktop-sidebar__logo,
+  .desktop-sidebar__item,
+  .desktop-sidebar__collapse-btn {
+    justify-content: center;
+  }
+}
+

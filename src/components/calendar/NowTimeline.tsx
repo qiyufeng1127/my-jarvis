@@ -125,9 +125,7 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
     }
     
     // 如果没有找到合适的位置，默认显示在顶部
-    if (topPosition === null) {
-      setTopPosition(0);
-    }
+    // 注意：不要在这里设置 topPosition，避免无限循环
   }, [currentTime, timeBlocks]);
 
   // 始终显示 NOW 线

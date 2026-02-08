@@ -1,0 +1,49 @@
+/* ============================================
+   Desktop Layout Styles
+   ============================================ */
+
+.desktop-layout {
+  display: flex;
+  min-height: 100vh;
+  background-color: var(--bg-primary);
+}
+
+/* ========== Main Content Area ========== */
+.desktop-layout__main {
+  flex: 1;
+  margin-left: 240px;
+  transition: margin-left var(--transition-base);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.desktop-layout__main--expanded {
+  margin-left: 80px;
+}
+
+/* ========== Content ========== */
+.desktop-layout__content {
+  flex: 1;
+  margin-top: 64px;
+  padding: var(--spacing-6);
+  overflow-y: auto;
+}
+
+/* ========== Responsive ========== */
+@media (max-width: 1024px) {
+  .desktop-layout__main {
+    margin-left: 80px;
+  }
+  
+  .desktop-layout__content {
+    padding: var(--spacing-4);
+  }
+}
+
+@media (max-width: 768px) {
+  .desktop-layout__content {
+    padding: var(--spacing-3);
+  }
+}
+

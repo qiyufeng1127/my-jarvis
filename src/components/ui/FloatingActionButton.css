@@ -1,0 +1,172 @@
+/* ============================================
+   Floating Action Button Styles
+   ============================================ */
+
+.fab-container {
+  position: fixed;
+  bottom: calc(var(--spacing-20) + 64px); /* 底部导航栏高度 + 间距 */
+  right: var(--spacing-4);
+  z-index: 40;
+}
+
+/* ========== 遮罩层 ========== */
+.fab-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(2px);
+  z-index: 39;
+}
+
+/* ========== 主按钮 ========== */
+.fab-main {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-white);
+  border: none;
+  cursor: pointer;
+  box-shadow: var(--shadow-lg);
+  transition: all var(--transition-base);
+  position: relative;
+  z-index: 41;
+}
+
+.fab-main:active {
+  box-shadow: var(--shadow-md);
+}
+
+/* 主按钮颜色 */
+.fab-main--pink {
+  background-color: var(--color-pink-500);
+}
+
+.fab-main--yellow {
+  background-color: var(--color-yellow-500);
+}
+
+.fab-main--blue {
+  background-color: var(--color-blue-500);
+}
+
+.fab-main--green {
+  background-color: var(--color-green-500);
+}
+
+.fab-main--purple {
+  background-color: var(--color-purple-500);
+}
+
+.fab-main--brown {
+  background-color: var(--color-brown-500);
+}
+
+/* ========== 子按钮容器 ========== */
+.fab-actions {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--spacing-2);
+  z-index: 40;
+}
+
+/* ========== 子按钮 ========== */
+.fab-action {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
+  border-radius: var(--radius-full);
+  border: none;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition-base);
+  white-space: nowrap;
+  color: var(--color-white);
+}
+
+.fab-action:active {
+  transform: scale(0.95);
+  box-shadow: var(--shadow-sm);
+}
+
+.fab-action__icon {
+  font-size: 20px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fab-action__label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+}
+
+/* 子按钮颜色 */
+.fab-action--pink {
+  background-color: var(--color-pink-500);
+}
+
+.fab-action--yellow {
+  background-color: var(--color-yellow-500);
+}
+
+.fab-action--blue {
+  background-color: var(--color-blue-500);
+}
+
+.fab-action--green {
+  background-color: var(--color-green-500);
+}
+
+.fab-action--purple {
+  background-color: var(--color-purple-500);
+}
+
+.fab-action--brown {
+  background-color: var(--color-brown-500);
+}
+
+/* ========== 响应式 ========== */
+@media (max-width: 768px) {
+  .fab-container {
+    bottom: calc(var(--spacing-16) + 64px);
+    right: var(--spacing-4);
+  }
+
+  .fab-main {
+    width: 56px;
+    height: 56px;
+  }
+
+  .fab-action {
+    padding: var(--spacing-2) var(--spacing-3);
+  }
+
+  .fab-action__icon {
+    font-size: 18px;
+  }
+
+  .fab-action__label {
+    font-size: var(--text-xs);
+  }
+}
+
+/* ========== 桌面端位置调整 ========== */
+@media (min-width: 769px) {
+  .fab-container {
+    bottom: var(--spacing-6);
+    right: var(--spacing-6);
+  }
+}
+

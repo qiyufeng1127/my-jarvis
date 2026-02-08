@@ -3,8 +3,11 @@
 // ============================================
 
 import { MoneyAIProcessor } from './moneyAIService';
+import { SmartScheduleService } from './smartScheduleService';
+import { TagLearningService } from './tagLearningService';
 import { useAIStore } from '@/stores/aiStore';
 import { useTaskHistoryStore } from '@/stores/taskHistoryStore';
+import type { ScheduleTask } from './smartScheduleService';
 
 export interface AIProcessRequest {
   user_input: string;
@@ -711,7 +714,7 @@ export class AISmartProcessor {
     return null;
   }
 
-  // 使用 AI 智能分析任务（增强版：支持优先级识别、语义理解、子任务拆分）
+  // 使用 AI 智能分析任务（增强版：支持标签学习、优先级识别、语义理解、子任务拆分）
   static async analyzeTaskWithAI(taskTitle: string, extractedDuration?: number, context?: string): Promise<{
     tags: string[];
     location: string;
@@ -724,12 +727,55 @@ export class AISmartProcessor {
     isComplex?: boolean; // 是否是复杂任务
     optimizedTitle?: string; // 优化后的标题（纠正错别字、简化表达）
     subtasks?: Array<{ title: string; duration: number; order: number }>; // 子任务列表
+    learnedTags?: string[]; // 从学习记录中推荐的标签
+    tagConfidence?: number; // 标签推荐置信度
   }> {
-    // 从 AI Store 获取配置
+    // 第一步：尝试从学习记录中获取标签推荐
+    console.log('🎓 检查标签学习记录...');
+    const learnedSuggestions = TagLearningService.suggestTags(taskTitle);
+    
+    let learnedTags: string[] = [];
+    let tagConfidence = 0;
+    
+    if (learnedSuggestions.length > 0) {
+      // 使用学习到的标签（置信度 > 0.5）
+      learnedTags = learnedSuggestions
+        .filter(s => s.confidence > 0.5)
+        .map(s => s.tag);
+      
+      tagConfidence = learnedSuggestions[0].confidence;
+      
+      console.log('✅ 找到学习记录，推荐标签:', learnedTags, '置信度:', tagConfidence);
+    } else {
+      console.log('💡 暂无学习记录，将使用AI分析');
+    }
+    
+    // 第二步：调用AI分析（如果有学习记录，AI分析作为补充）
     const { config, isConfigured } = useAIStore.getState();
     
     if (!isConfigured()) {
       console.error('❌ API Key 未配置');
+      
+      // 如果有学习记录，即使没有AI也能返回结果
+      if (learnedTags.length > 0) {
+        console.log('⚠️ 使用学习记录作为后备方案');
+        return {
+          tags: learnedTags,
+          location: this.inferLocation(taskTitle),
+          duration: extractedDuration || 30,
+          taskType: this.inferTaskType(taskTitle),
+          category: this.inferCategory(taskTitle),
+          color: this.getTaskColor(learnedTags),
+          priority: 2,
+          actionSteps: [],
+          isComplex: false,
+          optimizedTitle: taskTitle,
+          subtasks: [],
+          learnedTags: learnedTags,
+          tagConfidence: tagConfidence,
+        };
+      }
+      
       throw new Error('API Key 未配置，请先在 AI 设置中配置');
     }
     

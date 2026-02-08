@@ -1,0 +1,222 @@
+/* ============================================
+   Desktop Top Bar Styles
+   ============================================ */
+
+.desktop-top-bar {
+  position: fixed;
+  top: 0;
+  left: 240px;
+  right: 0;
+  height: 64px;
+  background-color: var(--bg-card);
+  border-bottom: 1px solid var(--border-light);
+  z-index: var(--z-sticky);
+  transition: left var(--transition-base);
+  box-shadow: var(--shadow-sm);
+}
+
+.desktop-top-bar__container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  padding: 0 var(--spacing-6);
+  gap: var(--spacing-6);
+}
+
+/* ========== Left Side ========== */
+.desktop-top-bar__left {
+  flex: 1;
+  max-width: 600px;
+}
+
+/* ========== Search ========== */
+.desktop-top-bar__search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-4);
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  border: 2px solid transparent;
+  transition: all var(--transition-base);
+}
+
+.desktop-top-bar__search:focus-within {
+  border-color: var(--color-primary);
+  background-color: var(--bg-card);
+  box-shadow: var(--shadow-md);
+}
+
+.desktop-top-bar__search-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.desktop-top-bar__search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+.desktop-top-bar__search-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.desktop-top-bar__search-kbd {
+  padding: 2px 8px;
+  background-color: var(--bg-hover);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  color: var(--text-tertiary);
+  border: 1px solid var(--border-light);
+}
+
+/* ========== Right Side ========== */
+.desktop-top-bar__right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+/* ========== Coins ========== */
+.desktop-top-bar__coins {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  background-color: var(--color-yellow-100);
+  border-radius: var(--radius-full);
+}
+
+.desktop-top-bar__coins-amount {
+  font-size: var(--text-sm);
+  font-weight: var(--font-bold);
+  color: var(--color-yellow-600);
+}
+
+/* ========== Action Button ========== */
+.desktop-top-bar__action-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background-color: var(--bg-secondary);
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.desktop-top-bar__action-btn:hover {
+  background-color: var(--bg-hover);
+}
+
+.desktop-top-bar__action-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--text-secondary);
+}
+
+.desktop-top-bar__badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+}
+
+/* ========== User Profile ========== */
+.desktop-top-bar__user {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3);
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-full);
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.desktop-top-bar__user:hover {
+  background-color: var(--bg-hover);
+}
+
+.desktop-top-bar__user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.desktop-top-bar__user-avatar--default {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-pink-100);
+}
+
+.desktop-top-bar__user-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--color-pink-600);
+}
+
+.desktop-top-bar__user-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.desktop-top-bar__user-name {
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.desktop-top-bar__user-level {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  line-height: 1;
+}
+
+/* ========== Responsive ========== */
+@media (max-width: 1024px) {
+  .desktop-top-bar {
+    left: 80px;
+  }
+  
+  .desktop-top-bar__user-info {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .desktop-top-bar__container {
+    padding: 0 var(--spacing-4);
+    gap: var(--spacing-3);
+  }
+  
+  .desktop-top-bar__search-kbd {
+    display: none;
+  }
+  
+  .desktop-top-bar__coins {
+    display: none;
+  }
+}
+

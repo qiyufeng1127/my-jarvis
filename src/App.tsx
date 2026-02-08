@@ -8,6 +8,7 @@ import { migrateStorage, shouldMigrate } from '@/utils/migrateStorage';
 import Dashboard from '@/pages/Dashboard';
 import Welcome from '@/pages/Welcome';
 import BaiduAITest from '@/pages/BaiduAITest';
+import DesignSystemDemo from '@/pages/DesignSystemDemo';
 
 // 通知系统
 import NotificationToast from '@/components/notifications/NotificationToast';
@@ -65,6 +66,9 @@ function App() {
           
           {/* 百度AI测试页 */}
           <Route path="/baidu-ai-test" element={<BaiduAITest />} />
+          
+          {/* 设计系统展示页 */}
+          <Route path="/design-demo" element={<DesignSystemDemo />} />
           
           {/* 其他路由 */}
           <Route path="*" element={<Dashboard />} />

@@ -17,7 +17,17 @@ class AIService {
   async chat(messages: AIMessage[]): Promise<AIResponse> {
     const { config, isConfigured } = useAIStore.getState();
 
+    console.log('🔍 [AI Service] chat 方法被调用');
+    console.log('🔍 [AI Service] isConfigured:', isConfigured());
+    console.log('🔍 [AI Service] config:', { 
+      apiEndpoint: config.apiEndpoint, 
+      model: config.model,
+      hasApiKey: !!config.apiKey,
+      apiKeyLength: config.apiKey?.length 
+    });
+
     if (!isConfigured()) {
+      console.error('❌ [AI Service] API未配置');
       return {
         success: false,
         error: '请先在设置中配置 API Key',
@@ -25,6 +35,14 @@ class AIService {
     }
 
     try {
+      console.log('🔍 [AI Service] 准备发送请求到:', config.apiEndpoint);
+      console.log('🔍 [AI Service] 请求体:', {
+        model: config.model,
+        messages: messages.map(m => ({ role: m.role, contentLength: m.content.length })),
+        temperature: config.temperature,
+        max_tokens: config.maxTokens,
+      });
+
       const response = await fetch(config.apiEndpoint, {
         method: 'POST',
         headers: {
@@ -39,21 +57,47 @@ class AIService {
         }),
       });
 
+      console.log('🔍 [AI Service] 收到响应，状态码:', response.status);
+
       if (!response.ok) {
-        const error = await response.json();
+        const errorText = await response.text();
+        console.error('❌ [AI Service] API返回错误:', errorText);
+        
+        let errorMessage = '调用AI服务失败';
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.error?.message || errorJson.message || errorMessage;
+        } catch (e) {
+          errorMessage = errorText || errorMessage;
+        }
+        
         return {
           success: false,
-          error: error.error?.message || '调用AI服务失败',
+          error: `API错误 (${response.status}): ${errorMessage}`,
         };
       }
 
       const data = await response.json();
+      console.log('✅ [AI Service] API调用成功');
+      console.log('🔍 [AI Service] 返回数据结构:', {
+        hasChoices: !!data.choices,
+        choicesLength: data.choices?.length,
+        firstChoice: data.choices?.[0] ? {
+          hasMessage: !!data.choices[0].message,
+          hasContent: !!data.choices[0].message?.content,
+          contentLength: data.choices[0].message?.content?.length
+        } : null
+      });
+      
+      const content = data.choices[0]?.message?.content || '';
+      console.log('🔍 [AI Service] 提取的内容长度:', content.length);
+      
       return {
         success: true,
-        content: data.choices[0]?.message?.content || '',
+        content: content,
       };
     } catch (error) {
-      console.error('AI调用错误:', error);
+      console.error('❌ [AI Service] 网络请求异常:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : '未知错误',
@@ -248,114 +292,133 @@ work, study, life, housework, health, social, hobby, startup, finance, family
       category: string;
       priority: 'low' | 'medium' | 'high';
       location?: string;
+      tags?: string[];
     }>;
     error?: string;
   }> {
+    console.log('🔍 [AI Service] decomposeTask 被调用');
+    console.log('🔍 [AI Service] 任务描述:', taskDescription);
+    
     const now = currentTime || new Date();
     const currentTimeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
     
+    console.log('🔍 [AI Service] 当前时间:', currentTimeStr);
+    
+    // 获取用户已有的标签（优先使用）
+    let userTags: string[] = [];
+    try {
+      const { useTagStore } = await import('@/stores/tagStore');
+      const tagStore = useTagStore.getState();
+      const allTags = tagStore.getAllTags();
+      userTags = allTags.map(tag => tag.name);
+      console.log('🔍 [AI Service] 用户已有标签:', userTags);
+    } catch (error) {
+      console.warn('⚠️ [AI Service] 获取用户标签失败:', error);
+    }
+    
+    const userTagsStr = userTags.length > 0 
+      ? `\n\n**用户已有标签（优先使用）：**\n${userTags.join('、')}\n\n请优先从用户已有标签中选择，如果都不适合再创建新标签。`
+      : '';
+    
     const systemPrompt = `你是一个任务分解专家。用户会描述一个任务或计划，你需要将其分解为**多个独立的**子任务。
 
-**当前时间：${currentTimeStr}**
+**当前时间：${currentTimeStr}**${userTagsStr}
 
 **重要规则：**
-1. **必须识别每个独立的动作**，例如：
+
+1. **识别每个独立的动作**：
    - "洗漱" 是一个任务
    - "洗衣服" 是另一个任务
-   - "吃饭" 是另一个任务
-   - "收拾垃圾" 是另一个任务
-   - **绝对不要把多个动作合并成一个任务！**
+   - "给猫咪铲粑粑" 是另一个任务
+   - 不要合并多个动作！
 
-2. **识别连接词**：
-   - "然后"、"接着"、"再"、"之后" 表示不同的任务
-   - "，"、"、" 分隔的也是不同任务
+2. **智能理解时间延迟**：
+   - 用户说"5分钟后"、"5分钟之后"、"5 分钟后"（有空格）都是一样的意思
+   - **第一个任务开始时间 = 当前时间 + 延迟时间**
+   - 例如：当前时间 01:40，用户说"5分钟后吃药"，吃药任务应该在 **01:45** 开始
+   - 例如：当前时间 13:20，用户说"10分钟之后洗漱"，洗漱任务应该在 **13:30** 开始
+   - **后续任务 = 前一个任务结束时间**
 
-3. **每个任务要简洁明确**：
-   - ✅ 好的："洗漱"、"洗衣服"、"吃饭"
-   - ❌ 不好的："洗漱把衣服洗了然后吃饭"
+3. **智能分配中文标签**（至少2个）：
+   ${userTags.length > 0 ? `- **优先从用户已有标签中选择**：${userTags.join('、')}` : ''}
+   - 吃药 → ["健康", "日常"]
+   - 给猫咪铲粑粑 → ["宠物", "家务"]
+   - 洗衣服 → ["家务", "生活"]
+   - 照相馆工作 → ["照相馆工作", "工作"]（如果用户有自定义标签，优先使用）
+   - **不要使用英文标签！全部用中文！**
 
-4. **时间计算规则（非常重要）**：
-   - 如果用户说"5分钟之后"、"1小时后"等，**必须从当前时间开始计算**
-   - 例如：当前时间13:21，用户说"5分钟之后吃药"，则吃药任务的startTime应该是"13:26"
-   - 如果用户说"然后洗漱"，则洗漱任务应该在吃药任务之后，startTime应该是"13:28"（假设吃药2分钟）
-   - **第一个任务的开始时间 = 当前时间 + 用户指定的延迟时间**
-   - **后续任务的开始时间 = 前一个任务的结束时间**
-
-5. **任务排序规则（非常重要）**：
-   - **必须按照位置（location）分组排序**
-   - **先执行同一位置的所有任务，再切换到下一个位置**
-   - 排序优先级：workspace（工作区）> bathroom（厕所）> kitchen（厨房）> livingroom（客厅）> bedroom（卧室）
-   - 例如：如果有"吃药（workspace）"和"洗漱（bathroom）"，应该先执行"吃药"，再执行"洗漱"
+4. **智能识别位置**（用中文）：
+   - 吃药、工作、学习 → "工作区"
+   - 洗漱、洗衣服、铲粑粑 → "厕所"
+   - 吃饭、洗碗、倒猫粮 → "厨房"
 
 返回JSON格式：
 {
   "tasks": [
     {
-      "title": "任务标题（简短、具体）",
+      "title": "任务标题",
       "duration": 分钟数,
-      "startTime": "HH:MM格式的开始时间（必须提供）",
-      "category": "work/study/life/health等",
-      "priority": "low/medium/high",
-      "location": "厕所/工作区/厨房/客厅/卧室/拍摄间（必须用中文）"
+      "startTime": "HH:MM",
+      "category": "life",
+      "priority": "medium",
+      "location": "中文位置",
+      "tags": ["中文标签1", "中文标签2"]
     }
   ]
 }
 
-**时长参考：**
-- 吃药：2分钟
-- 洗漱：5-10分钟
-- 洗衣服、拿衣服：10-15分钟
-- 洗碗、倒猫粮：5分钟
-- 吃饭（在家）：30分钟
-- 吃饭（外出）：120分钟
-- 工作：60分钟起步
-- 收拾房间：10-15分钟
-
-**位置参考（必须用中文）：**
-- 厕所：洗漱、洗衣服、拿衣服
-- 厨房：吃饭、洗碗、倒猫粮
-- 客厅：收拾垃圾
-- 卧室：睡觉、收拾
-- 工作区：工作、学习、吃药
-- 拍摄间：拍摄、录制
-
 **示例1：**
-输入："5分钟之后吃艾司唑仑，然后去洗漱，把衣服洗了"
-当前时间：13:21
+输入："5分钟之后吃药"
+当前时间：01:40
 输出：
 {
   "tasks": [
-    {"title": "吃艾司唑仑", "duration": 2, "startTime": "13:26", "category": "life", "priority": "high", "location": "工作区"},
-    {"title": "洗漱", "duration": 10, "startTime": "13:28", "category": "life", "priority": "medium", "location": "厕所"},
-    {"title": "洗衣服", "duration": 15, "startTime": "13:38", "category": "life", "priority": "medium", "location": "厕所"}
+    {"title": "吃药", "duration": 2, "startTime": "01:45", "category": "life", "priority": "high", "location": "工作区", "tags": ["健康", "日常"]}
   ]
 }
 
 **示例2：**
-输入："1小时后去洗漱把衣服洗了然后吃完饭之后去把垃圾收拾好了"
-当前时间：13:21
+输入："5分钟后给猫咪铲粑粑，然后洗漱，然后洗衣服，然后洗碗"
+当前时间：01:40
 输出：
 {
   "tasks": [
-    {"title": "洗漱", "duration": 10, "startTime": "14:21", "category": "life", "priority": "medium", "location": "厕所"},
-    {"title": "洗衣服", "duration": 15, "startTime": "14:31", "category": "life", "priority": "medium", "location": "厕所"},
-    {"title": "吃饭", "duration": 30, "startTime": "14:46", "category": "life", "priority": "medium", "location": "厨房"},
-    {"title": "收拾垃圾", "duration": 10, "startTime": "15:16", "category": "life", "priority": "low", "location": "客厅"}
+    {"title": "给猫咪铲粑粑", "duration": 5, "startTime": "01:45", "category": "life", "priority": "medium", "location": "厕所", "tags": ["宠物", "家务"]},
+    {"title": "洗漱", "duration": 10, "startTime": "01:50", "category": "life", "priority": "medium", "location": "厕所", "tags": ["日常", "生活"]},
+    {"title": "洗衣服", "duration": 15, "startTime": "02:00", "category": "life", "priority": "medium", "location": "厕所", "tags": ["家务", "生活"]},
+    {"title": "洗碗", "duration": 5, "startTime": "02:15", "category": "life", "priority": "medium", "location": "厨房", "tags": ["家务", "厨房"]}
   ]
 }
 
-**只返回JSON，不要其他内容。一定要：**
-1. 把每个独立的动作分解成单独的任务
-2. 正确计算每个任务的开始时间
-3. 按位置分组排序任务
-4. 使用中文位置名称`;
+**示例3：**
+输入："1小时后开会"
+当前时间：14:30
+输出：
+{
+  "tasks": [
+    {"title": "开会", "duration": 60, "startTime": "15:30", "category": "work", "priority": "high", "location": "工作区", "tags": ["工作", "会议"]}
+  ]
+}
+
+**只返回JSON，不要其他内容。记住：**
+1. 每个独立动作分解成单独任务
+2. 正确计算时间（5分钟后 = 当前时间 + 5分钟）
+3. 所有标签必须是中文
+4. 位置必须是中文
+5. **优先使用用户已有的标签**
+6. 每个任务至少2个标签`;
+
+    console.log('🔍 [AI Service] 准备调用 chat 方法');
 
     const response = await this.chat([
       { role: 'system', content: systemPrompt },
       { role: 'user', content: taskDescription },
     ]);
 
+    console.log('🔍 [AI Service] chat 方法返回:', response);
+
     if (!response.success || !response.content) {
+      console.error('❌ [AI Service] AI调用失败:', response.error);
       return {
         success: false,
         error: response.error || '任务分解失败',
@@ -363,6 +426,9 @@ work, study, life, housework, health, social, hobby, startup, finance, family
     }
 
     try {
+      console.log('🔍 [AI Service] 开始解析AI返回内容');
+      console.log('🔍 [AI Service] 原始内容:', response.content);
+      
       // 尝试提取JSON（有时AI会返回带解释的内容）
       let jsonContent = response.content.trim();
       
@@ -370,32 +436,41 @@ work, study, life, housework, health, social, hobby, startup, finance, family
       const jsonMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
       if (jsonMatch) {
         jsonContent = jsonMatch[1].trim();
+        console.log('🔍 [AI Service] 从代码块中提取JSON');
       } else {
         // 尝试提取{}之间的内容
         const braceMatch = jsonContent.match(/(\{[\s\S]*\})/);
         if (braceMatch) {
           jsonContent = braceMatch[1];
+          console.log('🔍 [AI Service] 从文本中提取JSON');
         }
       }
       
+      console.log('🔍 [AI Service] 提取后的JSON:', jsonContent);
+      
       const result = JSON.parse(jsonContent);
+      console.log('🔍 [AI Service] JSON解析成功:', result);
       
       // 验证返回的任务数组
       if (!result.tasks || !Array.isArray(result.tasks)) {
-        console.error('AI返回的数据格式不正确:', result);
+        console.error('❌ [AI Service] AI返回的数据格式不正确:', result);
         return {
           success: false,
           error: 'AI返回的数据格式不正确',
         };
       }
       
+      console.log('🔍 [AI Service] 任务数组长度:', result.tasks.length);
+      
       // 验证每个任务是否有必要的字段
       let validTasks = result.tasks.filter((task: any) => 
         task.title && typeof task.duration === 'number'
       );
       
+      console.log('🔍 [AI Service] 有效任务数量:', validTasks.length);
+      
       if (validTasks.length === 0) {
-        console.error('没有有效的任务');
+        console.error('❌ [AI Service] 没有有效的任务');
         return {
           success: false,
           error: '没有有效的任务',
@@ -416,6 +491,8 @@ work, study, life, housework, health, social, hobby, startup, finance, family
         'bedroom': 5,
         '拍摄间': 6,
         'studio': 6,
+        '楼下': 7,
+        'downstairs': 7,
       };
       
       // 按位置排序任务
@@ -424,6 +501,8 @@ work, study, life, housework, health, social, hobby, startup, finance, family
         const priorityB = locationPriority[b.location || ''] || 999;
         return priorityA - priorityB;
       });
+      
+      console.log('🔍 [AI Service] 任务排序完成');
       
       // 重新计算所有任务的开始时间（确保时间连续）
       let currentTime = now;
@@ -450,13 +529,15 @@ work, study, life, housework, health, social, hobby, startup, finance, family
         };
       });
       
+      console.log('✅ [AI Service] 任务分解成功，共', validTasks.length, '个任务');
+      
       return {
         success: true,
         tasks: validTasks,
       };
     } catch (error) {
-      console.error('解析任务分解结果失败:', error);
-      console.error('AI返回内容:', response.content);
+      console.error('❌ [AI Service] 解析任务分解结果失败:', error);
+      console.error('❌ [AI Service] AI返回内容:', response.content);
       return {
         success: false,
         error: `解析结果失败: ${error instanceof Error ? error.message : '未知错误'}`,
@@ -544,8 +625,54 @@ work, study, life, housework, health, social, hobby, startup, finance, family
     confidence: number;
     reason?: string;
     error?: string;
+    matchedKeywords?: string[];
+    matchedObjects?: string[];
+    recognizedObjects?: string[];
   }> {
-    const systemPrompt = `你是一个任务验证专家，负责通过图片验证用户是否真实执行了任务。
+    try {
+      // 优先使用百度图像识别API
+      console.log('🔍 [验证] 尝试使用百度图像识别API');
+      
+      // 获取用户设置中的百度API配置
+      let baiduApiKey: string | undefined;
+      let baiduSecretKey: string | undefined;
+      
+      try {
+        // 从localStorage读取用户设置
+        const settingsStr = localStorage.getItem('user-settings');
+        if (settingsStr) {
+          const settings = JSON.parse(settingsStr);
+          baiduApiKey = settings.baiduApiKey;
+          baiduSecretKey = settings.baiduSecretKey;
+        }
+      } catch (e) {
+        console.warn('⚠️ [验证] 读取百度API配置失败:', e);
+      }
+
+      // 如果配置了百度API，使用百度图像识别
+      if (baiduApiKey && baiduSecretKey) {
+        console.log('✅ [验证] 使用百度图像识别API');
+        const { baiduImageService } = await import('./baiduImageService');
+        
+        const result = await baiduImageService.verifyTaskImage(
+          imageBase64,
+          taskTitle,
+          requirement,
+          baiduApiKey,
+          baiduSecretKey
+        );
+
+        if (result.success) {
+          return result;
+        } else {
+          console.warn('⚠️ [验证] 百度API验证失败，降级到AI验证');
+        }
+      } else {
+        console.log('⚠️ [验证] 未配置百度API，使用AI验证');
+      }
+
+      // 降级方案：使用AI验证（如果配置了OpenAI等）
+      const systemPrompt = `你是一个任务验证专家，负责通过图片验证用户是否真实执行了任务。
 
 **任务信息：**
 - 任务标题：${taskTitle}
@@ -583,9 +710,6 @@ work, study, life, housework, health, social, hobby, startup, finance, family
 
 **只返回JSON，不要其他内容。**`;
 
-    try {
-      // 注意：这里需要使用支持视觉的模型（如 GPT-4 Vision）
-      // 如果当前模型不支持图片，可以先用文字描述代替
       const response = await this.chat([
         { role: 'system', content: systemPrompt },
         { 
@@ -624,7 +748,7 @@ work, study, life, housework, health, social, hobby, startup, finance, family
         reason: result.reason || '',
       };
     } catch (error) {
-      console.error('AI验证图片失败:', error);
+      console.error('❌ [验证] 图片验证失败:', error);
       return {
         success: false,
         isValid: false,

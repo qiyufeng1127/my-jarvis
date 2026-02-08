@@ -1,0 +1,113 @@
+/* ============================================
+   Mobile Bottom Navigation Styles
+   ============================================ */
+
+.mobile-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--z-fixed);
+  background-color: var(--bg-card);
+  border-top: 1px solid var(--border-light);
+  padding: var(--spacing-2) var(--spacing-2) calc(var(--spacing-2) + env(safe-area-inset-bottom));
+  box-shadow: var(--shadow-lg);
+}
+
+.mobile-bottom-nav__container {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* ========== Nav Item ========== */
+.mobile-bottom-nav__item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-xl);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  min-width: 64px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-bottom-nav__item:active {
+  transform: scale(0.95);
+}
+
+/* ========== Icon Wrapper ========== */
+.mobile-bottom-nav__icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-base);
+}
+
+.mobile-bottom-nav__icon {
+  font-size: var(--text-2xl);
+  transition: all var(--transition-base);
+}
+
+/* ========== Label ========== */
+.mobile-bottom-nav__label {
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  color: var(--text-secondary);
+  transition: all var(--transition-base);
+  white-space: nowrap;
+}
+
+/* ========== Active State ========== */
+.mobile-bottom-nav__item--active {
+  background-color: rgba(221, 97, 124, 0.1);
+}
+
+.mobile-bottom-nav__item--active .mobile-bottom-nav__label {
+  color: var(--text-primary);
+  font-weight: var(--font-semibold);
+}
+
+/* ========== Active Indicator ========== */
+.mobile-bottom-nav__indicator {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 32px;
+  height: 3px;
+  background: linear-gradient(90deg, #DD617C, #6D9978, #E8C259);
+  border-radius: var(--radius-full);
+  box-shadow: 0 2px 8px rgba(221, 97, 124, 0.3);
+}
+
+/* ========== Hover Effect (for desktop) ========== */
+@media (hover: hover) {
+  .mobile-bottom-nav__item:hover {
+    background-color: var(--bg-hover);
+  }
+  
+  .mobile-bottom-nav__item:hover .mobile-bottom-nav__icon {
+    transform: scale(1.1);
+  }
+}
+
+/* ========== Responsive ========== */
+@media (max-width: 375px) {
+  .mobile-bottom-nav__item {
+    min-width: 56px;
+    padding: var(--spacing-2);
+  }
+  
+  .mobile-bottom-nav__label {
+    font-size: 10px;
+  }
+}

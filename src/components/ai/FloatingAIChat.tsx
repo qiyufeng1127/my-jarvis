@@ -3,27 +3,49 @@ import { Send, X, Minimize2, Maximize2, GripVertical, Settings, Hourglass, Chevr
 import { useGoalStore } from '@/stores/goalStore';
 import { matchTaskToGoals, generateGoalSuggestionMessage } from '@/services/aiGoalMatcher';
 import { useMemoryStore, EMOTION_TAGS, CATEGORY_TAGS } from '@/stores/memoryStore';
+
+// 标签ID到中文的映射
+const TAG_LABELS: Record<string, string> = {
+  // 情绪标签
+  'happy': '开心',
+  'excited': '兴奋',
+  'calm': '平静',
+  'grateful': '感恩',
+  'proud': '自豪',
+  'anxious': '焦虑',
+  'sad': '难过',
+  'angry': '生气',
+  'frustrated': '沮丧',
+  'tired': '疲惫',
+  
+  // 分类标签
+  'work': '工作',
+  'study': '学习',
+  'life': '生活',
+  'housework': '家务',
+  'health': '健康',
+  'social': '社交',
+  'hobby': '爱好',
+  'startup': '创业',
+  'finance': '理财',
+  'family': '家庭',
+};
 import { useAIStore } from '@/stores/aiStore';
 import { aiService } from '@/services/aiService';
 import { useTaskStore } from '@/stores/taskStore';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
 import type { TaskType, TaskPriority } from '@/types';
 import AIConfigModal from './AIConfigModal';
+import UnifiedTaskEditor from '@/components/shared/UnifiedTaskEditor';
 import { 
   useLocalStorage, 
   useColorTheme, 
   useDraggable, 
   useResizable, 
-  useTaskEditor,
   useThinkingProcess 
 } from '@/hooks';
 import {
-  detectTaskLocation,
-  detectTaskDuration,
-  optimizeTasksByLocation,
-  parseStartTime,
   getPriorityEmoji,
-  LOCATION_NAMES,
   LOCATION_ICONS,
 } from '@/utils/taskUtils';
 
@@ -33,13 +55,21 @@ interface FloatingAIChatProps {
 }
 
 interface DecomposedTask {
-  id: string;
+  sequence: number;
   title: string;
-  duration: number;
-  startTime?: string;
+  description: string;
+  estimated_duration: number;
+  scheduled_start: string;
+  scheduled_end: string;
+  scheduled_start_iso: string;
+  task_type: string;
   category: string;
+  location: string;
+  tags: string[];
+  goal: string | null;
+  gold: number;
+  color: string;
   priority: 'low' | 'medium' | 'high';
-  location?: string; // 任务位置（厕所、工作区、厨房、客厅、卧室、拍摄间）
 }
 
 interface Message {
@@ -77,7 +107,7 @@ interface Message {
 export default function FloatingAIChat({ isFullScreen = false, onClose }: FloatingAIChatProps = {}) {
   const { addMemory, addJournal } = useMemoryStore();
   const { isConfigured } = useAIStore();
-  const { createTask, updateTask, tasks, getTodayTasks } = useTaskStore();
+  const { createTask, updateTask, deleteTask, tasks, getTodayTasks } = useTaskStore();
   const { createSideHustle } = useSideHustleStore();
   
   // 使用自定义 Hooks
@@ -100,7 +130,7 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
     {
       id: 'welcome',
       role: 'assistant',
-      content: '你好！我是你的AI助手，我能帮你：\n\n• 📅 智能分解任务和安排时间\n• 💰 自动分配金币和成长值\n• 🏷️ 自动打标签分类（AI智能理解）\n• 🕒 直接创建和修改时间轴任务\n• 🎯 智能关联长期目标\n• 📝 记录心情、想法、感恩、成功\n• 💡 收集创业想法到副业追踪器\n• 🔍 查询任务进度和统计\n• 🏠 智能动线优化（根据家里格局排序）\n• ✨ 万能收集：支持批量智能分析并分配\n\n直接输入文字开始对话吧！',
+      content: '你好！我是你的AI助手，我能帮你：\n\n• 📅 智能分解任务和安排时间\n• 💰 自动分配金币和成长值\n• 🏷️ 自动打标签分类（AI智能理解）\n• 🕒 直接创建和修改时间轴任务\n• 🎯 智能关联长期目标\n• 📝 记录心情、想法、感恩、成功\n• 💡 收集创业想法到副业追踪器\n• 🔍 查询任务进度和统计\n• 🏠 智能动线优化（根据家里格局排序）\n• ✨ 万能收集：支持批量智能分析并分配\n• 🗑️ 时间轴操作：删除任务、移动任务\n\n**时间轴操作示例**：\n• "删除今天的任务"\n• "删除昨天的任务"\n• "删除今天下午2点之后的任务"\n• "把16号的任务挪到15号"\n\n直接输入文字开始对话吧！',
       timestamp: new Date(),
     }
   ]);
@@ -124,19 +154,18 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
     initialSize: persistedState.size,
     minSize: { width: 320, height: 400 },
   });
-  const {
-    editingTasks,
-    editingMessageId,
-    setEditingTasks,
-    handleTaskReorder,
-    handleTaskDurationChange,
-    handleTaskTitleChange,
-    handleDeleteTask,
-    startEditing,
-    cancelEditing,
-    recalculateTaskTimes,
-  } = useTaskEditor();
   const { thinkingSteps, addStep: addThinkingStep, clearSteps: clearThinkingSteps } = useThinkingProcess();
+  
+  // 任务编辑器状态
+  const [showTaskEditor, setShowTaskEditor] = useState(false);
+  const [editingTasks, setEditingTasks] = useState<DecomposedTask[]>([]);
+
+  // 监控编辑器状态变化
+  useEffect(() => {
+    console.log('🔍 [编辑器状态] showTaskEditor:', showTaskEditor);
+    console.log('🔍 [编辑器状态] editingTasks.length:', editingTasks.length);
+    console.log('🔍 [编辑器状态] 是否应该显示编辑器:', showTaskEditor && editingTasks.length > 0);
+  }, [showTaskEditor, editingTasks]);
 
   // 自动滚动到底部
   useEffect(() => {
@@ -153,7 +182,7 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
       size,
       bgColor,
     });
-  }, [isOpen, position, size, bgColor, setPersistedState]);
+  }, [isOpen, position, size, bgColor]); // 移除 setPersistedState 依赖，避免无限循环
 
   // 切换思考过程展开/折叠
   const toggleThinkingExpanded = (messageId: string) => {
@@ -245,7 +274,7 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
             description: '',
             taskType: 'work' as TaskType,
             priority: 2,
-            durationMinutes: detectTaskDuration(item.content),
+            durationMinutes: 30, // 默认30分钟
             scheduledStart: new Date(),
           });
           distributedCount++;
@@ -443,37 +472,68 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
 
 
   // 推送任务到时间轴
-  const handlePushToTimeline = async () => {
-    if (editingTasks.length === 0 || !editingMessageId) return;
+  const handlePushToTimeline = async (tasks: DecomposedTask[]) => {
+    if (tasks.length === 0) return;
 
     setIsProcessing(true);
     try {
       const goals = useGoalStore.getState().goals;
-      const goalMatches: Record<string, number> = {};
+      
+      // 导入标签store
+      const { useTagStore } = await import('@/stores/tagStore');
+      const tagStore = useTagStore.getState();
       
       // 批量创建任务
       const createdTasks = [];
-      for (const taskData of editingTasks) {
+      for (const taskData of tasks) {
+        const goalMatches: Record<string, number> = {};
+        
+        // 如果有目标，匹配置信度
+        if (taskData.goal) {
+          const goal = goals.find(g => g.title === taskData.goal);
+          if (goal) {
+            goalMatches[goal.id] = 0.8; // 手动关联的目标给80%置信度
+          }
+        }
+        
+        // 获取任务的标签（AI返回的中文标签）
+        const taskTags = taskData.tags || [];
+        console.log('🏷️ [任务标签] 任务:', taskData.title, '标签:', taskTags);
+        
+        // 确保标签存在于标签系统中（如果不存在则创建）
+        taskTags.forEach(tagName => {
+          const existingTag = tagStore.getTagByName(tagName);
+          if (!existingTag) {
+            console.log('🏷️ [创建标签]', tagName);
+            tagStore.addTag(tagName);
+          }
+        });
+        
+        // 获取任务颜色：使用第一个标签的文件夹颜色
+        let taskColor = '#6A7334'; // 默认颜色
+        if (taskTags.length > 0) {
+          const firstTagColor = tagStore.getTagColor(taskTags[0]);
+          if (firstTagColor) {
+            taskColor = firstTagColor;
+            console.log('🎨 [任务颜色] 任务:', taskData.title, '使用标签:', taskTags[0], '颜色:', taskColor);
+          }
+        }
+        
         const task = await createTask({
           title: taskData.title,
-          description: '',
-          taskType: taskData.category as TaskType,
+          description: taskData.description || '',
+          taskType: taskData.task_type as TaskType,
           priority: taskData.priority === 'high' ? 1 : taskData.priority === 'medium' ? 2 : 3,
-          durationMinutes: taskData.duration,
-          scheduledStart: taskData.startTime ? (() => {
-            const [hours, minutes] = taskData.startTime.split(':');
-            const date = new Date();
-            date.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-            return date;
-          })() : undefined,
-          scheduledEnd: taskData.startTime ? (() => {
-            const [hours, minutes] = taskData.startTime.split(':');
-            const date = new Date();
-            date.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-            date.setMinutes(date.getMinutes() + taskData.duration);
-            return date;
-          })() : undefined,
+          durationMinutes: taskData.estimated_duration,
+          scheduledStart: new Date(taskData.scheduled_start_iso),
+          scheduledEnd: (() => {
+            const start = new Date(taskData.scheduled_start_iso);
+            start.setMinutes(start.getMinutes() + taskData.estimated_duration);
+            return start;
+          })(),
           longTermGoals: goalMatches,
+          tags: taskTags, // 使用AI返回的中文标签
+          color: taskColor, // 使用标签文件夹的颜色
         });
         createdTasks.push(task);
       }
@@ -487,8 +547,9 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
       };
       setMessages(prev => [...prev, successMessage]);
       
-      // 清空编辑状态
-      cancelEditing();
+      // 关闭编辑器
+      setShowTaskEditor(false);
+      setEditingTasks([]);
     } catch (error) {
       console.error('推送任务失败:', error);
       const errorMessage: Message = {
@@ -505,23 +566,267 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
 
 
 
+  // 处理时间轴操作指令
+  const handleTimelineOperation = async (message: string) => {
+    try {
+      // 检测删除操作
+      if (/删除|清空/.test(message)) {
+        let tasksToDelete: Task[] = [];
+        let operationDesc = '';
+
+        // 删除今天的任务
+        if (/今天|今日/.test(message)) {
+          tasksToDelete = getTodayTasks();
+          operationDesc = '今天';
+          
+          // 进一步筛选：下午2点之后
+          if (/下午|午后|2点之后|14点之后/.test(message)) {
+            const today = new Date();
+            today.setHours(14, 0, 0, 0);
+            tasksToDelete = tasksToDelete.filter(t => 
+              t.scheduledStart && new Date(t.scheduledStart) >= today
+            );
+            operationDesc = '今天下午2点之后';
+          }
+        }
+        // 删除昨天的任务
+        else if (/昨天|昨日/.test(message)) {
+          const yesterday = new Date();
+          yesterday.setDate(yesterday.getDate() - 1);
+          tasksToDelete = tasks.filter(t => {
+            if (!t.scheduledStart) return false;
+            const taskDate = new Date(t.scheduledStart);
+            return (
+              taskDate.getFullYear() === yesterday.getFullYear() &&
+              taskDate.getMonth() === yesterday.getMonth() &&
+              taskDate.getDate() === yesterday.getDate()
+            );
+          });
+          operationDesc = '昨天';
+        }
+        // 删除明天的任务
+        else if (/明天|明日/.test(message)) {
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          tasksToDelete = tasks.filter(t => {
+            if (!t.scheduledStart) return false;
+            const taskDate = new Date(t.scheduledStart);
+            return (
+              taskDate.getFullYear() === tomorrow.getFullYear() &&
+              taskDate.getMonth() === tomorrow.getMonth() &&
+              taskDate.getDate() === tomorrow.getDate()
+            );
+          });
+          operationDesc = '明天';
+        }
+        // 删除本周的任务
+        else if (/本周|这周/.test(message)) {
+          const now = new Date();
+          const startOfWeek = new Date(now);
+          startOfWeek.setDate(now.getDate() - now.getDay());
+          startOfWeek.setHours(0, 0, 0, 0);
+          
+          const endOfWeek = new Date(startOfWeek);
+          endOfWeek.setDate(startOfWeek.getDate() + 7);
+          
+          tasksToDelete = tasks.filter(t => {
+            if (!t.scheduledStart) return false;
+            const taskDate = new Date(t.scheduledStart);
+            return taskDate >= startOfWeek && taskDate < endOfWeek;
+          });
+          operationDesc = '本周';
+        }
+
+        if (tasksToDelete.length === 0) {
+          const aiMessage: Message = {
+            id: `ai-${Date.now()}`,
+            role: 'assistant',
+            content: `❌ ${operationDesc}没有找到任何任务。`,
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, aiMessage]);
+          return;
+        }
+
+        // 确认删除
+        const confirmMessage = `⚠️ **确认删除操作**\n\n即将删除${operationDesc}的 **${tasksToDelete.length}** 个任务：\n\n`;
+        let taskList = '';
+        tasksToDelete.slice(0, 5).forEach((task, index) => {
+          taskList += `${index + 1}. ${task.title} (${task.durationMinutes}分钟)\n`;
+        });
+        if (tasksToDelete.length > 5) {
+          taskList += `... 还有 ${tasksToDelete.length - 5} 个任务\n`;
+        }
+
+        const confirmed = confirm(confirmMessage + taskList + '\n确定要删除吗？');
+        
+        if (confirmed) {
+          // 执行删除
+          for (const task of tasksToDelete) {
+            await deleteTask(task.id);
+          }
+
+          const aiMessage: Message = {
+            id: `ai-${Date.now()}`,
+            role: 'assistant',
+            content: `✅ 已成功删除${operationDesc}的 ${tasksToDelete.length} 个任务！`,
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, aiMessage]);
+        } else {
+          const aiMessage: Message = {
+            id: `ai-${Date.now()}`,
+            role: 'assistant',
+            content: `❌ 已取消删除操作。`,
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, aiMessage]);
+        }
+        return;
+      }
+
+      // 检测移动操作
+      if (/挪到|移到|改到|调到/.test(message)) {
+        // 提取日期信息
+        const dateMatch = message.match(/(\d+)号/);
+        if (!dateMatch) {
+          const aiMessage: Message = {
+            id: `ai-${Date.now()}`,
+            role: 'assistant',
+            content: `❌ 请指定要移动到哪一天，例如："把16号的任务挪到15号"`,
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, aiMessage]);
+          return;
+        }
+
+        const fromDateMatch = message.match(/(\d+)号.*?挪到|移到|改到|调到/);
+        const toDateMatch = message.match(/挪到|移到|改到|调到.*?(\d+)号/);
+
+        if (!fromDateMatch || !toDateMatch) {
+          const aiMessage: Message = {
+            id: `ai-${Date.now()}`,
+            role: 'assistant',
+            content: `❌ 请明确指定从哪天移动到哪天，例如："把16号的任务挪到15号"`,
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, aiMessage]);
+          return;
+        }
+
+        const fromDay = parseInt(fromDateMatch[1]);
+        const toDay = parseInt(toDateMatch[1]);
+
+        // 查找源日期的任务
+        const now = new Date();
+        const fromDate = new Date(now.getFullYear(), now.getMonth(), fromDay);
+        const tasksToMove = tasks.filter(t => {
+          if (!t.scheduledStart) return false;
+          const taskDate = new Date(t.scheduledStart);
+          return (
+            taskDate.getFullYear() === fromDate.getFullYear() &&
+            taskDate.getMonth() === fromDate.getMonth() &&
+            taskDate.getDate() === fromDate.getDate()
+          );
+        });
+
+        if (tasksToMove.length === 0) {
+          const aiMessage: Message = {
+            id: `ai-${Date.now()}`,
+            role: 'assistant',
+            content: `❌ ${fromDay}号没有找到任何任务。`,
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, aiMessage]);
+          return;
+        }
+
+        // 确认移动
+        const confirmMessage = `⚠️ **确认移动操作**\n\n即将把${fromDay}号的 **${tasksToMove.length}** 个任务移动到${toDay}号：\n\n`;
+        let taskList = '';
+        tasksToMove.forEach((task, index) => {
+          taskList += `${index + 1}. ${task.title} (${task.durationMinutes}分钟)\n`;
+        });
+
+        const confirmed = confirm(confirmMessage + taskList + '\n确定要移动吗？');
+        
+        if (confirmed) {
+          // 执行移动
+          const toDate = new Date(now.getFullYear(), now.getMonth(), toDay);
+          for (const task of tasksToMove) {
+            const oldStart = new Date(task.scheduledStart!);
+            const newStart = new Date(toDate);
+            newStart.setHours(oldStart.getHours(), oldStart.getMinutes(), 0, 0);
+            
+            const newEnd = new Date(newStart);
+            newEnd.setMinutes(newEnd.getMinutes() + task.durationMinutes);
+
+            await updateTask(task.id, {
+              scheduledStart: newStart,
+              scheduledEnd: newEnd,
+            });
+          }
+
+          const aiMessage: Message = {
+            id: `ai-${Date.now()}`,
+            role: 'assistant',
+            content: `✅ 已成功把${fromDay}号的 ${tasksToMove.length} 个任务移动到${toDay}号！`,
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, aiMessage]);
+        } else {
+          const aiMessage: Message = {
+            id: `ai-${Date.now()}`,
+            role: 'assistant',
+            content: `❌ 已取消移动操作。`,
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, aiMessage]);
+        }
+        return;
+      }
+
+      // 如果没有匹配到任何操作
+      return false;
+    } catch (error) {
+      console.error('时间轴操作失败:', error);
+      const aiMessage: Message = {
+        id: `ai-${Date.now()}`,
+        role: 'assistant',
+        content: `❌ 操作失败：${error instanceof Error ? error.message : '未知错误'}`,
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, aiMessage]);
+      return true;
+    }
+  };
+
   // 发送消息
   const handleSend = async () => {
     const message = inputValue.trim();
     if (!message || isProcessing) return;
 
+    // ✅ 立即显示用户消息并清空输入框（修复延迟问题）
+    const userMessage: Message = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: message,
+      timestamp: new Date(),
+    };
+    setMessages(prev => [...prev, userMessage]);
+    setInputValue(''); // 立即清空输入框
+    setIsProcessing(true);
+
+    // 检查是否是时间轴操作指令
+    const isTimelineOp = /删除|清空|挪到|移到|改到|调到/.test(message);
+    if (isTimelineOp) {
+      const handled = await handleTimelineOperation(message);
+      setIsProcessing(false);
+      if (handled !== false) return;
+    }
+
     // 检查是否是查询任务的请求
     if (/查看|查询|今天|任务列表|进度|完成情况/.test(message)) {
-      const userMessage: Message = {
-        id: `user-${Date.now()}`,
-        role: 'user',
-        content: message,
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, userMessage]);
-      setInputValue('');
-      setIsProcessing(true);
-
       try {
         const todayTasks = getTodayTasks();
         const completedTasks = todayTasks.filter(t => t.status === 'completed');
@@ -569,26 +874,25 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
       }
     }
 
-    // 分析标签（AI或关键词）
-    const analysis = await analyzeMessageTags(message);
-
-    const userMessage: Message = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      content: message,
-      timestamp: new Date(),
-      tags: {
-        emotions: analysis.emotions,
-        categories: analysis.categories,
-        type: analysis.type,
-      },
-      rewards: analysis.rewards,
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-    setInputValue('');
-    setIsProcessing(true);
+    // 分析标签（AI或关键词）- 在后台异步处理
     clearThinkingSteps(); // 清空之前的思考步骤
+    
+    let analysis = await analyzeMessageTags(message);
+    
+    // 更新用户消息，添加标签和奖励
+    setMessages(prev => prev.map(msg => 
+      msg.id === userMessage.id 
+        ? {
+            ...msg,
+            tags: {
+              emotions: analysis.emotions,
+              categories: analysis.categories,
+              type: analysis.type,
+            },
+            rewards: analysis.rewards,
+          }
+        : msg
+    ));
 
     // 智能分析任务并匹配目标
     try {
@@ -598,8 +902,13 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
       addThinkingStep('📝 正在分析你的输入...');
       
       // 检测是否是任务创建/分解请求
-      const isTaskCreation = /创建|添加|新建|安排|计划|做|完成|学习|工作|运动|分解|拆解|洗漱|洗碗|猫粮|洗衣服|收拾|吃饭|垃圾/.test(message);
-      const needsDecompose = /分解|拆解|详细安排|具体步骤/.test(message) || message.length > 20 || /然后|接着|再|之后|，|、/.test(message);
+      const isTaskCreation = /创建|添加|新建|安排|计划|做|完成|学习|工作|运动|分解|拆解|洗漱|洗碗|猫粮|洗衣服|收拾|吃饭|垃圾|分钟后|小时后|之后/.test(message);
+      const needsDecompose = /分解|拆解|详细安排|具体步骤/.test(message) || message.length > 10 || /然后|接着|再|之后|，|、/.test(message);
+      
+      console.log('🔍 [任务检测] 输入:', message);
+      console.log('🔍 [任务检测] isTaskCreation:', isTaskCreation);
+      console.log('🔍 [任务检测] needsDecompose:', needsDecompose);
+      console.log('🔍 [任务检测] analysis.type:', analysis.type);
       
       if (isTaskCreation) {
         addThinkingStep('🎯 检测到任务创建请求');
@@ -646,7 +955,8 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
           responseContent += '🏷️ **情绪标签**：';
           analysis.emotions.forEach(emotionId => {
             const tag = EMOTION_TAGS.find(t => t.id === emotionId);
-            if (tag) responseContent += `${tag.emoji} ${tag.label}  `;
+            const label = TAG_LABELS[emotionId] || tag?.label || emotionId;
+            if (tag) responseContent += `${tag.emoji} ${label}  `;
           });
           responseContent += '\n\n';
         }
@@ -656,7 +966,8 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
           responseContent += '📂 **分类标签**：';
           analysis.categories.forEach(categoryId => {
             const tag = CATEGORY_TAGS.find(t => t.id === categoryId);
-            if (tag) responseContent += `${tag.emoji} ${tag.label}  `;
+            const label = TAG_LABELS[categoryId] || tag?.label || categoryId;
+            if (tag) responseContent += `${tag.emoji} ${label}  `;
           });
           responseContent += '\n\n';
         }
@@ -729,76 +1040,101 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
 
 **重要**：一定要把每个独立的动作分解成单独的任务！`;
 
-            addThinkingStep('⏳ AI正在分析任务结构...');
+            addThinkingStep('⏳ AI正在智能分析任务...');
             
-            // 传入当前时间，让AI正确计算任务开始时间
+            console.log('🤖 [AI智能分析] 输入内容:', message);
+            console.log('🤖 [AI智能分析] 当前时间:', new Date().toLocaleTimeString('zh-CN'));
+            
+            // 完全依赖AI智能分析，不使用机械化的代码
             const currentTime = new Date();
-            const decomposeResult = await aiService.decomposeTask(enhancedPrompt, currentTime);
+            const decomposeResult = await aiService.decomposeTask(message, currentTime);
+            
+            console.log('🤖 [AI返回] 任务数量:', decomposeResult.tasks?.length);
             
             if (decomposeResult.success && decomposeResult.tasks && decomposeResult.tasks.length > 0) {
-              addThinkingStep(`✅ 成功分解出 ${decomposeResult.tasks.length} 个任务`);
+              addThinkingStep(`✅ AI成功分解出 ${decomposeResult.tasks.length} 个任务`);
               
-              // 为每个任务添加ID和位置信息
-              let tasksWithMetadata: DecomposedTask[] = decomposeResult.tasks.map((task, index) => ({
-                id: crypto.randomUUID(),
-                title: task.title,
-                duration: task.duration || detectTaskDuration(task.title),
-                category: task.category,
-                priority: task.priority,
-                location: task.location || detectTaskLocation(task.title), // 优先使用AI返回的位置，否则自动识别
-                startTime: task.startTime, // 保留AI计算的开始时间
-              }));
-
-              // AI已经按照位置排序和计算时间了，不需要再次处理
-              addThinkingStep('✅ AI已优化任务顺序和时间');
-
+              // 完全使用AI返回的数据，正确解析时间
+              const tasksWithMetadata: DecomposedTask[] = decomposeResult.tasks.map((task, index) => {
+                // 创建今天的日期对象
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                
+                // 解析AI返回的时间字符串（格式：HH:MM）
+                const [hours, minutes] = (task.startTime || '00:00').split(':').map(Number);
+                
+                // 创建完整的开始时间
+                const startTime = new Date(today);
+                startTime.setHours(hours, minutes, 0, 0);
+                
+                // 计算结束时间
+                const endTime = new Date(startTime.getTime() + task.duration * 60000);
+                
+                console.log(`🤖 [任务${index + 1}] ${task.title}`);
+                console.log(`   AI返回时间: ${task.startTime}`);
+                console.log(`   解析后的完整时间: ${startTime.toLocaleString('zh-CN')}`);
+                console.log(`   时长: ${task.duration}分钟`);
+                console.log(`   结束时间: ${endTime.toLocaleString('zh-CN')}`);
+                console.log(`   标签: ${task.tags?.join(', ') || '无'}`);
+                console.log(`   位置: ${task.location || '未指定'}`);
+                
+                return {
+                  sequence: index + 1,
+                  title: task.title,
+                  description: task.title,
+                  estimated_duration: task.duration,
+                  scheduled_start: task.startTime || startTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+                  scheduled_end: endTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+                  scheduled_start_iso: startTime.toISOString(),
+                  task_type: task.category || 'life',
+                  category: task.category || '生活事务',
+                  location: task.location || '未指定',
+                  tags: task.tags || ['日常', '生活'],
+                  goal: null,
+                  gold: Math.floor(task.duration * 1.5),
+                  color: '#6A7334',
+                  priority: task.priority || 'medium',
+                };
+              });
+              
               addThinkingStep('🎯 正在匹配长期目标...');
               // 匹配目标
-              const goalMatches: Record<string, number> = {};
               if (goals.length > 0) {
                 const matches = matchTaskToGoals(
                   { title: message, description: '' },
                   goals
                 );
-                matches.forEach(match => {
-                  goalMatches[match.goalId] = match.confidence;
-                });
                 if (matches.length > 0) {
                   addThinkingStep(`🎯 找到 ${matches.length} 个相关目标`);
+                  // 自动关联第一个匹配的目标
+                  if (matches[0]) {
+                    tasksWithMetadata.forEach(task => {
+                      task.goal = matches[0].goalName;
+                    });
+                  }
                 }
               }
 
               addThinkingStep('✨ 任务分解完成！');
 
               if (!analysis.type) {
-                responseContent += '🤖 **AI智能任务分解 + 动线优化**\n\n';
+                responseContent += '🤖 **AI智能任务分解**\n\n';
               } else {
                 responseContent += '---\n\n🤖 **同时帮你分解了任务**\n\n';
               }
 
-              responseContent += `我帮你把任务分解成了 ${tasksWithMetadata.length} 个具体步骤，并按照家里格局优化了动线：\n\n`;
+              responseContent += `AI帮你智能分解了 ${tasksWithMetadata.length} 个任务：\n\n`;
               
               tasksWithMetadata.forEach((task, index) => {
                 const priorityEmoji = getPriorityEmoji(task.priority);
                 const locationEmoji = LOCATION_ICONS[task.location || ''] || '📍';
                 
                 responseContent += `${index + 1}. ${priorityEmoji} **${task.title}**\n`;
-                responseContent += `   ${locationEmoji} ${task.location ? LOCATION_NAMES[task.location] : '未指定位置'} | ⏱️ ${task.duration} 分钟 | 🕐 ${task.startTime}\n\n`;
+                responseContent += `   ${locationEmoji} ${task.location} | ⏱️ ${task.estimated_duration} 分钟 | 🕐 ${task.scheduled_start}\n`;
+                responseContent += `   🏷️ ${task.tags.join(', ')}\n\n`;
               });
 
-              // 显示目标关联
-              if (Object.keys(goalMatches).length > 0) {
-                responseContent += '🎯 **关联的长期目标**：\n';
-                Object.entries(goalMatches).forEach(([goalId, confidence]) => {
-                  const goal = goals.find(g => g.id === goalId);
-                  if (goal) {
-                    responseContent += `• ${goal.name} (${Math.round(confidence * 100)}%)\n`;
-                  }
-                });
-                responseContent += '\n';
-              }
-
-              responseContent += '💡 你可以在下方编辑器中调整任务顺序和时长，然后点击"推送到时间轴"！';
+              responseContent += '💡 点击下方按钮打开编辑器，可以调整任务、添加标签和关联目标！';
 
               const aiMessage: Message = {
                 id: `ai-${Date.now()}`,
@@ -814,20 +1150,39 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
               };
               
               setMessages(prev => [...prev, aiMessage]);
-              // 自动开始编辑
-              startEditing(aiMessage.id, tasksWithMetadata);
+              
+              console.log('🔍 [编辑器] 准备打开编辑器');
+              console.log('🔍 [编辑器] 任务数量:', tasksWithMetadata.length);
+              console.log('🔍 [编辑器] 任务列表:', tasksWithMetadata);
+              
+              // 打开新版编辑器
+              setEditingTasks(tasksWithMetadata);
+              setShowTaskEditor(true);
+              
+              console.log('🔍 [编辑器] showTaskEditor 已设置为 true');
+              console.log('🔍 [编辑器] editingTasks 已设置');
+              
               setIsProcessing(false);
               clearThinkingSteps();
               return;
+            } else {
+              console.log('❌ [AI分解] AI返回失败或没有任务');
+              console.log('❌ [AI分解] decomposeResult:', decomposeResult);
+              addThinkingStep(`❌ AI分解失败: ${decomposeResult.error || '未返回任务'}`);
             }
           } catch (error) {
-            console.error('AI任务分解失败:', error);
-            addThinkingStep('❌ AI分解失败，使用简单创建');
-            // 继续使用简单创建
+            console.error('❌ [AI调试] AI任务分解失败:', error);
+            addThinkingStep(`❌ AI分解失败，使用简单模式创建任务`);
+            
+            // AI失败后，降级到简单模式，仍然显示编辑器
+            console.log('🔄 [降级] AI分解失败，使用简单模式');
           }
         }
 
         // 简单任务创建（不分解）- 也支持手动编辑
+        // 或者 AI 分解失败后的降级方案
+        console.log('🔄 [简单模式] 创建简单任务或AI分解失败降级');
+        
         const matches = matchTaskToGoals(
           { title: message, description: '' },
           goals
@@ -854,22 +1209,30 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
         }
 
         // 创建单个任务也支持编辑
+        // 完全依赖AI智能分析
+        const currentTime = new Date();
+        const duration = 30; // 默认30分钟
+        const endTime = new Date(currentTime.getTime() + duration * 60000);
+        
         const singleTask: DecomposedTask = {
-          id: crypto.randomUUID(),
+          sequence: 1,
           title: message,
-          duration: detectTaskDuration(message),
-          category: 'work',
+          description: message,
+          estimated_duration: duration,
+          scheduled_start: currentTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+          scheduled_end: endTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+          scheduled_start_iso: currentTime.toISOString(),
+          task_type: 'work',
+          category: '工作',
+          location: '未指定',
+          tags: ['日常', '生活'],
+          goal: null,
+          gold: Math.floor(duration * 1.5),
+          color: '#6A7334',
           priority: 'medium',
-          location: detectTaskLocation(message),
-          startTime: new Date().toTimeString().slice(0, 5),
         };
 
-        responseContent += '💡 你可以在下方编辑器中调整任务，然后点击"推送到时间轴"！';
-
-        const goalMatches: Record<string, number> = {};
-        matches.forEach(match => {
-          goalMatches[match.goalId] = match.confidence;
-        });
+        responseContent += '💡 点击下方按钮打开编辑器，可以调整任务、添加标签和关联目标！';
 
         const aiMessage: Message = {
           id: `ai-${Date.now()}`,
@@ -885,10 +1248,21 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
           showTaskEditor: true,
           tags: aiTags,
           rewards: aiRewards,
+          thinkingProcess: [...thinkingSteps],
+          isThinkingExpanded: false,
         };
         
         setMessages(prev => [...prev, aiMessage]);
-        startEditing(aiMessage.id, [singleTask]);
+        
+        console.log('🔍 [简单模式] 准备打开编辑器');
+        console.log('🔍 [简单模式] 任务:', singleTask);
+        
+        // 打开新版编辑器
+        setEditingTasks([singleTask]);
+        setShowTaskEditor(true);
+        
+        console.log('🔍 [简单模式] showTaskEditor 已设置为 true');
+        console.log('🔍 [简单模式] editingTasks 已设置');
       } else if (analysis.type) {
         // 只是记录，不是任务
         const aiMessage: Message = {
@@ -1062,17 +1436,19 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
                     <div className="flex flex-wrap gap-1">
                       {message.tags.emotions.map(emotionId => {
                         const tag = EMOTION_TAGS.find(t => t.id === emotionId);
+                        const label = TAG_LABELS[emotionId] || tag?.label || emotionId;
                         return tag ? (
                           <span key={emotionId} className="text-xs px-2 py-0.5 rounded-full bg-blue-500">
-                            {tag.emoji} {tag.label}
+                            {tag.emoji} {label}
                           </span>
                         ) : null;
                       })}
                       {message.tags.categories.map(categoryId => {
                         const tag = CATEGORY_TAGS.find(t => t.id === categoryId);
+                        const label = TAG_LABELS[categoryId] || tag?.label || categoryId;
                         return tag ? (
                           <span key={categoryId} className="text-xs px-2 py-0.5 rounded-full bg-blue-500">
-                            {tag.emoji} {tag.label}
+                            {tag.emoji} {label}
                           </span>
                         ) : null;
                       })}
@@ -1110,7 +1486,7 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
                 )}
 
                 {/* 显示分解的任务列表 */}
-                {message.decomposedTasks && message.decomposedTasks.length > 0 && !message.showTaskEditor && (
+                {message.decomposedTasks && message.decomposedTasks.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-gray-200">
                     <div className="text-xs font-semibold mb-2 text-blue-600">📋 分解的任务：</div>
                     <div className="space-y-2">
@@ -1118,13 +1494,24 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
                         <div key={index} className="p-2 rounded text-xs bg-gray-50">
                           <div className="font-medium text-gray-900">{task.title}</div>
                           <div className="mt-1 text-gray-600">
-                            ⏱️ {task.duration}分钟
-                            {task.startTime && ` | 🕐 ${task.startTime}`}
+                            ⏱️ {task.estimated_duration}分钟
+                            {task.scheduled_start && ` | 🕐 ${task.scheduled_start}`}
                             {task.location && ` | 📍 ${task.location}`}
                           </div>
                         </div>
                       ))}
                     </div>
+                    
+                    {/* 打开编辑器按钮 */}
+                    <button
+                      onClick={() => {
+                        setEditingTasks(message.decomposedTasks || []);
+                        setShowTaskEditor(true);
+                      }}
+                      className="w-full mt-3 py-2 px-3 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 active:bg-purple-800 transition-colors"
+                    >
+                      ✏️ 打开编辑器
+                    </button>
                   </div>
                 )}
                 
@@ -1134,88 +1521,6 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
               </div>
             </div>
           ))}
-          
-          {/* 任务编辑器 */}
-          {editingMessageId && editingTasks.length > 0 && (
-            <div className="rounded-lg shadow-lg p-4 border-2 border-purple-500 bg-white">
-              <div className="flex items-center justify-between mb-3">
-                <div className="font-semibold text-gray-900">✏️ 任务编辑器</div>
-                <button onClick={cancelEditing} className="text-xs text-gray-500">取消</button>
-              </div>
-              
-              <div className="space-y-2 max-h-96 overflow-y-auto mb-3">
-                {editingTasks.map((task, index) => (
-                  <div key={task.id} className="rounded-lg p-3 border border-gray-200 bg-gray-50">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center space-x-2 flex-1">
-                        <span className="text-sm font-medium text-blue-600">#{index + 1}</span>
-                        <input
-                          type="text"
-                          value={task.title}
-                          onChange={(e) => handleTaskTitleChange(task.id, e.target.value)}
-                          className="flex-1 text-sm px-2 py-1 rounded border border-gray-300 focus:outline-none focus:border-blue-500"
-                        />
-                      </div>
-                      <button onClick={() => handleDeleteTask(task.id)} className="ml-2 text-xs text-red-500">
-                        🗑️
-                      </button>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2 text-xs text-gray-600">
-                      <span>⏱️</span>
-                      <input
-                        type="number"
-                        value={task.duration}
-                        onChange={(e) => handleTaskDurationChange(task.id, parseInt(e.target.value) || 0)}
-                        className="w-16 px-2 py-1 rounded border border-gray-300 focus:outline-none focus:border-blue-500"
-                        min="1"
-                      />
-                      <span>分钟</span>
-                      
-                      {task.startTime && (
-                        <>
-                          <span className="ml-2">🕐</span>
-                          <span>{task.startTime}</span>
-                        </>
-                      )}
-                      
-                      {task.location && (
-                        <>
-                          <span className="ml-2">📍</span>
-                          <span>{task.location}</span>
-                        </>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center space-x-2 mt-2">
-                      <button
-                        onClick={() => index > 0 && handleTaskReorder(index, index - 1)}
-                        disabled={index === 0}
-                        className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700 disabled:opacity-50"
-                      >
-                        ⬆️ 上移
-                      </button>
-                      <button
-                        onClick={() => index < editingTasks.length - 1 && handleTaskReorder(index, index + 1)}
-                        disabled={index === editingTasks.length - 1}
-                        className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700 disabled:opacity-50"
-                      >
-                        ⬇️ 下移
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              <button
-                onClick={handlePushToTimeline}
-                disabled={isProcessing || editingTasks.length === 0}
-                className="w-full py-2 px-3 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50"
-              >
-                🚀 推送到时间轴 ({editingTasks.length} 个任务)
-              </button>
-            </div>
-          )}
           
           {/* 处理中状态 */}
           {isProcessing && (
@@ -1312,20 +1617,39 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
 
         {/* AI配置弹窗 */}
         <AIConfigModal isOpen={showConfigModal} onClose={() => setShowConfigModal(false)} />
+        
+        {/* 新版任务编辑器 - 全屏模式也需要 */}
+        {showTaskEditor && editingTasks.length > 0 && (
+          <UnifiedTaskEditor
+            tasks={editingTasks}
+            onClose={() => {
+              setShowTaskEditor(false);
+              setEditingTasks([]);
+            }}
+            onConfirm={handlePushToTimeline}
+          />
+        )}
       </div>
     );
   }
 
   return (
     <>
-      {/* 浮动按钮 - 只在未展开时显示，手机端位置上移避免遮挡导航栏 */}
+      {/* 浮动按钮 - 只在未展开时显示，黄色底色+白色图标，手机端位置上移避免遮挡导航栏 */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed w-14 h-14 rounded-full bg-purple-600 text-white shadow-2xl hover:scale-110 transition-all z-50 flex items-center justify-center md:bottom-8 md:right-32 bottom-24 right-4"
+          className="fixed w-16 h-16 rounded-full shadow-2xl hover:scale-110 transition-all flex items-center justify-center"
+          style={{ 
+            backgroundColor: '#E8C259',
+            color: '#ffffff',
+            zIndex: 99999,
+            bottom: '88px', // 手机端：导航栏上方
+            right: '16px',
+          }}
           title="AI助手"
         >
-          <span className="text-2xl">🤖</span>
+          <span className="text-3xl">🤖</span>
         </button>
       )}
 
@@ -1494,25 +1818,27 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
                           <div className="flex flex-wrap gap-1">
                             {message.tags.emotions.map(emotionId => {
                               const tag = EMOTION_TAGS.find(t => t.id === emotionId);
+                              const label = TAG_LABELS[emotionId] || tag?.label || emotionId;
                               return tag ? (
                                 <span
                                   key={emotionId}
                                   className="text-xs px-2 py-0.5 rounded-full"
                                   style={{ backgroundColor: theme.isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}
                                 >
-                                  {tag.emoji} {tag.label}
+                                  {tag.emoji} {label}
                                 </span>
                               ) : null;
                             })}
                             {message.tags.categories.map(categoryId => {
                               const tag = CATEGORY_TAGS.find(t => t.id === categoryId);
+                              const label = TAG_LABELS[categoryId] || tag?.label || categoryId;
                               return tag ? (
                                 <span
                                   key={categoryId}
                                   className="text-xs px-2 py-0.5 rounded-full"
                                   style={{ backgroundColor: theme.isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}
                                 >
-                                  {tag.emoji} {tag.label}
+                                  {tag.emoji} {label}
                                 </span>
                               ) : null;
                             })}
@@ -1578,26 +1904,24 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
                               >
                                 <div className="font-medium" style={{ color: theme.textColor }}>{task.title}</div>
                                 <div className="mt-1" style={{ color: theme.accentColor }}>
-                                  ⏱️ {task.duration}分钟
-                                  {task.startTime && ` | 🕐 ${task.startTime}`}
+                                  ⏱️ {task.estimated_duration}分钟
+                                  {task.scheduled_start && ` | 🕐 ${task.scheduled_start}`}
                                   {task.location && ` | 📍 ${task.location}`}
                                 </div>
                               </div>
                             ))}
                           </div>
-                        </div>
-                      )}
-
-                      {/* 显示待确认的操作按钮 */}
-                      {message.pendingAction && message.role === 'assistant' && (
-                        <div className="mt-3 pt-3 border-t" style={{ borderColor: theme.borderColor }}>
+                          
+                          {/* 打开编辑器按钮 */}
                           <button
-                            onClick={() => handleConfirmAction(message.id)}
-                            disabled={isProcessing}
-                            className="w-full py-2 px-3 rounded-lg text-sm font-medium hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                            style={{ backgroundColor: '#4ade80', color: '#ffffff' }}
+                            onClick={() => {
+                              setEditingTasks(message.decomposedTasks || []);
+                              setShowTaskEditor(true);
+                            }}
+                            className="w-full mt-3 py-2 px-3 rounded-lg text-sm font-medium hover:scale-105 transition-all"
+                            style={{ backgroundColor: '#8b5cf6', color: '#ffffff' }}
                           >
-                            ✅ 确认创建到时间轴
+                            ✏️ 打开编辑器
                           </button>
                         </div>
                       )}
@@ -1608,118 +1932,6 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
                     </div>
                   </div>
                 ))}
-                
-                {/* 任务编辑器 */}
-                {editingMessageId && editingTasks.length > 0 && (
-                  <div className="rounded-lg shadow-lg p-4 border-2" style={{ backgroundColor: theme.bgColor, borderColor: '#8b5cf6' }}>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="font-semibold text-gray-900">✏️ 任务编辑器</div>
-                      <button
-                        onClick={cancelEditing}
-                        className="text-xs"
-                        style={{ color: theme.accentColor }}
-                      >
-                        取消
-                      </button>
-                    </div>
-                    
-                    <div className="space-y-2 max-h-96 overflow-y-auto mb-3">
-                      {editingTasks.map((task, index) => (
-                        <div
-                          key={task.id}
-                          className="rounded-lg p-3 border"
-                          style={{ 
-                            backgroundColor: theme.cardBg,
-                            borderColor: theme.borderColor
-                          }}
-                        >
-                          <div className="flex items-start justify-between mb-2">
-                            <div className="flex items-center space-x-2 flex-1">
-                              <span className="text-sm font-medium" style={{ color: theme.accentColor }}>#{index + 1}</span>
-                              <input
-                                type="text"
-                                value={task.title}
-                                onChange={(e) => handleTaskTitleChange(task.id, e.target.value)}
-                                className="flex-1 text-sm px-2 py-1 rounded border focus:outline-none"
-                                style={{
-                                  backgroundColor: theme.isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)',
-                                  color: theme.textColor,
-                                  borderColor: theme.borderColor,
-                                }}
-                              />
-                            </div>
-                            <button
-                              onClick={() => handleDeleteTask(task.id)}
-                              className="ml-2 text-xs"
-                              style={{ color: '#ef4444' }}
-                            >
-                              🗑️
-                            </button>
-                          </div>
-                          
-                          <div className="flex items-center space-x-2 text-xs" style={{ color: theme.accentColor }}>
-                            <span>⏱️</span>
-                            <input
-                              type="number"
-                              value={task.duration}
-                              onChange={(e) => handleTaskDurationChange(task.id, parseInt(e.target.value) || 0)}
-                              className="w-16 px-2 py-1 rounded border focus:outline-none"
-                              style={{
-                                backgroundColor: theme.isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)',
-                                color: theme.textColor,
-                                borderColor: theme.borderColor,
-                              }}
-                              min="1"
-                            />
-                            <span>分钟</span>
-                            
-                            {task.startTime && (
-                              <>
-                                <span className="ml-2">🕐</span>
-                                <span>{task.startTime}</span>
-                              </>
-                            )}
-                            
-                            {task.location && (
-                              <>
-                                <span className="ml-2">📍</span>
-                                <span>{task.location}</span>
-                              </>
-                            )}
-                          </div>
-                          
-                          <div className="flex items-center space-x-2 mt-2">
-                            <button
-                              onClick={() => index > 0 && handleTaskReorder(index, index - 1)}
-                              disabled={index === 0}
-                              className="text-xs px-2 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                              style={{ backgroundColor: theme.buttonBg, color: theme.textColor }}
-                            >
-                              ⬆️ 上移
-                            </button>
-                            <button
-                              onClick={() => index < editingTasks.length - 1 && handleTaskReorder(index, index + 1)}
-                              disabled={index === editingTasks.length - 1}
-                              className="text-xs px-2 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                              style={{ backgroundColor: theme.buttonBg, color: theme.textColor }}
-                            >
-                              ⬇️ 下移
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    <button
-                      onClick={handlePushToTimeline}
-                      disabled={isProcessing || editingTasks.length === 0}
-                      className="w-full py-2 px-3 rounded-lg text-sm font-medium hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                      style={{ backgroundColor: '#8b5cf6', color: '#ffffff' }}
-                    >
-                      🚀 推送到时间轴 ({editingTasks.length} 个任务)
-                    </button>
-                  </div>
-                )}
                 
                 {/* 处理中状态 */}
                 {isProcessing && (
@@ -1846,6 +2058,19 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
         isOpen={showConfigModal} 
         onClose={() => setShowConfigModal(false)} 
       />
+      
+      {/* 新版任务编辑器 - 非全屏模式 */}
+      {showTaskEditor && editingTasks.length > 0 && (
+        <UnifiedTaskEditor
+          tasks={editingTasks}
+          onClose={() => {
+            console.log('🔍 [编辑器] 关闭编辑器');
+            setShowTaskEditor(false);
+            setEditingTasks([]);
+          }}
+          onConfirm={handlePushToTimeline}
+        />
+      )}
     </>
   );
 }

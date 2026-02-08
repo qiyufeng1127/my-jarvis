@@ -2,7 +2,6 @@
 export { useVoice } from './useVoice';
 export { useVoiceRecognition } from './useVoiceRecognition';
 export { useSpeechSynthesis } from './useSpeechSynthesis';
-export { useRealtime } from './useRealtime';
 export { useLocalStorage } from './useLocalStorage';
 export { useColorTheme } from './useColorTheme';
 export { useDraggable } from './useDraggable';

@@ -1,0 +1,152 @@
+/* ============================================
+   Badge Component Styles
+   ============================================ */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--font-medium);
+  white-space: nowrap;
+  transition: all var(--transition-base);
+}
+
+/* ========== Sizes ========== */
+.badge--sm {
+  padding: var(--spacing-1) var(--spacing-2);
+  font-size: var(--text-xs);
+  border-radius: var(--radius-sm);
+}
+
+.badge--md {
+  padding: var(--spacing-2) var(--spacing-3);
+  font-size: var(--text-sm);
+  border-radius: var(--radius-md);
+}
+
+.badge--lg {
+  padding: var(--spacing-2) var(--spacing-4);
+  font-size: var(--text-base);
+  border-radius: var(--radius-lg);
+}
+
+/* ========== Rounded ========== */
+.badge--rounded {
+  border-radius: var(--radius-full);
+}
+
+/* ========== Solid Variant ========== */
+.badge--solid.badge--pink {
+  background-color: var(--color-pink-500);
+  color: var(--text-inverse);
+}
+
+.badge--solid.badge--yellow {
+  background-color: var(--color-yellow-500);
+  color: var(--text-primary);
+}
+
+.badge--solid.badge--blue {
+  background-color: var(--color-blue-500);
+  color: var(--text-inverse);
+}
+
+.badge--solid.badge--green {
+  background-color: var(--color-green-500);
+  color: var(--text-inverse);
+}
+
+.badge--solid.badge--purple {
+  background-color: var(--color-purple-500);
+  color: var(--text-inverse);
+}
+
+.badge--solid.badge--brown {
+  background-color: var(--color-brown-500);
+  color: var(--text-inverse);
+}
+
+.badge--solid.badge--gray {
+  background-color: var(--color-gray-500);
+  color: var(--text-inverse);
+}
+
+/* ========== Soft Variant ========== */
+.badge--soft.badge--pink {
+  background-color: var(--color-pink-100);
+  color: var(--color-pink-600);
+}
+
+.badge--soft.badge--yellow {
+  background-color: var(--color-yellow-100);
+  color: var(--color-yellow-600);
+}
+
+.badge--soft.badge--blue {
+  background-color: var(--color-blue-100);
+  color: var(--color-blue-600);
+}
+
+.badge--soft.badge--green {
+  background-color: var(--color-green-100);
+  color: var(--color-green-600);
+}
+
+.badge--soft.badge--purple {
+  background-color: var(--color-purple-100);
+  color: var(--color-purple-600);
+}
+
+.badge--soft.badge--brown {
+  background-color: var(--color-brown-100);
+  color: var(--color-brown-600);
+}
+
+.badge--soft.badge--gray {
+  background-color: var(--color-gray-100);
+  color: var(--color-gray-600);
+}
+
+/* ========== Outline Variant ========== */
+.badge--outline.badge--pink {
+  background-color: transparent;
+  border: 1px solid var(--color-pink-500);
+  color: var(--color-pink-600);
+}
+
+.badge--outline.badge--yellow {
+  background-color: transparent;
+  border: 1px solid var(--color-yellow-500);
+  color: var(--color-yellow-600);
+}
+
+.badge--outline.badge--blue {
+  background-color: transparent;
+  border: 1px solid var(--color-blue-500);
+  color: var(--color-blue-600);
+}
+
+.badge--outline.badge--green {
+  background-color: transparent;
+  border: 1px solid var(--color-green-500);
+  color: var(--color-green-600);
+}
+
+.badge--outline.badge--purple {
+  background-color: transparent;
+  border: 1px solid var(--color-purple-500);
+  color: var(--color-purple-600);
+}
+
+.badge--outline.badge--brown {
+  background-color: transparent;
+  border: 1px solid var(--color-brown-500);
+  color: var(--color-brown-600);
+}
+
+.badge--outline.badge--gray {
+  background-color: transparent;
+  border: 1px solid var(--color-gray-500);
+  color: var(--color-gray-600);
+}
+

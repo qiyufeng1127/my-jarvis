@@ -3,11 +3,11 @@ import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
 import { useGoldStore } from '@/stores/goldStore';
 import { useTutorialStore } from '@/stores/tutorialStore';
-import { X, GripVertical, Settings } from 'lucide-react';
+import { useLevelStore } from '@/stores/levelStore';
+import { X, GripVertical, Settings, MoreHorizontal } from 'lucide-react';
 import NotificationContainer from '@/components/ui/NotificationContainer';
-import AISmartInput from '@/components/ai/AISmartInput';
-import VoiceAssistant from '@/components/voice/VoiceAssistant';
-import GitHubCommitBadge from '@/components/ui/GitHubCommitBadge';
+// import AISmartInput from '@/components/ai/AISmartInput'; // 临时注释
+import FloatingAIChat from '@/components/ai/FloatingAIChat';
 import {
   GoalsModule,
   TimelineModule,
@@ -24,32 +24,42 @@ import DailyReceipt from '@/components/receipt/DailyReceipt';
 import MobileWelcome from '@/components/tutorial/MobileWelcome';
 import OnboardingTooltip, { ONBOARDING_STEPS } from '@/components/tutorial/OnboardingTooltip';
 import { TagManagerV2 } from '@/components/tags';
+import UserProfileCardsWrapper from '@/components/profile/UserProfileCardsWrapper';
+import DailyReviewModal from '@/components/review/DailyReviewModal';
+import LevelCustomizeModal from '@/components/level/LevelCustomizeModal';
+import MoodWeeklyCard from '@/components/profile/MoodWeeklyCard';
+import { MobileBottomNav, MobileTopBar } from '@/components/layout';
+import type { NavItem as BottomNavItem } from '@/components/layout';
 
-type TabType = 'timeline' | 'goals' | 'journal' | 'memory' | 'gold' | 'habits' | 'reports' | 'settings' | 'inbox' | 'ai' | 'more' | 'money' | 'tags';
+type TabType = 'timeline' | 'goals' | 'journal' | 'memory' | 'gold' | 'habits' | 'reports' | 'settings' | 'inbox' | 'ai' | 'more' | 'money' | 'tags' | 'home';
+
+interface MobileLayoutProps {
+  onModuleChange?: (module: string) => void;
+}
 
 interface NavItem {
   id: TabType;
   label: string;
   icon: string;
+  color?: 'pink' | 'yellow' | 'blue' | 'green' | 'purple' | 'brown';
   component?: React.ComponentType<any>;
 }
 
 const ALL_NAV_ITEMS: NavItem[] = [
-  { id: 'timeline', label: '时间轴', icon: '📅', component: TimelineModule },
-  { id: 'goals', label: '目标', icon: '🎯', component: GoalsModule },
-  { id: 'money', label: '副业', icon: '💰', component: MoneyModule },
-  { id: 'inbox', label: '收集箱', icon: '📥', component: TaskInbox },
-  { id: 'tags', label: '标签', icon: '🏷️' }, // 标签管理（特殊处理，不是模块）
-  { id: 'journal', label: '日记', icon: '📔', component: JournalModule },
-  // AI助手已移除，改为浮动按钮
-  { id: 'memory', label: '记忆', icon: '🧠', component: PanoramaMemory },
-  { id: 'gold', label: '金币', icon: '💎', component: GoldModule },
-  { id: 'habits', label: '习惯', icon: '⚠️', component: HabitsModule },
-  { id: 'reports', label: '报告', icon: '📈', component: ReportsModule },
-  { id: 'settings', label: '设置', icon: '⚙️', component: SettingsModule },
+  { id: 'timeline', label: '时间轴', icon: '📅', color: 'pink', component: TimelineModule },
+  { id: 'goals', label: '目标', icon: '🎯', color: 'yellow', component: GoalsModule },
+  { id: 'money', label: '副业', icon: '💰', color: 'yellow', component: MoneyModule },
+  { id: 'inbox', label: '收集箱', icon: '📥', color: 'blue', component: TaskInbox },
+  { id: 'tags', label: '标签', icon: '🏷️', color: 'purple' }, // 标签管理（特殊处理，不是模块）
+  { id: 'ai', label: 'AI助手', icon: '✨', color: 'pink' }, // AI助手（特殊处理，打开输入框）
+  { id: 'journal', label: '日记', icon: '📔', color: 'brown', component: JournalModule },
+  { id: 'memory', label: '记忆', icon: '🧠', color: 'purple', component: PanoramaMemory },
+  { id: 'gold', label: '金币', icon: '💎', color: 'yellow', component: GoldModule },
+  { id: 'habits', label: '习惯', icon: '⚠️', color: 'green', component: HabitsModule },
+  { id: 'reports', label: '报告', icon: '📈', color: 'blue', component: ReportsModule },
 ];
 
-export default function MobileLayout() {
+export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {}) {
   const { loadTasks } = useTaskStore();
   const { loadGrowthData } = useGrowthStore();
   const { balance } = useGoldStore();
@@ -59,6 +69,7 @@ export default function MobileLayout() {
     completeOnboarding,
     shouldShowOnboarding 
   } = useTutorialStore();
+  const { currentLevel, currentExp, getCurrentLevelConfig, getNextLevelConfig } = useLevelStore();
   
   // 小票弹窗状态
   const [showReceipt, setShowReceipt] = useState(false);
@@ -71,21 +82,36 @@ export default function MobileLayout() {
         const savedIds = JSON.parse(saved) as TabType[];
         return savedIds.map(id => ALL_NAV_ITEMS.find(item => item.id === id)!).filter(Boolean);
       } catch {
-        return ALL_NAV_ITEMS.slice(0, 4); // 默认显示前4个
+        // 默认显示：时间轴、目标
+        return [ALL_NAV_ITEMS[0], ALL_NAV_ITEMS[1]];
       }
     }
-    return ALL_NAV_ITEMS.slice(0, 4); // 默认显示前4个
+    // 默认显示：时间轴、目标
+    return [ALL_NAV_ITEMS[0], ALL_NAV_ITEMS[1]];
   });
   
-  const [activeTab, setActiveTab] = useState<TabType>(navItems[0]?.id || 'timeline');
+  const [activeTab, setActiveTab] = useState<TabType>('home'); // 默认显示首页
+  
+  // 当 activeTab 改变时，通知父组件
+  useEffect(() => {
+    if (onModuleChange) {
+      onModuleChange(activeTab);
+    }
+  }, [activeTab, onModuleChange]);
   const [showMoreModal, setShowMoreModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingItems, setEditingItems] = useState<NavItem[]>([]);
-  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
   const [navColor, setNavColor] = useState(() => localStorage.getItem('mobile_nav_color') || '#ffffff');
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showAISmartInput, setShowAISmartInput] = useState(false); // AI 智能输入状态
   const [showTagManager, setShowTagManager] = useState(false); // 标签管理状态
+  const [showUserProfile, setShowUserProfile] = useState(false); // 用户画像状态
+  const [showDailyReview, setShowDailyReview] = useState(false); // 日复盘状态
+  const [showLevelCustomize, setShowLevelCustomize] = useState(false); // 等级自定义状态
+  const [userAvatar, setUserAvatar] = useState<string | undefined>(() => {
+    // 从 localStorage 加载头像
+    return localStorage.getItem('user_avatar') || undefined;
+  });
 
   useEffect(() => {
     loadTasks();
@@ -116,6 +142,56 @@ export default function MobileLayout() {
       bgColor: savedNavColor,
     };
 
+    // 首页特殊处理：只显示未在导航栏中的组件按钮
+    if (activeTab === 'home') {
+      // 获取当前导航栏中的组件ID（不包括首页和设置）
+      const navItemIds = navItems.map(item => item.id);
+      
+      // 过滤出未在导航栏中的组件
+      const availableItems = ALL_NAV_ITEMS.filter(item => !navItemIds.includes(item.id));
+      
+      return (
+        <div className="p-4">
+          <h2 className="text-xl font-bold mb-4 text-gray-900">添加功能</h2>
+          {availableItems.length > 0 ? (
+            <div className="grid grid-cols-4 gap-4">
+              {availableItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    // 标签管理特殊处理：打开弹窗
+                    if (item.id === 'tags') {
+                      setShowTagManager(true);
+                    } else if (item.id === 'ai') {
+                      // AI助手特殊处理：打开AI输入框
+                      setShowAISmartInput(true);
+                    } else {
+                      setActiveTab(item.id);
+                    }
+                  }}
+                  className="flex flex-col items-center justify-center p-4 rounded-xl transition-all shadow-sm bg-white border-2 border-gray-200 active:bg-gray-50"
+                >
+                  <span className="text-3xl mb-2">{item.icon}</span>
+                  <span className="text-xs font-semibold text-center text-gray-900">{item.label}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12">
+              <span className="text-6xl mb-4">✨</span>
+              <p className="text-lg font-medium text-gray-900">所有功能都已添加</p>
+              <p className="text-sm text-gray-500 mt-2">长按底部导航栏可以编辑</p>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // 特殊处理设置模块
+    if (activeTab === 'settings') {
+      return <SettingsModule {...moduleProps} />;
+    }
+
     const activeItem = ALL_NAV_ITEMS.find(item => item.id === activeTab);
     if (!activeItem || !activeItem.component) return null;
 
@@ -123,26 +199,9 @@ export default function MobileLayout() {
     return <Component {...moduleProps} />;
   };
 
-  // 显示的导航项（最多4个）
-  const visibleNavItems = navItems.slice(0, 4);
-  const hasMore = navItems.length > 4 || navItems.length < ALL_NAV_ITEMS.length;
-
-  // 长按开始编辑
-  const handleLongPressStart = (e: React.TouchEvent | React.MouseEvent) => {
-    e.preventDefault();
-    const timer = setTimeout(() => {
-      setEditingItems([...navItems]);
-      setShowEditModal(true);
-    }, 500);
-    setLongPressTimer(timer);
-  };
-
-  const handleLongPressEnd = () => {
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-      setLongPressTimer(null);
-    }
-  };
+  // 显示的导航项（最多3个 + 首页按钮 + 设置按钮）
+  const visibleNavItems = navItems.slice(0, 3);
+  const hasMore = true; // 始终显示设置按钮
 
   // 拖拽排序
   const handleDragStart = (index: number) => {
@@ -197,6 +256,7 @@ export default function MobileLayout() {
   };
 
   return (
+    <>
     <div className="h-screen flex flex-col bg-white dark:bg-black">
       {/* 通知容器 */}
       <NotificationContainer />
@@ -225,195 +285,148 @@ export default function MobileLayout() {
         />
       )}
 
-      {/* 顶部状态栏 - 增加顶部间距避免与系统时间重叠 */}
-      <div className="bg-white dark:bg-black border-b border-neutral-200 dark:border-gray-800 px-3 pt-12 pb-2 shrink-0">
-        <div className="flex items-center justify-between">
-          {/* 左侧：身份等级 */}
-          <div className="flex items-center space-x-1.5">
-            <div className="flex items-center space-x-1.5 px-2 py-1 rounded-lg bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100/50">
-              <div className="text-base">👑</div>
-              <div className="text-[10px]">
-                <div className="font-semibold text-black">萌芽新手 Lv.1</div>
-              </div>
-            </div>
-            
-            {/* 成长值 */}
-            <div className="flex items-center space-x-1 px-1.5 py-1 rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100/50">
-              <div className="text-xs">📊</div>
-              <div className="text-[10px] font-semibold text-black">0/200</div>
-            </div>
-          </div>
-
-          {/* 右侧：GitHub推送次数、金币余额和帮助按钮 */}
-          <div className="flex items-center space-x-2">
-            {/* GitHub推送次数 */}
-            <GitHubCommitBadge className="scale-90" />
-            
-            <div 
-              className="flex items-center space-x-1.5 px-2 py-1 rounded-lg bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-100/50"
-              data-tour="coins"
-            >
-              <div className="text-base">💰</div>
-              <div className="text-xs font-bold text-black">{balance}</div>
-            </div>
-            
-            {/* 生成小票按钮 - 替换原来的帮助按钮 */}
-            <button
-              onClick={() => setShowReceipt(true)}
-              className="w-8 h-8 rounded-full bg-blue-100 hover:bg-blue-200 active:bg-blue-300 transition-colors flex items-center justify-center animate-bounce"
-              title="生成每日小票"
-              style={{
-                animation: 'bounce 2s infinite',
-              }}
-            >
-              <span className="text-base">🧾</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
       {/* 主内容区域 - 可滚动，底部留出导航栏空间 */}
       <div className="flex-1 overflow-y-auto pb-20 relative">
-        {renderActiveModule()}
-        
-        {/* 浮动 AI 按钮 - 只在时间轴页面显示，调整位置避免被导航栏遮挡 */}
-        {activeTab === 'timeline' && (
-          <button
-            onClick={() => setShowAISmartInput(true)}
-            className="fixed right-4 w-14 h-14 rounded-full shadow-lg flex items-center justify-center z-30 active:scale-95 transition-transform"
-            style={{
-              bottom: '88px', // 导航栏高度约72px + 16px间距
-              backgroundColor: '#FFD700',
-              boxShadow: '0 4px 12px rgba(255, 215, 0, 0.4)',
-            }}
-            data-tour="ai-button"
-          >
-            <span className="text-white text-3xl font-bold">+</span>
-          </button>
+        {/* 首页特殊处理：顶部栏和心情周报也放在滚动区域内 */}
+        {activeTab === 'home' && (
+          <>
+            <MobileTopBar
+              level={currentLevel}
+              levelName={getCurrentLevelConfig().name}
+              exp={currentExp}
+              maxExp={getCurrentLevelConfig().maxExp}
+              coins={balance}
+              githubCommits={0}
+              userAvatar={userAvatar}
+              onProfileClick={() => setShowUserProfile(true)}
+              onReviewClick={() => setShowDailyReview(true)}
+              onReceiptClick={() => setShowReceipt(true)}
+              onEditLevelName={() => setShowLevelCustomize(true)}
+              onViewBadges={() => setShowLevelCustomize(true)}
+              onAvatarUpload={(file) => {
+                // 处理头像上传 - 转换为 base64 并保存
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                  const base64String = reader.result as string;
+                  setUserAvatar(base64String);
+                  localStorage.setItem('user_avatar', base64String);
+                  console.log('✅ 头像已上传并保存');
+                };
+                reader.readAsDataURL(file);
+              }}
+            />
+            
+            {/* 心情周报卡片 - 放在萌芽新手卡片下面 */}
+            <div className="px-4 pb-4">
+              <MoodWeeklyCard />
+            </div>
+          </>
         )}
+        
+        {renderActiveModule()}
       </div>
 
-      {/* AI 智能输入 - 使用电脑版相同的组件 */}
-      <AISmartInput 
+      {/* AI 智能输入 - 临时禁用 */}
+      {/* <AISmartInput 
         isOpen={showAISmartInput} 
         onClose={() => setShowAISmartInput(false)} 
-      />
+      /> */}
       
       {/* 标签管理弹窗 - V2 优化版 */}
-      <TagManagerV2
-        isOpen={showTagManager}
-        onClose={() => setShowTagManager(false)}
-        isDark={false}
+      {showTagManager && (
+        <TagManagerV2
+          isOpen={showTagManager}
+          onClose={() => setShowTagManager(false)}
+          isDark={false}
+        />
+      )}
+      
+      {/* 用户画像弹窗 - 卡片堆叠样式 */}
+      {showUserProfile && (
+        <UserProfileCardsWrapper
+          isOpen={showUserProfile}
+          onClose={() => setShowUserProfile(false)}
+        />
+      )}
+      
+      {/* 日复盘弹窗 */}
+      <DailyReviewModal
+        isOpen={showDailyReview}
+        onClose={() => setShowDailyReview(false)}
+      />
+      
+      {/* 等级自定义弹窗 */}
+      <LevelCustomizeModal
+        isOpen={showLevelCustomize}
+        onClose={() => setShowLevelCustomize(false)}
       />
 
-      {/* 底部导航栏 - 固定在底部 */}
-      <div 
-        className="fixed bottom-0 left-0 right-0 border-t border-neutral-200 dark:border-gray-800 px-2 py-2 safe-area-bottom z-40 bg-white dark:bg-black"
-      >
-        <div className="flex items-center justify-around">
-          {visibleNavItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => {
-                // 标签管理特殊处理：打开弹窗而不是切换标签页
-                if (item.id === 'tags') {
-                  setShowTagManager(true);
-                } else {
-                  setActiveTab(item.id);
-                }
-              }}
-              onTouchStart={handleLongPressStart}
-              onTouchEnd={handleLongPressEnd}
-              onMouseDown={handleLongPressStart}
-              onMouseUp={handleLongPressEnd}
-              onMouseLeave={handleLongPressEnd}
-              className={`flex flex-col items-center justify-center px-3 py-2 rounded-xl transition-all min-w-[60px] ${
-                activeTab === item.id
-                  ? 'bg-blue-500 text-white'
-                  : 'text-neutral-600 dark:text-gray-300 active:bg-neutral-100 dark:active:bg-gray-800'
-              }`}
-              data-tour={item.id === 'timeline' ? 'timeline' : item.id === 'inbox' ? 'inbox' : undefined}
-            >
-              <span className="text-2xl mb-1">{item.icon}</span>
-              <span className="text-xs font-medium">{item.label}</span>
-            </button>
-          ))}
-
-          {/* 更多按钮 */}
-          {hasMore && (
-            <button
-              onClick={() => setShowMoreModal(true)}
-              className="flex flex-col items-center justify-center px-3 py-2 rounded-xl transition-all min-w-[60px] text-neutral-600 dark:text-gray-300 active:bg-neutral-100 dark:active:bg-gray-800"
-            >
-              <span className="text-2xl mb-1">⋯</span>
-              <span className="text-xs font-medium">更多</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* 更多功能弹窗 */}
-      {showMoreModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end">
-          <div className="bg-white dark:bg-gray-900 rounded-t-3xl w-full max-h-[70vh] overflow-hidden flex flex-col">
-            {/* 头部 */}
-            <div className="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-gray-800">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white">更多功能</h3>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => {
-                    setShowMoreModal(false);
-                    setEditingItems([...navItems]);
-                    setShowEditModal(true);
-                  }}
-                  className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700"
-                >
-                  <Settings className="w-5 h-5 text-gray-900 dark:text-white" />
-                </button>
-                <button
-                  onClick={() => setShowMoreModal(false)}
-                  className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700"
-                >
-                  <X className="w-5 h-5 text-gray-900 dark:text-white" />
-                </button>
-              </div>
-            </div>
-
-            {/* 功能列表 - 只显示不在导航栏的功能 */}
-            <div className="flex-1 overflow-y-auto p-4">
-              <div className="grid grid-cols-4 gap-4">
-                {ALL_NAV_ITEMS.filter(item => !visibleNavItems.find(v => v.id === item.id)).map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => {
-                      // 标签管理特殊处理：打开弹窗
-                      if (item.id === 'tags') {
-                        setShowTagManager(true);
-                        setShowMoreModal(false);
-                      } else {
-                        setActiveTab(item.id);
-                        setShowMoreModal(false);
-                      }
-                    }}
-                    className={`flex flex-col items-center justify-center p-4 rounded-xl transition-all shadow-sm ${
-                      activeTab === item.id
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white active:bg-gray-50 dark:active:bg-gray-700 border-2 border-gray-200 dark:border-gray-700'
-                    }`}
-                  >
-                    <span className="text-3xl mb-2">{item.icon}</span>
-                    <span className="text-xs font-semibold text-center">{item.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 底部导航栏 - 使用新组件 */}
+      <MobileBottomNav
+        items={[
+          ...visibleNavItems.map(item => ({
+            id: item.id,
+            label: item.label,
+            icon: item.icon,
+            color: item.color,
+          })),
+          // 添加"首页"按钮（中间）
+          {
+            id: 'home' as TabType,
+            label: '首页',
+            icon: '🏠',
+            color: 'pink' as const,
+          },
+          // 添加"设置"按钮（最右边）
+          {
+            id: 'settings' as TabType,
+            label: '设置',
+            icon: '⚙️',
+            color: 'brown' as const,
+          }
+        ]}
+        activeId={activeTab}
+        onItemClick={(id) => {
+          // 先关闭所有弹窗
+          setShowTagManager(false);
+          setShowUserProfile(false);
+          setShowDailyReview(false);
+          setShowLevelCustomize(false);
+          
+          if (id === 'home') {
+            // 点击首页按钮，切换到home页面
+            setActiveTab('home');
+            return;
+          }
+          
+          if (id === 'settings') {
+            // 点击设置按钮，切换到设置页面
+            setActiveTab('settings');
+            return;
+          }
+          
+          const item = ALL_NAV_ITEMS.find(i => i.id === id);
+          if (!item) return;
+          
+          // 标签管理特殊处理：打开弹窗而不是切换标签页
+          if (item.id === 'tags') {
+            setShowTagManager(true);
+          } else if (item.id === 'ai') {
+            // AI助手特殊处理：打开AI输入框
+            setShowAISmartInput(true);
+          } else {
+            setActiveTab(item.id);
+          }
+        }}
+        onLongPress={() => {
+          setEditingItems([...navItems]);
+          setShowEditModal(true);
+        }}
+      />
 
       {/* 编辑导航栏弹窗 */}
       {showEditModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col">
             {/* 头部 */}
             <div className="flex items-center justify-between p-4 border-b border-neutral-200">
@@ -436,9 +449,9 @@ export default function MobileLayout() {
             </div>
 
             {/* 说明 */}
-            <div className="p-4 bg-blue-50 border-b border-blue-100">
-              <p className="text-sm text-blue-900 font-medium">
-                💡 拖拽调整顺序，最多显示4个在底部导航栏
+            <div className="p-4 border-b" style={{ backgroundColor: '#E8C259', borderColor: '#d4a93d' }}>
+              <p className="text-sm font-medium" style={{ color: '#000000' }}>
+                💡 拖拽调整顺序，最多显示5个在底部导航栏
               </p>
             </div>
 
@@ -448,12 +461,12 @@ export default function MobileLayout() {
                 <h4 className="text-sm font-semibold mb-3 text-gray-900">🎨 导航栏颜色</h4>
                 <div className="grid grid-cols-6 gap-2 mb-3">
                   {[
+                    '#D1CBBA', '#6D9978', '#E8C259', '#DD617C', '#AC0327',
                     '#ffffff', '#f8f9fa', '#e9ecef', '#dee2e6',
                     '#fef3c7', '#fde68a', '#fcd34d', '#fbbf24',
                     '#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa',
                     '#fce7f3', '#fbcfe8', '#f9a8d4', '#f472b6',
                     '#d1fae5', '#a7f3d0', '#6ee7b7', '#34d399',
-                    '#e0e7ff', '#c7d2fe', '#a5b4fc', '#818cf8',
                   ].map((color) => (
                     <button
                       key={color}
@@ -464,7 +477,7 @@ export default function MobileLayout() {
                       className="w-full aspect-square rounded-lg border-2 transition-all hover:scale-110"
                       style={{
                         backgroundColor: color,
-                        borderColor: navColor === color ? '#3b82f6' : '#e5e7eb',
+                        borderColor: navColor === color ? '#DD617C' : '#e5e7eb',
                       }}
                     />
                   ))}
@@ -512,7 +525,7 @@ export default function MobileLayout() {
                       <GripVertical className="w-5 h-5 text-gray-600" />
                       <span className="text-2xl">{item.icon}</span>
                       <span className="font-semibold text-gray-900">{item.label}</span>
-                      {index < 4 && (
+                      {index < 5 && (
                         <span className="text-xs px-2 py-0.5 bg-blue-500 text-white rounded-full font-medium">
                           显示
                         </span>
@@ -558,7 +571,11 @@ export default function MobileLayout() {
               </button>
               <button
                 onClick={handleSaveEdit}
-                className="flex-1 py-3 rounded-lg bg-blue-600 text-white font-semibold active:bg-blue-700"
+                className="flex-1 py-3 rounded-lg text-white font-semibold"
+                style={{ backgroundColor: '#6D9978' }}
+                onMouseDown={(e) => e.currentTarget.style.backgroundColor = '#5a8064'}
+                onMouseUp={(e) => e.currentTarget.style.backgroundColor = '#6D9978'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#6D9978'}
               >
                 保存
               </button>
@@ -569,5 +586,8 @@ export default function MobileLayout() {
 
       {/* 移除浮动按钮，集成到导航栏 */}
     </div>
+    
+    {/* FloatingAIChat 已移到 TimelineModule 组件内部 */}
+    </>
   );
 }

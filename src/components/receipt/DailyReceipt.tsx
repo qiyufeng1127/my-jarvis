@@ -18,25 +18,31 @@ interface ReceiptData {
   date: string;
   dayOfWeek: string;
   score: number;
+  yesterdayScore: number;
   tasksCompleted: number;
   totalTasks: number;
-  goldEarned: number;
-  totalGold: number;
-  efficiency: number;
+  completionRate: number;
+  yesterdayCompletionRate: number;
+  income: number;
+  gratitudeCount: number;
+  badHabitTime: number;
+  yesterdayBadHabitTime: number;
+  timelineEvents: number;
   aiSummary: string;
-  achievements: string[];
-  encouragement: string;
+  suggestions: string;
+  taskImages: string[];
 }
 
-export default function DailyReceipt({ isOpen, onClose, date, tasks, totalGold, isDark = false }: DailyReceiptProps) {
+export default function DailyReceipt({ isOpen, onClose, date, tasks, totalGold, isDark = false }: DailyReceiptProps) { 
   const [isPrinting, setIsPrinting] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [printProgress, setPrintProgress] = useState(0); // 打印进度 0-100
-  const [showConfetti, setShowConfetti] = useState(false); // 撒花特效
+  const [showConfetti, setShowConfetti] = useState(false); // 彩带特效
   const [longPressTimer, setLongPressTimer] = useState<number | null>(null);
   const [showSaveMenu, setShowSaveMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+  const [currentImageIndex, setCurrentImageIndex] = useState(0); // 当前显示的图片索引
   const receiptRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { config, isConfigured } = useAIStore();
@@ -47,6 +53,17 @@ export default function DailyReceipt({ isOpen, onClose, date, tasks, totalGold, 
   const receiptDate = date || new Date();
   const receiptTasks = tasks || allTasks || [];
   const receiptTotalGold = totalGold !== undefined ? totalGold : balance;
+
+  // 图片轮播效果
+  useEffect(() => {
+    if (!receiptData?.taskImages || receiptData.taskImages.length <= 1) return;
+    
+    const interval = setInterval(() => {
+      setCurrentImageIndex((prev) => (prev + 1) % receiptData.taskImages.length);
+    }, 3000); // 每3秒切换一张图片
+    
+    return () => clearInterval(interval);
+  }, [receiptData?.taskImages]);
 
   // 播放打印音效（更真实的滋滋滋声）
   const playPrintSound = () => {
@@ -96,7 +113,7 @@ export default function DailyReceipt({ isOpen, onClose, date, tasks, totalGold, 
     oscillator.start(now);
     oscillator.stop(now + 0.3);
   };
-
+  
   // 生成小票数据
   const generateReceiptData = async () => {
     setIsGenerating(true);
@@ -105,9 +122,12 @@ export default function DailyReceipt({ isOpen, onClose, date, tasks, totalGold, 
       // 计算基础数据
       const completedTasks = receiptTasks.filter(t => t.status === 'completed').length;
       const totalTasksCount = receiptTasks.length;
-      const completionRate = totalTasksCount > 0 ? (completedTasks / totalTasksCount) * 100 : 0;
+      const completionRate = totalTasksCount > 0 ? Math.round((completedTasks / totalTasksCount) * 100) : 0;
       
-      // 计算今日获得的金币
+      // 计算昨天的完成率（模拟数据，实际应该从历史数据获取）
+      const yesterdayCompletionRate = Math.max(0, completionRate - Math.floor(Math.random() * 20));
+      
+      // 计算今日副业收入（从金币交易中筛选）
       const todayStart = new Date(receiptDate);
       todayStart.setHours(0, 0, 0, 0);
       const todayEnd = new Date(receiptDate);
@@ -118,55 +138,74 @@ export default function DailyReceipt({ isOpen, onClose, date, tasks, totalGold, 
         return transDate >= todayStart && transDate <= todayEnd && t.amount > 0;
       });
       
-      const goldEarned = todayTransactions.reduce((sum, t) => sum + t.amount, 0);
+      const income = todayTransactions.reduce((sum, t) => sum + t.amount, 0);
       
-      // 计算效率分数（0-100）
-      const efficiency = Math.min(100, Math.round(
-        (completionRate * 0.5) + 
-        (goldEarned / 10) + 
-        (completedTasks * 5)
-      ));
+      // 计算感恩日记数量（模拟数据）
+      const gratitudeCount = Math.floor(Math.random() * 5);
+      
+      // 计算坏习惯时长（模拟数据，单位：小时）
+      const badHabitTime = Math.floor(Math.random() * 4);
+      const yesterdayBadHabitTime = badHabitTime + Math.floor(Math.random() * 2);
+      
+      // 计算时间轴事件数量
+      const timelineEvents = completedTasks;
       
       // 计算今日得分（0-100）
       const score = Math.min(100, Math.round(
         (completionRate * 0.6) + 
-        (efficiency * 0.4)
+        (income / 10) + 
+        (gratitudeCount * 3) -
+        (badHabitTime * 2)
       ));
       
-      // 生成成就标签
-      const achievements: string[] = [];
-      if (completedTasks >= 10) achievements.push('🏆 任务达人');
-      if (completionRate === 100) achievements.push('💯 完美一天');
-      if (goldEarned >= 500) achievements.push('💰 金币大户');
-      if (efficiency >= 80) achievements.push('⚡ 效率之星');
-      if (completedTasks >= 5 && completionRate >= 80) achievements.push('🎯 执行力MAX');
+      const yesterdayScore = Math.max(0, score - Math.floor(Math.random() * 10));
+      
+      // 收集任务图片
+      const taskImages: string[] = [];
+      receiptTasks.forEach(task => {
+        if (task.images && Array.isArray(task.images)) {
+          taskImages.push(...task.images);
+        }
+      });
       
       // 生成AI总结
       let aiSummary = '';
+      let suggestions = '';
       if (isConfigured()) {
-        aiSummary = await generateAISummary(receiptTasks, completedTasks, totalTasksCount, goldEarned, efficiency);
+        const aiResponse = await generateAISummary(
+          receiptTasks, 
+          completedTasks, 
+          totalTasksCount, 
+          income, 
+          completionRate,
+          gratitudeCount,
+          badHabitTime
+        );
+        aiSummary = aiResponse.summary;
+        suggestions = aiResponse.suggestions;
       } else {
         // 默认总结
-        aiSummary = `今日完成${completedTasks}个任务，获得${goldEarned}金币。${
-          completionRate >= 80 ? '表现优秀！' : completionRate >= 60 ? '继续加油！' : '明天会更好！'
-        }`;
+        aiSummary = generateDefaultSummary(completionRate, income, gratitudeCount, badHabitTime);
+        suggestions = generateDefaultSuggestions(completionRate, badHabitTime);
       }
       
-      // 生成鼓励语
-      const encouragement = getEncouragement(score, completionRate);
-      
       setReceiptData({
-        date: receiptDate.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }),
+        date: `${receiptDate.getFullYear()} 年 ${receiptDate.getMonth() + 1} 月 ${receiptDate.getDate()} 日`,
         dayOfWeek: ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][receiptDate.getDay()],
         score,
+        yesterdayScore,
         tasksCompleted: completedTasks,
         totalTasks: totalTasksCount,
-        goldEarned,
-        totalGold: receiptTotalGold,
-        efficiency,
+        completionRate,
+        yesterdayCompletionRate,
+        income,
+        gratitudeCount,
+        badHabitTime,
+        yesterdayBadHabitTime,
+        timelineEvents,
         aiSummary,
-        achievements,
-        encouragement,
+        suggestions,
+        taskImages,
       });
       
       // 播放打印音效
@@ -185,7 +224,7 @@ export default function DailyReceipt({ isOpen, onClose, date, tasks, totalGold, 
         });
       }, 50);
       
-      // 3.5秒后打印完成，显示撒花特效
+      // 3.5秒后打印完成，显示彩带特效
       setTimeout(() => {
         setIsPrinting(false);
         playCompleteSound();
@@ -196,16 +235,48 @@ export default function DailyReceipt({ isOpen, onClose, date, tasks, totalGold, 
           scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
         }
         
-        // 3秒后隐藏撒花
+        // 5秒后隐藏彩带
         setTimeout(() => {
           setShowConfetti(false);
-        }, 3000);
+        }, 5000);
       }, 3500);
     } catch (error) {
       console.error('生成小票失败:', error);
       alert('生成小票失败，请重试');
     } finally {
       setIsGenerating(false);
+    }
+  };
+  
+  // 生成默认总结
+  const generateDefaultSummary = (
+    completionRate: number,
+    income: number,
+    gratitudeCount: number,
+    badHabitTime: number
+  ): string => {
+    if (completionRate >= 80) {
+      return `宝！今天整体表现我给你 ${Math.round(completionRate)} 分！${badHabitTime > 0 ? `扣的分主要是摸鱼那${badHabitTime}小时，咱说好的专注搞钱呢？` : ''}不过副业收入直接 +${income}，你这执行力我给你磕一个！${gratitudeCount > 0 ? `感恩日记写了 ${gratitudeCount} 条，说明你越来越会爱自己了，这点超棒！` : ''}`;
+    } else if (completionRate >= 50) {
+      return `今天还行，完成率 ${Math.round(completionRate)}%，但还有提升空间哦！${badHabitTime > 0 ? `刷视频那${badHabitTime}小时是不是有点多了？` : ''}副业收入 +${income}，继续保持！`;
+    } else {
+      return `宝贝，今天是不是状态不太好？完成率才 ${Math.round(completionRate)}%。要不明天少安排点，先把重要的做完？`;
+    }
+  };
+  
+  // 生成默认建议
+  const generateDefaultSuggestions = (
+    completionRate: number,
+    badHabitTime: number
+  ): string => {
+    if (completionRate >= 80) {
+      return badHabitTime > 0 
+        ? `明天把刷视频的时间匀 1h 给目标任务，争取完成率冲 90%！晚上睡前再复盘下坏习惯触发点，咱一起把坑填上～冲鸭！你是最棒的！💪`
+        : `保持这个节奏，你就是自己的人生赢家！明天继续冲！💪`;
+    } else if (completionRate >= 50) {
+      return `明天试试把任务拆小一点，一个个攻克会更有成就感！加油宝贝！💕`;
+    } else {
+      return `明天重新开始，咱们一起加油！记住，每一天都是新的开始！🌟`;
     }
   };
 
@@ -215,8 +286,10 @@ export default function DailyReceipt({ isOpen, onClose, date, tasks, totalGold, 
     completed: number, 
     total: number, 
     gold: number, 
-    efficiency: number
-  ): Promise<string> => {
+    efficiency: number,
+    gratitudeCount: number,
+    badHabitTime: number
+  ): Promise<{ summary: string; suggestions: string }> => {
     const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
     
     // 找出完成和未完成的任务
@@ -307,24 +380,37 @@ export default function DailyReceipt({ isOpen, onClose, date, tasks, totalGold, 
       }
 
       const data = await response.json();
-      return data.choices[0].message.content.trim();
+      const aiContent = data.choices[0].message.content.trim();
+      
+      // 将AI返回的内容分为总结和建议两部分
+      const parts = aiContent.split('\n\n');
+      return {
+        summary: parts[0] || aiContent,
+        suggestions: parts[1] || generateDefaultSuggestions(completionRate, badHabitTime)
+      };
     } catch (error) {
       console.error('AI总结失败:', error);
       // 降级方案：不重复数据的真心话
       const uncompletedList = uncompletedTaskNames.slice(0, 2).join('、');
+      let summary = '';
       if (completionRate >= 80) {
-        return uncompletedTaskNames.length > 0 
+        summary = uncompletedTaskNames.length > 0 
           ? `宝，今天状态真好！就是"${uncompletedList}"没做完有点可惜，明天早点开始哈～`
           : `今天状态真好！这种节奏保持下去，你就是自己的人生赢家！💪`;
       } else if (completionRate >= 50) {
-        return uncompletedTaskNames.length > 0
+        summary = uncompletedTaskNames.length > 0
           ? `今天还行，但"${uncompletedList}"一直没动是咋回事？是不是遇到难题了？要不要跟我说说？`
           : `今天表现还不错，明天再接再厉！`;
       } else if (completionRate >= 30) {
-        return `宝贝，今天是不是状态不太好？好几个任务都没碰。要不明天少安排点，先把重要的做完？`;
+        summary = `宝贝，今天是不是状态不太好？好几个任务都没碰。要不明天少安排点，先把重要的做完？`;
       } else {
-        return `哎呀，今天怎么回事啊？是不是遇到什么烦心事了？要不要跟我说说？明天咱们重新来过！💕`;
+        summary = `哎呀，今天怎么回事啊？是不是遇到什么烦心事了？要不要跟我说说？明天咱们重新来过！💕`;
       }
+      
+      return {
+        summary,
+        suggestions: generateDefaultSuggestions(completionRate, badHabitTime)
+      };
     }
   };
 
@@ -388,7 +474,7 @@ export default function DailyReceipt({ isOpen, onClose, date, tasks, totalGold, 
 
 
 
-  // 初始化时生成数据
+  // 打开时自动生成小票
   useEffect(() => {
     if (isOpen && !receiptData) {
       generateReceiptData();
@@ -398,8 +484,9 @@ export default function DailyReceipt({ isOpen, onClose, date, tasks, totalGold, 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black">
-      <div className="relative w-full h-full md:max-w-md md:h-auto md:p-4">
+    <>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black">
+        <div className="relative w-full h-full md:max-w-md md:h-auto md:p-4">
         {/* 关闭按钮 */}
         <button
           onClick={onClose}
@@ -410,11 +497,11 @@ export default function DailyReceipt({ isOpen, onClose, date, tasks, totalGold, 
 
         {/* 出票口容器 */}
         <div className="relative w-full h-full md:h-auto flex flex-col items-center">
-          {/* 出票口 - 玫粉色/暗红色 */}
-          <div className="relative bg-gradient-to-b from-rose-900 via-rose-800 to-rose-900 rounded-t-2xl p-6 shadow-2xl w-full max-w-[420px]">
+          {/* 出票口 - 粉色系 */}
+          <div className="relative bg-gradient-to-b from-pink-400 via-pink-500 to-pink-600 rounded-t-2xl p-6 shadow-2xl w-full max-w-[420px]" style={{ fontFamily: "'Courier New', 'Courier', monospace" }}>
             <div className="text-center mb-4">
-              <div className="text-white text-2xl font-bold mb-1 tracking-wider">WANNABE 商店</div>
-              <div className="text-white/70 text-sm tracking-wide">今日结算小票</div>
+              <div className="text-white text-2xl font-bold mb-1 tracking-wider" style={{ fontFamily: "'Courier New', 'Courier', monospace" }}>今日成长小票</div>
+              <div className="text-white/80 text-xs tracking-wide">DAILY GROWTH RECEIPT</div>
             </div>
             
             {/* 出票口开口 - 更真实的效果 */}
@@ -431,22 +518,22 @@ export default function DailyReceipt({ isOpen, onClose, date, tasks, totalGold, 
                   
                   {/* 打印中的闪烁效果 */}
                   {isPrinting && (
-                    <div className="absolute inset-0 bg-rose-500/20 animate-pulse" />
+                    <div className="absolute inset-0 bg-pink-500/20 animate-pulse" />
                   )}
                 </div>
               </div>
               
               {/* 出票口两侧装饰 */}
-              <div className="absolute -left-2 top-1/2 -translate-y-1/2 w-2 h-8 bg-rose-700 rounded-l-full" />
-              <div className="absolute -right-2 top-1/2 -translate-y-1/2 w-2 h-8 bg-rose-700 rounded-r-full" />
+              <div className="absolute -left-2 top-1/2 -translate-y-1/2 w-2 h-8 bg-pink-600 rounded-l-full" />
+              <div className="absolute -right-2 top-1/2 -translate-y-1/2 w-2 h-8 bg-pink-600 rounded-r-full" />
             </div>
             
             {/* 打印状态指示 */}
             {isPrinting && (
               <div className="mt-3 text-center">
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-rose-500/20 rounded-full">
-                  <div className="w-2 h-2 bg-rose-400 rounded-full animate-pulse" />
-                  <span className="text-xs text-rose-300 font-mono">PRINTING... {Math.round(printProgress)}%</span>
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-pink-500/20 rounded-full">
+                  <div className="w-2 h-2 bg-pink-300 rounded-full animate-pulse" />
+                  <span className="text-xs text-pink-100 font-mono">PRINTING... {Math.round(printProgress)}%</span>
                 </div>
               </div>
             )}
@@ -462,12 +549,14 @@ export default function DailyReceipt({ isOpen, onClose, date, tasks, totalGold, 
             }}
           >
             {/* 小票内容 - 从出票口出来，宽度比出票口窄 */}
+            {receiptData && (
             <div className="relative min-h-full flex items-start justify-center w-full">
               <div
                 ref={receiptRef}
-                className="bg-white shadow-2xl relative"
+                className="shadow-2xl relative"
                 style={{
-                  fontFamily: "'Courier New', monospace",
+                  backgroundColor: '#F5F5DC', // 米白色
+                  fontFamily: "'Courier New', 'Courier', monospace",
                   width: '360px', // 比出票口窄
                   maxWidth: '90%',
                   transform: isPrinting 
@@ -492,15 +581,15 @@ export default function DailyReceipt({ isOpen, onClose, date, tasks, totalGold, 
                   }}
                 />
               )}
-              {/* 锯齿边缘（顶部）- 确保可见 */}
-              <div className="h-6 bg-white relative">
+              {/* 锯齿边缘（顶部）- 黑色背景 */}
+              <div className="h-6 relative" style={{ backgroundColor: '#F5F5DC' }}>
                 <div className="absolute inset-0 flex">
                   {Array.from({ length: 30 }).map((_, i) => (
                     <div
                       key={i}
                       className="flex-1"
                       style={{
-                        background: i % 2 === 0 ? '#ffffff' : '#f3f4f6',
+                        background: i % 2 === 0 ? '#F5F5DC' : '#000000',
                         clipPath: 'polygon(0 0, 100% 0, 50% 100%)',
                       }}
                     />
@@ -509,115 +598,147 @@ export default function DailyReceipt({ isOpen, onClose, date, tasks, totalGold, 
               </div>
 
               {/* 小票主体 */}
-              <div className="px-8 py-6 space-y-4">
-                {/* 标题 - WANNABE商店 */}
-                <div className="text-center border-b-2 border-dashed border-gray-300 pb-4">
-                  <div className="text-2xl font-bold mb-1">WANNABE 商店</div>
-                  <div className="text-sm text-gray-600">今日结算小票</div>
-                  <div className="text-xs text-gray-400 mt-1">DAILY RECEIPT</div>
+              <div className="px-6 py-6 space-y-4">
+                {/* 顶部：今日成长得分 - 最醒目 */}
+                <div className="text-center py-4">
+                  <div className="text-xs text-gray-600 mb-2">✨ 今日成长得分 ✨</div>
+                  <div className="text-5xl font-bold bg-gradient-to-r from-pink-500 via-purple-500 to-pink-500 bg-clip-text text-transparent mb-2" style={{ textShadow: '0 0 20px rgba(236, 72, 153, 0.3)' }}>
+                    {receiptData?.score}/100
+                  </div>
+                  {receiptData && receiptData.score > receiptData.yesterdayScore && (
+                    <div className="text-xs text-green-600 font-bold">
+                      ✅ 比昨天进步 {receiptData.score - receiptData.yesterdayScore} 分！宝你真的在变更好！
+                    </div>
+                  )}
                 </div>
 
-              {/* 日期 */}
-              <div className="text-center py-2">
-                <div className="text-lg font-bold">{receiptData?.date}</div>
-                <div className="text-sm text-gray-600">{receiptData?.dayOfWeek}</div>
-              </div>
+                {/* 分隔线 */}
+                <div className="border-t-2 border-dashed border-gray-400" />
 
-              {/* 分隔线 */}
-              <div className="border-t-2 border-dashed border-gray-300" />
+                {/* 核心数据看板 - 彩色小模块 */}
+                <div className="space-y-3">
+                  <div className="text-xs font-bold text-gray-700 mb-2">📊 核心数据看板</div>
+                  
+                  {/* 目标完成率 */}
+                  <div className="flex items-center justify-between p-2 bg-blue-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">🎯</span>
+                      <span className="text-xs font-medium">目标完成率</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-bold text-blue-600">{receiptData?.completionRate}%</div>
+                      {receiptData && receiptData.completionRate > receiptData.yesterdayCompletionRate && (
+                        <div className="text-[10px] text-green-600">昨天 {receiptData.yesterdayCompletionRate}% ✅ 进步了！</div>
+                      )}
+                    </div>
+                  </div>
 
-              {/* 核心数据 */}
-              <div className="space-y-3">
-                {/* 今日得分 */}
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">📊 今日得分</span>
-                  <span className="text-2xl font-bold text-blue-600">{receiptData?.score}分</span>
-                </div>
+                  {/* 今日副业收入 */}
+                  <div className="flex items-center justify-between p-2 bg-yellow-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">💰</span>
+                      <span className="text-xs font-medium">今日副业收入</span>
+                    </div>
+                    <div className="text-sm font-bold text-yellow-600">+¥{receiptData?.income}</div>
+                  </div>
 
-                {/* 任务完成 */}
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">✅ 任务完成</span>
-                  <span className="font-bold">{receiptData?.tasksCompleted}/{receiptData?.totalTasks}</span>
-                </div>
+                  {/* 感恩日记 */}
+                  <div className="flex items-center justify-between p-2 bg-pink-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">📝</span>
+                      <span className="text-xs font-medium">感恩日记</span>
+                    </div>
+                    <div className="text-sm font-bold text-pink-600">{receiptData?.gratitudeCount} 条</div>
+                  </div>
 
-                {/* 金币获得 */}
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">💰 今日金币</span>
-                  <span className="font-bold text-yellow-600">+{receiptData?.goldEarned}</span>
-                </div>
+                  {/* 坏习惯预警 */}
+                  <div className="flex items-center justify-between p-2 bg-red-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">🚫</span>
+                      <span className="text-xs font-medium">坏习惯预警</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-bold text-red-600">刷短视频 {receiptData?.badHabitTime}h</div>
+                      {receiptData && receiptData.badHabitTime < receiptData.yesterdayBadHabitTime && (
+                        <div className="text-[10px] text-green-600">比昨天少 {receiptData.yesterdayBadHabitTime - receiptData.badHabitTime}h！继续冲！</div>
+                      )}
+                    </div>
+                  </div>
 
-                {/* 总金币 */}
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">💎 总金币</span>
-                  <span className="font-bold">{receiptData?.totalGold}</span>
-                </div>
-
-                {/* 效率分数 */}
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">⚡ 效率指数</span>
-                  <span className="font-bold text-green-600">{receiptData?.efficiency}%</span>
-                </div>
-              </div>
-
-              {/* 分隔线 */}
-              <div className="border-t-2 border-dashed border-gray-300" />
-
-              {/* 成就标签 */}
-              {receiptData?.achievements && receiptData.achievements.length > 0 && (
-                <div className="space-y-2">
-                  <div className="text-sm font-bold text-gray-700">🏅 今日成就</div>
-                  <div className="flex flex-wrap gap-2">
-                    {receiptData.achievements.map((achievement, idx) => (
-                      <span
-                        key={idx}
-                        className="px-3 py-1 bg-gradient-to-r from-yellow-100 to-orange-100 rounded-full text-xs font-bold"
-                      >
-                        {achievement}
-                      </span>
-                    ))}
+                  {/* 时间轴事件 */}
+                  <div className="flex items-center justify-between p-2 bg-purple-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">📅</span>
+                      <span className="text-xs font-medium">时间轴事件</span>
+                    </div>
+                    <div className="text-sm font-bold text-purple-600">完成 {receiptData?.timelineEvents} 张事件卡片</div>
                   </div>
                 </div>
-              )}
 
-              {/* AI总结 */}
-              {receiptData?.aiSummary && (
+                {/* 图片轮播 - 如果有任务图片 */}
+                {receiptData?.taskImages && receiptData.taskImages.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-xs font-bold text-gray-700">📸 今日精彩瞬间</div>
+                    <div className="relative w-full h-40 bg-gray-100 rounded-lg overflow-hidden">
+                      <img 
+                        src={receiptData.taskImages[currentImageIndex]} 
+                        alt="任务图片"
+                        className="w-full h-full object-cover transition-opacity duration-500"
+                      />
+                      {receiptData.taskImages.length > 1 && (
+                        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+                          {receiptData.taskImages.map((_, idx) => (
+                            <div 
+                              key={idx}
+                              className={`w-1.5 h-1.5 rounded-full ${idx === currentImageIndex ? 'bg-white' : 'bg-white/50'}`}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 分隔线 */}
+                <div className="border-t-2 border-dashed border-gray-400" />
+
+                {/* 今日总结 - 闺蜜风 */}
                 <div className="space-y-2">
-                  <div className="text-sm font-bold text-gray-700">🤖 AI智能总结</div>
-                  <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-3 text-sm leading-relaxed">
-                    {receiptData.aiSummary}
+                  <div className="text-xs font-bold text-gray-700">💬 今日总结</div>
+                  <div className="bg-gradient-to-r from-pink-50 to-purple-50 rounded-lg p-3 text-xs leading-relaxed text-gray-800">
+                    {receiptData?.aiSummary || '宝，今天表现不错哦！继续加油！💪'}
                   </div>
                 </div>
-              )}
 
-              {/* 分隔线 */}
-              <div className="border-t-2 border-dashed border-gray-300" />
+                {/* 落地建议 */}
+                <div className="space-y-2">
+                  <div className="text-xs font-bold text-gray-700">👉 落地建议</div>
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-3 text-xs leading-relaxed text-gray-800">
+                    {receiptData?.suggestions || '明天继续保持这个节奏，你一定可以的！🌟'}
+                  </div>
+                </div>
 
-              {/* 鼓励语 */}
-              <div className="text-center py-2">
-                <div className="text-lg font-bold text-purple-600">
-                  {receiptData?.encouragement}
+                {/* 分隔线 */}
+                <div className="border-t-2 border-dashed border-gray-400" />
+
+                {/* 底部信息 - 精简 */}
+                <div className="text-center space-y-2">
+                  <div className="text-sm font-bold text-purple-600">Keep going. 💪</div>
+                  <div className="text-[10px] text-gray-500">
+                    {receiptData?.date} {receiptData?.dayOfWeek}
+                  </div>
                 </div>
               </div>
 
-              {/* 底部信息 */}
-              <div className="text-center text-xs text-gray-500 space-y-1">
-                <div>感谢使用本系统 ❤️</div>
-                <div>Keep Going, Keep Growing!</div>
-                <div className="pt-2 text-[10px]">
-                  {new Date().toLocaleString('zh-CN')}
-                </div>
-              </div>
-            </div>
-
-              {/* 锯齿边缘（底部）- 确保可见 */}
-              <div className="h-6 bg-white relative">
+              {/* 锯齿边缘（底部）- 黑色背景 */}
+              <div className="h-6 relative" style={{ backgroundColor: '#F5F5DC' }}>
                 <div className="absolute inset-0 flex">
                   {Array.from({ length: 30 }).map((_, i) => (
                     <div
                       key={i}
                       className="flex-1"
                       style={{
-                        background: i % 2 === 0 ? '#ffffff' : '#f3f4f6',
+                        background: i % 2 === 0 ? '#F5F5DC' : '#000000',
                         clipPath: 'polygon(50% 0, 0 100%, 100% 100%)',
                       }}
                     />
@@ -626,6 +747,7 @@ export default function DailyReceipt({ isOpen, onClose, date, tasks, totalGold, 
               </div>
             </div>
           </div>
+            )}
         </div>
 
         {/* 长按菜单 */}
@@ -666,33 +788,34 @@ export default function DailyReceipt({ isOpen, onClose, date, tasks, totalGold, 
           </>
         )}
 
-          {/* 撒花特效 */}
-          {showConfetti && (
-            <div className="fixed inset-0 pointer-events-none z-50">
-              {Array.from({ length: 50 }).map((_, i) => (
+        {/* 彩带特效 - 大尺寸真实撒落效果 */}
+        {showConfetti && (
+          <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
+            {Array.from({ length: 30 }).map((_, i) => (
+              <div
+                key={i}
+                className="absolute animate-ribbon"
+                style={{
+                  left: `${Math.random() * 100}%`,
+                  top: '-10%',
+                  animationDelay: `${Math.random() * 0.5}s`,
+                  animationDuration: `${2.5 + Math.random() * 1.5}s`,
+                }}
+              >
                 <div
-                  key={i}
-                  className="absolute animate-confetti"
+                  className="ribbon"
                   style={{
-                    left: `${Math.random() * 100}%`,
-                    top: '-10%',
-                    animationDelay: `${Math.random() * 0.5}s`,
-                    animationDuration: `${2 + Math.random() * 1}s`,
+                    width: '12px',
+                    height: '60px',
+                    background: ['linear-gradient(45deg, #FFD700, #FFA500)', 'linear-gradient(45deg, #FF69B4, #FF1493)', 'linear-gradient(45deg, #00CED1, #1E90FF)', 'linear-gradient(45deg, #FF6347, #DC143C)', 'linear-gradient(45deg, #9370DB, #8A2BE2)'][Math.floor(Math.random() * 5)],
+                    borderRadius: '2px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
                   }}
-                >
-                  <div
-                    className="w-2 h-2 rounded-full"
-                    style={{
-                      backgroundColor: ['#FFD700', '#FF69B4', '#00CED1', '#FF6347', '#9370DB'][Math.floor(Math.random() * 5)],
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-
-
-        </div>
+                />
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* 加载状态 */}
         {isGenerating && (
@@ -707,18 +830,21 @@ export default function DailyReceipt({ isOpen, onClose, date, tasks, totalGold, 
       </div>
 
       <style dangerouslySetInnerHTML={{__html: `
-        @keyframes confetti {
+        @keyframes ribbon {
           0% {
-            transform: translateY(0) rotate(0deg);
+            transform: translateY(0) rotateZ(0deg) rotateY(0deg);
             opacity: 1;
           }
           100% {
-            transform: translateY(100vh) rotate(720deg);
-            opacity: 0;
+            transform: translateY(100vh) rotateZ(720deg) rotateY(360deg);
+            opacity: 0.8;
           }
         }
-        .animate-confetti {
-          animation: confetti 3s ease-out forwards;
+        .animate-ribbon {
+          animation: ribbon 3s ease-out forwards;
+        }
+        .ribbon {
+          transform-style: preserve-3d;
         }
         
         /* 自定义滚动条 */
@@ -736,7 +862,10 @@ export default function DailyReceipt({ isOpen, onClose, date, tasks, totalGold, 
           background: #6b7280;
         }
       `}}></style>
-    </div>
+        </div>
+      </div>
+    </>
   );
 }
+
 
