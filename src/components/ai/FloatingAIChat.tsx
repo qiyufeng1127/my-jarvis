@@ -1674,7 +1674,7 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
           backgroundColor: isVoiceListening ? '#10B981' : '#8B5CF6',
           color: '#ffffff',
           zIndex: 99999,
-          bottom: '248px', // 往上移动：原168px + 80px = 248px
+          bottom: '88px', // 移动到红色圈位置：在AI按钮(168px)和底部导航栏之间
           right: '16px',
         }}
         title={isVoiceListening ? "免手模式开启中" : "点击开启免手模式"}
