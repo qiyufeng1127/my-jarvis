@@ -20,6 +20,17 @@ import { useAIStore } from '@/stores/aiStore';
 import { useGoldStore } from '@/stores/goldStore';
 import { useTagStore } from '@/stores/tagStore';
 import CelebrationEffect from '@/components/effects/CelebrationEffect';
+import StartVerificationCountdown from '@/components/countdown/StartVerificationCountdown';
+import FinishVerificationCountdown from '@/components/countdown/FinishVerificationCountdown';
+import { 
+  adjustTaskStartTime, 
+  adjustTaskEndTime, 
+  calculateActualDuration 
+} from '@/utils/timelineAdjuster';
+import { 
+  calculateActualGoldReward, 
+  smartDetectTaskPosture 
+} from '@/utils/goldCalculator';
 import { baiduImageRecognition } from '@/services/baiduImageRecognition';
 
 interface NewTimelineViewProps {
@@ -81,6 +92,9 @@ export default function NewTimelineView({
   const [completingTask, setCompletingTask] = useState<string | null>(null);
   const [verifyingTask, setVerifyingTask] = useState<string | null>(null); // 正在验证的任务
   const [verifyingType, setVerifyingType] = useState<'start' | 'complete' | null>(null); // 验证类型
+  const [taskStartTimeouts, setTaskStartTimeouts] = useState<Record<string, boolean>>({}); // 启动验证超时标记
+  const [taskFinishTimeouts, setTaskFinishTimeouts] = useState<Record<string, boolean>>({}); // 完成验证超时标记
+  const [taskActualStartTimes, setTaskActualStartTimes] = useState<Record<string, Date>>({}); // 任务实际启动时间
   const [editingVerification, setEditingVerification] = useState<string | null>(null);
   const [addingSubTask, setAddingSubTask] = useState<string | null>(null);
   const [newSubTaskTitle, setNewSubTaskTitle] = useState('');
@@ -789,6 +803,18 @@ export default function NewTimelineView({
   };
   
   // 启动任务（带验证）
+  // 启动验证超时处理
+  const handleStartVerificationTimeout = (taskId: string) => {
+    setTaskStartTimeouts(prev => ({ ...prev, [taskId]: true }));
+    console.log(`任务 ${taskId} 启动验证超时，完成时将扣除30%金币`);
+  };
+
+  // 完成验证超时处理
+  const handleFinishVerificationTimeout = (taskId: string) => {
+    setTaskFinishTimeouts(prev => ({ ...prev, [taskId]: true }));
+    console.log(`任务 ${taskId} 完成超时，将无金币奖励`);
+  };
+
   const handleStartTask = async (taskId: string) => {
     const verification = taskVerifications[taskId];
     const task = allTasks.find(t => t.id === taskId);
@@ -995,6 +1021,10 @@ export default function NewTimelineView({
               },
             }));
             
+          // 记录实际启动时间并调整时间轴位置
+          setTaskActualStartTimes(prev => ({ ...prev, [taskId]: now }));
+          adjustTaskStartTime(taskId, now, allTasks, onTaskUpdate);
+            
           // 播放音效
             SoundEffects.playSuccessSound();
             SoundEffects.playCoinSound();
@@ -1072,6 +1102,9 @@ export default function NewTimelineView({
               completionGoldEarned: finalGold,
             },
           }));
+          
+          // 调整任务结束时间
+          adjustTaskEndTime(taskId, now, allTasks, onTaskUpdate);
           
           // 播放音效
           SoundEffects.playSuccessSound();
@@ -2172,6 +2205,34 @@ export default function NewTimelineView({
                           <span className="text-sm">📝</span>
                         </button>
                       </div>
+
+                      {/* 倒计时组件 - 仅在启用验证时显示 */}
+                      {taskVerifications[block.id]?.enabled && (
+                        <>
+                          {/* 启动验证倒计时 - 仅在未启动时显示 */}
+                          {taskVerifications[block.id]?.status === 'pending' && (
+                            <StartVerificationCountdown
+                              taskId={block.id}
+                              onTimeout={handleStartVerificationTimeout}
+                              onComplete={() => {}}
+                              keywords={taskVerifications[block.id]?.startKeywords || []}
+                              isStarted={taskVerifications[block.id]?.status === 'started'}
+                            />
+                          )}
+                          
+                          {/* 完成验证倒计时 - 仅在已启动未完成时显示 */}
+                          {taskVerifications[block.id]?.status === 'started' && (
+                            <FinishVerificationCountdown
+                              taskId={block.id}
+                              estimatedMinutes={block.duration || block.durationMinutes || 30}
+                              onTimeout={handleFinishVerificationTimeout}
+                              keywords={taskVerifications[block.id]?.completionKeywords || []}
+                              isCompleted={block.isCompleted || block.status === 'completed'}
+                              startTime={taskActualStartTimes[block.id] || taskVerifications[block.id]?.actualStartTime || new Date(block.startTime)}
+                            />
+                          )}
+                        </>
+                      )}
 
                       {/* 右侧：金币和完成按钮 */}
                       <div className="flex items-center gap-2">
