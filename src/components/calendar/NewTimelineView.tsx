@@ -29,7 +29,8 @@ import {
 } from '@/utils/timelineAdjuster';
 import { 
   calculateActualGoldReward, 
-  smartDetectTaskPosture 
+  smartDetectTaskPosture,
+  calculateGoldReward
 } from '@/utils/goldCalculator';
 import { baiduImageRecognition } from '@/services/baiduImageRecognition';
 
@@ -364,7 +365,12 @@ export default function NewTimelineView({
       // 使用任务自带的颜色、标签、金币，如果没有则使用智能分配
       const taskColor = task.color || getTaskColor(task);
       const taskTags = task.tags && task.tags.length > 0 ? task.tags : getTaskTags(task.taskType, task.title);
-      const taskGold = task.goldReward || Math.floor((task.durationMinutes || 60) * 0.8);
+      // 使用新的金币计算器：站立15金币/分钟，坐着10金币/分钟
+      const taskGold = task.goldReward || (() => {
+        const duration = task.durationMinutes || 60;
+        const posture = smartDetectTaskPosture(task.taskType, task.tags, task.title);
+        return calculateGoldReward(duration, posture);
+      })();
       
       console.log('🎨 任务显示信息:', {
         title: task.title,
@@ -544,8 +550,10 @@ export default function NewTimelineView({
         if (newCount >= targetCount) {
           console.log('🎉 照片任务已完成！');
           
-          // 计算金币奖励
-          const goldReward = task.goldReward || Math.floor((task.durationMinutes || 60) * 0.8);
+          // 计算金币奖励 - 使用新的金币计算器
+          const duration = task.durationMinutes || 60;
+          const posture = smartDetectTaskPosture(task.taskType, task.tags, task.title);
+          const goldReward = task.goldReward || calculateGoldReward(duration, posture);
           
           // 添加金币
           addGold(goldReward, `完成任务：${task.title}`, taskId, task.title);
@@ -2206,31 +2214,52 @@ export default function NewTimelineView({
                         </button>
                       </div>
 
-                      {/* 倒计时组件 - 仅在启用验证时显示 */}
+                      {/* 倒计时显示 - 整合到卡片内，不展开时也显示 */}
                       {taskVerifications[block.id]?.enabled && (
                         <>
-                          {/* 启动验证倒计时 - 仅在未启动时显示 */}
-                          {taskVerifications[block.id]?.status === 'pending' && (
-                            <StartVerificationCountdown
-                              taskId={block.id}
-                              onTimeout={handleStartVerificationTimeout}
-                              onComplete={() => {}}
-                              keywords={taskVerifications[block.id]?.startKeywords || []}
-                              isStarted={taskVerifications[block.id]?.status === 'started'}
-                            />
-                          )}
+                          {/* 启动验证倒计时 - 仅在等待启动时显示 */}
+                          {taskVerifications[block.id]?.status === 'waiting_start' && (() => {
+                            const now = new Date();
+                            const scheduledStart = new Date(block.scheduledStart || block.startTime);
+                            const diffMs = scheduledStart.getTime() - now.getTime();
+                            const diffMinutes = Math.floor(diffMs / 60000);
+                            const diffSeconds = Math.floor((diffMs % 60000) / 1000);
+                            
+                            if (diffMs <= 0) {
+                              // 时间到了，显示启动提示
+                              return (
+                                <div className="mt-2 text-center">
+                                  <div className="text-lg font-bold mb-1">⏰ 马上进行启动验证</div>
+                                  <div className="text-xs opacity-80 mb-2">
+                                    请拍摄包含【{taskVerifications[block.id]?.startKeywords?.join('、')}】的照片
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
                           
                           {/* 完成验证倒计时 - 仅在已启动未完成时显示 */}
-                          {taskVerifications[block.id]?.status === 'started' && (
-                            <FinishVerificationCountdown
-                              taskId={block.id}
-                              estimatedMinutes={block.duration || block.durationMinutes || 30}
-                              onTimeout={handleFinishVerificationTimeout}
-                              keywords={taskVerifications[block.id]?.completionKeywords || []}
-                              isCompleted={block.isCompleted || block.status === 'completed'}
-                              startTime={taskActualStartTimes[block.id] || taskVerifications[block.id]?.actualStartTime || new Date(block.startTime)}
-                            />
-                          )}
+                          {taskVerifications[block.id]?.status === 'started' && (() => {
+                            const startTime = taskActualStartTimes[block.id] || taskVerifications[block.id]?.actualStartTime || new Date(block.startTime);
+                            const estimatedMinutes = block.duration || block.durationMinutes || 30;
+                            const endTime = new Date(startTime.getTime() + estimatedMinutes * 60000);
+                            const now = new Date();
+                            const remainingMs = endTime.getTime() - now.getTime();
+                            const remainingMinutes = Math.floor(remainingMs / 60000);
+                            const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
+                            
+                            return (
+                              <div className="mt-2 text-center">
+                                <div className="text-lg font-bold mb-1">
+                                  ⏱️ 距离任务完成还有 {remainingMinutes}分{remainingSeconds}秒
+                                </div>
+                                <div className="text-xs opacity-80">
+                                  完成后请拍摄包含【{taskVerifications[block.id]?.completionKeywords?.join('、')}】的照片
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </>
                       )}
 
@@ -2499,7 +2528,7 @@ export default function NewTimelineView({
                             {taskImages[block.id].map((image, idx) => (
                               <div 
                                 key={image.id}
-                                className="relative aspect-square rounded-lg overflow-hidden"
+                                className="relative aspect-square rounded-lg overflow-hidden group"
                                 style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}
                               >
                                 <img 
@@ -2515,6 +2544,22 @@ export default function NewTimelineView({
                                     封面
                                   </div>
                                 )}
+                                {/* 删除按钮 - 长按或点击删除 */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (confirm('确定要删除这张图片吗？')) {
+                                      setTaskImages(prev => ({
+                                        ...prev,
+                                        [block.id]: prev[block.id].filter(img => img.id !== image.id)
+                                      }));
+                                    }
+                                  }}
+                                  className="absolute bottom-1 right-1 p-1.5 bg-red-500/90 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                  title="删除图片"
+                                >
+                                  <X className="w-3 h-3 text-white" />
+                                </button>
                               </div>
                             ))}
                           </div>

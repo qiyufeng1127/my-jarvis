@@ -72,6 +72,23 @@ export default function TaskVerificationDialog({
     setEditingCompletion(false);
   };
 
+  // 保存所有设置并关闭
+  const handleSaveAndClose = () => {
+    const startKws = enableStartVerification 
+      ? startKeywords.split(',').map(k => k.trim()).filter(k => k)
+      : [];
+    const completionKws = enableCompletionVerification
+      ? completionKeywords.split(',').map(k => k.trim()).filter(k => k)
+      : [];
+    
+    onUpdate({
+      ...verification,
+      startKeywords: startKws,
+      completionKeywords: completionKws,
+    });
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div 
@@ -261,10 +278,34 @@ export default function TaskVerificationDialog({
         </div>
 
         {/* 状态信息 */}
-        <div className="p-4 rounded-lg" style={{ backgroundColor: inputBgColor }}>
+        <div className="p-4 rounded-lg mb-4" style={{ backgroundColor: inputBgColor }}>
           <p className="text-sm" style={{ color: dialogTextColor }}>
             💡 提示：验证系统将在任务开始时间自动启动，请准时完成验证！
           </p>
+        </div>
+
+        {/* 底部按钮 */}
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2 rounded-lg transition-colors"
+            style={{ 
+              backgroundColor: inputBgColor,
+              color: dialogTextColor,
+            }}
+          >
+            取消
+          </button>
+          <button
+            onClick={handleSaveAndClose}
+            className="flex-1 px-4 py-2 rounded-lg transition-colors font-medium"
+            style={{ 
+              backgroundColor: accentColor,
+              color: getTextColor(accentColor),
+            }}
+          >
+            保存
+          </button>
         </div>
       </div>
     </div>
