@@ -7,6 +7,7 @@ import FloatingAIChat from '@/components/ai/FloatingAIChat';
 // import AISmartInput from '@/components/ai/AISmartInput'; // 临时注释
 import TimelineCalendar from '@/components/calendar/TimelineCalendar';
 import ResponsiveLayout from '@/components/layout/ResponsiveLayout';
+import { taskMonitorService } from '@/services/taskMonitorService';
 
 export default function Dashboard() {
   const { tasks, loadTasks, updateTask, createTask, deleteTask } = useTaskStore();
@@ -20,7 +21,28 @@ export default function Dashboard() {
     document.title = 'ManifestOS - 主控面板';
     loadTasks();
     loadGrowthData();
+    
+    // 请求通知权限
+    taskMonitorService.requestNotificationPermission().then(granted => {
+      if (granted) {
+        console.log('✅ 通知权限已授予');
+        // 开始监控所有任务
+        taskMonitorService.monitorTasks(tasks);
+      } else {
+        console.warn('⚠️ 通知权限未授予');
+      }
+    });
+    
+    // 清理函数
+    return () => {
+      taskMonitorService.clearAll();
+    };
   }, [loadTasks, loadGrowthData]);
+  
+  // 当任务列表变化时，重新监控
+  useEffect(() => {
+    taskMonitorService.monitorTasks(tasks);
+  }, [tasks]);
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-black">

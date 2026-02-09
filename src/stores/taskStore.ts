@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Task, TaskStatus, TaskType } from '@/types';
+import { taskMonitorService } from '@/services/taskMonitorService';
 
 interface TaskState {
   tasks: Task[];
@@ -87,6 +88,11 @@ export const useTaskStore = create<TaskState>()(
         tasks: [...state.tasks, newTask],
       }));
       
+      // 开始监控任务
+      if (newTask.scheduledStart && newTask.scheduledEnd) {
+        taskMonitorService.startMonitoring(newTask);
+      }
+      
       return newTask;
     } catch (error) {
       console.error('创建任务失败:', error);
@@ -107,6 +113,11 @@ export const useTaskStore = create<TaskState>()(
         tasks: state.tasks.map((t) => (t.id === id ? updatedTask : t)),
       }));
       
+      // 重新监控任务（如果时间有变化）
+      if (updatedTask.scheduledStart && updatedTask.scheduledEnd) {
+        taskMonitorService.startMonitoring(updatedTask);
+      }
+      
       console.log('✅ 任务已更新:', id);
     } catch (error) {
       console.error('更新任务失败:', error);
@@ -115,6 +126,9 @@ export const useTaskStore = create<TaskState>()(
 
   deleteTask: async (id) => {
     try {
+      // 停止监控
+      taskMonitorService.stopMonitoring(id);
+      
       // 从本地删除
       set((state) => ({
         tasks: state.tasks.filter((t) => t.id !== id),

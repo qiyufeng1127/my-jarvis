@@ -1,114 +1,235 @@
-import { GOLD_CONFIG, TASK_TYPE_CONFIG } from '@/constants';
-import type { Task, TaskType } from '@/types';
+/**
+ * 金币计算工具
+ * 
+ * 规则：
+ * - 站立任务：15金币/分钟
+ * - 坐着任务：10金币/分钟
+ * - 金币会根据任务时长动态调整
+ */
+
+export type TaskPosture = 'standing' | 'sitting';
 
 /**
- * 计算任务应获得的金币
+ * 根据任务类型判断姿势
+ * @param taskType 任务类型
+ * @returns 'standing' | 'sitting'
  */
-export function calculateTaskGold(task: Task): number {
-  // 1. 确定基础金币
-  const difficulty = task.priority === 1 ? 'challenge' : task.priority === 2 ? 'difficult' : task.priority === 3 ? 'medium' : 'simple';
-  const baseGold = GOLD_CONFIG.BASE_GOLD_PER_UNIT[difficulty];
+export function getTaskPosture(taskType: string): TaskPosture {
+  // 需要站立的任务类型
+  const standingTasks = [
+    'health',      // 健康/运动
+    'creative',    // 创作（如拍照、绘画）
+    'social',      // 社交
+    'life',        // 生活（如做饭、打扫）
+  ];
+  
+  return standingTasks.includes(taskType) ? 'standing' : 'sitting';
+}
 
-  // 2. 计算时长系数
-  const durationMultiplier = getDurationMultiplier(task.durationMinutes);
-
-  // 3. 任务类型系数
-  const typeMultiplier = TASK_TYPE_CONFIG[task.taskType]?.multiplier || 1.0;
-
-  // 4. 时间段系数（假设高效时段为 9-12, 14-17）
-  const timeMultiplier = getTimeMultiplier(task.scheduledStart);
-
-  // 5. 成长关联系数
-  const growthMultiplier = getGrowthMultiplier(task.growthDimensions);
-
-  // 计算最终金币
-  const finalGold = Math.round(
-    baseGold * durationMultiplier * typeMultiplier * timeMultiplier * growthMultiplier
+/**
+ * 根据任务标签判断姿势
+ * @param tags 任务标签数组
+ * @returns 'standing' | 'sitting'
+ */
+export function getTaskPostureByTags(tags: string[]): TaskPosture {
+  if (!tags || tags.length === 0) return 'sitting';
+  
+  // 需要站立的标签关键词
+  const standingKeywords = [
+    '运动', '健身', '跑步', '瑜伽', '锻炼', '散步',
+    '拍摄', '拍照', '摄影', '照相',
+    '做饭', '烹饪', '煮饭',
+    '打扫', '清洁', '家务', '整理',
+    '绘画', '画画', '创作',
+    '社交', '聚会', '见面',
+    '购物', '逛街',
+  ];
+  
+  // 检查标签中是否包含站立关键词
+  const hasStandingKeyword = tags.some(tag => 
+    standingKeywords.some(keyword => tag.includes(keyword))
   );
-
-  return finalGold;
-}
-
-/**
- * 获取时长系数
- */
-function getDurationMultiplier(minutes: number): number {
-  if (minutes <= 30) return 1.0;
-  if (minutes <= 60) return 1.8;
-  if (minutes <= 120) return 3.0;
-  return 4.0 + ((minutes - 120) / 30) * 0.5;
-}
-
-/**
- * 获取时间段系数
- */
-function getTimeMultiplier(scheduledStart?: Date): number {
-  if (!scheduledStart) return 1.0;
-
-  const hour = scheduledStart.getHours();
   
-  // 高效时段：9-12, 14-17
-  if ((hour >= 9 && hour < 12) || (hour >= 14 && hour < 17)) {
-    return 1.3;
+  return hasStandingKeyword ? 'standing' : 'sitting';
+}
+
+/**
+ * 根据任务标题判断姿势
+ * @param title 任务标题
+ * @returns 'standing' | 'sitting'
+ */
+export function getTaskPostureByTitle(title: string): TaskPosture {
+  if (!title) return 'sitting';
+  
+  // 需要站立的标题关键词
+  const standingKeywords = [
+    '运动', '健身', '跑步', '瑜伽', '锻炼', '散步',
+    '拍摄', '拍照', '摄影', '照相', '拍',
+    '做饭', '烹饪', '煮饭', '做菜',
+    '打扫', '清洁', '家务', '整理', '收拾',
+    '绘画', '画画', '创作', '画',
+    '社交', '聚会', '见面',
+    '购物', '逛街',
+    '站', '走',
+  ];
+  
+  // 检查标题中是否包含站立关键词
+  const hasStandingKeyword = standingKeywords.some(keyword => 
+    title.includes(keyword)
+  );
+  
+  return hasStandingKeyword ? 'standing' : 'sitting';
+}
+
+/**
+ * 智能判断任务姿势（综合考虑类型、标签、标题）
+ * @param taskType 任务类型
+ * @param tags 任务标签
+ * @param title 任务标题
+ * @returns 'standing' | 'sitting'
+ */
+export function smartDetectTaskPosture(
+  taskType?: string,
+  tags?: string[],
+  title?: string
+): TaskPosture {
+  // 优先级：标题 > 标签 > 类型
+  
+  // 1. 检查标题
+  if (title) {
+    const postureByTitle = getTaskPostureByTitle(title);
+    if (postureByTitle === 'standing') {
+      return 'standing';
+    }
   }
   
-  // 低效时段：0-6, 22-24
-  if (hour < 6 || hour >= 22) {
-    return 0.7;
+  // 2. 检查标签
+  if (tags && tags.length > 0) {
+    const postureByTags = getTaskPostureByTags(tags);
+    if (postureByTags === 'standing') {
+      return 'standing';
+    }
   }
   
-  return 1.0;
-}
-
-/**
- * 获取成长关联系数
- */
-function getGrowthMultiplier(growthDimensions: Record<string, number>): number {
-  const dimensionCount = Object.keys(growthDimensions).length;
+  // 3. 检查类型
+  if (taskType) {
+    return getTaskPosture(taskType);
+  }
   
-  if (dimensionCount === 0) return 1.0;
-  if (dimensionCount === 1) return 1.1;
-  if (dimensionCount === 2) return 1.3;
-  return 1.5; // 最多3个维度
+  // 默认坐着
+  return 'sitting';
 }
 
 /**
- * 计算连续完成奖励
+ * 计算任务金币奖励
+ * @param durationMinutes 任务时长（分钟）
+ * @param posture 任务姿势 'standing' | 'sitting'
+ * @returns 金币数量
  */
-export function calculateStreakBonus(consecutiveDays: number): number {
-  if (consecutiveDays >= 30) return GOLD_CONFIG.STREAK_BONUS[30];
-  if (consecutiveDays >= 15) return GOLD_CONFIG.STREAK_BONUS[15];
-  if (consecutiveDays >= 7) return GOLD_CONFIG.STREAK_BONUS[7];
-  if (consecutiveDays >= 3) return GOLD_CONFIG.STREAK_BONUS[3];
-  return 0;
+export function calculateGoldReward(
+  durationMinutes: number,
+  posture: TaskPosture
+): number {
+  const ratePerMinute = posture === 'standing' ? 15 : 10;
+  return Math.round(durationMinutes * ratePerMinute);
 }
 
 /**
- * 计算拖延惩罚
+ * 智能计算任务金币（综合判断姿势）
+ * @param durationMinutes 任务时长（分钟）
+ * @param taskType 任务类型
+ * @param tags 任务标签
+ * @param title 任务标题
+ * @returns 金币数量
  */
-export function calculateDelayPenalty(delayMinutes: number): number {
-  if (delayMinutes <= 5) return GOLD_CONFIG.DELAY_PENALTY['0-5'];
-  if (delayMinutes <= 15) return GOLD_CONFIG.DELAY_PENALTY['6-15'];
-  return GOLD_CONFIG.DELAY_PENALTY['15+'];
+export function smartCalculateGoldReward(
+  durationMinutes: number,
+  taskType?: string,
+  tags?: string[],
+  title?: string
+): number {
+  const posture = smartDetectTaskPosture(taskType, tags, title);
+  return calculateGoldReward(durationMinutes, posture);
 }
 
 /**
- * 计算坏习惯惩罚
+ * 获取金币计算说明
+ * @param posture 任务姿势
+ * @returns 说明文本
  */
-export function calculateHabitPenalty(severity: number): number {
-  if (severity <= 3) return GOLD_CONFIG.BAD_HABIT_PENALTY.minor;
-  if (severity <= 7) return GOLD_CONFIG.BAD_HABIT_PENALTY.moderate;
-  return GOLD_CONFIG.BAD_HABIT_PENALTY.severe;
+export function getGoldCalculationDescription(posture: TaskPosture): string {
+  if (posture === 'standing') {
+    return '站立任务：15金币/分钟 💪';
+  } else {
+    return '坐着任务：10金币/分钟 🪑';
+  }
 }
 
 /**
- * 计算任务完成质量加成
+ * 计算时长调整后的金币变化
+ * @param oldDuration 原时长（分钟）
+ * @param newDuration 新时长（分钟）
+ * @param posture 任务姿势
+ * @returns { oldGold, newGold, difference }
  */
-export function calculateQualityBonus(quality: number, baseGold: number): number {
-  if (quality === 5) return Math.round(baseGold * 0.5); // 完美完成 +50%
-  if (quality === 4) return Math.round(baseGold * 0.2); // 优秀完成 +20%
-  if (quality === 3) return 0; // 正常完成
-  if (quality === 2) return Math.round(baseGold * -0.2); // 勉强完成 -20%
-  return Math.round(baseGold * -0.5); // 低质量完成 -50%
+export function calculateGoldAdjustment(
+  oldDuration: number,
+  newDuration: number,
+  posture: TaskPosture
+) {
+  const oldGold = calculateGoldReward(oldDuration, posture);
+  const newGold = calculateGoldReward(newDuration, posture);
+  const difference = newGold - oldGold;
+  
+  return {
+    oldGold,
+    newGold,
+    difference,
+    description: difference > 0 
+      ? `时长增加，金币 +${difference}` 
+      : difference < 0 
+      ? `时长减少，金币 ${difference}` 
+      : '时长未变，金币不变'
+  };
 }
 
+/**
+ * 格式化金币显示
+ * @param gold 金币数量
+ * @returns 格式化的字符串
+ */
+export function formatGold(gold: number): string {
+  return `${gold} 💰`;
+}
+
+/**
+ * 示例用法和测试
+ */
+export const examples = {
+  // 站立任务示例
+  standing: {
+    title: '拍摄10张照片',
+    duration: 10,
+    gold: calculateGoldReward(10, 'standing'), // 150金币
+  },
+  
+  // 坐着任务示例
+  sitting: {
+    title: '编写代码',
+    duration: 10,
+    gold: calculateGoldReward(10, 'sitting'), // 100金币
+  },
+  
+  // 时长调整示例
+  adjustment: {
+    from: { duration: 5, gold: calculateGoldReward(5, 'sitting') }, // 50金币
+    to: { duration: 10, gold: calculateGoldReward(10, 'sitting') }, // 100金币
+    difference: 50, // +50金币
+  }
+};
+
+// 导出常量
+export const GOLD_RATE = {
+  STANDING: 15, // 站立任务：15金币/分钟
+  SITTING: 10,  // 坐着任务：10金币/分钟
+} as const;

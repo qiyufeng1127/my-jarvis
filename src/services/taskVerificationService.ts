@@ -2,7 +2,7 @@
 // 任务验证和启动系统
 // ============================================
 
-import { notificationManager } from './notificationService';
+import { notificationService } from './notificationService';
 
 export interface TaskVerification {
   enabled: boolean;
@@ -277,64 +277,92 @@ export async function generateSubTasks(
 export class VoiceReminder {
   // 任务开始提醒
   static remindTaskStart(taskTitle: string, keywords: string[]) {
-    notificationManager.notifyTaskStart(taskTitle, keywords);
+    notificationService.notifyTaskStart(taskTitle, true);
   }
   
   // 10秒倒计时提醒
   static remindStartUrgent(taskTitle: string) {
-    notificationManager.notifyVerificationUrgent(taskTitle, 10);
+    const message = `${taskTitle} 启动验证即将超时，请立即完成验证！`;
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(message);
+      utterance.lang = 'zh-CN';
+      window.speechSynthesis.speak(utterance);
+    }
   }
   
   // 启动超时提醒
   static remindStartTimeout(taskTitle: string, penaltyGold: number, timeoutCount: number) {
-    notificationManager.notifyVerificationTimeout(taskTitle, penaltyGold, timeoutCount, true);
+    const message = `${taskTitle} 启动验证超时${timeoutCount}次${penaltyGold > 0 ? `，扣除${penaltyGold}金币` : ''}`;
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(message);
+      utterance.lang = 'zh-CN';
+      window.speechSynthesis.speak(utterance);
+    }
   }
   
   // 启动重试提醒
   static remindStartRetry(taskTitle: string, retryCount: number, penaltyGold: number) {
-    notificationManager.notify({
-      type: 'verification_retry',
-      title: '启动重试',
-      message: `任务"${taskTitle}"第${retryCount}次重试${penaltyGold > 0 ? `，扣除${penaltyGold}金币` : ''}。请在2分钟内完成启动验证。`,
-      taskTitle,
-      goldAmount: penaltyGold > 0 ? -penaltyGold : undefined,
-      priority: 'high',
-    });
+    const message = `任务"${taskTitle}"第${retryCount}次重试${penaltyGold > 0 ? `，扣除${penaltyGold}金币` : ''}。请在2分钟内完成启动验证。`;
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(message);
+      utterance.lang = 'zh-CN';
+      window.speechSynthesis.speak(utterance);
+    }
   }
   
   // 完成超时提醒
   static remindCompletionTimeout(taskTitle: string, penaltyGold: number, extensionCount: number) {
-    notificationManager.notifyVerificationTimeout(taskTitle, penaltyGold, extensionCount, false);
+    const message = `${taskTitle} 完成验证超时${extensionCount}次${penaltyGold > 0 ? `，扣除${penaltyGold}金币` : ''}`;
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(message);
+      utterance.lang = 'zh-CN';
+      window.speechSynthesis.speak(utterance);
+    }
   }
   
   // 连续失败全屏警报
   static remindCriticalFailure(taskTitle: string, totalPenalty: number) {
-    notificationManager.notifyCriticalFailure(taskTitle, totalPenalty);
+    const message = `警告！任务"${taskTitle}"连续失败，扣除${totalPenalty}金币！`;
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(message);
+      utterance.lang = 'zh-CN';
+      utterance.rate = 1.2;
+      window.speechSynthesis.speak(utterance);
+    }
   }
   
   // 启动成功获得金币
   static congratulateStartSuccess(taskTitle: string, goldEarned: number) {
-    notificationManager.notifyVerificationSuccess(taskTitle, goldEarned, true);
+    notificationService.notifyVerificationSuccess(taskTitle, 'start');
   }
   
   // 任务即将结束提醒（前1分钟或前10分钟）
   static remindTaskEnding(taskTitle: string, minutesLeft: number) {
-    notificationManager.notifyTaskEnding(taskTitle, minutesLeft);
+    notificationService.notifyTaskEnding(taskTitle, minutesLeft, true);
   }
   
   // 任务完成提醒
   static remindTaskCompletion(taskTitle: string, keywords: string[]) {
-    notificationManager.notifyTaskEnd(taskTitle, keywords);
+    notificationService.notifyTaskEnd(taskTitle, true);
   }
   
   // 提前完成祝贺
   static congratulateEarlyCompletion(taskTitle: string, goldEarned: number) {
-    notificationManager.notifyVerificationSuccess(taskTitle, goldEarned, false);
+    notificationService.notifyVerificationSuccess(taskTitle, 'completion');
   }
   
   // 任务完成祝贺
   static congratulateCompletion(taskTitle: string, goldEarned: number) {
-    notificationManager.notifyVerificationSuccess(taskTitle, goldEarned, false);
+    notificationService.notifyVerificationSuccess(taskTitle, 'completion');
+  }
+  
+  // 通用语音播报
+  static speak(message: string) {
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(message);
+      utterance.lang = 'zh-CN';
+      window.speechSynthesis.speak(utterance);
+    }
   }
 }
 export class SoundEffects {

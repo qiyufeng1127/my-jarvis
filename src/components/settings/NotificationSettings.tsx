@@ -1,6 +1,24 @@
 import { useState, useEffect } from 'react';
 import { Bell, Volume2, Clock, TrendingUp, FileText, AlertTriangle, Coins } from 'lucide-react';
-import { notificationManager, type NotificationSettings } from '@/services/notificationService';
+import { notificationService } from '@/services/notificationService';
+
+interface NotificationSettings {
+  taskReminder: boolean;
+  growthReminder: boolean;
+  dailyReport: boolean;
+  badHabitWarning: boolean;
+  goldChange: boolean;
+  taskStartReminder: boolean;
+  taskEndReminder: boolean;
+  taskEndReminderMinutes: number;
+  verificationReminder: boolean;
+  urgentReminder: boolean;
+  voiceEnabled: boolean;
+  voiceRate: number;
+  voicePitch: number;
+  voiceVolume: number;
+  browserNotification: boolean;
+}
 
 interface NotificationSettingsProps {
   isDark: boolean;
@@ -8,12 +26,40 @@ interface NotificationSettingsProps {
 }
 
 export default function NotificationSettingsPanel({ isDark, accentColor }: NotificationSettingsProps) {
-  const [settings, setSettings] = useState<NotificationSettings>(notificationManager.getSettings());
+  const [settings, setSettings] = useState<NotificationSettings>({
+    taskReminder: true,
+    growthReminder: true,
+    dailyReport: true,
+    badHabitWarning: true,
+    goldChange: true,
+    taskStartReminder: true,
+    taskEndReminder: true,
+    taskEndReminderMinutes: 5,
+    verificationReminder: true,
+    urgentReminder: true,
+    voiceEnabled: true,
+    voiceRate: 1.0,
+    voicePitch: 1.0,
+    voiceVolume: 0.8,
+    browserNotification: true,
+  });
   const [testingVoice, setTestingVoice] = useState(false);
 
   useEffect(() => {
-    // 保存设置
-    notificationManager.saveSettings(settings);
+    // 从 localStorage 加载设置
+    const saved = localStorage.getItem('notification_settings');
+    if (saved) {
+      try {
+        setSettings(JSON.parse(saved));
+      } catch (e) {
+        console.error('加载通知设置失败:', e);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    // 保存设置到 localStorage
+    localStorage.setItem('notification_settings', JSON.stringify(settings));
   }, [settings]);
 
   const updateSetting = <K extends keyof NotificationSettings>(
@@ -25,18 +71,16 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
 
   const testVoice = () => {
     setTestingVoice(true);
-    notificationManager.notifyTaskStart('测试任务', ['打开电脑', '准备工作']);
+    notificationService.notifyTaskStart('测试任务', true);
     setTimeout(() => setTestingVoice(false), 3000);
   };
 
   const requestNotificationPermission = async () => {
-    if ('Notification' in window) {
-      const permission = await Notification.requestPermission();
-      if (permission === 'granted') {
-        alert('通知权限已授予！');
-      } else {
-        alert('通知权限被拒绝，请在浏览器设置中手动开启。');
-      }
+    const granted = await notificationService.requestPermission();
+    if (granted) {
+      alert('通知权限已授予！');
+    } else {
+      alert('通知权限被拒绝，请在浏览器设置中手动开启。');
     }
   };
 

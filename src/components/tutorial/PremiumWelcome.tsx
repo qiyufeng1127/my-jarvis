@@ -109,7 +109,7 @@ export default function PremiumWelcome() {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black">
+    <div className="fixed inset-0 z-[100] bg-black overflow-hidden touch-pan-y">
       {/* 动态渐变背景 */}
       <div 
         className={`absolute inset-0 bg-gradient-to-br ${step.gradient} transition-all duration-1000 ease-in-out`}
@@ -118,7 +118,7 @@ export default function PremiumWelcome() {
         }}
       >
         {/* 动态光效 */}
-        <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-white/10 rounded-full blur-3xl animate-float-slow" />
           <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-white/10 rounded-full blur-3xl animate-float-reverse" />
         </div>
@@ -126,11 +126,11 @@ export default function PremiumWelcome() {
 
       {/* 主内容 */}
       <div className="relative h-full flex flex-col items-center justify-between p-8 md:p-12">
-        {/* 顶部：跳过按钮 */}
-        <div className="w-full flex justify-end">
+        {/* 顶部：跳过按钮 - 增加顶部间距避免与状态栏重叠 */}
+        <div className="w-full flex justify-end pt-8 md:pt-0">
           <button
             onClick={handleSkip}
-            className="px-6 py-2 text-white/80 hover:text-white font-medium transition-all hover:scale-105"
+            className="px-6 py-3 text-white/80 hover:text-white font-medium transition-all hover:scale-105 active:scale-95 touch-manipulation"
             style={{
               opacity: showContent ? 1 : 0,
               transform: showContent ? 'translateY(0)' : 'translateY(-20px)',
@@ -240,14 +240,19 @@ export default function PremiumWelcome() {
             ))}
           </div>
 
-          {/* 下一步按钮 */}
+          {/* 下一步按钮 - 增强触摸响应 */}
           <button
             onClick={handleNext}
-            className="w-full py-4 px-8 bg-white text-gray-900 rounded-2xl font-bold text-lg flex items-center justify-center space-x-3 hover:scale-105 active:scale-95 transition-all shadow-2xl group"
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              handleNext();
+            }}
+            className="w-full py-4 px-8 bg-white text-gray-900 rounded-2xl font-bold text-lg flex items-center justify-center space-x-3 hover:scale-105 active:scale-95 transition-all shadow-2xl group touch-manipulation cursor-pointer"
             style={{
               opacity: showContent ? 1 : 0,
               transform: showContent ? 'translateY(0)' : 'translateY(20px)',
               transition: 'all 0.6s ease-out 0.6s',
+              WebkitTapHighlightColor: 'transparent',
             }}
           >
             <span>{currentStep === WELCOME_STEPS.length - 1 ? '开始我的成长之旅' : '下一步'}</span>

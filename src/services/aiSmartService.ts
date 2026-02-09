@@ -1164,6 +1164,9 @@ priority说明：
           try {
             const aiAnalysis = await this.analyzeTaskWithAI(cleanTitle, extractedDuration || undefined);
             
+            // AI判断任务极性（正向/负向）
+            const polarity = await this.detectTaskPolarity(finalTitle || cleanTitle);
+            
             const start = new Date(currentTime);
             const end = new Date(currentTime.getTime() + aiAnalysis.duration * 60000);
             const goal = this.identifyGoal(cleanTitle);
@@ -1192,7 +1195,8 @@ priority说明：
               location: aiAnalysis.location,
               tags: aiAnalysis.tags,
               goal: goal,
-              gold: this.calculateGold({ estimated_duration: aiAnalysis.duration, task_type: aiAnalysis.taskType }),
+              polarity: polarity, // 添加极性标记
+              gold: this.calculateGold({ estimated_duration: aiAnalysis.duration, task_type: aiAnalysis.taskType, title: finalTitle, tags: aiAnalysis.tags, polarity: polarity }),
               color: aiAnalysis.color,
               priority: aiAnalysis.priority || 2,
               actionSteps: aiAnalysis.actionSteps || [],
@@ -1274,6 +1278,9 @@ priority说明：
         
         const aiAnalysis = await this.analyzeTaskWithAI(cleanTitle, extractedDuration || undefined, rawInput);
         
+        // AI判断任务极性（正向/负向）
+        const polarity = await this.detectTaskPolarity(aiAnalysis.optimizedTitle || cleanTitle);
+        
         const start = new Date(startTime);
         const end = new Date(startTime.getTime() + aiAnalysis.duration * 60000);
         const goal = this.identifyGoal(cleanTitle);
@@ -1302,7 +1309,8 @@ priority说明：
           location: aiAnalysis.location,
           tags: aiAnalysis.tags,
           goal: goal,
-          gold: this.calculateGold({ estimated_duration: aiAnalysis.duration, task_type: aiAnalysis.taskType }),
+          polarity: polarity, // 添加极性标记
+          gold: this.calculateGold({ estimated_duration: aiAnalysis.duration, task_type: aiAnalysis.taskType, title: finalTitle, tags: aiAnalysis.tags, polarity: polarity }),
           color: aiAnalysis.color,
           priority: aiAnalysis.priority || 2,
           actionSteps: aiAnalysis.actionSteps || [],
@@ -1720,60 +1728,128 @@ priority说明：
     return null;
   }
 
-  // 计算金币（从用户设置中读取系数）
-  static calculateGold(task: any): number {
-    const duration = task.estimated_duration || 30;
-    const taskType = task.task_type || 'life';
-
-    // 默认金币规则
-    const goldRules: Record<string, { base: number; perMinute: number }> = {
-      standing: { base: 20, perMinute: 10 },
-      sitting: { base: 10, perMinute: 5 },
-      sport: { base: 30, perMinute: 15 },
-      creative: { base: 25, perMinute: 8 },
-      learning: { base: 15, perMinute: 6 },
-      social: { base: 12, perMinute: 4 },
-      rest: { base: 5, perMinute: 2 },
-      life: { base: 15, perMinute: 7 },
-      work: { base: 20, perMinute: 8 },
-    };
-
-    // 从 localStorage 读取用户设置
-    let baseMultiplier = 1.0;
-    let typeMultiplier = 1.0;
+  // 使用AI智能判断任务是正向还是负向
+  static async detectTaskPolarity(taskTitle: string): Promise<'positive' | 'negative'> {
+    const { config, isConfigured } = useAIStore.getState();
     
-    try {
-      const userStorage = localStorage.getItem('user-storage');
-      if (userStorage) {
-        const userData = JSON.parse(userStorage);
-        const settings = userData.state?.user?.settings;
-        
-        if (settings) {
-          baseMultiplier = settings.goldRewardMultiplier || 1.0;
-          
-          // 任务类型系数（从设置中读取，如果没有则使用默认值）
-          const taskTypeCoefficients = settings.taskTypeCoefficients || {
-            work: 1.2,
-            learning: 1.5,
-            sport: 1.0,
-            life: 0.8,
-            creative: 1.3,
-            social: 0.9,
-            rest: 0.5,
-          };
-          
-          typeMultiplier = taskTypeCoefficients[taskType] || 1.0;
-        }
-      }
-    } catch (error) {
-      console.error('读取用户设置失败:', error);
+    if (!isConfigured()) {
+      // 如果没有配置AI，默认为正向
+      return 'positive';
     }
-
-    const rule = goldRules[taskType] || goldRules.life;
-    const baseGold = rule.base + duration * rule.perMinute;
     
-    // 应用系数
-    return Math.round(baseGold * baseMultiplier * typeMultiplier);
+    const { apiKey, apiEndpoint, model } = config;
+    const useModel = model === 'deepseek-reasoner' ? 'deepseek-chat' : (model || 'deepseek-chat');
+    
+    const prompt = `你是任务分析专家。请判断以下任务是正向（有益健康、成长、工作）还是负向（不良习惯、浪费时间）。
+
+任务：${taskTitle}
+
+判断标准：
+- **正向任务**（加金币）：
+  * 工作、学习、运动、健身
+  * 家务、清洁、整理
+  * 阅读、创作、技能提升
+  * 健康饮食、早睡早起
+  * 社交、陪伴家人
+  * 任何有益于个人成长和健康的活动
+
+- **负向任务**（减金币）：
+  * 点外卖（特别是不健康食品）
+  * 喝酒、抽烟
+  * 熬夜、赖床
+  * 过度游戏、刷短视频
+  * 暴饮暴食
+  * 拖延、逃避责任
+  * 任何不利于健康和成长的行为
+
+返回格式（纯JSON）：
+{
+  "polarity": "positive"
+}
+
+或
+
+{
+  "polarity": "negative"
+}
+
+只返回JSON，不要其他文字。`;
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+      
+      const response = await fetch(apiEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: useModel,
+          messages: [
+            { role: 'system', content: '你是任务分析助手。只返回纯JSON对象，不要其他文字。' },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.3,
+          max_tokens: 50,
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        console.error('❌ AI极性判断失败');
+        return 'positive'; // 默认正向
+      }
+
+      const data = await response.json();
+      const aiResponse = data.choices[0].message.content;
+      
+      // 提取JSON
+      let jsonStr = aiResponse.trim();
+      if (jsonStr.startsWith('```json')) {
+        jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?$/g, '');
+      } else if (jsonStr.startsWith('```')) {
+        jsonStr = jsonStr.replace(/```\n?/g, '');
+      }
+      
+      const result = JSON.parse(jsonStr);
+      
+      console.log(`🤖 AI判断任务极性: ${taskTitle} → ${result.polarity}`);
+      
+      return result.polarity === 'negative' ? 'negative' : 'positive';
+    } catch (error) {
+      console.error('❌ AI极性判断失败:', error);
+      return 'positive'; // 默认正向
+    }
+  }
+
+  // 计算金币（使用智能金币计算器 + AI极性判断）
+  static calculateGold(task: any): number {
+    try {
+      // 使用智能金币计算
+      const { smartCalculateGoldReward } = require('@/utils/goldCalculator');
+      const duration = task.estimated_duration || 30;
+      const taskType = task.task_type;
+      const tags = task.tags;
+      const title = task.title;
+      
+      let baseGold = smartCalculateGoldReward(duration, taskType, tags, title);
+      
+      // 如果任务有极性标记（负向），金币取负数
+      if (task.polarity === 'negative') {
+        baseGold = -Math.abs(baseGold);
+      }
+      
+      return baseGold;
+    } catch (error) {
+      console.error('❌ 金币计算失败，使用默认值:', error);
+      // 降级方案：简单计算
+      const duration = task.estimated_duration || 30;
+      return Math.round(duration * 10); // 默认每分钟10金币
+    }
   }
 
   // 使用AI智能解析时间轴操作指令

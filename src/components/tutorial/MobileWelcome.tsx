@@ -56,12 +56,12 @@ export default function MobileWelcome() {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-white flex flex-col">
-      {/* 顶部跳过按钮 */}
-      <div className="flex justify-end p-4">
+    <div className="fixed inset-0 z-[100] bg-white flex flex-col overflow-hidden touch-pan-y">
+      {/* 顶部跳过按钮 - 增加顶部间距避免与状态栏重叠 */}
+      <div className="flex justify-end p-4 pt-12">
         <button
           onClick={handleSkip}
-          className="text-gray-500 text-sm font-medium"
+          className="text-gray-500 text-sm font-medium px-4 py-2 active:scale-95 transition-transform touch-manipulation"
         >
           跳过
         </button>
@@ -127,10 +127,17 @@ export default function MobileWelcome() {
           ))}
         </div>
 
-        {/* 下一步按钮 */}
+        {/* 下一步按钮 - 增强触摸响应 */}
         <button
           onClick={handleNext}
-          className="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-2xl font-bold text-lg flex items-center justify-center space-x-2 active:scale-95 transition-transform shadow-lg"
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            handleNext();
+          }}
+          className="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-2xl font-bold text-lg flex items-center justify-center space-x-2 active:scale-95 transition-transform shadow-lg touch-manipulation cursor-pointer"
+          style={{
+            WebkitTapHighlightColor: 'transparent',
+          }}
         >
           <span>
             {currentStep === WELCOME_STEPS.length - 1 ? '开始使用' : '下一步'}

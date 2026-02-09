@@ -105,6 +105,125 @@ class AIService {
     }
   }
 
+  // 处理语音指令 - 集成所有AI助手功能
+  async processVoiceCommand(command: string, tasks: any[]): Promise<{
+    type: 'create_tasks' | 'query' | 'delete' | 'update' | 'chat';
+    message: string;
+    tasks?: any[];
+    taskIds?: string[];
+    updates?: Array<{ taskId: string; changes: any }>;
+  }> {
+    console.log('🎤 [语音处理] 收到指令:', command);
+
+    // 模糊匹配 - 查询当前任务
+    if (/现在|正在|当前|目前/.test(command) && /任务|做|干/.test(command)) {
+      const now = new Date();
+      const currentTask = tasks.find(t => {
+        if (!t.scheduledStart || !t.scheduledEnd) return false;
+        const start = new Date(t.scheduledStart);
+        const end = new Date(t.scheduledEnd);
+        return now >= start && now <= end && t.status === 'in_progress';
+      });
+
+      if (currentTask) {
+        const elapsed = Math.floor((now.getTime() - new Date(currentTask.scheduledStart!).getTime()) / 60000);
+        return {
+          type: 'query',
+          message: `当前正在进行${currentTask.title}，已经进行了${elapsed}分钟`,
+        };
+      } else {
+        return {
+          type: 'query',
+          message: '当前没有正在进行的任务',
+        };
+      }
+    }
+
+    // 模糊匹配 - 查询下一个任务
+    if (/下一个|接下来|下个|然后/.test(command) && /任务|做|干/.test(command)) {
+      const now = new Date();
+      const nextTask = tasks
+        .filter(t => t.scheduledStart && new Date(t.scheduledStart) > now)
+        .sort((a, b) => new Date(a.scheduledStart!).getTime() - new Date(b.scheduledStart!).getTime())[0];
+
+      if (nextTask) {
+        const timeUntil = Math.floor((new Date(nextTask.scheduledStart!).getTime() - now.getTime()) / 60000);
+        return {
+          type: 'query',
+          message: `下一个任务是${nextTask.title}，还有${timeUntil}分钟开始`,
+        };
+      } else {
+        return {
+          type: 'query',
+          message: '今天没有更多任务了',
+        };
+      }
+    }
+
+    // 模糊匹配 - 删除任务
+    if (/删除|清空|取消/.test(command) && /任务/.test(command)) {
+      const now = new Date();
+      let tasksToDelete: any[] = [];
+
+      if (/今天|今日/.test(command)) {
+        tasksToDelete = tasks.filter(t => {
+          if (!t.scheduledStart) return false;
+          const taskDate = new Date(t.scheduledStart);
+          return taskDate.toDateString() === now.toDateString();
+        });
+      } else if (/昨天/.test(command)) {
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        tasksToDelete = tasks.filter(t => {
+          if (!t.scheduledStart) return false;
+          const taskDate = new Date(t.scheduledStart);
+          return taskDate.toDateString() === yesterday.toDateString();
+        });
+      }
+
+      if (tasksToDelete.length > 0) {
+        return {
+          type: 'delete',
+          message: `已删除${tasksToDelete.length}个任务`,
+          taskIds: tasksToDelete.map(t => t.id),
+        };
+      } else {
+        return {
+          type: 'query',
+          message: '没有找到要删除的任务',
+        };
+      }
+    }
+
+    // 模糊匹配 - 创建任务（包含时间延迟）
+    if (/分钟|小时|之后|后面|然后/.test(command) || /去|做|完成|开始/.test(command)) {
+      console.log('🎤 [语音处理] 识别为创建任务指令');
+      
+      // 使用AI分解任务
+      const result = await this.decomposeTask(command);
+      
+      if (result.success && result.tasks) {
+        return {
+          type: 'create_tasks',
+          message: `好的，我为您准备了${result.tasks.length}个任务`,
+          tasks: result.tasks,
+        };
+      } else {
+        return {
+          type: 'chat',
+          message: '抱歉，我没有理解您的任务安排，请再说一遍',
+        };
+      }
+    }
+
+    // 默认：使用AI对话
+    const response = await this.chatWithUser(command);
+    return {
+      type: 'chat',
+      message: response.content || '抱歉，我没有理解您的意思',
+    };
+  }
+
   // 智能识别内容类型并决定分配目标
   async classifyContent(message: string): Promise<{
     contentType: 'task' | 'mood' | 'thought' | 'gratitude' | 'success' | 'startup' | 'timeline_control';
@@ -293,6 +412,7 @@ work, study, life, housework, health, social, hobby, startup, finance, family
       priority: 'low' | 'medium' | 'high';
       location?: string;
       tags?: string[];
+      goldReward?: number;
     }>;
     error?: string;
   }> {
@@ -504,7 +624,10 @@ work, study, life, housework, health, social, hobby, startup, finance, family
       
       console.log('🔍 [AI Service] 任务排序完成');
       
-      // 重新计算所有任务的开始时间（确保时间连续）
+      // 导入金币计算器
+      const { smartCalculateGoldReward } = await import('@/utils/goldCalculator');
+      
+      // 重新计算所有任务的开始时间（确保时间连续）并计算金币
       let currentTime = now;
       validTasks = validTasks.map((task: any, index: number) => {
         let startTime: string;
@@ -523,9 +646,20 @@ work, study, life, housework, health, social, hobby, startup, finance, family
         // 更新当前时间为下一个任务的开始时间
         currentTime = new Date(currentTime.getTime() + task.duration * 60000);
         
+        // 智能计算金币奖励（根据任务类型、标签、标题判断姿势）
+        const goldReward = smartCalculateGoldReward(
+          task.duration,
+          task.category,
+          task.tags,
+          task.title
+        );
+        
+        console.log(`💰 [金币计算] ${task.title}: ${task.duration}分钟 = ${goldReward}金币`);
+        
         return {
           ...task,
           startTime,
+          goldReward,
         };
       });
       

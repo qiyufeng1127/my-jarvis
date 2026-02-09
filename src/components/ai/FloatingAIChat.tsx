@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, X, Minimize2, Maximize2, GripVertical, Settings, Hourglass, ChevronDown, ChevronUp, CheckSquare, Square, Sparkles } from 'lucide-react';
+import { Send, X, Minimize2, Maximize2, GripVertical, Settings, Hourglass, ChevronDown, ChevronUp, CheckSquare, Square, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import { useGoalStore } from '@/stores/goalStore';
 import { matchTaskToGoals, generateGoalSuggestionMessage } from '@/services/aiGoalMatcher';
 import { useMemoryStore, EMOTION_TAGS, CATEGORY_TAGS } from '@/stores/memoryStore';
+import VoiceControl from '@/components/voice/VoiceControl';
+import { notificationService } from '@/services/notificationService';
 
 // 标签ID到中文的映射
 const TAG_LABELS: Record<string, string> = {
@@ -125,6 +127,8 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [bgColor, setBgColor] = useState(persistedState.bgColor);
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [isVoiceControlOpen, setIsVoiceControlOpen] = useState(false);
+  const [isVoiceListening, setIsVoiceListening] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -1078,6 +1082,20 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
                 console.log(`   标签: ${task.tags?.join(', ') || '无'}`);
                 console.log(`   位置: ${task.location || '未指定'}`);
                 
+                // 使用智能金币计算器
+                const goldReward = task.goldReward || (() => {
+                  // 如果AI没有返回金币，使用智能计算
+                  const { smartCalculateGoldReward } = require('@/utils/goldCalculator');
+                  return smartCalculateGoldReward(
+                    task.duration,
+                    task.category,
+                    task.tags,
+                    task.title
+                  );
+                })();
+                
+                console.log(`💰 [金币] ${task.title}: ${task.duration}分钟 = ${goldReward}金币`);
+                
                 return {
                   sequence: index + 1,
                   title: task.title,
@@ -1091,7 +1109,7 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
                   location: task.location || '未指定',
                   tags: task.tags || ['日常', '生活'],
                   goal: null,
-                  gold: Math.floor(task.duration * 1.5),
+                  gold: goldReward,
                   color: '#6A7334',
                   priority: task.priority || 'medium',
                 };
@@ -1209,10 +1227,16 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
         }
 
         // 创建单个任务也支持编辑
-        // 完全依赖AI智能分析
+        // 使用智能金币计算器
         const currentTime = new Date();
         const duration = 30; // 默认30分钟
         const endTime = new Date(currentTime.getTime() + duration * 60000);
+        
+        // 智能计算金币
+        const { smartCalculateGoldReward } = require('@/utils/goldCalculator');
+        const goldReward = smartCalculateGoldReward(duration, 'work', ['日常', '生活'], message);
+        
+        console.log(`💰 [金币] ${message}: ${duration}分钟 = ${goldReward}金币`);
         
         const singleTask: DecomposedTask = {
           sequence: 1,
@@ -1227,7 +1251,7 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
           location: '未指定',
           tags: ['日常', '生活'],
           goal: null,
-          gold: Math.floor(duration * 1.5),
+          gold: goldReward,
           color: '#6A7334',
           priority: 'medium',
         };
@@ -1635,6 +1659,33 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
 
   return (
     <>
+      {/* 语音控制按钮 - 始终显示，在AI按钮上方，根据监听状态改变颜色 */}
+      <button
+        onClick={() => {
+          setIsVoiceControlOpen(!isVoiceControlOpen);
+          if (!isVoiceControlOpen) {
+            setIsVoiceListening(true);
+          } else {
+            setIsVoiceListening(false);
+          }
+        }}
+        className="fixed w-16 h-16 rounded-full shadow-2xl hover:scale-110 transition-all flex items-center justify-center"
+        style={{ 
+          backgroundColor: isVoiceListening ? '#10B981' : '#8B5CF6',
+          color: '#ffffff',
+          zIndex: 99999,
+          bottom: '168px', // AI按钮上方
+          right: '16px',
+        }}
+        title={isVoiceListening ? "免手模式开启中" : "点击开启免手模式"}
+      >
+        {isVoiceListening ? (
+          <Volume2 className="w-8 h-8" />
+        ) : (
+          <VolumeX className="w-8 h-8" />
+        )}
+      </button>
+
       {/* 浮动按钮 - 只在未展开时显示，黄色底色+白色图标，手机端位置上移避免遮挡导航栏 */}
       {!isOpen && (
         <button
@@ -2071,6 +2122,12 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
           onConfirm={handlePushToTimeline}
         />
       )}
+
+      {/* 语音控制组件 */}
+      <VoiceControl 
+        isOpen={isVoiceControlOpen} 
+        onClose={() => setIsVoiceControlOpen(false)} 
+      />
     </>
   );
 }

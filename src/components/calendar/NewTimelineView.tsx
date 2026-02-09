@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+﻿import { useState, useRef, useEffect } from 'react';
 import { Plus, Camera, Check, ChevronDown, ChevronUp, Edit2, Trash2, GripVertical, Star, Clock, FileText, Upload, X } from 'lucide-react';
 import type { Task } from '@/types';
 import { 
@@ -18,6 +18,7 @@ import TaskStatusIndicator from './TaskStatusIndicator';
 import NowTimeline from './NowTimeline';
 import { useAIStore } from '@/stores/aiStore';
 import { useGoldStore } from '@/stores/goldStore';
+import { useTagStore } from '@/stores/tagStore';
 import CelebrationEffect from '@/components/effects/CelebrationEffect';
 import { baiduImageRecognition } from '@/services/baiduImageRecognition';
 
@@ -126,6 +127,9 @@ export default function NewTimelineView({
   
   // 使用金币系统
   const { addGold, penaltyGold } = useGoldStore();
+  
+  // 使用标签系统
+  const { recordTagUsage } = useTagStore();
   
   // 庆祝效果状态
   const [showCelebration, setShowCelebration] = useState(false);
@@ -1093,6 +1097,14 @@ export default function NewTimelineView({
             scheduledEnd: now.toISOString(),
           });
           
+          // 记录标签使用时长
+          if (task.tags && task.tags.length > 0) {
+            task.tags.forEach(tagName => {
+              recordTagUsage(tagName, taskId, task.title, actualDuration);
+              console.log(`📊 记录标签使用: ${tagName} - ${actualDuration}分钟`);
+            });
+          }
+          
           console.log('✅ 任务完成验证成功，时间已自动修正');
         }
         
@@ -1254,10 +1266,19 @@ export default function NewTimelineView({
       setShowCelebration(true);
             
       // 播放音效
-            SoundEffects.playSuccessSound();
-            SoundEffects.playCoinSound();
+      SoundEffects.playSuccessSound();
+      SoundEffects.playCoinSound();
             
       onTaskUpdate(taskId, { status: 'completed' });
+      
+      // 记录标签使用时长
+      if (task.tags && task.tags.length > 0) {
+        const duration = task.durationMinutes || 60;
+        task.tags.forEach(tagName => {
+          recordTagUsage(tagName, taskId, task.title, duration);
+          console.log(`📊 记录标签使用: ${tagName} - ${duration}分钟`);
+        });
+      }
     }
   };
 
@@ -1340,17 +1361,17 @@ export default function NewTimelineView({
               // 可以添加一些交互，比如显示详细统计
               alert(`今天已经过去了 ${timePassed.hours}小时${timePassed.mins}分钟`);
             }}
-            className="flex-1 rounded-xl p-3 flex items-center gap-3 transition-all hover:scale-[1.02] active:scale-[0.98]"
-            style={{
-              background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(147, 51, 234, 0.2) 100%)',
-              border: `2px solid ${borderColor}`,
-            }}
-          >
-            <div 
-              className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-              style={{ backgroundColor: 'rgba(59, 130, 246, 0.3)' }}
+            className="flex items-center gap-2 px-4 py-2 rounded-full transition-all hover:scale-105"
+              style={{ 
+                backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.9)',
+                border: `2px dashed ${borderColor}`,
+              }}
             >
-              <Clock className="w-5 h-5 text-blue-500" />
+              <div 
+                className="w-7 h-7 rounded-full flex items-center justify-center"
+                style={{ backgroundColor: '#3B82F6' }}
+              >
+                <Clock className="w-4 h-4 text-white" />
             </div>
             <span className="text-sm font-semibold" style={{ color: textColor }}>
               今日已过去
@@ -1923,16 +1944,26 @@ export default function NewTimelineView({
                             disabled={startingTask === block.id}
                             className={`${isMobile ? 'px-2 py-0.5 text-xs' : 'px-3 py-1 text-sm'} rounded-full font-bold transition-all hover:scale-105 disabled:opacity-50`}
                             style={{ 
-                              backgroundColor: 'rgba(255,255,255,0.95)',
-                              color: block.color,
+                              backgroundColor: taskVerifications[block.id]?.status === 'started' 
+                                ? 'rgba(34,197,94,0.3)' 
+                                : 'rgba(255,255,255,0.95)',
+                              color: taskVerifications[block.id]?.status === 'started'
+                                ? 'rgba(255,255,255,0.95)'
+                                : block.color,
                             }}
                             title={
-                              taskVerifications[block.id]?.enabled 
+                              taskVerifications[block.id]?.status === 'started'
+                                ? '已启动验证'
+                                : taskVerifications[block.id]?.enabled 
                                 ? '拍照验证启动' 
                                 : '开始任务'
                             }
                           >
-                            {startingTask === block.id ? '⏳' : '*start'}
+                            {startingTask === block.id 
+                              ? '⏳' 
+                              : taskVerifications[block.id]?.status === 'started'
+                              ? '✅已启动'
+                              : '*start'}
                           </button>
                         )}
                         
@@ -2588,4 +2619,6 @@ export default function NewTimelineView({
     </div>
   );
 }
+
+
 
