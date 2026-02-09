@@ -136,6 +136,14 @@ export function calculateGoldReward(
 
 /**
  * 计算任务实际完成金币（基于实际耗时）
+ * 
+ * 规则：
+ * 1. 基础金币 = 实际完成时长（分钟） × 倍率
+ *    - 普通任务：10金币/分钟
+ *    - "站起来"专属任务：15金币/分钟
+ * 2. 超时扣罚：若实际完成时长 > 预计完成时长，直接返回 0 金币
+ * 3. 启动验证超时：扣除 30% 金币（最终金币 = 基础金币 × 0.7）
+ * 
  * @param actualMinutes 实际耗时（分钟）
  * @param estimatedMinutes 预计时长（分钟）
  * @param posture 任务姿势 'standing' | 'sitting'
@@ -153,28 +161,40 @@ export function calculateActualGoldReward(
   penalty: number;
   reason: string;
 } {
+  // 参数校验
+  if (typeof actualMinutes !== 'number' || actualMinutes < 0) {
+    console.error('Invalid actualMinutes:', actualMinutes);
+    actualMinutes = 0;
+  }
+  if (typeof estimatedMinutes !== 'number' || estimatedMinutes <= 0) {
+    console.error('Invalid estimatedMinutes:', estimatedMinutes);
+    estimatedMinutes = 30; // 默认30分钟
+  }
+
+  // 金币倍率：普通任务10，站立任务15
   const ratePerMinute = posture === 'standing' ? 15 : 10;
   
-  // 基础金币：按实际耗时计算
+  // 基础金币：实际完成时长（分钟） × 倍率
   const baseGold = Math.round(actualMinutes * ratePerMinute);
   
   let finalGold = baseGold;
   let penalty = 0;
   let reason = '';
   
-  // 判断是否超时完成
+  // 判断是否超时完成（实际时长 > 预计时长）
   if (actualMinutes > estimatedMinutes) {
-    // 超时完成：0金币
+    // 超时完成：直接返回 0 金币（无奖励）
     finalGold = 0;
     penalty = baseGold;
-    reason = '任务超时完成，无金币奖励';
+    reason = `任务超时完成（实际${actualMinutes}分钟 > 预计${estimatedMinutes}分钟），无金币奖励`;
   } else if (startVerificationTimeout) {
-    // 启动验证超时：扣30%金币
+    // 启动验证超时：扣除 30% 金币
     penalty = Math.round(baseGold * 0.3);
     finalGold = baseGold - penalty;
-    reason = `启动验证超时，扣除30%金币（-${penalty}）`;
+    reason = `启动验证超时，扣除30%金币（-${penalty}金币）`;
   } else {
-    reason = '按时完成，获得全额金币';
+    // 按时完成：获得全额金币
+    reason = `按时完成（实际${actualMinutes}分钟），获得全额金币`;
   }
   
   return {
