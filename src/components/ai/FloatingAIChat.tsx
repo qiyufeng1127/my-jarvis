@@ -1674,7 +1674,7 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
           backgroundColor: isVoiceListening ? '#10B981' : '#8B5CF6',
           color: '#ffffff',
           zIndex: 99999,
-          bottom: '168px', // AI按钮上方
+          bottom: '248px', // 往上移动：原168px + 80px = 248px
           right: '16px',
         }}
         title={isVoiceListening ? "免手模式开启中" : "点击开启免手模式"}
@@ -1695,7 +1695,7 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
             backgroundColor: '#E8C259',
             color: '#ffffff',
             zIndex: 99999,
-            bottom: '88px', // 手机端：导航栏上方
+            bottom: '168px', // 往上移动：原88px + 80px = 168px
             right: '16px',
           }}
           title="AI助手"
