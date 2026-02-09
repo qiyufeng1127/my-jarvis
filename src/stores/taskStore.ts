@@ -16,6 +16,11 @@ interface TaskState {
   deleteTask: (id: string) => Promise<void>;
   selectTask: (task: Task | null) => void;
   
+  // 验证相关
+  startVerificationCountdown: (taskId: string) => void;
+  completeStartVerification: (taskId: string) => void;
+  completeTask: (taskId: string) => Promise<void>;
+  
   // Filters
   getTasksByStatus: (status: TaskStatus) => Task[];
   getTasksByType: (type: TaskType) => Task[];
@@ -142,6 +147,126 @@ export const useTaskStore = create<TaskState>()(
 
   selectTask: (task) => {
     set({ selectedTask: task });
+  },
+
+  // 开始启动验证倒计时（2分钟）
+  startVerificationCountdown: (taskId) => {
+    const task = get().tasks.find(t => t.id === taskId);
+    if (!task) return;
+    
+    const deadline = new Date();
+    deadline.setMinutes(deadline.getMinutes() + 2); // 2分钟后
+    
+    set((state) => ({
+      tasks: state.tasks.map((t) => 
+        t.id === taskId 
+          ? { 
+              ...t, 
+              status: 'verifying_start',
+              startVerificationDeadline: deadline,
+              startVerificationTimeout: false,
+            } 
+          : t
+      ),
+    }));
+    
+    console.log('⏱️ 启动验证倒计时开始:', taskId, '截止时间:', deadline);
+    
+    // 2分钟后检查是否超时
+    setTimeout(() => {
+      const currentTask = get().tasks.find(t => t.id === taskId);
+      if (currentTask && currentTask.status === 'verifying_start') {
+        // 仍在验证中，说明超时了
+        set((state) => ({
+          tasks: state.tasks.map((t) => 
+            t.id === taskId 
+              ? { ...t, startVerificationTimeout: true } 
+              : t
+          ),
+        }));
+        console.log('⚠️ 启动验证超时:', taskId);
+      }
+    }, 2 * 60 * 1000); // 2分钟
+  },
+
+  // 完成启动验证
+  completeStartVerification: (taskId) => {
+    const task = get().tasks.find(t => t.id === taskId);
+    if (!task) return;
+    
+    const now = new Date();
+    const completionDeadline = new Date(now);
+    completionDeadline.setMinutes(completionDeadline.getMinutes() + task.durationMinutes);
+    
+    set((state) => ({
+      tasks: state.tasks.map((t) => 
+        t.id === taskId 
+          ? { 
+              ...t, 
+              status: 'in_progress',
+              actualStart: now,
+              completionDeadline,
+            } 
+          : t
+      ),
+    }));
+    
+    console.log('✅ 启动验证完成:', taskId, '完成截止时间:', completionDeadline);
+  },
+
+  // 完成任务（计算金币）
+  completeTask: async (taskId) => {
+    const task = get().tasks.find(t => t.id === taskId);
+    if (!task) return;
+    
+    const now = new Date();
+    const actualStart = task.actualStart || now;
+    const actualMinutes = Math.round((now.getTime() - actualStart.getTime()) / 60000);
+    
+    // 导入金币计算器
+    const { calculateActualGoldReward, smartDetectTaskPosture } = await import('@/utils/goldCalculator');
+    
+    // 判断任务姿势
+    const posture = smartDetectTaskPosture(task.taskType, task.tags, task.title);
+    
+    // 计算金币
+    const goldResult = calculateActualGoldReward(
+      actualMinutes,
+      task.durationMinutes,
+      posture,
+      task.startVerificationTimeout || false
+    );
+    
+    console.log('💰 任务完成金币计算:', {
+      taskId,
+      actualMinutes,
+      estimatedMinutes: task.durationMinutes,
+      posture,
+      startVerificationTimeout: task.startVerificationTimeout,
+      result: goldResult,
+    });
+    
+    // 更新任务状态
+    set((state) => ({
+      tasks: state.tasks.map((t) => 
+        t.id === taskId 
+          ? { 
+              ...t, 
+              status: 'completed',
+              actualEnd: now,
+              goldEarned: goldResult.finalGold,
+              penaltyGold: goldResult.penalty,
+            } 
+          : t
+      ),
+    }));
+    
+    // 更新金币余额
+    const { useGoldStore } = await import('@/stores/goldStore');
+    const goldStore = useGoldStore.getState();
+    goldStore.addGold(goldResult.finalGold, 'task_completion', `完成任务: ${task.title}`);
+    
+    console.log('✅ 任务完成:', taskId, goldResult.reason);
   },
 
   getTasksByStatus: (status) => {

@@ -43,7 +43,7 @@ class NotificationService {
   }
 
   /**
-   * 发送通知
+   * 发送通知（支持后台）
    */
   async sendNotification(
     title: string,
@@ -54,6 +54,7 @@ class NotificationService {
       tag?: string;
       requireInteraction?: boolean;
       silent?: boolean;
+      vibrate?: number[];
     }
   ): Promise<void> {
     // 检查权限
@@ -66,6 +67,31 @@ class NotificationService {
     }
 
     try {
+      // 优先使用 Service Worker 发送通知（支持后台）
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        try {
+          const registration = await navigator.serviceWorker.ready;
+          await registration.showNotification(title, {
+            icon: options?.icon || '/favicon.ico',
+            badge: options?.badge || '/favicon.ico',
+            body: options?.body,
+            tag: options?.tag,
+            requireInteraction: options?.requireInteraction || false,
+            silent: options?.silent || false,
+            vibrate: options?.vibrate || [200, 100, 200], // 振动模式
+            data: {
+              url: window.location.href,
+            },
+          });
+          
+          console.log('✅ 通过 Service Worker 发送通知');
+          return;
+        } catch (swError) {
+          console.warn('Service Worker 通知失败，使用普通通知:', swError);
+        }
+      }
+
+      // 降级：使用普通通知
       const notification = new Notification(title, {
         icon: options?.icon || '/favicon.ico',
         badge: options?.badge || '/favicon.ico',
@@ -87,13 +113,18 @@ class NotificationService {
           notification.close();
         }, 5000);
       }
+      
+      // 振动反馈
+      if ('vibrate' in navigator && options?.vibrate) {
+        navigator.vibrate(options.vibrate);
+      }
     } catch (error) {
       console.error('发送通知失败:', error);
     }
   }
 
   /**
-   * 播放提示音
+   * 播放提示音（支持后台）
    */
   playSound(type: 'start' | 'end' | 'warning' = 'start') {
     try {
@@ -115,8 +146,24 @@ class NotificationService {
           break;
       }
       
-      audio.volume = 0.5;
-      audio.play().catch(err => console.warn('播放提示音失败:', err));
+      audio.volume = 0.8; // 提高音量确保能听到
+      
+      // 尝试播放，即使在后台
+      const playPromise = audio.play();
+      
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            console.log('✅ 音效播放成功');
+          })
+          .catch(err => {
+            console.warn('播放提示音失败:', err);
+            // 如果自动播放失败，尝试通过用户交互触发
+            document.addEventListener('click', () => {
+              audio.play().catch(e => console.warn('重试播放失败:', e));
+            }, { once: true });
+          });
+      }
     } catch (error) {
       console.error('播放提示音失败:', error);
     }
@@ -134,6 +181,7 @@ class NotificationService {
       body,
       tag: 'task-start',
       requireInteraction: hasVerification,
+      vibrate: [200, 100, 200], // 振动模式
     });
 
     this.playSound('start');
@@ -151,6 +199,7 @@ class NotificationService {
       body,
       tag: 'task-ending',
       requireInteraction: hasVerification,
+      vibrate: [100, 50, 100, 50, 100], // 急促振动
     });
 
     this.playSound('warning');
@@ -168,6 +217,7 @@ class NotificationService {
       body,
       tag: 'task-end',
       requireInteraction: hasVerification,
+      vibrate: [300, 100, 300], // 长振动
     });
 
     this.playSound('end');
