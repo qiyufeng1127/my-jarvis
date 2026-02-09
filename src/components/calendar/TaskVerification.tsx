@@ -252,16 +252,21 @@ export default function TaskVerification({
 
       setIsVerifying(false);
 
+      console.log('✅ 验证结果:', result);
+      
       if (result.success) {
         // 验证成功
+        console.log('✅ 验证成功！');
         setVerificationResult('success');
         setVerificationReason(`验证通过！识别到: ${result.matchedKeywords.join(', ')}`);
 
         setTimeout(() => {
+          console.log('✅ 调用 onSuccess 回调');
           onSuccess();
         }, 2000);
       } else {
         // 验证失败 - 提供更详细的信息
+        console.log('❌ 验证失败！');
         const recognizedText = result.recognizedKeywords.length > 0 
           ? result.recognizedKeywords.slice(0, 8).join(', ') 
           : '无相关内容';
@@ -272,11 +277,11 @@ export default function TaskVerification({
         );
         
         // 扣除金币
+        console.log('💰 扣除20金币');
         deductGold(20, `任务验证失败: ${task.title}`);
         
-        setTimeout(() => {
-          onFail();
-        }, 2000);
+        // 不自动关闭，让用户看到失败原因并选择重新拍照或跳过
+        console.log('❌ 验证失败，等待用户操作');
       }
     } catch (error) {
       console.error('图片验证错误:', error);
@@ -575,14 +580,33 @@ export default function TaskVerification({
               </button>
             )}
 
-            {/* 重新操作按钮 */}
-            {(capturedImage || uploadedImage || uploadedFile) && !verificationResult && !isVerifying && (
-              <button
-                onClick={handleRetake}
-                className="px-8 py-3 bg-neutral-600 text-white rounded-xl hover:bg-neutral-700 transition-all"
-              >
-                重新{task.verificationType === 'photo' ? '拍照' : '上传'}
-              </button>
+            {/* 重新操作按钮 - 验证前或验证失败后都可以重新拍照 */}
+            {(capturedImage || uploadedImage || uploadedFile) && !isVerifying && (
+              <>
+                {verificationResult === 'fail' ? (
+                  <>
+                    <button
+                      onClick={handleRetake}
+                      className="px-8 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all font-semibold"
+                    >
+                      重新{task.verificationType === 'photo' ? '拍照' : '上传'}
+                    </button>
+                    <button
+                      onClick={handleSkip}
+                      className="px-6 py-3 bg-neutral-200 text-neutral-700 rounded-xl hover:bg-neutral-300 transition-all"
+                    >
+                      跳过 (-50💰)
+                    </button>
+                  </>
+                ) : !verificationResult && (
+                  <button
+                    onClick={handleRetake}
+                    className="px-8 py-3 bg-neutral-600 text-white rounded-xl hover:bg-neutral-700 transition-all"
+                  >
+                    重新{task.verificationType === 'photo' ? '拍照' : '上传'}
+                  </button>
+                )}
+              </>
             )}
           </div>
 

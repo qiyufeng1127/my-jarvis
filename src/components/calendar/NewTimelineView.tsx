@@ -33,6 +33,7 @@ import {
   calculateGoldReward
 } from '@/utils/goldCalculator';
 import { baiduImageRecognition } from '@/services/baiduImageRecognition';
+import { notificationService } from '@/services/notificationService';
 
 interface NewTimelineViewProps {
   tasks: Task[];
@@ -1054,6 +1055,11 @@ export default function NewTimelineView({
             scheduledStart: now.toISOString(),
             scheduledEnd: newEndTime.toISOString(),
           });
+          
+          // 发送任务开始通知
+          notificationService.notifyTaskStart(task.title, false).catch(err => 
+            console.error('发送任务开始通知失败:', err)
+          );
             
           console.log('✅ 任务启动验证成功，时间已自动修正');
         } else {
@@ -1137,6 +1143,11 @@ export default function NewTimelineView({
             isCompleted: true,
             scheduledEnd: now.toISOString(),
           });
+          
+          // 发送任务完成通知
+          notificationService.notifyTaskEnd(task.title, false).catch(err => 
+            console.error('发送任务完成通知失败:', err)
+          );
           
           // 记录标签使用时长
           if (task.tags && task.tags.length > 0) {
@@ -1979,7 +1990,7 @@ export default function NewTimelineView({
                           <span className={`${isMobile ? 'text-xs' : 'text-sm'} font-bold`}>{block.goldReward}</span>
                         </div>
 
-                        {!block.isCompleted && block.status !== 'in_progress' && (
+                        {!block.isCompleted && block.status !== 'in_progress' && taskVerifications[block.id]?.status !== 'started' && (
                           <button
                             onClick={() => handleStartTask(block.id)}
                             disabled={startingTask === block.id}
@@ -2006,6 +2017,19 @@ export default function NewTimelineView({
                               ? '✅已启动'
                               : '*start'}
                           </button>
+                        )}
+                        
+                        {/* 宸插惎鍔ㄦ爣璇?*/}
+                        {taskVerifications[block.id]?.status === 'started' && !block.isCompleted && (
+                          <div 
+                            className={` rounded-full font-bold`}
+                            style={{ 
+                              backgroundColor: 'rgba(34,197,94,0.3)',
+                              color: 'rgba(255,255,255,0.95)',
+                            }}
+                          >
+                            鉁呭凡鍚姩
+                          </div>
                         )}
                         
                         {block.status === 'in_progress' && (
@@ -2301,7 +2325,7 @@ export default function NewTimelineView({
 
                     {/* Start按钮和收起按钮 */}
                     <div className="flex items-center justify-end gap-2">
-                      {!block.isCompleted && block.status !== 'in_progress' && (
+                      {!block.isCompleted && block.status !== 'in_progress' && taskVerifications[block.id]?.status !== 'started' && (
                         <button
                           onClick={() => handleStartTask(block.id)}
                           disabled={startingTask === block.id}
@@ -2319,6 +2343,18 @@ export default function NewTimelineView({
                           {startingTask === block.id ? '⏳' : '*start'}
                         </button>
                       )}
+                       
+                       {/* 宸插惎鍔ㄦ爣璇?*/}
+                       {taskVerifications[block.id]?.status === 'started' && !block.isCompleted && (
+                         <div 
+                           className="px-4 py-1.5 rounded-full font-bold text-sm"
+                           style={{ 
+                             backgroundColor: 'rgba(34,197,94,0.3)',
+                             color: 'rgba(255,255,255,0.95)',
+                           }}
+                         >
+                           鉁?宸插惎鍔?                         </div>
+                       )}
                       
                       {block.status === 'in_progress' && (
                         <div 

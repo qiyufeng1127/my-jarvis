@@ -89,12 +89,12 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
       {/* 标题 */}
       <div className="flex items-center gap-3">
         <Bell className="w-6 h-6" style={{ color: accentColor }} />
-        <h2 className="text-2xl font-bold">通知与语音设置</h2>
+        <h2 className="text-2xl font-bold" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>通知与语音设置</h2>
       </div>
 
       {/* 通知类型设置 */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold flex items-center gap-2">
+        <h3 className="text-lg font-semibold flex items-center gap-2" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>
           <Bell className="w-5 h-5" />
           通知类型
         </h3>
@@ -155,7 +155,7 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
       {/* 任务提醒详细设置 */}
       {settings.taskReminder && (
         <div className="space-y-4 pl-4 border-l-2" style={{ borderColor: accentColor }}>
-          <h4 className="font-semibold">任务提醒详细设置</h4>
+          <h4 className="font-semibold" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>任务提醒详细设置</h4>
           
           <SettingToggle
             label="任务开始时提醒"
@@ -177,7 +177,7 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
           
           {settings.taskEndReminder && (
             <div className="pl-6">
-              <label className="block text-sm font-medium mb-2">提前提醒时间</label>
+              <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>提前提醒时间</label>
               <select
                 value={settings.taskEndReminderMinutes}
                 onChange={(e) => updateSetting('taskEndReminderMinutes', Number(e.target.value))}
@@ -185,6 +185,7 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
                 style={{
                   backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'white',
                   borderColor: accentColor,
+                  color: isDark ? '#ffffff' : '#1f2937',
                 }}
               >
                 <option value={1}>提前 1 分钟</option>
@@ -216,7 +217,7 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
 
       {/* 语音设置 */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold flex items-center gap-2">
+        <h3 className="text-lg font-semibold flex items-center gap-2" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>
           <Volume2 className="w-5 h-5" />
           语音设置
         </h3>
@@ -234,7 +235,7 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
           <div className="space-y-4 pl-4 border-l-2" style={{ borderColor: accentColor }}>
             {/* 语速 */}
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>
                 语速：{settings.voiceRate.toFixed(1)}x
               </label>
               <input
@@ -247,7 +248,7 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
                 className="w-full"
                 style={{ accentColor }}
               />
-              <div className="flex justify-between text-xs opacity-60 mt-1">
+              <div className="flex justify-between text-xs opacity-60 mt-1" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>
                 <span>慢速 0.5x</span>
                 <span>正常 1.0x</span>
                 <span>快速 2.0x</span>
@@ -256,7 +257,7 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
             
             {/* 音调 */}
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>
                 音调：{settings.voicePitch.toFixed(1)}
               </label>
               <input
@@ -269,7 +270,7 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
                 className="w-full"
                 style={{ accentColor }}
               />
-              <div className="flex justify-between text-xs opacity-60 mt-1">
+              <div className="flex justify-between text-xs opacity-60 mt-1" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>
                 <span>低音 0.5</span>
                 <span>正常 1.0</span>
                 <span>高音 2.0</span>
@@ -278,7 +279,7 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
             
             {/* 音量 */}
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>
                 音量：{Math.round(settings.voiceVolume * 100)}%
               </label>
               <input
@@ -291,7 +292,7 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
                 className="w-full"
                 style={{ accentColor }}
               />
-              <div className="flex justify-between text-xs opacity-60 mt-1">
+              <div className="flex justify-between text-xs opacity-60 mt-1" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>
                 <span>静音 0%</span>
                 <span>正常 50%</span>
                 <span>最大 100%</span>
@@ -317,7 +318,7 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
 
       {/* 浏览器通知 */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">浏览器通知</h3>
+        <h3 className="text-lg font-semibold" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>浏览器通知</h3>
         
         <SettingToggle
           label="启用浏览器通知"
@@ -335,13 +336,14 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
             style={{
               backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
               border: `1px solid ${accentColor}`,
+              color: isDark ? '#ffffff' : '#1f2937',
             }}
           >
             🔔 请求通知权限
           </button>
         )}
         
-        <div className="text-sm opacity-70 bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+        <div className="text-sm opacity-70 bg-blue-500/10 border border-blue-500/30 rounded-lg p-3" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>
           <p className="font-semibold mb-1">💡 提示：</p>
           <ul className="list-disc list-inside space-y-1">
             <li>语音播报即使在后台也能听到</li>
@@ -372,8 +374,8 @@ function SettingToggle({ icon, label, description, checked, onChange, isDark, ac
       {icon && <div className="mt-0.5" style={{ color: accentColor }}>{icon}</div>}
       
       <div className="flex-1">
-        <div className="font-medium">{label}</div>
-        {description && <div className="text-sm opacity-60 mt-0.5">{description}</div>}
+        <div className="font-medium" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>{label}</div>
+        {description && <div className="text-sm opacity-60 mt-0.5" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>{description}</div>}
       </div>
       
       <button
