@@ -85,7 +85,11 @@ export default function Dashboard() {
 
       {/* AI 对话框 - 使用 FloatingAIChat - 只在时间轴界面显示 */}
       {currentModule === 'timeline' && (
-        <FloatingAIChat isFullScreen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} />
+        <FloatingAIChat 
+          isFullScreen={isAIChatOpen} 
+          onClose={() => setIsAIChatOpen(false)} 
+          currentModule={currentModule}
+        />
       )}
 
       {/* AI 智能输入框 - 临时禁用 */}

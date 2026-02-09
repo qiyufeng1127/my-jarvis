@@ -54,6 +54,7 @@ import {
 interface FloatingAIChatProps {
   isFullScreen?: boolean;
   onClose?: () => void;
+  currentModule?: string; // 新增：当前模块
 }
 
 interface DecomposedTask {
@@ -106,7 +107,7 @@ interface Message {
   isSelected?: boolean;
 }
 
-export default function FloatingAIChat({ isFullScreen = false, onClose }: FloatingAIChatProps = {}) {
+export default function FloatingAIChat({ isFullScreen = false, onClose, currentModule = 'timeline' }: FloatingAIChatProps = {}) {
   const { addMemory, addJournal } = useMemoryStore();
   const { isConfigured } = useAIStore();
   const { createTask, updateTask, deleteTask, tasks, getTodayTasks } = useTaskStore();
@@ -1659,35 +1660,37 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
 
   return (
     <>
-      {/* 语音控制按钮 - 始终显示，在AI按钮上方，根据监听状态改变颜色 */}
-      <button
-        onClick={() => {
-          setIsVoiceControlOpen(!isVoiceControlOpen);
-          if (!isVoiceControlOpen) {
-            setIsVoiceListening(true);
-          } else {
-            setIsVoiceListening(false);
-          }
-        }}
-        className="fixed w-16 h-16 rounded-full shadow-2xl hover:scale-110 transition-all flex items-center justify-center"
-        style={{ 
-          backgroundColor: isVoiceListening ? '#10B981' : '#8B5CF6',
-          color: '#ffffff',
-          zIndex: 99999,
-          bottom: '88px', // 移动到红色圈位置：在AI按钮(168px)和底部导航栏之间
-          right: '16px',
-        }}
-        title={isVoiceListening ? "免手模式开启中" : "点击开启免手模式"}
-      >
-        {isVoiceListening ? (
-          <Volume2 className="w-8 h-8" />
-        ) : (
-          <VolumeX className="w-8 h-8" />
-        )}
-      </button>
+      {/* 语音控制按钮 - 只在时间轴显示，在AI按钮上方 */}
+      {currentModule === 'timeline' && (
+        <button
+          onClick={() => {
+            setIsVoiceControlOpen(!isVoiceControlOpen);
+            if (!isVoiceControlOpen) {
+              setIsVoiceListening(true);
+            } else {
+              setIsVoiceListening(false);
+            }
+          }}
+          className="fixed w-16 h-16 rounded-full shadow-2xl hover:scale-110 transition-all flex items-center justify-center"
+          style={{ 
+            backgroundColor: isVoiceListening ? '#10B981' : '#8B5CF6',
+            color: '#ffffff',
+            zIndex: 99999,
+            bottom: '168px', // 在AI按钮上方
+            right: '16px',
+          }}
+          title={isVoiceListening ? "免手模式开启中" : "点击开启免手模式"}
+        >
+          {isVoiceListening ? (
+            <Volume2 className="w-8 h-8" />
+          ) : (
+            <VolumeX className="w-8 h-8" />
+          )}
+        </button>
+      )}
 
-      {/* 浮动按钮 - 只在未展开时显示，黄色底色+白色图标，手机端位置上移避免遮挡导航栏 */}
-      {!isOpen && (
+      {/* AI助手浮动按钮 - 只在时间轴显示，黄色底色+白色图标 */}
+      {!isOpen && currentModule === 'timeline' && (
         <button
           onClick={() => setIsOpen(true)}
           className="fixed w-16 h-16 rounded-full shadow-2xl hover:scale-110 transition-all flex items-center justify-center"
@@ -1695,7 +1698,7 @@ export default function FloatingAIChat({ isFullScreen = false, onClose }: Floati
             backgroundColor: '#E8C259',
             color: '#ffffff',
             zIndex: 99999,
-            bottom: '168px', // 往上移动：原88px + 80px = 168px
+            bottom: '88px', // 在语音按钮下方
             right: '16px',
           }}
           title="AI助手"

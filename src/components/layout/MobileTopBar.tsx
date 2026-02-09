@@ -75,12 +75,12 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
       animate="animate"
     >
       <div className="mobile-top-bar-card__container">
-        {/* 左侧内容区 */}
-        <div className="mobile-top-bar-card__left">
-          {/* 标题和等级 */}
+        {/* 左侧内容区 - 压缩宽度 */}
+        <div className="mobile-top-bar-card__left" style={{ flex: '0 0 55%', paddingRight: '8px' }}>
+          {/* 标题和等级 - 缩小字体 */}
           <div className="mobile-top-bar-card__header">
-            <div className="flex items-center gap-2">
-              <h2 className="mobile-top-bar-card__title" style={{ fontSize: '1.5rem', fontWeight: '800' }}>
+            <div className="flex items-center gap-1">
+              <h2 className="mobile-top-bar-card__title" style={{ fontSize: '1.25rem', fontWeight: '800' }}>
                 {levelName}
               </h2>
               {onEditLevelName && (
@@ -89,24 +89,24 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
                   className="p-1 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors"
                   title="编辑等级名称"
                 >
-                  <Edit2 className="w-4 h-4 text-gray-600" />
+                  <Edit2 className="w-3 h-3 text-gray-600" />
                 </button>
               )}
             </div>
-            <div className="mobile-top-bar-card__level-badge">
-              <span className="mobile-top-bar-card__level-icon">👑</span>
-              <span className="mobile-top-bar-card__level-text">Lv.{level}</span>
+            <div className="mobile-top-bar-card__level-badge" style={{ padding: '2px 8px' }}>
+              <span className="mobile-top-bar-card__level-icon" style={{ fontSize: '0.875rem' }}>👑</span>
+              <span className="mobile-top-bar-card__level-text" style={{ fontSize: '0.75rem' }}>Lv.{level}</span>
             </div>
           </div>
 
-          {/* 副标题 */}
-          <p className="mobile-top-bar-card__subtitle">
+          {/* 副标题 - 缩小字体 */}
+          <p className="mobile-top-bar-card__subtitle" style={{ fontSize: '0.75rem' }}>
             {levelName} · 距离下一级还需 {nextLevelExp} 经验
           </p>
 
-          {/* 经验进度条 */}
+          {/* 经验进度条 - 缩小高度 */}
           <div className="mobile-top-bar-card__progress">
-            <div className="mobile-top-bar-card__progress-bar">
+            <div className="mobile-top-bar-card__progress-bar" style={{ height: '6px' }}>
               <motion.div
                 className="mobile-top-bar-card__progress-fill"
                 initial={{ width: 0 }}
@@ -114,7 +114,7 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
                 transition={{ duration: 0.5, ease: 'easeOut' }}
               />
             </div>
-            <span className="mobile-top-bar-card__progress-text">
+            <span className="mobile-top-bar-card__progress-text" style={{ fontSize: '0.75rem' }}>
               {exp}/{maxExp}
             </span>
           </div>
@@ -178,10 +178,11 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
           </div>
         </div>
 
-        {/* 右侧头像上传区 */}
-        <div className="mobile-top-bar-card__right">
+        {/* 右侧头像上传区 - 放大尺寸 */}
+        <div className="mobile-top-bar-card__right" style={{ flex: '0 0 45%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <div
             className={`mobile-top-bar-card__avatar ${isDragging ? 'mobile-top-bar-card__avatar--dragging' : ''}`}
+            style={{ width: '140px', height: '140px', borderRadius: '12px' }}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
@@ -192,13 +193,18 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
                 src={userAvatar}
                 alt="用户头像"
                 className="mobile-top-bar-card__avatar-img"
+                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }}
               />
             ) : (
               <div className="mobile-top-bar-card__avatar-placeholder">
                 <Upload className="mobile-top-bar-card__upload-icon" />
-                <span className="mobile-top-bar-card__upload-text">上传照片</span>
+                <span className="mobile-top-bar-card__upload-text" style={{ fontSize: '0.75rem' }}>上传照片</span>
               </div>
             )}
+          </div>
+          {/* 0/200 显示在照片下方 */}
+          <div style={{ marginTop: '8px', fontSize: '0.875rem', fontWeight: '600', color: '#6b7280' }}>
+            0/200
           </div>
           <input
             ref={fileInputRef}
