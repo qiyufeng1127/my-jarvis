@@ -76,11 +76,11 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
     >
       <div className="mobile-top-bar-card__container">
         {/* 左侧内容区 - 压缩宽度 */}
-        <div className="mobile-top-bar-card__left" style={{ flex: '0 0 55%', paddingRight: '8px' }}>
-          {/* 标题和等级 - 缩小字体 */}
+        <div className="mobile-top-bar-card__left" style={{ flex: '0 0 50%', paddingRight: '8px' }}>
+          {/* 标题和等级 - 放大标题 */}
           <div className="mobile-top-bar-card__header">
             <div className="flex items-center gap-1">
-              <h2 className="mobile-top-bar-card__title" style={{ fontSize: '1.25rem', fontWeight: '800' }}>
+              <h2 className="mobile-top-bar-card__title" style={{ fontSize: '1.75rem', fontWeight: '800' }}>
                 {levelName}
               </h2>
               {onEditLevelName && (
@@ -178,11 +178,11 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
           </div>
         </div>
 
-        {/* 右侧头像上传区 - 放大尺寸 */}
-        <div className="mobile-top-bar-card__right" style={{ flex: '0 0 45%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        {/* 右侧头像上传区 - 放大尺寸，删除0/200，不留空白 */}
+        <div className="mobile-top-bar-card__right" style={{ flex: '0 0 50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div
             className={`mobile-top-bar-card__avatar ${isDragging ? 'mobile-top-bar-card__avatar--dragging' : ''}`}
-            style={{ width: '140px', height: '140px', borderRadius: '12px' }}
+            style={{ width: '180px', height: '180px', borderRadius: '12px' }}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
@@ -201,10 +201,6 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
                 <span className="mobile-top-bar-card__upload-text" style={{ fontSize: '0.75rem' }}>上传照片</span>
               </div>
             )}
-          </div>
-          {/* 0/200 显示在照片下方 */}
-          <div style={{ marginTop: '8px', fontSize: '0.875rem', fontWeight: '600', color: '#6b7280' }}>
-            0/200
           </div>
           <input
             ref={fileInputRef}
