@@ -36,6 +36,7 @@ import { baiduImageRecognition } from '@/services/baiduImageRecognition';
 import { notificationService } from '@/services/notificationService';
 import TaskVerificationExtension from './TaskVerificationExtension';
 import eventBus from '@/utils/eventBus';
+import { useTaskVerificationManager } from '@/hooks/useTaskVerificationManager';
 
 interface NewTimelineViewProps {
   tasks: Task[];
@@ -62,6 +63,9 @@ export default function NewTimelineView({
   borderColor,
   isDark,
 }: NewTimelineViewProps) {
+  // 🔧 引入验证管理器
+  const { manualStartTask, manualCompleteTask } = useTaskVerificationManager();
+  
   // 检测是否为移动设备
   const [isMobile, setIsMobile] = useState(false);
   
@@ -856,88 +860,9 @@ export default function NewTimelineView({
     console.log(`任务 ${taskId} 完成超时，将无金币奖励`);
   };
 
+  // 🔧 修改：使用验证管理器处理启动任务（支持验证开关）
   const handleStartTask = async (taskId: string) => {
-    const verification = taskVerifications[taskId];
-    const task = allTasks.find(t => t.id === taskId);
-    
-    if (!task) return;
-    
-    if (verification && verification.enabled) {
-      // 需要验证 - 拍照验证启动
-      setStartingTask(taskId);
-      
-      // 创建一个带关键词提示的相机界面
-      const modal = document.createElement('div');
-      modal.className = 'fixed inset-0 z-50 bg-black/90 flex flex-col';
-      modal.innerHTML = `
-        <div class="flex-1 flex flex-col">
-          <!-- 关键词提示区域 -->
-          <div class="bg-gradient-to-b from-black/80 to-transparent p-4">
-            <div class="flex flex-wrap gap-2 justify-center mb-2">
-              ${verification.startKeywords.map(keyword => `
-                <div class="flex items-center gap-1 px-3 py-2 bg-white/20 backdrop-blur-md rounded-full border border-white/30">
-                  <span class="text-2xl">📸</span>
-                  <span class="text-white font-semibold text-sm">${keyword}</span>
-                </div>
-              `).join('')}
-            </div>
-            <p class="text-white/90 text-center text-sm">📷 请拍摄或上传包含以上内容的照片</p>
-          </div>
-          
-          <!-- 按钮区域 -->
-          <div class="flex-1 flex items-center justify-center">
-            <div class="text-center">
-              <button id="camera-btn" class="mb-4 px-8 py-4 bg-blue-600 text-white rounded-2xl text-lg font-bold hover:bg-blue-700 transition-all shadow-lg">
-                📷 拍照验证
-              </button>
-              <br>
-              <button id="upload-btn" class="px-8 py-4 bg-green-600 text-white rounded-2xl text-lg font-bold hover:bg-green-700 transition-all shadow-lg">
-                🖼️ 相册上传
-              </button>
-              <br>
-              <button id="cancel-btn" class="mt-4 px-6 py-2 bg-gray-600 text-white rounded-xl hover:bg-gray-700 transition-all">
-                取消
-              </button>
-            </div>
-          </div>
-        </div>
-      `;
-      
-      document.body.appendChild(modal);
-      
-      // 处理拍照
-      const cameraBtn = modal.querySelector('#camera-btn');
-      cameraBtn?.addEventListener('click', () => {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'image/*';
-        input.capture = 'environment' as any;
-        input.onchange = (e) => handleVerificationImage(e, taskId, 'start');
-        input.click();
-        document.body.removeChild(modal);
-      });
-      
-      // 处理上传
-      const uploadBtn = modal.querySelector('#upload-btn');
-      uploadBtn?.addEventListener('click', () => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/*';
-        input.onchange = (e) => handleVerificationImage(e, taskId, 'start');
-        input.click();
-        document.body.removeChild(modal);
-      });
-      
-      // 处理取消
-      const cancelBtn = modal.querySelector('#cancel-btn');
-      cancelBtn?.addEventListener('click', () => {
-        document.body.removeChild(modal);
-        setStartingTask(null);
-      });
-    } else {
-      // 无需验证，直接启动
-      onTaskUpdate(taskId, { status: 'in_progress' });
-    }
+    await manualStartTask(taskId);
   };
   
   // 处理验证图片
@@ -1234,136 +1159,9 @@ export default function NewTimelineView({
   };
   
   // 完成任务（带验证）
+  // 🔧 修改：使用验证管理器处理完成任务（支持验证开关）
   const handleCompleteTask = async (taskId: string) => {
-    const verification = taskVerifications[taskId];
-    const task = allTasks.find(t => t.id === taskId);
-    
-    if (!task) return;
-    
-    // 如果任务已完成，点击取消完成
-    if (task.status === 'completed') {
-      if (confirm('确定要取消完成这个任务吗？')) {
-        onTaskUpdate(taskId, { status: 'in_progress' });
-        
-        // 更新验证状态
-        if (verification && verification.enabled) {
-          setTaskVerifications(prev => ({
-            ...prev,
-            [taskId]: {
-              ...prev[taskId],
-              status: 'started',
-              actualCompletionTime: null,
-            },
-          }));
-        }
-      }
-      return;
-    }
-    
-    // 如果启用了验证但还没有开始任务，不能完成
-    if (verification && verification.enabled && verification.status !== 'started') {
-      alert('⚠️ 请先完成启动验证才能标记完成！');
-      return;
-    }
-    
-    if (verification && verification.enabled && verification.status === 'started') {
-      // 需要完成验证 - 拍照验证完成
-      setCompletingTask(taskId);
-      
-      // 创建一个带关键词提示的相机界面
-      const modal = document.createElement('div');
-      modal.className = 'fixed inset-0 z-50 bg-black/90 flex flex-col';
-      modal.innerHTML = `
-        <div class="flex-1 flex flex-col">
-          <!-- 关键词提示区域 -->
-          <div class="bg-gradient-to-b from-black/80 to-transparent p-4">
-            <div class="flex flex-wrap gap-2 justify-center mb-2">
-              ${verification.completionKeywords.map(keyword => `
-                <div class="flex items-center gap-1 px-3 py-2 bg-white/20 backdrop-blur-md rounded-full border border-white/30">
-                  <span class="text-2xl">✅</span>
-                  <span class="text-white font-semibold text-sm">${keyword}</span>
-                </div>
-              `).join('')}
-            </div>
-            <p class="text-white/90 text-center text-sm">✅ 请拍摄或上传包含以上内容的照片</p>
-          </div>
-          
-          <!-- 按钮区域 -->
-          <div class="flex-1 flex items-center justify-center">
-            <div class="text-center">
-              <button id="camera-btn-complete" class="mb-4 px-8 py-4 bg-green-600 text-white rounded-2xl text-lg font-bold hover:bg-green-700 transition-all shadow-lg">
-                📷 拍照验证
-              </button>
-              <br>
-              <button id="upload-btn-complete" class="px-8 py-4 bg-blue-600 text-white rounded-2xl text-lg font-bold hover:bg-blue-700 transition-all shadow-lg">
-                🖼️ 相册上传
-              </button>
-              <br>
-              <button id="cancel-btn-complete" class="mt-4 px-6 py-2 bg-gray-600 text-white rounded-xl hover:bg-gray-700 transition-all">
-                取消
-              </button>
-            </div>
-          </div>
-        </div>
-      `;
-      
-      document.body.appendChild(modal);
-      
-      // 处理拍照
-      const cameraBtn = modal.querySelector('#camera-btn-complete');
-      cameraBtn?.addEventListener('click', () => {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'image/*';
-      input.capture = 'environment' as any;
-        input.onchange = (e) => handleVerificationImage(e, taskId, 'complete');
-        input.click();
-        document.body.removeChild(modal);
-      });
-      
-      // 处理上传
-      const uploadBtn = modal.querySelector('#upload-btn-complete');
-      uploadBtn?.addEventListener('click', () => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/*';
-        input.onchange = (e) => handleVerificationImage(e, taskId, 'complete');
-        input.click();
-        document.body.removeChild(modal);
-      });
-      
-      // 处理取消
-      const cancelBtn = modal.querySelector('#cancel-btn-complete');
-      cancelBtn?.addEventListener('click', () => {
-        document.body.removeChild(modal);
-        setCompletingTask(null);
-      });
-    } else {
-      // 无需验证，直接完成
-      const goldReward = task.goldReward || Math.floor((task.durationMinutes || 60) * 0.8);
-      
-      // 添加金币
-      addGold(goldReward, `完成任务：${task.title}`, taskId, task.title);
-      
-      // 显示庆祝效果
-      setCelebrationGold(goldReward);
-      setShowCelebration(true);
-            
-      // 播放音效
-      SoundEffects.playSuccessSound();
-      SoundEffects.playCoinSound();
-            
-      onTaskUpdate(taskId, { status: 'completed' });
-      
-      // 记录标签使用时长
-      if (task.tags && task.tags.length > 0) {
-        const duration = task.durationMinutes || 60;
-        task.tags.forEach(tagName => {
-          recordTagUsage(tagName, taskId, task.title, duration);
-          console.log(`📊 记录标签使用: ${tagName} - ${duration}分钟`);
-        });
-      }
-    }
+    await manualCompleteTask(taskId);
   };
 
   const formatTime = (date: Date) => {
