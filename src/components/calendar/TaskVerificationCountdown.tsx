@@ -32,6 +32,30 @@ export default function TaskVerificationCountdown({
   const [taskTimeLeft, setTaskTimeLeft] = useState(0); // 任务剩余时间（秒）
   const [uploadedPhoto, setUploadedPhoto] = useState<string | null>(null);
 
+  // 组件挂载时立即检查并触发
+  useEffect(() => {
+    console.log('🔍 [验证倒计时] 组件已挂载:', taskTitle);
+    console.log('📅 [验证倒计时] 预设时间:', scheduledStart);
+    console.log('🕐 [验证倒计时] 当前时间:', new Date());
+    
+    const now = new Date();
+    const startTime = new Date(scheduledStart);
+    
+    console.log('⏰ [验证倒计时] 时间比较:', {
+      now: now.toLocaleString(),
+      startTime: startTime.toLocaleString(),
+      isTimeReached: now >= startTime
+    });
+    
+    // 立即检查时间，如果已到达则直接触发
+    if (now >= startTime) {
+      console.log('✅ [验证倒计时] 时间已到达，立即触发启动验证!');
+      setStatus('start_verification');
+    } else {
+      console.log('⏳ [验证倒计时] 时间未到，等待中...');
+    }
+  }, []);
+
   // 检查是否到达预设时间
   useEffect(() => {
     const checkTime = () => {
@@ -40,14 +64,13 @@ export default function TaskVerificationCountdown({
       
       // 仅当到达预设时间且状态为 waiting 时，触发启动验证
       if (now >= startTime && status === 'waiting') {
-        console.log('⏰ [验证倒计时] 到达预设时间，触发启动验证:', taskTitle);
+        console.log('⏰ [验证倒计时] 定时检查：到达预设时间，触发启动验证:', taskTitle);
         setStatus('start_verification');
       }
     };
 
     // 每秒检查一次
     const interval = setInterval(checkTime, 1000);
-    checkTime(); // 立即检查一次
 
     return () => clearInterval(interval);
   }, [scheduledStart, status, taskTitle]);
@@ -134,10 +157,13 @@ export default function TaskVerificationCountdown({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // 如果还没到时间，不显示任何内容
+  // 调试：显示等待状态
   if (status === 'waiting') {
+    console.log('⏳ [验证倒计时] 当前状态: waiting，组件已渲染但不显示界面');
     return null;
   }
+  
+  console.log('🎨 [验证倒计时] 渲染验证界面，当前状态:', status);
 
   return (
     <div
