@@ -218,7 +218,8 @@ export default function TaskVerificationCountdown({
 
   // 处理启动按钮点击
   const handleStart = () => {
-    if (!uploadedPhoto) {
+    // 有验证：需要上传照片
+    if (hasVerification && !uploadedPhoto) {
       alert('⚠️ 请先拍摄或上传照片！');
       return;
     }
@@ -265,7 +266,7 @@ export default function TaskVerificationCountdown({
 
   return (
     <div
-      className="absolute left-12 right-0 top-0 bottom-0 z-40 flex flex-col items-center justify-center rounded-r-lg shadow-lg p-2"
+      className="absolute left-[60px] right-0 top-0 bottom-0 z-40 flex flex-col items-center justify-center rounded-r-lg p-2"
       style={{ 
         backgroundColor: cardColor,
         minHeight: 'auto'
@@ -283,13 +284,23 @@ export default function TaskVerificationCountdown({
             {Math.floor(countdown / 60)}:{(countdown % 60).toString().padStart(2, '0')}
           </div>
           
-          {/* 有验证：显示照片提示和拍照/上传按钮 */}
+          {/* 有验证：显示关键词和拍照/上传按钮 */}
           {hasVerification && (
             <>
-              {/* 照片提示 */}
-              <p className="text-gray-700 text-xs mb-1">
-                📸 {startPhotoHint}
-              </p>
+              {/* 显示AI生成的关键词 */}
+              <div className="mb-2">
+                <p className="text-gray-700 text-xs mb-1">📸 请拍摄包含以下内容：</p>
+                <div className="flex flex-wrap gap-1 justify-center">
+                  {startKeywords.map((keyword, index) => (
+                    <span
+                      key={index}
+                      className="px-2 py-0.5 bg-white bg-opacity-80 text-gray-800 rounded-full text-xs font-semibold shadow-sm"
+                    >
+                      {keyword}
+                    </span>
+                  ))}
+                </div>
+              </div>
               
               {/* 照片预览 */}
               {uploadedPhoto && (
@@ -297,7 +308,7 @@ export default function TaskVerificationCountdown({
                   <img 
                     src={uploadedPhoto} 
                     alt="预览" 
-                    className="w-12 h-12 object-cover rounded-lg mx-auto border-2 border-white"
+                    className="w-16 h-16 object-cover rounded-lg mx-auto border-2 border-white shadow-md"
                   />
                 </div>
               )}
@@ -322,13 +333,13 @@ export default function TaskVerificationCountdown({
             </>
           )}
           
-          {/* 启动按钮（有验证需要上传照片，无验证直接启动） */}
+          {/* 启动按钮 */}
           <button
             onClick={handleStart}
             disabled={hasVerification && !uploadedPhoto}
-            className="px-3 py-1.5 bg-green-500 text-white rounded-full text-xs font-bold shadow hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 bg-green-500 text-white rounded-full text-xs font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            🚀 启动任务
+            {hasVerification ? '🚀 启动验证' : '🚀 启动任务'}
           </button>
           
           {/* 惩罚提示 */}
@@ -360,13 +371,23 @@ export default function TaskVerificationCountdown({
             任务剩余: {formatTime(taskTimeLeft)}
           </div>
           
-          {/* 有验证：显示照片提示和拍照/上传按钮 */}
+          {/* 有验证：显示关键词和拍照/上传按钮 */}
           {hasVerification && (
             <>
-              {/* 照片提示 */}
-              <p className="text-gray-700 text-xs mb-1">
-                📸 {endPhotoHint}
-              </p>
+              {/* 显示AI生成的关键词 */}
+              <div className="mb-2">
+                <p className="text-gray-700 text-xs mb-1">📸 请拍摄包含以下内容：</p>
+                <div className="flex flex-wrap gap-1 justify-center">
+                  {completeKeywords.map((keyword, index) => (
+                    <span
+                      key={index}
+                      className="px-2 py-0.5 bg-white bg-opacity-80 text-gray-800 rounded-full text-xs font-semibold shadow-sm"
+                    >
+                      {keyword}
+                    </span>
+                  ))}
+                </div>
+              </div>
               
               {/* 照片预览 */}
               {uploadedPhoto && (
@@ -374,7 +395,7 @@ export default function TaskVerificationCountdown({
                   <img 
                     src={uploadedPhoto} 
                     alt="预览" 
-                    className="w-12 h-12 object-cover rounded-lg mx-auto border-2 border-white"
+                    className="w-16 h-16 object-cover rounded-lg mx-auto border-2 border-white shadow-md"
                   />
                 </div>
               )}
@@ -399,13 +420,13 @@ export default function TaskVerificationCountdown({
             </>
           )}
           
-          {/* 完成按钮（有验证需要上传照片，无验证直接完成） */}
+          {/* 完成按钮 */}
           <button
             onClick={handleComplete}
             disabled={hasVerification && !uploadedPhoto}
-            className="px-3 py-1.5 bg-green-500 text-white rounded-full text-xs font-bold shadow hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 bg-green-500 text-white rounded-full text-xs font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            ✅ 完成任务
+            {hasVerification ? '✅ 完成验证' : '✅ 完成任务'}
           </button>
           
           {/* 惩罚提示 */}
