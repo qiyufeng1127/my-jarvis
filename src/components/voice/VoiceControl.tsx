@@ -49,7 +49,9 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     
     if (!SpeechRecognition) {
-      speak('您的浏览器不支持语音识别功能，请使用Chrome浏览器');
+      const msg = '您的浏览器不支持语音识别功能，请使用Chrome浏览器';
+      setResponse(msg);
+      speak(msg);
       return;
     }
 
@@ -60,6 +62,7 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
     recognition.maxAlternatives = 1;
 
     recognition.onresult = (event: any) => {
+      console.log('🎤 收到语音识别结果');
       let finalTranscript = '';
       let interimTranscript = '';
 
@@ -80,12 +83,13 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
         handleVoiceCommand(finalTranscript);
       } else {
         // 显示临时识别结果
+        console.log('🎤 临时识别:', interimTranscript);
         setTranscript(interimTranscript);
       }
     };
 
     recognition.onerror = (event: any) => {
-      console.error('语音识别错误:', event.error);
+      console.error('❌ 语音识别错误:', event.error);
       
       // 给用户明确的错误反馈
       let errorMessage = '';
@@ -99,7 +103,7 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
           return;
         
         case 'audio-capture':
-          errorMessage = '无法访问麦克风，请检查麦克风权限';
+          errorMessage = '无法访问麦克风，请检查麦克风权限。点击浏览器地址栏的麦克风图标允许访问';
           setResponse(errorMessage);
           speak(errorMessage);
           setIsListening(false);
@@ -120,6 +124,7 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
         
         case 'aborted':
           // 被主动中止，不提示
+          console.log('语音识别被中止');
           return;
         
         default:
@@ -135,8 +140,9 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
         setTimeout(() => {
           try {
             recognition.start();
+            console.log('✅ 语音识别已重启');
           } catch (e) {
-            console.log('重启识别失败:', e);
+            console.log('❌ 重启识别失败:', e);
             setIsListening(false);
             const msg = '语音识别重启失败，请手动重新开启';
             setResponse(msg);
@@ -147,22 +153,24 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
     };
 
     recognition.onend = () => {
-      console.log('语音识别结束');
+      console.log('⚠️ 语音识别结束');
       // 如果还在监听状态，自动重启
       if (isListening) {
-        console.log('自动重启语音识别...');
+        console.log('🔄 自动重启语音识别...');
         setTimeout(() => {
           try {
             recognition.start();
+            console.log('✅ 语音识别已重启');
           } catch (e) {
-            console.log('重启识别失败:', e);
+            console.log('❌ 重启识别失败:', e);
           }
         }, 500);
       }
     };
 
     recognition.onstart = () => {
-      console.log('语音识别已启动');
+      console.log('✅ 语音识别已启动，麦克风正在监听');
+      setResponse('麦克风已启动，请说话...');
     };
 
     recognitionRef.current = recognition;
@@ -171,6 +179,7 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
       if (recognitionRef.current) {
         try {
           recognitionRef.current.abort();
+          console.log('语音识别已停止');
         } catch (e) {
           console.log('停止识别失败:', e);
         }
@@ -180,7 +189,7 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
         window.speechSynthesis.cancel();
       }
     };
-  }, [isOpen, isListening]);
+  }, [isOpen]); // 移除 isListening 依赖，避免重复初始化
 
   // 开始/停止监听
   const toggleListening = () => {
