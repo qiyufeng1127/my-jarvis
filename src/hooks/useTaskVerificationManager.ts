@@ -67,6 +67,17 @@ export function useTaskVerificationManager() {
   const handleStartVerification = async (task: Task) => {
     console.log('🚀 [验证管理器] 触发启动验证:', task.title);
 
+    // 🔧 开关判断：如果未开启验证，直接记录开始时间
+    if (!task.verificationStart) {
+      console.log('⚡ [验证管理器] 未开启验证开关，直接记录开始时间');
+      await updateTask(task.id, {
+        status: 'in_progress',
+        actualStart: new Date(),
+      });
+      return;
+    }
+
+    // 开启了验证，执行验证流程
     // 更新任务状态为"验证开始中"
     await updateTask(task.id, {
       status: 'verifying_start',
@@ -145,6 +156,17 @@ export function useTaskVerificationManager() {
   const handleCompleteVerification = async (task: Task) => {
     console.log('🏁 [验证管理器] 触发完成验证:', task.title);
 
+    // 🔧 开关判断：如果未开启验证，直接记录完成时间
+    if (!task.verificationComplete) {
+      console.log('⚡ [验证管理器] 未开启验证开关，直接记录完成时间');
+      await updateTask(task.id, {
+        status: 'completed',
+        actualEnd: new Date(),
+      });
+      return;
+    }
+
+    // 开启了验证，执行验证流程
     // 更新任务状态为"验证完成中"
     await updateTask(task.id, {
       status: 'verifying_complete',
@@ -293,9 +315,29 @@ export function useTaskVerificationManager() {
     };
   }, [tasks]);
 
+  // 🔧 新增：手动开始任务（供按钮调用）
+  const manualStartTask = async (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    
+    console.log('👆 [验证管理器] 手动开始任务:', task.title);
+    await handleStartVerification(task);
+  };
+
+  // 🔧 新增：手动完成任务（供按钮调用）
+  const manualCompleteTask = async (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    
+    console.log('👆 [验证管理器] 手动完成任务:', task.title);
+    await handleCompleteVerification(task);
+  };
+
   return {
     handleStartVerification,
     handleCompleteVerification,
+    manualStartTask,
+    manualCompleteTask,
     calculateBaseGold,
     calculateStartGold,
     calculateCompleteGold,

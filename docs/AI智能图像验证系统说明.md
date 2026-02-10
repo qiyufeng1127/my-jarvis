@@ -274,3 +274,5 @@ hasCommonSubstring(str1, str2, minLength) {
 
 **核心思想**：只要拍到的物品与任务场景相关，就能通过验证！
 
+
+

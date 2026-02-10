@@ -35,3 +35,5 @@ Write-Host "3. 在每个按钮的 )} 后面添加已启动标识代码" -Foregro
 Write-Host ""
 Write-Host "详细步骤请查看: docs/快速修复指南.md" -ForegroundColor Yellow
 
+
+

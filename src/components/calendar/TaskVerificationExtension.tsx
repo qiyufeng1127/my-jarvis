@@ -19,6 +19,7 @@ interface TaskVerificationData {
   taskTitle: string;
   subTasks?: SubTask[];
   durationMinutes: number;
+  hasVerification: boolean; // 🔧 新增：是否开启验证开关
   onStartVerify: () => void;
   onCompleteVerify: () => void;
 }
@@ -39,6 +40,13 @@ export default function TaskVerificationExtension() {
   useEffect(() => {
     const handleTaskTimeArrived = (data: TaskVerificationData) => {
       console.log('🔔 收到任务验证触发事件:', data);
+      
+      // 🔧 开关判断：如果未开启验证，不显示验证界面
+      if (!data.hasVerification) {
+        console.log('⏭️ 未开启验证开关，跳过验证界面');
+        return;
+      }
+      
       setTaskData(data);
       setSubTasks(data.subTasks || []);
       setShowVerification(true);
