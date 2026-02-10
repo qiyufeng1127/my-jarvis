@@ -36,6 +36,7 @@ import { baiduImageRecognition } from '@/services/baiduImageRecognition';
 import { notificationService } from '@/services/notificationService';
 import TaskVerificationExtension from './TaskVerificationExtension';
 import eventBus from '@/utils/eventBus';
+import TaskVerificationCountdown from './TaskVerificationCountdown';
 
 interface NewTimelineViewProps {
   tasks: Task[];
@@ -1834,6 +1835,18 @@ export default function NewTimelineView({
 
         return (
           <div key={block.id}>
+              {/* 🔧 零侵入添加：验证倒计时组件（独立模块，高优先级显示） */}
+              {block.scheduledStart && new Date() >= new Date(block.scheduledStart) && (
+                <TaskVerificationCountdown
+                  taskId={block.id}
+                  taskTitle={block.title}
+                  scheduledStart={block.startTime}
+                  scheduledEnd={block.endTime}
+                  startPhotoHint={`请拍摄 ${block.title} 开始的照片`}
+                  endPhotoHint={`请拍摄 ${block.title} 完成的照片`}
+                />
+              )}
+              
             {/* 任务卡片 */}
             <div className="relative flex items-start gap-3 mb-0">
               {/* 左侧时间列 */}
