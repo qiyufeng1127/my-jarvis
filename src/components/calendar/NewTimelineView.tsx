@@ -1829,14 +1829,31 @@ export default function NewTimelineView({
         );
       })()}
       
-      {timeBlocks.map((block, index) => {
+      {console.log('📊 [timeBlocks] 总数:', timeBlocks.length, '任务:', timeBlocks.map(b => b.title))}
+        {timeBlocks.map((block, index) => {
         const isExpanded = expandedCards.has(block.id);
         const gap = gaps.find(g => g.id === `gap-${index}`);
 
         return (
           <div key={block.id}>
               {/* 🔧 零侵入添加：验证倒计时组件（独立模块，高优先级显示） */}
-              {block.scheduledStart && new Date() >= new Date(block.scheduledStart) && (
+              {(() => {
+                const now = new Date();
+                const hasScheduledStart = !!block.scheduledStart;
+                const scheduledStartTime = block.scheduledStart ? new Date(block.scheduledStart) : null;
+                const isTimeReached = scheduledStartTime ? now >= scheduledStartTime : false;
+                
+                console.log('🔍 [条件检查] 任务:', block.title, {
+                  hasScheduledStart,
+                  scheduledStart: block.scheduledStart,
+                  scheduledStartTime: scheduledStartTime?.toLocaleString(),
+                  now: now.toLocaleString(),
+                  isTimeReached,
+                  willRenderComponent: hasScheduledStart && isTimeReached
+                });
+                
+                return hasScheduledStart && isTimeReached;
+              })() && (
                 <TaskVerificationCountdown
                   taskId={block.id}
                   taskTitle={block.title}
