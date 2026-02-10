@@ -857,16 +857,26 @@ export default function NewTimelineView({
   };
 
   const handleStartTask = async (taskId: string) => {
+    console.log('🎯 [handleStartTask] 点击开始按钮，任务ID:', taskId);
     const verification = taskVerifications[taskId];
     const task = allTasks.find(t => t.id === taskId);
     
-    if (!task) return;
+    console.log('📋 [handleStartTask] 任务信息:', task);
+    console.log('🔧 [handleStartTask] 验证信息:', verification);
+    
+    if (!task) {
+      console.log('❌ [handleStartTask] 任务不存在');
+      return;
+    }
     
     // 🔧 验证开关判断：如果任务没有设置验证，直接开始
     if (!verification || !verification.enabled) {
+      console.log('⚡ [handleStartTask] 无验证或验证未启用，直接开始任务');
       onTaskUpdate(taskId, { status: 'in_progress' });
       return;
     }
+    
+    console.log('✅ [handleStartTask] 验证已启用，显示验证界面');
     
     if (verification && verification.enabled) {
       // 需要验证 - 拍照验证启动
