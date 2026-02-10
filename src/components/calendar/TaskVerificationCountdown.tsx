@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Camera, Upload, Check } from 'lucide-react';
+import { baiduImageRecognition } from '@/services/baiduImageRecognition';
 
 interface TaskVerificationCountdownProps {
   taskId: string;
@@ -16,6 +17,8 @@ interface TaskVerificationCountdownProps {
   onComplete?: () => void; // 完成回调
   cardColor?: string;      // 卡片颜色
   hasVerification?: boolean; // 是否设置了验证
+  startKeywords?: string[]; // 启动验证关键词
+  completeKeywords?: string[]; // 完成验证关键词
 }
 
 type VerificationStatus = 'waiting' | 'start_verification' | 'in_progress' | 'completed';
@@ -30,6 +33,8 @@ export default function TaskVerificationCountdown({
   onComplete,
   cardColor = '#EFCE7B',
   hasVerification = false,
+  startKeywords = ['启动', '开始'],
+  completeKeywords = ['完成', '结束'],
 }: TaskVerificationCountdownProps) {
   const [status, setStatus] = useState<VerificationStatus>('waiting');
   const [countdown, setCountdown] = useState(120); // 启动验证倒计时（120秒 = 2分钟）
@@ -154,14 +159,55 @@ export default function TaskVerificationCountdown({
       input.capture = 'environment' as any;
     }
     
-    input.onchange = (e) => {
+    input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
+      if (!file) return;
+      
+      // 显示加载状态
+      console.log('📸 [验证倒计时] 开始处理照片:', taskTitle);
+      
+      // 如果有验证设置，使用百度API识别
+      if (hasVerification) {
+        try {
+          // 获取验证关键词
+          const keywords = status === 'start_verification' 
+            ? startKeywords
+            : completeKeywords;
+          
+          console.log('🔍 [验证倒计时] 开始百度API识别，关键词:', keywords);
+          
+          // 调用百度API识别
+          const result = await baiduImageRecognition.smartVerifyImage(file, keywords, 0.2);
+          
+          console.log('✅ [验证倒计时] 识别结果:', result);
+          
+          if (result.success) {
+            // 识别成功，保存照片
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              const photoUrl = event.target?.result as string;
+              setUploadedPhoto(photoUrl);
+              console.log('✅ [验证倒计时] 照片验证通过:', taskTitle);
+              alert(`✅ 验证通过！\n\n${result.description}`);
+            };
+            reader.readAsDataURL(file);
+          } else {
+            // 识别失败，显示详细信息
+            console.warn('❌ [验证倒计时] 照片验证失败:', result.description);
+            const message = `${result.description}\n\n${result.matchDetails}${result.suggestions ? '\n\n建议：\n' + result.suggestions.join('\n') : ''}`;
+            alert(message);
+          }
+        } catch (error) {
+          console.error('❌ [验证倒计时] 百度API调用失败:', error);
+          alert('⚠️ 图像识别服务异常，请重试或跳过验证');
+        }
+      } else {
+        // 无验证设置，直接保存照片
         const reader = new FileReader();
         reader.onload = (event) => {
           const photoUrl = event.target?.result as string;
           setUploadedPhoto(photoUrl);
-          console.log('📸 [验证倒计时] 照片已上传:', taskTitle);
+          console.log('📸 [验证倒计时] 照片已上传（无验证）:', taskTitle);
         };
         reader.readAsDataURL(file);
       }

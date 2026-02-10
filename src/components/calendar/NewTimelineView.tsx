@@ -1863,6 +1863,8 @@ export default function NewTimelineView({
                   endPhotoHint={`请拍摄 ${block.title} 完成的照片`}
                   cardColor={block.color}
                   hasVerification={!!taskVerifications[block.id]?.enabled}
+                  startKeywords={taskVerifications[block.id]?.startKeywords || ['启动', '开始']}
+                  completeKeywords={taskVerifications[block.id]?.completionKeywords || ['完成', '结束']}
                 />
               )}
               
