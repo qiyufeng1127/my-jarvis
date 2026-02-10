@@ -1,13 +1,13 @@
 /**
- * 语音控制（免手模式）组件
- * 支持语音识别和语音回复，集成AI助手所有功能
+ * 语音控制（免手模式）组件 - 增强版
+ * 支持持续语音识别、模糊匹配、任务控制和验证跳转
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Volume2, VolumeX, X } from 'lucide-react';
+import { Volume2, VolumeX, X, Mic, MicOff } from 'lucide-react';
 import { useTaskStore } from '@/stores/taskStore';
-import { aiService } from '@/services/aiService';
-import UnifiedTaskEditor from '@/components/shared/UnifiedTaskEditor';
+import { EnhancedVoiceCommandService } from '@/services/enhancedVoiceCommandService';
+import TaskVerification from '@/components/calendar/TaskVerification';
 
 interface VoiceControlProps {
   isOpen: boolean;
@@ -19,11 +19,27 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
   const [transcript, setTranscript] = useState('');
   const [response, setResponse] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [showTaskEditor, setShowTaskEditor] = useState(false);
-  const [editingTasks, setEditingTasks] = useState<any[]>([]);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   
-  const { tasks, getTodayTasks, deleteTask, updateTask, createTask } = useTaskStore();
+  // 验证相关
+  const [showVerification, setShowVerification] = useState(false);
+  const [verificationTask, setVerificationTask] = useState<any>(null);
+  const [verificationType, setVerificationType] = useState<'start' | 'complete'>('start');
+  
+  const { tasks, deleteTask, updateTask, createTask } = useTaskStore();
   const recognitionRef = useRef<any>(null);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+  // 获取当前任务
+  const getCurrentTask = () => {
+    const now = new Date();
+    return tasks.find(t => {
+      if (!t.scheduledStart || !t.scheduledEnd) return false;
+      const start = new Date(t.scheduledStart);
+      const end = new Date(t.scheduledEnd);
+      return now >= start && now <= end && t.status === 'in_progress';
+    });
+  };
 
   // 初始化语音识别
   useEffect(() => {
@@ -33,7 +49,7 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     
     if (!SpeechRecognition) {
-      alert('您的浏览器不支持语音识别功能，请使用Chrome浏览器');
+      speak('您的浏览器不支持语音识别功能，请使用Chrome浏览器');
       return;
     }
 
@@ -41,6 +57,7 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
     recognition.lang = 'zh-CN';
     recognition.continuous = true; // 持续监听
     recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
 
     recognition.onresult = (event: any) => {
       let finalTranscript = '';
@@ -56,6 +73,7 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
       }
 
       if (finalTranscript) {
+        console.log('🎤 最终识别:', finalTranscript);
         setTranscript(finalTranscript);
         handleVoiceCommand(finalTranscript);
       } else {
@@ -65,12 +83,22 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
 
     recognition.onerror = (event: any) => {
       console.error('语音识别错误:', event.error);
+      
+      // 不同错误的处理
       if (event.error === 'no-speech') {
         // 没有检测到语音，继续监听
+        console.log('未检测到语音，继续监听...');
         return;
       }
-      // 其他错误，重启识别
+      
+      if (event.error === 'aborted') {
+        // 被中止，不重启
+        return;
+      }
+      
+      // 其他错误，尝试重启
       if (isListening) {
+        console.log('尝试重启语音识别...');
         setTimeout(() => {
           try {
             recognition.start();
@@ -82,21 +110,37 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
     };
 
     recognition.onend = () => {
+      console.log('语音识别结束');
       // 如果还在监听状态，自动重启
       if (isListening) {
-        try {
-          recognition.start();
-        } catch (e) {
-          console.log('重启识别失败:', e);
-        }
+        console.log('自动重启语音识别...');
+        setTimeout(() => {
+          try {
+            recognition.start();
+          } catch (e) {
+            console.log('重启识别失败:', e);
+          }
+        }, 500);
       }
+    };
+
+    recognition.onstart = () => {
+      console.log('语音识别已启动');
     };
 
     recognitionRef.current = recognition;
 
     return () => {
       if (recognitionRef.current) {
-        recognitionRef.current.stop();
+        try {
+          recognitionRef.current.abort();
+        } catch (e) {
+          console.log('停止识别失败:', e);
+        }
+      }
+      // 停止语音播报
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
       }
     };
   }, [isOpen, isListening]);
@@ -118,77 +162,128 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
     }
   };
 
-  // 语音播报
+  // 语音播报 - 增强版
   const speak = (text: string) => {
     if ('speechSynthesis' in window) {
+      setIsSpeaking(true);
       window.speechSynthesis.cancel(); // 取消之前的播报
+      
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'zh-CN';
-      utterance.rate = 1.0;
+      utterance.rate = 1.1; // 稍快一点
       utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+      
+      utterance.onend = () => {
+        setIsSpeaking(false);
+      };
+      
+      utterance.onerror = () => {
+        setIsSpeaking(false);
+      };
+      
+      utteranceRef.current = utterance;
       window.speechSynthesis.speak(utterance);
     }
   };
 
-  // 处理语音指令 - 集成AI助手功能
+  // 处理语音指令 - 使用增强版服务
   const handleVoiceCommand = async (command: string) => {
     setIsProcessing(true);
     console.log('🎤 [语音指令]:', command);
 
     try {
-      // 使用AI服务处理指令
-      const result = await aiService.processVoiceCommand(command, tasks);
+      const currentTask = getCurrentTask();
+      const result = await EnhancedVoiceCommandService.processCommand(command, tasks, currentTask);
       
-      if (result.type === 'create_tasks') {
-        // 创建任务
-        setEditingTasks(result.tasks);
-        setShowTaskEditor(true);
-        setResponse(`好的，我为您准备了${result.tasks.length}个任务，请确认`);
-        speak(`好的，我为您准备了${result.tasks.length}个任务，请确认`);
+      console.log('📋 指令结果:', result);
+      
+      // 根据结果类型处理
+      if (result.type === 'navigation') {
+        // 导航到验证页面
+        if (result.action === 'start_verification') {
+          const taskId = result.data?.taskId;
+          const task = result.data?.task || tasks.find(t => t.id === taskId);
+          
+          if (task) {
+            setVerificationTask(task);
+            setVerificationType('start');
+            setShowVerification(true);
+            setResponse(result.message);
+            speak(result.message);
+          } else {
+            const msg = '没有找到要启动的任务';
+            setResponse(msg);
+            speak(msg);
+          }
+        } else if (result.action === 'complete_verification') {
+          const taskId = result.data?.taskId;
+          const task = currentTask || tasks.find(t => t.id === taskId);
+          
+          if (task) {
+            setVerificationTask(task);
+            setVerificationType('complete');
+            setShowVerification(true);
+            setResponse(result.message);
+            speak(result.message);
+          } else {
+            const msg = '没有找到当前任务';
+            setResponse(msg);
+            speak(msg);
+          }
+        }
+      } else if (result.type === 'action') {
+        // 执行操作
+        if (result.action === 'delete_tasks') {
+          // 删除任务
+          const taskIds = result.data?.taskIds || [];
+          for (const taskId of taskIds) {
+            await deleteTask(taskId);
+          }
+          setResponse(result.message);
+          speak(result.message);
+        } else if (result.action === 'move_tasks') {
+          // 移动任务
+          const taskIds = result.data?.taskIds || [];
+          const offset = result.data?.offset || 0;
+          
+          for (const taskId of taskIds) {
+            const task = tasks.find(t => t.id === taskId);
+            if (task && task.scheduledStart && task.scheduledEnd) {
+              const newStart = new Date(task.scheduledStart);
+              newStart.setDate(newStart.getDate() + offset);
+              
+              const newEnd = new Date(task.scheduledEnd);
+              newEnd.setDate(newEnd.getDate() + offset);
+              
+              await updateTask(taskId, {
+                scheduledStart: newStart,
+                scheduledEnd: newEnd
+              });
+            }
+          }
+          
+          setResponse(result.message);
+          speak(result.message);
+        }
       } else if (result.type === 'query') {
-        // 查询任务
-        setResponse(result.message);
-        speak(result.message);
-      } else if (result.type === 'delete') {
-        // 删除任务
-        for (const taskId of result.taskIds) {
-          await deleteTask(taskId);
-        }
-        setResponse(result.message);
-        speak(result.message);
-      } else if (result.type === 'update') {
-        // 更新任务
-        for (const update of result.updates) {
-          await updateTask(update.taskId, update.changes);
-        }
+        // 查询结果
         setResponse(result.message);
         speak(result.message);
       } else {
-        // 其他回复
+        // 未知指令
         setResponse(result.message);
         speak(result.message);
       }
 
     } catch (error) {
       console.error('处理语音指令失败:', error);
-      const errorMessage = '抱歉，我没有理解您的指令，请再说一遍';
+      const errorMessage = '抱歉，处理指令时出错了';
       setResponse(errorMessage);
       speak(errorMessage);
     } finally {
       setIsProcessing(false);
     }
-  };
-
-  // 确认创建任务
-  const handleConfirmTasks = async (confirmedTasks: any[]) => {
-    for (const task of confirmedTasks) {
-      await createTask(task);
-    }
-    setShowTaskEditor(false);
-    setEditingTasks([]);
-    const message = `已为您创建${confirmedTasks.length}个任务`;
-    setResponse(message);
-    speak(message);
   };
 
   if (!isOpen) return null;
@@ -265,30 +360,60 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
             </div>
           )}
 
-          {/* 使用提示 */}
+          {/* 状态指示器 */}
+          {isSpeaking && (
+            <div className="mb-4 flex items-center justify-center space-x-2 text-yellow-300">
+              <Volume2 className="w-5 h-5 animate-pulse" />
+              <span className="text-sm">正在播报...</span>
+            </div>
+          )}
+
+          {/* 使用提示 - 更新为新的指令 */}
           <div className="mt-6 p-4 bg-white bg-opacity-10 rounded-lg text-sm">
             <p className="font-semibold mb-2">💡 您可以说：</p>
-            <ul className="space-y-1 opacity-90">
-              <li>• "5分钟后去洗漱"</li>
-              <li>• "帮我安排今天的任务"</li>
-              <li>• "现在正在做什么"</li>
-              <li>• "下一个任务是什么"</li>
+            <ul className="space-y-1 opacity-90 text-xs">
+              <li>• "下个任务是什么"</li>
+              <li>• "还有多长时间"</li>
+              <li>• "下个任务几点开始"</li>
+              <li>• "明天有多少个任务"</li>
               <li>• "删除今天的任务"</li>
-              <li>• "把16号的任务挪到15号"</li>
+              <li>• "把昨天的任务移到今天"</li>
+              <li>• "把今天的任务移到明天"</li>
+              <li>• "把16号的任务移到15号"</li>
+              <li>• "当前任务已完成"（跳转完成验证）</li>
+              <li>• "启动"（开始验证）</li>
+              <li>• "下个任务可以开始了"</li>
             </ul>
           </div>
         </div>
       </div>
 
-      {/* 任务编辑器 */}
-      {showTaskEditor && editingTasks.length > 0 && (
-        <UnifiedTaskEditor
-          tasks={editingTasks}
-          onClose={() => {
-            setShowTaskEditor(false);
-            setEditingTasks([]);
+      {/* 任务验证弹窗 */}
+      {showVerification && verificationTask && (
+        <TaskVerification
+          task={verificationTask}
+          verificationType={verificationType}
+          onSuccess={() => {
+            setShowVerification(false);
+            setVerificationTask(null);
+            const msg = verificationType === 'start' ? '启动验证成功！' : '完成验证成功！';
+            setResponse(msg);
+            speak(msg);
           }}
-          onConfirm={handleConfirmTasks}
+          onFail={() => {
+            setShowVerification(false);
+            setVerificationTask(null);
+            const msg = '验证失败，请重试';
+            setResponse(msg);
+            speak(msg);
+          }}
+          onSkip={() => {
+            setShowVerification(false);
+            setVerificationTask(null);
+            const msg = '已跳过验证';
+            setResponse(msg);
+            speak(msg);
+          }}
         />
       )}
     </>

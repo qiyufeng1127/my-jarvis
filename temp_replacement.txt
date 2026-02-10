@@ -1,0 +1,31 @@
+                    {/* 优化布局：大图片 + 信息 */}
+                    <div className={`flex ${isMobile ? 'gap-2 mb-1' : 'gap-3 mb-2'}`}>
+                      {/* 大图片 - 圆角矩形 */}
+                      <div 
+                        onClick={() => handleOpenImagePicker(block.id)}
+                        className={`${isMobile ? 'w-16 h-16' : 'w-20 h-20'} rounded-2xl flex-shrink-0 flex items-center justify-center cursor-pointer hover:opacity-90 hover:scale-105 transition-all relative shadow-lg`}
+                        style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}
+                        title="点击上传图片（支持多选）"
+                      >
+                        {taskImages[block.id] && taskImages[block.id].length > 0 ? (
+                          <img 
+                            src={taskImages[block.id][0].url} 
+                            alt="任务"
+                            className="w-full h-full object-cover rounded-2xl"
+                          />
+                        ) : (
+                          <Camera className={`${isMobile ? 'w-6 h-6' : 'w-8 h-8'} opacity-50`} />
+                        )}
+                        {uploadingImage === block.id && (
+                          <div className="absolute inset-0 bg-black/60 rounded-2xl flex items-center justify-center">
+                            <span className={`text-white ${isMobile ? 'text-[9px]' : 'text-xs'} font-medium`}>上传中</span>
+                          </div>
+                        )}
+                        {/* 图片数量角标 */}
+                        {taskImages[block.id] && taskImages[block.id].length > 1 && (
+                          <div className="absolute -top-1 -right-1 bg-blue-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-md">
+                            {taskImages[block.id].length}
+                          </div>
+                        )}
+                      </div>
+
