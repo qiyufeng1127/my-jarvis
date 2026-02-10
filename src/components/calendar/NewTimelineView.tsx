@@ -1839,13 +1839,13 @@ export default function NewTimelineView({
               {/* 🔧 零侵入添加：验证倒计时组件（独立模块，高优先级显示） */}
               {(() => {
                 const now = new Date();
-                const hasScheduledStart = !!block.scheduledStart;
-                const scheduledStartTime = block.scheduledStart ? new Date(block.scheduledStart) : null;
+                const hasScheduledStart = !!block.startTime;
+                const scheduledStartTime = block.startTime ? new Date(block.startTime) : null;
                 const isTimeReached = scheduledStartTime ? now >= scheduledStartTime : false;
                 
                 console.log('🔍 [条件检查] 任务:', block.title, {
                   hasScheduledStart,
-                  scheduledStart: block.scheduledStart,
+                  scheduledStart: block.startTime,
                   scheduledStartTime: scheduledStartTime?.toLocaleString(),
                   now: now.toLocaleString(),
                   isTimeReached,
