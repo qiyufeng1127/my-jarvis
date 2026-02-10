@@ -1861,6 +1861,8 @@ export default function NewTimelineView({
                   scheduledEnd={block.endTime}
                   startPhotoHint={`请拍摄 ${block.title} 开始的照片`}
                   endPhotoHint={`请拍摄 ${block.title} 完成的照片`}
+                  cardColor={block.color}
+                  hasVerification={!!taskVerifications[block.id]?.enabled}
                 />
               )}
               
