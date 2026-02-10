@@ -264,14 +264,9 @@ export default function TaskVerificationCountdown({
   
   console.log('🎨 [验证倒计时] 渲染验证界面，当前状态:', status);
 
+  // 返回普通内容块，不使用 absolute 覆盖层
   return (
-    <div
-      className="absolute left-[60px] right-0 top-0 bottom-0 z-40 flex flex-col items-center justify-center rounded-r-lg p-2"
-      style={{ 
-        backgroundColor: cardColor,
-        minHeight: 'auto'
-      }}
-    >
+    <div className="w-full py-2">
       {/* 启动验证状态 */}
       {status === 'start_verification' && (
         <div className="text-center w-full">
