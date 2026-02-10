@@ -75,8 +75,11 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
       if (finalTranscript) {
         console.log('🎤 最终识别:', finalTranscript);
         setTranscript(finalTranscript);
+        // 给用户反馈：识别到了
+        setResponse('正在处理您的指令...');
         handleVoiceCommand(finalTranscript);
       } else {
+        // 显示临时识别结果
         setTranscript(interimTranscript);
       }
     };
@@ -84,26 +87,60 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
     recognition.onerror = (event: any) => {
       console.error('语音识别错误:', event.error);
       
-      // 不同错误的处理
-      if (event.error === 'no-speech') {
-        // 没有检测到语音，继续监听
-        console.log('未检测到语音，继续监听...');
-        return;
-      }
+      // 给用户明确的错误反馈
+      let errorMessage = '';
       
-      if (event.error === 'aborted') {
-        // 被中止，不重启
-        return;
+      switch (event.error) {
+        case 'no-speech':
+          errorMessage = '没有检测到语音，请再说一遍';
+          setResponse(errorMessage);
+          speak(errorMessage);
+          // 继续监听
+          return;
+        
+        case 'audio-capture':
+          errorMessage = '无法访问麦克风，请检查麦克风权限';
+          setResponse(errorMessage);
+          speak(errorMessage);
+          setIsListening(false);
+          return;
+        
+        case 'not-allowed':
+          errorMessage = '麦克风权限被拒绝，请在浏览器设置中允许麦克风访问';
+          setResponse(errorMessage);
+          speak(errorMessage);
+          setIsListening(false);
+          return;
+        
+        case 'network':
+          errorMessage = '网络错误，语音识别需要网络连接';
+          setResponse(errorMessage);
+          speak(errorMessage);
+          break;
+        
+        case 'aborted':
+          // 被主动中止，不提示
+          return;
+        
+        default:
+          errorMessage = `语音识别出错：${event.error}，正在重试...`;
+          setResponse(errorMessage);
+          console.log(errorMessage);
+          break;
       }
       
       // 其他错误，尝试重启
-      if (isListening) {
+      if (isListening && event.error !== 'aborted') {
         console.log('尝试重启语音识别...');
         setTimeout(() => {
           try {
             recognition.start();
           } catch (e) {
             console.log('重启识别失败:', e);
+            setIsListening(false);
+            const msg = '语音识别重启失败，请手动重新开启';
+            setResponse(msg);
+            speak(msg);
           }
         }, 1000);
       }
@@ -148,7 +185,11 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
   // 开始/停止监听
   const toggleListening = () => {
     if (isListening) {
-      recognitionRef.current?.stop();
+      try {
+        recognitionRef.current?.abort();
+      } catch (e) {
+        console.log('停止识别失败:', e);
+      }
       setIsListening(false);
       speak('免手模式已关闭');
     } else {
@@ -158,6 +199,9 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
         speak('免手模式已启动，我在听，请说出您的指令');
       } catch (e) {
         console.error('启动识别失败:', e);
+        const errorMsg = '启动语音识别失败，请检查麦克风权限';
+        setResponse(errorMsg);
+        speak(errorMsg);
       }
     }
   };
@@ -314,20 +358,35 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
               }`}
             >
               {isListening ? (
-                <Volume2 className="w-16 h-16" />
+                <Mic className="w-16 h-16" />
               ) : (
-                <VolumeX className="w-16 h-16" />
+                <MicOff className="w-16 h-16" />
               )}
             </button>
             <p className="mt-4 text-lg font-semibold">
-              {isListening ? '正在监听中...' : '点击开始语音控制'}
+              {isListening ? '🎤 正在监听中...' : '点击开始语音控制'}
             </p>
             {isListening && (
-              <p className="mt-2 text-sm opacity-80">
-                持续监听模式，再次点击关闭
-              </p>
+              <div className="mt-2 space-y-1 text-center">
+                <p className="text-sm opacity-80">
+                  持续监听模式，再次点击关闭
+                </p>
+                <p className="text-xs opacity-60">
+                  💡 说话后会自动识别并处理
+                </p>
+              </div>
             )}
           </div>
+
+          {/* 识别状态指示器 */}
+          {isListening && !transcript && !response && (
+            <div className="mb-4 p-3 bg-blue-500/20 rounded-lg text-center">
+              <div className="flex items-center justify-center space-x-2">
+                <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                <span className="text-sm">等待您说话...</span>
+              </div>
+            </div>
+          )}
 
           {/* 识别文本 */}
           {transcript && (
@@ -384,6 +443,28 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
               <li>• "启动"（开始验证）</li>
               <li>• "下个任务可以开始了"</li>
             </ul>
+          </div>
+
+          {/* 测试按钮 */}
+          <div className="mt-4 flex gap-2">
+            <button
+              onClick={() => {
+                const msg = '这是一条测试消息，如果您能听到这句话，说明语音功能正常';
+                setResponse(msg);
+                speak(msg);
+              }}
+              className="flex-1 px-4 py-2 rounded-lg font-medium transition-all bg-white bg-opacity-20 hover:bg-opacity-30"
+            >
+              🔊 测试语音
+            </button>
+            <button
+              onClick={() => {
+                handleVoiceCommand('下个任务是什么');
+              }}
+              className="flex-1 px-4 py-2 rounded-lg font-medium transition-all bg-white bg-opacity-20 hover:bg-opacity-30"
+            >
+              🧪 测试指令
+            </button>
           </div>
         </div>
       </div>

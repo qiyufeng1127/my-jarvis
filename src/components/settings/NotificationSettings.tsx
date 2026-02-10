@@ -60,6 +60,8 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
   useEffect(() => {
     // 保存设置到 localStorage
     localStorage.setItem('notification_settings', JSON.stringify(settings));
+    // 通知服务重新加载设置
+    notificationService.reloadSettings();
   }, [settings]);
 
   const updateSetting = <K extends keyof NotificationSettings>(
@@ -71,6 +73,9 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
 
   const testVoice = () => {
     setTestingVoice(true);
+    // 重新加载设置确保使用最新的
+    notificationService.reloadSettings();
+    // 测试通知（包含声音、震动、语音）
     notificationService.notifyTaskStart('测试任务', true);
     setTimeout(() => setTestingVoice(false), 3000);
   };

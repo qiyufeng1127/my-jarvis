@@ -1,13 +1,80 @@
 /**
- * 浏览器通知服务
+ * 浏览器通知服务 - 增强版
  * 用于任务开始、结束等事件的通知
+ * 支持声音、震动、语音播报
  */
+
+interface NotificationSettings {
+  taskReminder: boolean;
+  taskStartReminder: boolean;
+  taskEndReminder: boolean;
+  verificationReminder: boolean;
+  urgentReminder: boolean;
+  voiceEnabled: boolean;
+  voiceRate: number;
+  voicePitch: number;
+  voiceVolume: number;
+  browserNotification: boolean;
+}
 
 class NotificationService {
   private permission: NotificationPermission = 'default';
+  private settings: NotificationSettings;
+  private audioContext: AudioContext | null = null;
 
   constructor() {
     this.checkPermission();
+    this.loadSettings();
+    this.initAudioContext();
+  }
+
+  /**
+   * 加载用户设置
+   */
+  private loadSettings() {
+    const saved = localStorage.getItem('notification_settings');
+    if (saved) {
+      try {
+        this.settings = JSON.parse(saved);
+      } catch (e) {
+        console.error('加载通知设置失败:', e);
+        this.settings = this.getDefaultSettings();
+      }
+    } else {
+      this.settings = this.getDefaultSettings();
+    }
+  }
+
+  /**
+   * 获取默认设置
+   */
+  private getDefaultSettings(): NotificationSettings {
+    return {
+      taskReminder: true,
+      taskStartReminder: true,
+      taskEndReminder: true,
+      verificationReminder: true,
+      urgentReminder: true,
+      voiceEnabled: true,
+      voiceRate: 1.0,
+      voicePitch: 1.0,
+      voiceVolume: 0.8,
+      browserNotification: true,
+    };
+  }
+
+  /**
+   * 初始化音频上下文
+   */
+  private initAudioContext() {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioContextClass) {
+        this.audioContext = new AudioContextClass();
+      }
+    } catch (e) {
+      console.warn('无法初始化音频上下文:', e);
+    }
   }
 
   /**
@@ -17,6 +84,14 @@ class NotificationService {
     if ('Notification' in window) {
       this.permission = Notification.permission;
     }
+  }
+
+  /**
+   * 重新加载设置（当用户修改设置时调用）
+   */
+  reloadSettings() {
+    this.loadSettings();
+    console.log('✅ 通知设置已重新加载:', this.settings);
   }
 
   /**
@@ -124,45 +199,70 @@ class NotificationService {
   }
 
   /**
-   * 播放提示音（支持后台）
+   * 播放提示音（使用 Web Audio API，更可靠）
    */
   playSound(type: 'start' | 'end' | 'warning' = 'start') {
+    // 检查设置
+    if (!this.settings.taskReminder) {
+      console.log('⏭️ 任务提醒已关闭，跳过音效');
+      return;
+    }
+
     try {
-      const audio = new Audio();
+      if (!this.audioContext) {
+        console.warn('音频上下文未初始化');
+        return;
+      }
+
+      // 恢复音频上下文（如果被暂停）
+      if (this.audioContext.state === 'suspended') {
+        this.audioContext.resume();
+      }
+
+      const oscillator = this.audioContext.createOscillator();
+      const gainNode = this.audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(this.audioContext.destination);
+
+      // 根据类型设置不同的音效
+      let frequency = 800;
+      let duration = 0.3;
       
-      // 根据类型选择不同的音频
       switch (type) {
         case 'start':
-          // 任务开始音（高音）
-          audio.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIGGe77OeeSwwPUKfj8LZjHAU5kdfy0HotBSJ1xe/glEILElyx6OyrWBUIQ5zd8sFuJAUuhM/z3I4+CRZluevrpVINC0yl4/G4ZRwGOpLY89F7LgUgcsXv45hEDBBYr+ftrVoWCECY3PLEcSYGLIHO8tyJNggZZ7vs551LDA9Qp+PwtmMcBTmR1/LQei0FInXF7+CUQgsSXLHo7KtYFQhDnN3ywW4kBS6Ez/PcjjwJFmW56+ulUg0LTKXj8bhlHAY6ktjz0XsuBSByxe/jmEQMEFiv5+2tWhYIQJjc8sRxJgYsgc7y3Ik2CBlnu+znnUsLD1Cn4/C2YxwFOZHX8tB6LQUidcXv4JRCCR';
+          frequency = 800; // 高音
+          duration = 0.3;
           break;
         case 'end':
-          // 任务结束音（低音）
-          audio.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIGGe77OeeSwwPUKfj8LZjHAU5kdfy0HotBSJ1xe/glEILElyx6OyrWBUIQ5zd8sFuJAUuhM/z3I4+CRZluevrpVINC0yl4/G4ZRwGOpLY89F7LgUgcsXv45hEDBBYr+ftrVoWCECY3PLEcSYGLIHO8tyJNggZZ7vs551LDA9Qp+PwtmMcBTmR1/LQei0FInXF7+CUQgsSXLHo7KtYFQhDnN3ywW4kBS6Ez/PcjjwJFmW56+ulUg0LTKXj8bhlHAY6ktjz0XsuBSByxe/jmEQMEFiv5+2tWhYIQJjc8sRxJgYsgc7y3Ik2CBlnu+znnUsLD1Cn4/C2YxwFOZHX8tB6LQUidcXv4JRCCR';
+          frequency = 400; // 低音
+          duration = 0.4;
           break;
         case 'warning':
-          // 警告音（急促）
-          audio.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIGGe77OeeSwwPUKfj8LZjHAU5kdfy0HotBSJ1xe/glEILElyx6OyrWBUIQ5zd8sFuJAUuhM/z3I4+CRZluevrpVINC0yl4/G4ZRwGOpLY89F7LgUgcsXv45hEDBBYr+ftrVoWCECY3PLEcSYGLIHO8tyJNggZZ7vs551LDA9Qp+PwtmMcBTmR1/LQei0FInXF7+CUQgsSXLHo7KtYFQhDnN3ywW4kBS6Ez/PcjjwJFmW56+ulUg0LTKXj8bhlHAY6ktjz0XsuBSByxe/jmEQMEFiv5+2tWhYIQJjc8sRxJgYsgc7y3Ik2CBlnu+znnUsLD1Cn4/C2YxwFOZHX8tB6LQUidcXv4JRCCR';
+          frequency = 1000; // 急促高音
+          duration = 0.2;
           break;
       }
-      
-      audio.volume = 0.8; // 提高音量确保能听到
-      
-      // 尝试播放，即使在后台
-      const playPromise = audio.play();
-      
-      if (playPromise !== undefined) {
-        playPromise
-          .then(() => {
-            console.log('✅ 音效播放成功');
-          })
-          .catch(err => {
-            console.warn('播放提示音失败:', err);
-            // 如果自动播放失败，尝试通过用户交互触发
-            document.addEventListener('click', () => {
-              audio.play().catch(e => console.warn('重试播放失败:', e));
-            }, { once: true });
-          });
+
+      oscillator.frequency.value = frequency;
+      oscillator.type = 'sine';
+
+      // 音量包络
+      const now = this.audioContext.currentTime;
+      gainNode.gain.setValueAtTime(0, now);
+      gainNode.gain.linearRampToValueAtTime(0.3, now + 0.01);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, now + duration);
+
+      oscillator.start(now);
+      oscillator.stop(now + duration);
+
+      console.log('✅ 音效播放成功:', type);
+
+      // 如果是警告音，播放两次
+      if (type === 'warning') {
+        setTimeout(() => {
+          this.playSound('warning');
+        }, 300);
       }
     } catch (error) {
       console.error('播放提示音失败:', error);
@@ -170,84 +270,209 @@ class NotificationService {
   }
 
   /**
-   * 任务开始通知
+   * 震动反馈
+   */
+  vibrate(pattern: number | number[] = [200, 100, 200]) {
+    if ('vibrate' in navigator) {
+      try {
+        navigator.vibrate(pattern);
+        console.log('✅ 震动反馈成功');
+      } catch (e) {
+        console.warn('震动失败:', e);
+      }
+    }
+  }
+
+  /**
+   * 语音播报
+   */
+  speak(text: string) {
+    // 检查设置
+    if (!this.settings.voiceEnabled) {
+      console.log('⏭️ 语音播报已关闭');
+      return;
+    }
+
+    if ('speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel(); // 取消之前的播报
+        
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'zh-CN';
+        utterance.rate = this.settings.voiceRate;
+        utterance.pitch = this.settings.voicePitch;
+        utterance.volume = this.settings.voiceVolume;
+
+        utterance.onstart = () => {
+          console.log('🔊 开始语音播报:', text);
+        };
+
+        utterance.onend = () => {
+          console.log('✅ 语音播报完成');
+        };
+
+        utterance.onerror = (e) => {
+          console.error('语音播报失败:', e);
+        };
+
+        window.speechSynthesis.speak(utterance);
+      } catch (error) {
+        console.error('语音播报失败:', error);
+      }
+    }
+  }
+
+  /**
+   * 任务开始通知 - 增强版
    */
   async notifyTaskStart(taskTitle: string, hasVerification: boolean = false) {
+    console.log('📢 任务开始通知:', taskTitle);
+
+    // 检查设置
+    if (!this.settings.taskReminder || !this.settings.taskStartReminder) {
+      console.log('⏭️ 任务开始提醒已关闭');
+      return;
+    }
+
     const body = hasVerification
       ? `${taskTitle} 现在已开始，请进行启动验证哦！`
       : `${taskTitle} 现在已开始`;
 
+    // 1. 发送浏览器通知
     await this.sendNotification('📋 任务开始', {
       body,
       tag: 'task-start',
       requireInteraction: hasVerification,
-      vibrate: [200, 100, 200], // 振动模式
+      vibrate: [200, 100, 200],
     });
 
+    // 2. 播放音效
     this.playSound('start');
+
+    // 3. 震动反馈
+    this.vibrate([200, 100, 200]);
+
+    // 4. 语音播报
+    this.speak(body);
   }
 
   /**
-   * 任务即将结束通知
+   * 任务即将结束通知 - 增强版
    */
   async notifyTaskEnding(taskTitle: string, minutesLeft: number, hasVerification: boolean = false) {
+    console.log('📢 任务即将结束通知:', taskTitle, minutesLeft);
+
+    // 检查设置
+    if (!this.settings.taskReminder || !this.settings.taskEndReminder) {
+      console.log('⏭️ 任务结束提醒已关闭');
+      return;
+    }
+
     const body = hasVerification
       ? `${taskTitle} 还有${minutesLeft}分钟结束，准备进行完成验证哦！`
       : `${taskTitle} 还有${minutesLeft}分钟结束`;
 
+    // 1. 发送浏览器通知
     await this.sendNotification('⏰ 任务即将结束', {
       body,
       tag: 'task-ending',
       requireInteraction: hasVerification,
-      vibrate: [100, 50, 100, 50, 100], // 急促振动
+      vibrate: [100, 50, 100, 50, 100],
     });
 
+    // 2. 播放警告音
     this.playSound('warning');
+
+    // 3. 急促震动
+    this.vibrate([100, 50, 100, 50, 100]);
+
+    // 4. 语音播报
+    this.speak(body);
   }
 
   /**
-   * 任务结束通知
+   * 任务结束通知 - 增强版
    */
   async notifyTaskEnd(taskTitle: string, hasVerification: boolean = false) {
+    console.log('📢 任务结束通知:', taskTitle);
+
+    // 检查设置
+    if (!this.settings.taskReminder) {
+      console.log('⏭️ 任务提醒已关闭');
+      return;
+    }
+
     const body = hasVerification
       ? `${taskTitle} 已结束，请进行完成验证！`
       : `${taskTitle} 已结束`;
 
+    // 1. 发送浏览器通知
     await this.sendNotification('✅ 任务结束', {
       body,
       tag: 'task-end',
       requireInteraction: hasVerification,
-      vibrate: [300, 100, 300], // 长振动
+      vibrate: [300, 100, 300],
     });
 
+    // 2. 播放结束音
     this.playSound('end');
+
+    // 3. 长震动
+    this.vibrate([300, 100, 300]);
+
+    // 4. 语音播报
+    this.speak(body);
   }
 
   /**
    * 验证成功通知
    */
   async notifyVerificationSuccess(taskTitle: string, type: 'start' | 'completion') {
+    console.log('📢 验证成功通知:', taskTitle, type);
+
+    if (!this.settings.verificationReminder) {
+      console.log('⏭️ 验证提醒已关闭');
+      return;
+    }
+
     const typeText = type === 'start' ? '启动' : '完成';
+    const body = `${taskTitle} ${typeText}验证通过！`;
+
     await this.sendNotification('✅ 验证成功', {
-      body: `${taskTitle} ${typeText}验证通过！`,
+      body,
       tag: 'verification-success',
+      vibrate: [200],
     });
 
     this.playSound('start');
+    this.vibrate([200]);
+    this.speak(body);
   }
 
   /**
    * 验证失败通知
    */
   async notifyVerificationFailed(taskTitle: string, type: 'start' | 'completion', reason: string) {
+    console.log('📢 验证失败通知:', taskTitle, type, reason);
+
+    if (!this.settings.verificationReminder) {
+      console.log('⏭️ 验证提醒已关闭');
+      return;
+    }
+
     const typeText = type === 'start' ? '启动' : '完成';
+    const body = `${taskTitle} ${typeText}验证失败：${reason}`;
+
     await this.sendNotification('❌ 验证失败', {
-      body: `${taskTitle} ${typeText}验证失败：${reason}`,
+      body,
       tag: 'verification-failed',
       requireInteraction: true,
+      vibrate: [100, 50, 100, 50, 100],
     });
 
     this.playSound('warning');
+    this.vibrate([100, 50, 100, 50, 100]);
+    this.speak(body);
   }
 
   /**
