@@ -5,6 +5,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useTaskStore } from '@/stores/taskStore';
+import { useVerificationStates } from './useVerificationStates';
 import type { Task } from '@/types';
 
 interface VerificationReminder {
@@ -15,6 +16,7 @@ interface VerificationReminder {
 
 export function useTaskVerificationManager() {
   const { tasks, updateTask } = useTaskStore();
+  const { getState } = useVerificationStates();
   const remindersRef = useRef<VerificationReminder[]>([]);
   const checkIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -207,11 +209,21 @@ export function useTaskVerificationManager() {
         task.verificationStart &&
         task.scheduledStart
       ) {
+        // 🔧 修复：检查验证状态，避免重复触发
+        const verificationState = getState(task.id);
+        
+        // 如果已经启动过验证（started 或 completed），跳过
+        if (verificationState.status === 'started' || verificationState.status === 'completed') {
+          console.log(`⏭️ [验证管理器] 任务 ${task.title} 已完成启动验证，跳过自动触发`);
+          return;
+        }
+        
         const startTime = new Date(task.scheduledStart);
         const timeDiff = startTime.getTime() - now.getTime();
 
         // 如果到了开始时间（误差±30秒），触发启动验证
         if (Math.abs(timeDiff) <= 30000) {
+          console.log(`🚀 [验证管理器] 时间到达，触发启动验证: ${task.title}`);
           handleStartVerification(task);
         }
       }

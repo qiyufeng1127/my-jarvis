@@ -34,6 +34,8 @@ import {
 } from '@/utils/goldCalculator';
 import { baiduImageRecognition } from '@/services/baiduImageRecognition';
 import { notificationService } from '@/services/notificationService';
+import TaskVerificationExtension from './TaskVerificationExtension';
+import eventBus from '@/utils/eventBus';
 
 interface NewTimelineViewProps {
   tasks: Task[];
@@ -498,6 +500,36 @@ export default function NewTimelineView({
       TaskMonitor.stopAll();
     };
   }, []);
+  
+  // 【低侵入式集成】监听任务是否到时间，触发验证扩展组件（仅新增此段代码）
+  useEffect(() => {
+    const checkTaskTime = () => {
+      const now = new Date();
+      allTasks.forEach(task => {
+        // 判断任务是否到时间且需要验证
+        if (task.scheduledStart && task.verificationStart && task.status !== 'completed') {
+          const taskStart = new Date(task.scheduledStart);
+          if (now >= taskStart && !task.verificationStarted) {
+            // 触发事件，传递必要数据给验证扩展组件
+            eventBus.emit('taskTimeArrived', {
+              taskId: task.id,
+              taskTitle: task.title,
+              subTasks: task.subTasks || [],
+              durationMinutes: task.durationMinutes || 60,
+              onStartVerify: () => handleStartVerification(task.id),
+              onCompleteVerify: () => handleCompleteVerification(task.id)
+            });
+            // 标记已触发，避免重复触发
+            onTaskUpdate(task.id, { verificationStarted: true });
+          }
+        }
+      });
+    };
+    
+    // 每秒检查一次
+    const timer = setInterval(checkTaskTime, 1000);
+    return () => clearInterval(timer);
+  }, [allTasks, onTaskUpdate]);
   
   // 处理图片上传
   const handleImageUpload = async (taskId: string, files: FileList, type: 'cover' | 'attachment' = 'attachment') => {
@@ -1451,6 +1483,9 @@ export default function NewTimelineView({
         }))}
         isDark={isDark}
       />
+      
+      {/* 【低侵入式集成】验证扩展组件 - 完全独立，不影响原有代码 */}
+      <TaskVerificationExtension />
       
       {/* 验证关键词编辑对话框 */}
       {editingVerification && taskVerifications[editingVerification] && (
