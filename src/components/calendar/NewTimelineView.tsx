@@ -1837,36 +1837,7 @@ export default function NewTimelineView({
         return (
           <div key={block.id}>
               {/* 🔧 零侵入添加：验证倒计时组件（独立模块，高优先级显示） */}
-              {(() => {
-                const now = new Date();
-                const hasScheduledStart = !!block.startTime;
-                const scheduledStartTime = block.startTime ? new Date(block.startTime) : null;
-                const isTimeReached = scheduledStartTime ? now >= scheduledStartTime : false;
-                
-                console.log('🔍 [条件检查] 任务:', block.title, {
-                  hasScheduledStart,
-                  scheduledStart: block.startTime,
-                  scheduledStartTime: scheduledStartTime?.toLocaleString(),
-                  now: now.toLocaleString(),
-                  isTimeReached,
-                  willRenderComponent: hasScheduledStart && isTimeReached
-                });
-                
-                return hasScheduledStart && isTimeReached;
-              })() && (
-                <TaskVerificationCountdown
-                  taskId={block.id}
-                  taskTitle={block.title}
-                  scheduledStart={block.startTime}
-                  scheduledEnd={block.endTime}
-                  startPhotoHint={`请拍摄 ${block.title} 开始的照片`}
-                  endPhotoHint={`请拍摄 ${block.title} 完成的照片`}
-                  cardColor={block.color}
-                  hasVerification={!!taskVerifications[block.id]?.enabled}
-                  startKeywords={taskVerifications[block.id]?.startKeywords || ['启动', '开始']}
-                  completeKeywords={taskVerifications[block.id]?.completionKeywords || ['完成', '结束']}
-                />
-              )}
+              
               
             {/* 任务卡片 */}
             <div className="relative flex items-start gap-3 mb-0">
@@ -1893,7 +1864,30 @@ export default function NewTimelineView({
                   opacity: block.isCompleted ? 0.7 : 1,
                 }}
               >
-                {/* 完成划线 */}
+                
+                {/* 🔥 验证倒计时覆盖层 - 在卡片内部 */}
+                {(() => {
+                  const now = new Date();
+                  const hasScheduledStart = !!block.startTime;
+                  const scheduledStartTime = block.startTime ? new Date(block.startTime) : null;
+                  const isTimeReached = scheduledStartTime ? now >= scheduledStartTime : false;
+                  
+                  return hasScheduledStart && isTimeReached;
+                })() && (
+                  <TaskVerificationCountdown
+                    taskId={block.id}
+                    taskTitle={block.title}
+                    scheduledStart={block.startTime}
+                    scheduledEnd={block.endTime}
+                    startPhotoHint={`请拍摄 ${block.title} 开始的照片`}
+                    endPhotoHint={`请拍摄 ${block.title} 完成的照片`}
+                    cardColor={block.color}
+                    hasVerification={!!taskVerifications[block.id]?.enabled}
+                    startKeywords={taskVerifications[block.id]?.startKeywords || ['启动', '开始']}
+                    completeKeywords={taskVerifications[block.id]?.completionKeywords || ['完成', '结束']}
+                  />
+                )}
+{/* 完成划线 */}
                 {block.isCompleted && (
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
                     <div 
