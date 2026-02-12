@@ -52,14 +52,24 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
     const dayStart = firstTask.startTime.getTime();
     const dayEnd = lastTask.endTime.getTime();
 
+    console.log('🔍 NOW线计算:', {
+      now: new Date(now).toLocaleTimeString(),
+      dayStart: new Date(dayStart).toLocaleTimeString(),
+      dayEnd: new Date(dayEnd).toLocaleTimeString(),
+      beforeStart: now < dayStart,
+      afterEnd: now > dayEnd,
+    });
+
     // 如果当前时间在第一个任务之前，显示在顶部
     if (now < dayStart) {
+      console.log('✅ NOW线：显示在顶部');
       setTopPosition(0);
       return;
     }
 
     // 如果当前时间在最后一个任务之后，不显示
     if (now > dayEnd) {
+      console.log('❌ NOW线：当前时间在最后任务之后，不显示');
       setTopPosition(null);
       return;
     }
@@ -72,10 +82,17 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
       const blockStart = block.startTime.getTime();
       const blockEnd = block.endTime.getTime();
       
+      console.log(`  任务${i}: ${block.title}`, {
+        start: new Date(blockStart).toLocaleTimeString(),
+        end: new Date(blockEnd).toLocaleTimeString(),
+        inRange: now >= blockStart && now <= blockEnd,
+      });
+      
       // 获取实际的 DOM 元素
       const taskContainer = document.querySelector(`[data-task-id="${block.id}"]`)?.parentElement;
       
       if (!taskContainer) {
+        console.log(`  ⚠️ 找不到DOM元素: ${block.id}`);
         // 如果找不到 DOM 元素，使用默认高度
         const defaultHeight = 120;
         
@@ -83,7 +100,9 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
           const blockDuration = blockEnd - blockStart;
           const elapsed = now - blockStart;
           const progress = elapsed / blockDuration;
-          setTopPosition(accumulatedTop + (progress * defaultHeight));
+          const position = accumulatedTop + (progress * defaultHeight);
+          console.log(`✅ NOW线：在任务${i}内（默认高度），位置=${position}px`);
+          setTopPosition(position);
           return;
         }
         
@@ -93,27 +112,31 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
       
       // 使用实际的容器高度（包括时间标签）
       const containerHeight = taskContainer.getBoundingClientRect().height;
+      console.log(`  容器高度: ${containerHeight}px`);
       
       // 如果当前时间在这个任务块内
       if (now >= blockStart && now <= blockEnd) {
         const blockDuration = blockEnd - blockStart;
         const elapsed = now - blockStart;
         const progress = elapsed / blockDuration;
+        const position = accumulatedTop + (progress * containerHeight);
         
-        setTopPosition(accumulatedTop + (progress * containerHeight));
+        console.log(`✅ NOW线：在任务${i}内，位置=${position}px (进度=${(progress*100).toFixed(1)}%)`);
+        setTopPosition(position);
         return;
       }
       
       // 累加已经过去的任务容器高度
       accumulatedTop += containerHeight;
       
-      // 如果在间隔中，不显示（或者显示在下一个任务的顶部）
+      // 如果在间隔中，显示在下一个任务的顶部
       if (i < timeBlocks.length - 1) {
         const nextBlock = timeBlocks[i + 1];
         const gapEnd = nextBlock.startTime.getTime();
         
         if (now > blockEnd && now < gapEnd) {
           // 在间隔中，显示在下一个任务的顶部
+          console.log(`✅ NOW线：在间隔中，显示在任务${i+1}顶部，位置=${accumulatedTop}px`);
           setTopPosition(accumulatedTop);
           return;
         }
@@ -121,6 +144,7 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
     }
     
     // 默认不显示
+    console.log('❌ NOW线：未找到合适位置，不显示');
     setTopPosition(null);
   }, [currentTime, timeBlocks]);
 
