@@ -153,11 +153,12 @@ class HabitMonitorService {
     const { habits } = useHabitCanStore.getState();
     const { tasks } = useTaskStore.getState();
     
-    // 获取当天的所有任务
+    // 获取"睡眠日"的所有任务（早上7:00到次日早上6:59）
     const dayTasks = tasks.filter((task) => {
       if (!task.scheduledStart) return false;
-      const taskDate = this.formatDate(new Date(task.scheduledStart));
-      return taskDate === dateStr;
+      const taskDate = new Date(task.scheduledStart);
+      const sleepDate = this.getSleepDate(taskDate);
+      return sleepDate === dateStr;
     });
 
     // 检查每个启用的习惯
@@ -170,6 +171,25 @@ class HabitMonitorService {
         this.checkKeywordRule(habit, dayTasks, dateStr);
       }
     });
+  }
+
+  /**
+   * 获取"睡眠日"日期
+   * 规则：早上7:00-23:59属于当天，凌晨0:00-6:59属于前一天
+   * 例如：2月13号凌晨4:36 -> 返回 2月12号
+   */
+  private getSleepDate(date: Date): string {
+    const hours = date.getHours();
+    
+    // 如果是凌晨0:00-6:59，归属到前一天
+    if (hours >= 0 && hours < 7) {
+      const prevDay = new Date(date);
+      prevDay.setDate(prevDay.getDate() - 1);
+      return this.formatDate(prevDay);
+    }
+    
+    // 如果是7:00-23:59，归属到当天
+    return this.formatDate(date);
   }
 
   /**
@@ -209,17 +229,39 @@ class HabitMonitorService {
     
     if (!targetTime) return;
     
-    const taskTime = new Date(targetTime).toTimeString().slice(0, 5);
+    const taskDateTime = new Date(targetTime);
+    const taskTime = taskDateTime.toTimeString().slice(0, 5);
+    const taskHour = taskDateTime.getHours();
     const thresholdTime = time;
     
-    const isViolation = comparison === 'after' 
-      ? taskTime > thresholdTime 
-      : taskTime < thresholdTime;
+    // 处理跨天情况：凌晨0:00-6:59的时间需要特殊处理
+    let isViolation = false;
+    
+    if (comparison === 'after') {
+      // 检查是否晚于阈值
+      if (taskHour >= 0 && taskHour < 7) {
+        // 凌晨时段（0:00-6:59）：一定算作熬夜（晚于任何晚上的时间）
+        isViolation = true;
+      } else {
+        // 正常时段（7:00-23:59）：直接比较时间
+        isViolation = taskTime > thresholdTime;
+      }
+    } else {
+      // 检查是否早于阈值（晚起）
+      if (taskHour >= 0 && taskHour < 7) {
+        // 凌晨时段：不算晚起
+        isViolation = false;
+      } else {
+        // 正常时段：直接比较时间
+        isViolation = taskTime < thresholdTime;
+      }
+    }
     
     if (isViolation) {
+      const actualDate = taskDateTime.toLocaleDateString('zh-CN');
       recordOccurrence(habit.id, date, {
         time: taskTime,
-        reason: `${checkType === 'first_event' ? '第一个任务' : '最后一个任务'}时间为 ${taskTime}，${comparison === 'after' ? '晚于' : '早于'} ${thresholdTime}`,
+        reason: `${checkType === 'first_event' ? '第一个任务' : '最后一个任务'}时间为 ${actualDate} ${taskTime}，${comparison === 'after' ? '晚于' : '早于'} ${thresholdTime}`,
         relatedTaskId: targetTask.id,
       });
     }
