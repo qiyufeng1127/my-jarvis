@@ -40,9 +40,9 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
   useEffect(() => {
     const now = currentTime.getTime();
     
-    // 如果没有任务，显示在顶部
+    // 如果没有任务，不显示
     if (timeBlocks.length === 0) {
-      setTopPosition(0);
+      setTopPosition(null);
       return;
     }
 
@@ -58,23 +58,13 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
       return;
     }
 
-    // 如果当前时间在最后一个任务之后，显示在底部
+    // 如果当前时间在最后一个任务之后，不显示
     if (now > dayEnd) {
-      // 计算所有任务卡片的总高度
-      let totalHeight = 0;
-      timeBlocks.forEach((block, index) => {
-        const cardElement = document.querySelector(`[data-task-id="${block.id}"]`);
-        const actualCardHeight = cardElement ? cardElement.getBoundingClientRect().height : 120;
-        totalHeight += actualCardHeight + 12;
-        if (index < timeBlocks.length - 1) {
-          totalHeight += 40; // 间隔高度
-        }
-      });
-      setTopPosition(totalHeight);
+      setTopPosition(null);
       return;
     }
 
-    // 使用 DOM 测量来获取实际的卡片位置
+    // 遍历所有任务，找到当前时间所在的位置
     let accumulatedTop = 0;
     
     for (let i = 0; i < timeBlocks.length; i++) {
@@ -82,9 +72,27 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
       const blockStart = block.startTime.getTime();
       const blockEnd = block.endTime.getTime();
       
-      // 尝试获取实际的 DOM 元素高度
-      const cardElement = document.querySelector(`[data-task-id="${block.id}"]`);
-      const actualCardHeight = cardElement ? cardElement.getBoundingClientRect().height : 120;
+      // 获取实际的 DOM 元素
+      const taskContainer = document.querySelector(`[data-task-id="${block.id}"]`)?.parentElement;
+      
+      if (!taskContainer) {
+        // 如果找不到 DOM 元素，使用默认高度
+        const defaultHeight = 120;
+        
+        if (now >= blockStart && now <= blockEnd) {
+          const blockDuration = blockEnd - blockStart;
+          const elapsed = now - blockStart;
+          const progress = elapsed / blockDuration;
+          setTopPosition(accumulatedTop + (progress * defaultHeight));
+          return;
+        }
+        
+        accumulatedTop += defaultHeight + 12;
+        continue;
+      }
+      
+      // 使用实际的容器高度（包括时间标签）
+      const containerHeight = taskContainer.getBoundingClientRect().height;
       
       // 如果当前时间在这个任务块内
       if (now >= blockStart && now <= blockEnd) {
@@ -92,40 +100,28 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
         const elapsed = now - blockStart;
         const progress = elapsed / blockDuration;
         
-        const cardTop = accumulatedTop + (progress * actualCardHeight);
-        
-        setTopPosition(cardTop);
+        setTopPosition(accumulatedTop + (progress * containerHeight));
         return;
       }
       
-      // 累加已经过去的任务卡片高度
-      accumulatedTop += actualCardHeight + 12; // 卡片高度 + 间距 (mb-0 实际上有默认间距)
+      // 累加已经过去的任务容器高度
+      accumulatedTop += containerHeight;
       
-      // 检查是否在间隔中
+      // 如果在间隔中，不显示（或者显示在下一个任务的顶部）
       if (i < timeBlocks.length - 1) {
         const nextBlock = timeBlocks[i + 1];
-        const gapStart = blockEnd;
         const gapEnd = nextBlock.startTime.getTime();
         
-        if (now >= gapStart && now < gapEnd) {
-          const gapDuration = gapEnd - gapStart;
-          const gapElapsed = now - gapStart;
-          const gapProgress = gapElapsed / gapDuration;
-          
-          // 间隔区域高度约 40px
-          const gapHeight = 40;
-          const gapTop = accumulatedTop + (gapProgress * gapHeight);
-          
-          setTopPosition(gapTop);
+        if (now > blockEnd && now < gapEnd) {
+          // 在间隔中，显示在下一个任务的顶部
+          setTopPosition(accumulatedTop);
           return;
         }
-        
-        accumulatedTop += 40; // 间隔高度
       }
     }
     
-    // 如果没有找到合适的位置，默认显示在顶部
-    // 注意：不要在这里设置 topPosition，避免无限循环
+    // 默认不显示
+    setTopPosition(null);
   }, [currentTime, timeBlocks]);
 
   // 始终显示 NOW 线
