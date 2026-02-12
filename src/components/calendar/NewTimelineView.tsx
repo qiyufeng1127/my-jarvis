@@ -1874,6 +1874,7 @@ export default function NewTimelineView({
                                        now >= scheduledStartTime && 
                                        now < scheduledEndTime;
                   const isNotCompleted = !block.isCompleted;
+                  const shouldRender = hasScheduledStart && hasScheduledEnd && isInTimeRange && isNotCompleted;
                   
                   // 调试日志
                   console.log('🔍 倒计时渲染检查:', {
@@ -1885,10 +1886,11 @@ export default function NewTimelineView({
                     hasScheduledEnd,
                     isInTimeRange,
                     isNotCompleted,
-                    shouldRender: hasScheduledStart && hasScheduledEnd && isInTimeRange && isNotCompleted
+                    isCompleted: block.isCompleted,
+                    shouldRender
                   });
                   
-                  return hasScheduledStart && hasScheduledEnd && isInTimeRange && isNotCompleted;
+                  return shouldRender;
                 })() && (
                   <TaskVerificationCountdownContent
                      taskId={block.id}
