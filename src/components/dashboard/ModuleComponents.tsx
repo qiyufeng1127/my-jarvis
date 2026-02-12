@@ -4,6 +4,7 @@ import TimelineCalendar from '@/components/calendar/TimelineCalendar';
 import NotificationSettingsPanel from '@/components/settings/NotificationSettings';
 import DataBackupPanel from '@/components/settings/DataBackupPanel';
 import AppearanceSettings from '@/components/settings/AppearanceSettings';
+import BaiduAISettings from '@/components/settings/BaiduAISettings';
 import { MoneyTracker } from '@/components/money';
 import MoodWeeklyChart from '@/components/journal/MoodWeeklyChart';
 import FloatingAIChat from '@/components/ai/FloatingAIChat';
@@ -1471,11 +1472,6 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
     isDark = effectiveTheme === 'dark';
   }, [effectiveTheme]);
   
-  // 百度AI配置状态
-  const [baiduApiKey, setBaiduApiKey] = useState(localStorage.getItem('baidu_api_key') || import.meta.env.VITE_BAIDU_API_KEY || '');
-  const [baiduSecretKey, setBaiduSecretKey] = useState(localStorage.getItem('baidu_secret_key') || import.meta.env.VITE_BAIDU_SECRET_KEY || '');
-  const [showBaiduKey, setShowBaiduKey] = useState(false);
-  
   // 云同步设置状态（这些变量在代码中被使用但未定义）
   const [autoSync, setAutoSync] = useState(false);
   const [syncInterval, setSyncInterval] = useState<'realtime' | '1min' | '5min' | '15min'>('realtime');
@@ -1535,172 +1531,7 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
 
       {/* 百度AI配置 */}
       {activeTab === 'baidu' && (
-        <div className="space-y-4">
-          <h4 className="font-semibold text-base" style={{ color: textColor }}>🤖 百度AI图像识别</h4>
-
-          {/* 配置说明 */}
-          <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
-            <div className="text-sm mb-2" style={{ color: textColor }}>💡 为什么需要配置？</div>
-            <div className="text-xs leading-relaxed" style={{ color: accentColor }}>
-              百度AI用于任务验证系统的照片识别功能。配置后，系统可以自动识别照片内容，判断是否包含验证关键词（如"厨房"、"水槽"等），确保任务真正完成。
-            </div>
-          </div>
-
-          {/* 配置状态 */}
-          <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-medium" style={{ color: textColor }}>配置状态</div>
-                <div className="text-xs mt-1" style={{ color: accentColor }}>
-                  {baiduApiKey && baiduSecretKey ? '✅ 已配置' : '⚠️ 未配置'}
-                </div>
-              </div>
-              {baiduApiKey && baiduSecretKey && (
-                <div className="flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span className="text-sm font-medium" style={{ color: '#4ade80' }}>可用</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* API Key 输入 */}
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: textColor }}>
-                🔑 API Key *
-              </label>
-              <div className="relative">
-                <input
-                  type={showBaiduKey ? 'text' : 'password'}
-                  value={baiduApiKey}
-                  onChange={(e) => setBaiduApiKey(e.target.value)}
-                  placeholder="请输入百度AI的API Key"
-                  className="w-full px-3 py-2.5 pr-20 rounded-lg text-sm"
-                  style={{
-                    backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)',
-                    color: textColor,
-                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}`,
-                  }}
-                />
-                <button
-                  onClick={() => setShowBaiduKey(!showBaiduKey)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 text-xs rounded transition-colors"
-                  style={{ backgroundColor: buttonBg, color: textColor }}
-                >
-                  {showBaiduKey ? '隐藏' : '显示'}
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: textColor }}>
-                🔐 Secret Key *
-              </label>
-              <div className="relative">
-                <input
-                  type={showBaiduKey ? 'text' : 'password'}
-                  value={baiduSecretKey}
-                  onChange={(e) => setBaiduSecretKey(e.target.value)}
-                  placeholder="请输入百度AI的Secret Key"
-                  className="w-full px-3 py-2.5 pr-20 rounded-lg text-sm"
-                  style={{
-                    backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)',
-                    color: textColor,
-                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}`,
-                  }}
-                />
-                <button
-                  onClick={() => setShowBaiduKey(!showBaiduKey)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 text-xs rounded transition-colors"
-                  style={{ backgroundColor: buttonBg, color: textColor }}
-                >
-                  {showBaiduKey ? '隐藏' : '显示'}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* 获取密钥指南 */}
-          <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
-            <h5 className="text-sm font-semibold mb-2" style={{ color: textColor }}>📚 如何获取API密钥？</h5>
-            <ol className="space-y-2 text-xs" style={{ color: accentColor }}>
-              <li>1. 访问 <a href="https://ai.baidu.com/" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: textColor }}>https://ai.baidu.com/</a></li>
-              <li>2. 登录百度账号（没有则注册）</li>
-              <li>3. 进入控制台 → 图像识别 → 通用物体和场景识别</li>
-              <li>4. 创建应用，获取 API Key 和 Secret Key</li>
-              <li>5. 将密钥填入上方输入框，点击保存</li>
-            </ol>
-          </div>
-
-          {/* 免费额度说明 */}
-          <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
-            <h5 className="text-sm font-semibold mb-2" style={{ color: textColor }}>💰 免费额度</h5>
-            <div className="text-xs leading-relaxed" style={{ color: accentColor }}>
-              • 每天 500 次免费调用<br/>
-              • 超出后按次数收费（价格很低）<br/>
-              • 对于个人使用完全够用
-            </div>
-          </div>
-
-          {/* 功能说明 */}
-          <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
-            <h5 className="text-sm font-semibold mb-2" style={{ color: textColor }}>✨ 配置后可使用</h5>
-            <ul className="space-y-1 text-xs" style={{ color: accentColor }}>
-              <li>✅ 任务开始拍照验证</li>
-              <li>✅ 任务完成拍照验证</li>
-              <li>✅ 自动识别照片内容</li>
-              <li>✅ 智能匹配验证关键词</li>
-              <li>✅ 防止拖延和作弊</li>
-            </ul>
-          </div>
-
-          {/* 安全提示 */}
-          <div className="rounded-lg p-4" style={{ backgroundColor: cardBg }}>
-            <h5 className="text-sm font-semibold mb-2" style={{ color: textColor }}>🔒 安全提示</h5>
-            <div className="text-xs leading-relaxed" style={{ color: accentColor }}>
-              • API密钥仅保存在本地浏览器<br/>
-              • 不会上传到服务器<br/>
-              • 请妥善保管，不要泄露给他人
-            </div>
-          </div>
-
-          {/* 保存按钮 */}
-          <button
-            onClick={() => {
-              // 保存到localStorage
-              localStorage.setItem('baidu_api_key', baiduApiKey);
-              localStorage.setItem('baidu_secret_key', baiduSecretKey);
-              
-              console.log('💾 百度 AI 配置已保存到 localStorage');
-              
-              alert('✅ 百度AI配置已保存！\n\n配置会自动保存到本地，刷新页面或关机后依然有效。\n\n现在可以使用照片验证功能了。');
-            }}
-            disabled={!baiduApiKey || !baiduSecretKey}
-            className="w-full py-3 rounded-lg text-sm font-semibold transition-all hover:scale-[1.02]"
-            style={{
-              backgroundColor: (baiduApiKey && baiduSecretKey) ? buttonBg : 'rgba(0,0,0,0.05)',
-              color: (baiduApiKey && baiduSecretKey) ? textColor : accentColor,
-              opacity: (baiduApiKey && baiduSecretKey) ? 1 : 0.5,
-              cursor: (baiduApiKey && baiduSecretKey) ? 'pointer' : 'not-allowed',
-            }}
-          >
-            💾 保存配置
-          </button>
-
-          {/* 测试按钮 */}
-          {baiduApiKey && baiduSecretKey && (
-            <button
-              onClick={() => {
-                alert('🧪 测试功能开发中...\n\n您可以通过创建任务并启用验证来测试照片识别功能。');
-              }}
-              className="w-full py-3 rounded-lg text-sm font-semibold transition-all hover:scale-[1.02]"
-              style={{ backgroundColor: buttonBg, color: textColor }}
-            >
-              🧪 测试连接
-            </button>
-          )}
-        </div>
+        <BaiduAISettings />
       )}
 
       {/* 云同步设置 */}

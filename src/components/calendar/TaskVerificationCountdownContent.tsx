@@ -1,412 +1,841 @@
-/**
- * 任务验证倒计时组件（统一版本）
- * 核心功能：
- * 1. 到达设定时间自动触发启动验证
- * 2. 启动验证后只显示一个放大的任务剩余倒计时
- * 3. 完成时自动更新任务的实际结束时间
- */
-
-import React, { useState, useEffect } from 'react';
-import { Camera, Upload } from 'lucide-react';
-import { baiduImageRecognition } from '@/services/baiduImageRecognition';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useGoldStore } from '@/stores/goldStore';
+import { baiduImageRecognition } from '@/services/baiduImageRecognition';
+import { ImageUploader } from '@/services/taskVerificationService';
 
 interface TaskVerificationCountdownContentProps {
   taskId: string;
   taskTitle: string;
   scheduledStart: Date;
   scheduledEnd: Date;
-  onComplete?: (actualEndTime: Date) => void;
-  hasVerification?: boolean;
+  goldReward?: number;
+  hasVerification: boolean;
   startKeywords?: string[];
   completeKeywords?: string[];
+  onStart?: (actualStartTime: Date, calculatedEndTime: Date) => void;
+  onComplete?: (actualEndTime: Date) => void;
 }
 
-type VerificationStatus = 'waiting' | 'ready_to_start' | 'in_progress' | 'completed';
+// 倒计时状态：等待启动 -> 启动倒计时(2分钟) -> 上传验证中 -> 完成倒计时(任务总时长) -> 已完成
+type CountdownStatus = 'waiting_start' | 'start_countdown' | 'uploading_start' | 'task_countdown' | 'uploading_complete' | 'completed';
+
+// 持久化状态接口
+interface CountdownState {
+  status: CountdownStatus;
+  startCountdownLeft: number; // 启动倒计时剩余秒数
+  taskCountdownLeft: number; // 任务倒计时剩余秒数
+  startTimeoutCount: number; // 启动超时次数
+  completeTimeoutCount: number; // 完成超时次数
+  actualStartTime: string | null; // 实际启动时间
+  lastUpdateTime: string; // 最后更新时间
+}
 
 export default function TaskVerificationCountdownContent({
   taskId,
   taskTitle,
   scheduledStart,
   scheduledEnd,
+  goldReward = 0,
+  hasVerification,
+  startKeywords = [],
+  completeKeywords = [],
+  onStart,
   onComplete,
-  hasVerification = false,
-  startKeywords = ['启动', '开始'],
-  completeKeywords = ['完成', '结束'],
 }: TaskVerificationCountdownContentProps) {
-  const { penaltyGold, addGold } = useGoldStore(); // 使用金币store
-  const [status, setStatus] = useState<VerificationStatus>('waiting');
-  const [startCountdown, setStartCountdown] = useState(120); // 启动倒计时2分钟
-  const [taskTimeLeft, setTaskTimeLeft] = useState(0);
-  const [uploadedPhoto, setUploadedPhoto] = useState<string | null>(null);
-  const [startPenaltyCount, setStartPenaltyCount] = useState(0); // 启动超时次数
-  const [completePenaltyCount, setCompletePenaltyCount] = useState(0);
-  const [actualStartTime, setActualStartTime] = useState<Date | null>(null); // 实际开始时间
-  const [dynamicEndTime, setDynamicEndTime] = useState<Date>(scheduledEnd); // 动态结束时间
-  const [baseGoldReward, setBaseGoldReward] = useState(0); // 基础金币奖励
-  const [earlyStartBonus, setEarlyStartBonus] = useState(false); // 是否获得早启动奖励
-  const [onTimeCompleteBonus, setOnTimeCompleteBonus] = useState(false); // 是否获得按时完成奖励
-
-  // 自动触发：检查是否到达设定时间（只在当前时间范围内触发）
-  useEffect(() => {
-    const checkTime = () => {
-      const now = new Date();
-      const startTime = new Date(scheduledStart);
-      const endTime = new Date(scheduledEnd);
-      
-      // 只有在任务时间范围内才触发（当前时间在开始和结束之间）
-      if (now >= startTime && now < endTime && status === 'waiting') {
-        console.log('⏰ 任务到达设定时间，显示启动按钮:', taskTitle);
-        setStatus('ready_to_start');
+  const { penaltyGold, addGold } = useGoldStore();
+  
+  // 持久化key
+  const storageKey = `countdown_${taskId}`;
+  
+  // 从localStorage加载状态
+  const loadState = useCallback((): CountdownState | null => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const state = JSON.parse(saved) as CountdownState;
+        console.log(`📦 加载倒计时状态: ${taskTitle}`, state);
+        return state;
       }
-    };
-
-    // 立即检查一次
-    checkTime();
-    
-    // 每秒检查一次
-    const interval = setInterval(checkTime, 1000);
-    return () => clearInterval(interval);
-  }, [scheduledStart, scheduledEnd, status, taskTitle]);
-
-  // 启动倒计时：2分钟倒计时，超时扣20%金币并重置
-  useEffect(() => {
-    if (status === 'ready_to_start' && startCountdown > 0) {
-      const timer = setTimeout(() => {
-        setStartCountdown(startCountdown - 1);
-      }, 1000);
-      return () => clearTimeout(timer);
+    } catch (error) {
+      console.error('❌ 加载倒计时状态失败:', error);
     }
-    
-    // 倒计时结束，扣金币并重置
-    if (status === 'ready_to_start' && startCountdown === 0) {
-      setStartPenaltyCount(prev => prev + 1);
-      
-      // 计算扣除的金币（基础金币的20%）
-      const taskDuration = Math.floor((new Date(scheduledEnd).getTime() - new Date(scheduledStart).getTime()) / 60000);
-      const baseReward = Math.floor(taskDuration * 0.8);
-      const penaltyAmount = Math.floor(baseReward * 0.2);
-      
-      // 真正扣除金币
-      penaltyGold(penaltyAmount, `启动验证超时（第${startPenaltyCount + 1}次）`, taskId, taskTitle);
-      
-      alert(`⚠️ 启动验证超时！扣除${penaltyAmount}金币（第${startPenaltyCount + 1}次）`);
-      setStartCountdown(120); // 重置为2分钟，继续循环
+    return null;
+  }, [storageKey, taskTitle]);
+  
+  // 保存状态到localStorage
+  const saveState = useCallback((state: CountdownState) => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(state));
+      console.log(`💾 保存倒计时状态: ${taskTitle}`, state);
+    } catch (error) {
+      console.error('❌ 保存倒计时状态失败:', error);
     }
-  }, [status, startCountdown, startPenaltyCount, taskId, taskTitle, scheduledStart, scheduledEnd, penaltyGold]);
-
-  // 任务剩余时间倒计时（任务进行中阶段）
-  useEffect(() => {
-    if (status === 'in_progress') {
-      const calculateTimeLeft = () => {
-        const now = new Date();
-        const endTime = dynamicEndTime;
-        const diff = Math.floor((endTime.getTime() - now.getTime()) / 1000);
-        const timeLeft = Math.max(0, diff);
-        setTaskTimeLeft(timeLeft);
-        
-        // 如果时间到了，延长10分钟并扣除20%金币
-        if (timeLeft === 0 && completePenaltyCount < 100) { // 最多扣100次
-          setCompletePenaltyCount(prev => prev + 1);
-          
-          // 计算扣除的金币（基础金币的20%）
-          const taskDuration = Math.floor((new Date(scheduledEnd).getTime() - new Date(scheduledStart).getTime()) / 60000);
-          const baseReward = Math.floor(taskDuration * 0.8);
-          const penaltyAmount = Math.floor(baseReward * 0.2);
-          
-          // 真正扣除金币
-          penaltyGold(penaltyAmount, `任务超时延长10分钟（第${completePenaltyCount + 1}次）`, taskId, taskTitle);
-          
-          alert(`⚠️ 任务超时！延长10分钟，扣除${penaltyAmount}金币（第${completePenaltyCount + 1}次）`);
-          
-          // 延长10分钟
-          const newEndTime = new Date(endTime.getTime() + 10 * 60 * 1000);
-          setDynamicEndTime(newEndTime);
-          setTaskTimeLeft(600); // 重置为10分钟（600秒）
-          
-          console.log('⚠️ 任务超时，延长10分钟至:', newEndTime.toLocaleTimeString());
-        }
+  }, [storageKey, taskTitle]);
+  
+  // 初始化状态
+  const initState = useCallback((): CountdownState => {
+    const saved = loadState();
+    if (saved) {
+      // 恢复状态时，根据最后更新时间计算实际剩余时间
+      const now = Date.now();
+      const lastUpdate = new Date(saved.lastUpdateTime).getTime();
+      const elapsedSeconds = Math.floor((now - lastUpdate) / 1000);
+      
+      return {
+        ...saved,
+        startCountdownLeft: Math.max(0, saved.startCountdownLeft - elapsedSeconds),
+        taskCountdownLeft: Math.max(0, saved.taskCountdownLeft - elapsedSeconds),
+        lastUpdateTime: new Date().toISOString(),
       };
-
-      calculateTimeLeft();
-      const interval = setInterval(calculateTimeLeft, 1000);
-      return () => clearInterval(interval);
     }
-  }, [status, dynamicEndTime, completePenaltyCount, taskId, taskTitle, scheduledStart, scheduledEnd, penaltyGold]);
+    
+    // 默认状态
+    return {
+      status: 'waiting_start',
+      startCountdownLeft: 120, // 2分钟 = 120秒
+      taskCountdownLeft: 0,
+      startTimeoutCount: 0,
+      completeTimeoutCount: 0,
+      actualStartTime: null,
+      lastUpdateTime: new Date().toISOString(),
+    };
+  }, [loadState]);
+  
+  // 核心状态
+  const [state, setState] = useState<CountdownState>(initState);
+  const [isUploading, setIsUploading] = useState(false);
+  const [verificationMessage, setVerificationMessage] = useState<string>('');
+  const [verificationSuccess, setVerificationSuccess] = useState<boolean | null>(null);
 
-  // 处理照片拍摄/上传
-  const handlePhotoCapture = async (type: 'camera' | 'upload') => {
+  // 检查是否到达预设开始时间，自动触发启动倒计时
+  useEffect(() => {
+    const now = new Date();
+    const start = new Date(scheduledStart);
+    
+    // 如果当前时间 >= 预设开始时间，且状态为等待启动，则触发启动倒计时
+    if (now >= start && state.status === 'waiting_start') {
+      console.log(`⏰ 任务到达预设时间，触发启动倒计时: ${taskTitle}`);
+      setState(prev => ({
+        ...prev,
+        status: 'start_countdown',
+        lastUpdateTime: new Date().toISOString(),
+      }));
+    }
+  }, [scheduledStart, state.status, taskTitle]);
+  
+  // 统一倒计时定时器
+  useEffect(() => {
+    // 只在启动倒计时或任务倒计时阶段运行
+    if (state.status !== 'start_countdown' && state.status !== 'task_countdown') {
+      return;
+    }
+    
+    const timer = setInterval(() => {
+      setState(prev => {
+        const newState = { ...prev, lastUpdateTime: new Date().toISOString() };
+        
+        // 启动倒计时阶段
+        if (prev.status === 'start_countdown') {
+          if (prev.startCountdownLeft > 0) {
+            newState.startCountdownLeft = prev.startCountdownLeft - 1;
+          } else {
+            // 启动倒计时超时
+            const penaltyAmount = Math.floor(goldReward * 0.2);
+            penaltyGold(penaltyAmount, `启动超时（第${prev.startTimeoutCount + 1}次）`, taskId, taskTitle);
+            console.log(`⚠️ 启动超时！扣除${penaltyAmount}金币（${prev.startTimeoutCount + 1}次）`);
+            
+            newState.startTimeoutCount = prev.startTimeoutCount + 1;
+            newState.startCountdownLeft = 120; // 重置为2分钟，循环扣除
+          }
+        }
+        
+        // 任务倒计时阶段
+        if (prev.status === 'task_countdown') {
+          if (prev.taskCountdownLeft > 0) {
+            newState.taskCountdownLeft = prev.taskCountdownLeft - 1;
+          } else {
+            // 任务倒计时超时（每10分钟扣20%）
+            const penaltyAmount = Math.floor(goldReward * 0.2);
+            penaltyGold(penaltyAmount, `完成超时（第${prev.completeTimeoutCount + 1}次）`, taskId, taskTitle);
+            console.log(`⚠️ 完成超时！扣除${penaltyAmount}金币（${prev.completeTimeoutCount + 1}次）`);
+            
+            newState.completeTimeoutCount = prev.completeTimeoutCount + 1;
+            newState.taskCountdownLeft = 600; // 重置为10分钟，循环扣除
+          }
+        }
+        
+        // 保存状态
+        saveState(newState);
+        return newState;
+      });
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, [state.status, goldReward, penaltyGold, taskId, taskTitle, saveState]);
+
+  // 启动任务（无验证直接启动，有验证需上传照片）
+  const handleStartTask = useCallback(async () => {
+    if (!hasVerification) {
+      // 无验证：直接启动任务
+      const now = new Date();
+      const duration = Math.floor((new Date(scheduledEnd).getTime() - new Date(scheduledStart).getTime()) / 60000);
+      const taskSeconds = duration * 60;
+      
+      // 2分钟内完成启动，奖励50%金币
+      const bonusGold = Math.floor(goldReward * 0.5);
+      addGold(bonusGold, `按时启动任务（奖励50%）`, taskId, taskTitle);
+      console.log(`✅ 按时启动任务，获得${bonusGold}金币奖励`);
+      
+      setState(prev => ({
+        ...prev,
+        status: 'task_countdown',
+        taskCountdownLeft: taskSeconds,
+        actualStartTime: now.toISOString(),
+        lastUpdateTime: new Date().toISOString(),
+      }));
+      
+      // 通知父组件更新开始时间
+      if (onStart) {
+        const calculatedEndTime = new Date(now.getTime() + duration * 60000);
+        onStart(now, calculatedEndTime);
+      }
+      
+      console.log(`✅ 启动任务成功: ${taskTitle}，任务时长${duration}分钟`);
+      return;
+    }
+    
+    // 有验证：上传照片并验证
+    setState(prev => ({ ...prev, status: 'uploading_start' }));
+    setIsUploading(true);
+    setVerificationMessage('');
+    setVerificationSuccess(null);
+    
+    // 创建文件选择器
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
-    if (type === 'camera') {
-      input.capture = 'environment' as any;
-    }
+    input.capture = 'environment' as any;
+    
+    // 处理用户点击叉叉取消上传
+    input.oncancel = () => {
+      console.log('❌ 用户取消上传，返回启动倒计时');
+      setState(prev => ({ ...prev, status: 'start_countdown' }));
+      setIsUploading(false);
+      setVerificationMessage('');
+      setVerificationSuccess(null);
+    };
     
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
+      if (!file) {
+        console.log('❌ 未选择文件，返回启动倒计时');
+        setState(prev => ({ ...prev, status: 'start_countdown' }));
+        setIsUploading(false);
+        setVerificationMessage('');
+        setVerificationSuccess(null);
+        return;
+      }
       
-      if (hasVerification) {
-        try {
-          const keywords = status === 'ready_to_start' ? startKeywords : completeKeywords;
-          const result = await baiduImageRecognition.smartVerifyImage(file, keywords, 0.2);
-          
-          if (result.success) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-              setUploadedPhoto(event.target?.result as string);
-              alert(`✅ 验证通过！\n\n${result.description}`);
-            };
-            reader.readAsDataURL(file);
-          } else {
-            const message = `${result.description}\n\n${result.matchDetails}${result.suggestions ? '\n\n建议：\n' + result.suggestions.join('\n') : ''}`;
-            alert(message);
-          }
-        } catch (error) {
-          alert('⚠️ 图像识别服务异常，请重试或跳过验证');
+      try {
+        setVerificationMessage('正在验证中，请稍后...');
+        console.log('📷 [百度API] 开始识别');
+        
+        // 添加超时控制：10秒超时
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('验证超时，请重试')), 10000);
+        });
+        
+        // 1. 压缩并上传图片
+        const compressedFile = await ImageUploader.compressImage(file);
+        const uploadedImageUrl = await ImageUploader.uploadImage(compressedFile);
+        
+        if (!uploadedImageUrl) {
+          setVerificationMessage('❌ 照片上传失败，请重新拍摄');
+          setVerificationSuccess(false);
+          setIsUploading(false);
+          // 保持在uploading_start状态，不要回到start_countdown
+          console.log('❌ [百度API] 照片上传失败');
+          return;
         }
-      } else {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          setUploadedPhoto(event.target?.result as string);
-        };
-        reader.readAsDataURL(file);
+        
+        // 2. 调用百度API验证（阈值设为0.1，只要匹配到一个关键词就通过）
+        // 使用Promise.race实现超时控制
+        const verifyResult = await Promise.race([
+          baiduImageRecognition.smartVerifyImage(
+            file,
+            startKeywords,
+            0.1  // 降低阈值到0.1，表示只要匹配10%（即1个关键词）就通过
+          ),
+          timeoutPromise
+        ]) as any;
+        
+        console.log('📷 [百度API] 验证结果:', verifyResult);
+        
+        if (!verifyResult.success) {
+          setVerificationMessage(verifyResult.description || `❌ 验证未通过，请重新拍摄（需包含：${startKeywords.join('、')}）`);
+          setVerificationSuccess(false);
+          setIsUploading(false);
+          // 保持在uploading_start状态，不要回到start_countdown
+          console.log(`❌ [百度API] 识别失败:`, verifyResult.matchDetails);
+          if (verifyResult.suggestions) {
+            console.log('💡 拍摄建议:', verifyResult.suggestions.join('\n'));
+          }
+          return;
+        }
+        
+        // 3. 验证成功，自动进入任务倒计时
+        const now = new Date();
+        const duration = Math.floor((new Date(scheduledEnd).getTime() - new Date(scheduledStart).getTime()) / 60000);
+        const taskSeconds = duration * 60;
+        
+        const recognizedItems = verifyResult.matchedKeywords?.join('、') || '相关内容';
+        setVerificationMessage(`✅ 验证成功！已识别到：${recognizedItems}`);
+        setVerificationSuccess(true);
+        console.log(`✅ [百度API] 识别成功，匹配关键词：${recognizedItems}`);
+        console.log('📝 详细匹配信息:', verifyResult.matchDetails);
+        
+        // 2分钟内完成启动，奖励50%金币
+        const bonusGold = Math.floor(goldReward * 0.5);
+        addGold(bonusGold, `按时启动任务（奖励50%）`, taskId, taskTitle);
+        console.log(`✅ 按时启动任务，获得${bonusGold}金币奖励`);
+        
+        // 延迟2秒后进入任务倒计时，让用户看到验证成功消息
+        setTimeout(() => {
+          setState(prev => ({
+            ...prev,
+            status: 'task_countdown',
+            taskCountdownLeft: taskSeconds,
+            actualStartTime: now.toISOString(),
+            lastUpdateTime: new Date().toISOString(),
+          }));
+          
+          setIsUploading(false);
+          setVerificationMessage('');
+          setVerificationSuccess(null);
+          
+          // 通知父组件更新开始时间
+          if (onStart) {
+            const calculatedEndTime = new Date(now.getTime() + duration * 60000);
+            onStart(now, calculatedEndTime);
+          }
+          
+          console.log(`✅ 启动验证成功: ${taskTitle}，任务时长${duration}分钟`);
+        }, 2000);
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : '未知错误';
+        setVerificationMessage(`❌ 验证异常：${errorMsg}`);
+        setVerificationSuccess(false);
+        setIsUploading(false);
+        // 保持在uploading_start状态，不要回到start_countdown
+        console.error('❌ [百度API] 验证异常:', error);
       }
     };
     
     input.click();
-  };
+  }, [hasVerification, startKeywords, scheduledStart, scheduledEnd, goldReward, addGold, taskId, taskTitle, onStart]);
 
-  const handleStart = () => {
-    if (hasVerification && !uploadedPhoto) {
-      alert('⚠️ 请先拍摄或上传照片！');
-      return;
-    }
-    
-    // 记录实际开始时间
-    const now = new Date();
-    setActualStartTime(now);
-    
-    // 检查是否在第一个2分钟内启动（获得50%奖励）
-    if (startCountdown > 0 && startPenaltyCount === 0) {
-      setEarlyStartBonus(true);
-      console.log('🎉 在第一个2分钟内启动，获得50%金币奖励！');
-    }
-    
-    // 计算动态结束时间：实际开始时间 + 任务时长
-    const taskDuration = new Date(scheduledEnd).getTime() - new Date(scheduledStart).getTime();
-    const calculatedEndTime = new Date(now.getTime() + taskDuration);
-    setDynamicEndTime(calculatedEndTime);
-    
-    console.log('✅ 启动任务，开始倒计时:', taskTitle);
-    console.log('   实际开始时间:', now.toLocaleTimeString());
-    console.log('   计划结束时间:', calculatedEndTime.toLocaleTimeString());
-    console.log('   任务时长:', Math.floor(taskDuration / 60000), '分钟');
-    console.log('   早启动奖励:', earlyStartBonus ? '是' : '否');
-    
-    setStatus('in_progress');
-    setUploadedPhoto(null);
-  };
-
-  const handleComplete = () => {
-    if (hasVerification && !uploadedPhoto) {
-      alert('⚠️ 请先拍摄或上传完成照片！');
-      return;
-    }
-    
-    // 记录实际完成时间
-    const actualEndTime = new Date();
-    console.log('✅ 任务完成，实际结束时间:', actualEndTime);
-    
-    // 计算金币奖励
-    const taskDuration = Math.floor((new Date(scheduledEnd).getTime() - new Date(scheduledStart).getTime()) / 60000);
-    const baseReward = Math.floor(taskDuration * 0.8);
-    
-    // 检查是否在原定时间内完成（没有延长过）
-    const isOnTime = completePenaltyCount === 0;
-    if (isOnTime) {
-      setOnTimeCompleteBonus(true);
-      console.log('🎉 在原定时间内完成，获得50%金币奖励！');
-    }
-    
-    // 计算总扣除百分比
-    const totalPenaltyPercent = (startPenaltyCount + completePenaltyCount) * 20;
-    
-    // 计算奖励百分比
-    let bonusPercent = 0;
-    if (earlyStartBonus) bonusPercent += 50;
-    if (onTimeCompleteBonus) bonusPercent += 50;
-    
-    // 最终金币 = 基础金币 * (1 - 扣除% + 奖励%)
-    const finalReward = Math.max(0, Math.floor(baseReward * (1 - totalPenaltyPercent / 100 + bonusPercent / 100)));
-    
-    // 添加金币
-    if (finalReward > 0) {
-      let reason = '完成任务';
-      if (earlyStartBonus && onTimeCompleteBonus) {
-        reason += '（早启动+按时完成）';
-      } else if (earlyStartBonus) {
-        reason += '（早启动奖励）';
-      } else if (onTimeCompleteBonus) {
-        reason += '（按时完成奖励）';
+  // 完成任务（无验证直接完成，有验证需上传照片）
+  const handleCompleteTask = useCallback(async () => {
+    if (!hasVerification) {
+      // 无验证：直接完成任务
+      const now = new Date();
+      
+      // 计算是否提前完成（奖励50%）
+      const scheduledEndTime = new Date(scheduledEnd);
+      const isEarly = now < scheduledEndTime;
+      
+      if (isEarly) {
+        const bonusGold = Math.floor(goldReward * 0.5);
+        addGold(bonusGold, `提前完成任务（奖励50%）`, taskId, taskTitle);
+        console.log(`✅ 提前完成任务，获得${bonusGold}金币奖励`);
       }
       
-      addGold(finalReward, reason, taskId, taskTitle);
-      console.log(`💰 获得金币: ${finalReward} (基础${baseReward} - 扣除${totalPenaltyPercent}% + 奖励${bonusPercent}%)`);
+      // 扣除超时惩罚金
+      const totalPenalty = Math.floor(goldReward * 0.2) * state.completeTimeoutCount;
+      if (totalPenalty > 0) {
+        console.log(`⚠️ 累计扣除${totalPenalty}金币（${state.completeTimeoutCount}次超时）`);
+      }
+      
+      setState(prev => ({
+        ...prev,
+        status: 'completed',
+        lastUpdateTime: new Date().toISOString(),
+      }));
+      
+      // 通知父组件更新结束时间
+      if (onComplete) {
+        onComplete(now);
+      }
+      
+      // 清除持久化状态
+      localStorage.removeItem(storageKey);
+      console.log(`✅ 完成任务: ${taskTitle}`);
+      return;
     }
     
-    setStatus('completed');
-    onComplete?.(actualEndTime); // 传递实际完成时间
-  };
+    // 有验证：上传照片并验证
+    setState(prev => ({ ...prev, status: 'uploading_complete' }));
+    setIsUploading(true);
+    setVerificationMessage('');
+    setVerificationSuccess(null);
+    
+    // 创建文件选择器
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.capture = 'environment' as any;
+    
+    // 处理用户点击叉叉取消上传
+    input.oncancel = () => {
+      console.log('❌ 用户取消上传，返回任务倒计时');
+      setState(prev => ({ ...prev, status: 'task_countdown' }));
+      setIsUploading(false);
+      setVerificationMessage('');
+      setVerificationSuccess(null);
+    };
+    
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) {
+        console.log('❌ 未选择文件，返回任务倒计时');
+        setState(prev => ({ ...prev, status: 'task_countdown' }));
+        setIsUploading(false);
+        setVerificationMessage('');
+        setVerificationSuccess(null);
+        return;
+      }
+      
+      try {
+        setVerificationMessage('正在验证中，请稍后...');
+        console.log('📷 [百度API] 开始识别');
+        
+        // 添加超时控制：10秒超时
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('验证超时，请重试')), 10000);
+        });
+        
+        // 1. 压缩并上传图片
+        const compressedFile = await ImageUploader.compressImage(file);
+        const uploadedImageUrl = await ImageUploader.uploadImage(compressedFile);
+        
+        if (!uploadedImageUrl) {
+          setVerificationMessage('❌ 照片上传失败，请重新拍摄');
+          setVerificationSuccess(false);
+          setIsUploading(false);
+          // 保持在uploading_complete状态，不要回到task_countdown
+          console.log('❌ [百度API] 照片上传失败');
+          return;
+        }
+        
+        // 2. 调用百度API验证（从localStorage读取用户设置的阈值）
+        // 使用Promise.race实现超时控制
+        const savedThreshold = localStorage.getItem('baidu_verification_threshold');
+        const threshold = savedThreshold ? parseFloat(savedThreshold) : 0.3; // 默认0.3
+        
+        console.log(`🎯 [百度API] 使用验证阈值: ${(threshold * 100).toFixed(0)}%`);
+        
+        const verifyResult = await Promise.race([
+          baiduImageRecognition.smartVerifyImage(
+            file,
+            completeKeywords,
+            threshold  // 使用用户设置的阈值
+          ),
+          timeoutPromise
+        ]) as any;
+        
+        console.log('📷 [百度API] 验证结果:', verifyResult);
+        
+        if (!verifyResult.success) {
+          setVerificationMessage(verifyResult.description || `❌ 验证未通过，请重新拍摄（需包含：${completeKeywords.join('、')}）`);
+          setVerificationSuccess(false);
+          setIsUploading(false);
+          // 保持在uploading_complete状态，不要回到task_countdown
+          console.log(`❌ [百度API] 识别失败:`, verifyResult.matchDetails);
+          if (verifyResult.suggestions) {
+            console.log('💡 拍摄建议:', verifyResult.suggestions.join('\n'));
+          }
+          return;
+        }
+        
+        // 3. 验证成功，自动完成任务
+        const now = new Date();
+        
+        const recognizedItems = verifyResult.matchedKeywords?.join('、') || '相关内容';
+        setVerificationMessage(`✅ 验证成功！已识别到：${recognizedItems}`);
+        setVerificationSuccess(true);
+        console.log(`✅ [百度API] 识别成功，匹配关键词：${recognizedItems}`);
+        console.log('📝 详细匹配信息:', verifyResult.matchDetails);
+        
+        // 计算是否提前完成（奖励50%）
+        const scheduledEndTime = new Date(scheduledEnd);
+        const isEarly = now < scheduledEndTime;
+        
+        if (isEarly) {
+          const bonusGold = Math.floor(goldReward * 0.5);
+          addGold(bonusGold, `提前完成任务（奖励50%）`, taskId, taskTitle);
+          console.log(`✅ 提前完成任务，获得${bonusGold}金币奖励`);
+        }
+        
+        // 扣除超时惩罚金
+        const totalPenalty = Math.floor(goldReward * 0.2) * state.completeTimeoutCount;
+        if (totalPenalty > 0) {
+          console.log(`⚠️ 累计扣除${totalPenalty}金币（${state.completeTimeoutCount}次超时）`);
+        }
+        
+        // 延迟2秒后完成任务，让用户看到验证成功消息
+        setTimeout(() => {
+          setState(prev => ({
+            ...prev,
+            status: 'completed',
+            lastUpdateTime: new Date().toISOString(),
+          }));
+          
+          setIsUploading(false);
+          setVerificationMessage('');
+          setVerificationSuccess(null);
+          
+          // 通知父组件更新结束时间
+          if (onComplete) {
+            onComplete(now);
+          }
+          
+          // 清除持久化状态
+          localStorage.removeItem(storageKey);
+          console.log(`✅ 完成验证成功: ${taskTitle}`);
+        }, 2000);
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : '未知错误';
+        setVerificationMessage(`❌ 验证异常：${errorMsg}`);
+        setVerificationSuccess(false);
+        setIsUploading(false);
+        // 保持在uploading_complete状态，不要回到task_countdown
+        console.error('❌ [百度API] 验证异常:', error);
+      }
+    };
+    
+    input.click();
+  }, [hasVerification, completeKeywords, scheduledEnd, goldReward, addGold, state.completeTimeoutCount, taskId, taskTitle, onComplete, storageKey]);
 
+  // 格式化倒计时显示
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // 等待状态：时间未到，不显示任何内容
-  if (status === 'waiting') {
+  // 等待启动状态：不显示任何内容
+  if (state.status === 'waiting_start') {
     return null;
   }
 
-  // 准备启动状态：显示2分钟倒计时和启动按钮
-  if (status === 'ready_to_start') {
+  // 启动倒计时阶段（2分钟）
+  if (state.status === 'start_countdown') {
     return (
-      <div className="text-center py-4">
-        <div className="text-xs font-bold text-gray-800 mb-2">⏰ 请开始启动</div>
-        
-        {/* 2分钟启动倒计时 */}
-        <div className="text-4xl font-bold text-gray-900 mb-3">
-          {Math.floor(startCountdown / 60)}:{(startCountdown % 60).toString().padStart(2, '0')}
+      <div className="w-full flex flex-col items-center py-2 bg-transparent">
+        {/* 顶部状态文字 */}
+        <div className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: '#666' }}>
+          <span>⏰</span>
+          <span>启动倒计时</span>
         </div>
         
-        {hasVerification && (
-          <>
-            <div className="mb-3">
-              <p className="text-gray-700 text-sm mb-2">📸 请拍摄包含以下内容：</p>
-              <div className="flex flex-wrap gap-2 justify-center">
-                {startKeywords.map((keyword, index) => (
-                  <span key={index} className="px-3 py-1 bg-white bg-opacity-90 text-gray-800 rounded-full text-sm font-semibold shadow-sm">
-                    {keyword}
-                  </span>
-                ))}
-              </div>
-            </div>
-            
-            {uploadedPhoto && (
-              <div className="mb-3">
-                <img src={uploadedPhoto} alt="预览" className="w-20 h-20 object-cover rounded-lg mx-auto border-2 border-white shadow-md" />
-              </div>
-            )}
-            
-            <div className="flex gap-2 justify-center mb-3">
-              <button onClick={() => handlePhotoCapture('camera')} className="flex items-center gap-1 px-3 py-2 bg-white text-gray-700 rounded-full text-sm font-bold shadow hover:scale-105 transition-all">
-                <Camera className="w-4 h-4" />
-                拍照
-              </button>
-              <button onClick={() => handlePhotoCapture('upload')} className="flex items-center gap-1 px-3 py-2 bg-white text-gray-700 rounded-full text-sm font-bold shadow hover:scale-105 transition-all">
-                <Upload className="w-4 h-4" />
-                上传
-              </button>
-            </div>
-          </>
+        {/* 启动倒计时（无背景） */}
+        <div 
+          className="text-4xl font-black mb-2 px-2 py-1"
+          style={{
+            color: '#000000',
+          }}
+        >
+          {formatTime(state.startCountdownLeft)}
+        </div>
+        
+        {/* 超时惩罚提示 */}
+        {state.startTimeoutCount > 0 && (
+          <div className="flex items-center justify-center gap-1.5 px-3 py-1 rounded-lg bg-red-500 shadow-lg mb-2">
+            <span className="text-sm">⚠️</span>
+            <p className="text-white text-xs font-bold">
+              已扣除 {Math.floor(goldReward * 0.2) * state.startTimeoutCount} 金币（{state.startTimeoutCount}次超时）
+            </p>
+          </div>
         )}
         
-        <button onClick={handleStart} disabled={hasVerification && !uploadedPhoto} className="px-4 py-2 bg-green-500 text-white rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-          {hasVerification ? '🚀 启动验证' : '🚀 启动任务'}
-        </button>
+        {/* 验证关键词提示（醒目样式） */}
+        {hasVerification && startKeywords.length > 0 && (
+          <div className="mb-2 px-4 py-2 rounded-lg shadow-md" style={{ backgroundColor: '#FEF3C7', border: '1px solid #FCD34D' }}>
+            <p className="text-xs font-semibold text-center" style={{ color: '#92400E' }}>
+              📷 请拍摄包含：<span className="font-bold">{startKeywords.join(' / ')}</span> 的照片
+            </p>
+          </div>
+        )}
         
-        {/* 显示已扣除的金币 */}
-        {startPenaltyCount > 0 && (
-          <p className="text-red-600 text-sm mt-2">⚠️ 已扣除 {startPenaltyCount * 20}% 金币</p>
+        {/* 启动按钮 - 仅无验证任务显示 */}
+        {!hasVerification && (
+          <button 
+            onClick={handleStartTask}
+            disabled={isUploading}
+            className="px-6 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center gap-1.5"
+            style={{
+              backgroundColor: '#10B981',
+              color: '#ffffff',
+            }}
+          >
+            <span>✅</span>
+            <span>启动任务</span>
+          </button>
+        )}
+        
+        {/* 上传照片按钮 - 仅验证任务显示 */}
+        {hasVerification && (
+          <button 
+            onClick={handleStartTask}
+            disabled={isUploading}
+            className="px-6 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center gap-1.5"
+            style={{
+              backgroundColor: '#3B82F6',
+              color: '#ffffff',
+            }}
+          >
+            {isUploading ? (
+              <>
+                <span className="animate-spin">⏳</span>
+                <span>验证中...</span>
+              </>
+            ) : (
+              <>
+                <span>📷</span>
+                <span>上传照片</span>
+              </>
+            )}
+          </button>
         )}
       </div>
     );
   }
 
-  // 任务进行中状态 - 只显示一个放大的任务剩余倒计时
-  if (status === 'in_progress') {
+  // 上传启动验证中 - 在卡片内显示
+  if (state.status === 'uploading_start') {
     return (
-      <div className="text-center py-4">
-        <div className="text-sm font-bold text-gray-800 mb-2">⏱️ 任务剩余</div>
-        
-        {/* 放大显示的任务剩余倒计时 */}
-        <div className="text-5xl font-bold text-gray-900 mb-4">
-          {formatTime(taskTimeLeft)}
+      <div className="w-full flex flex-col items-center py-2 bg-transparent">
+        {/* 顶部状态文字 */}
+        <div className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: '#666' }}>
+          <span>⏰</span>
+          <span>启动倒计时</span>
         </div>
         
-        {hasVerification && (
-          <>
-            <div className="mb-3">
-              <p className="text-gray-700 text-sm mb-2">📸 请拍摄包含以下内容：</p>
-              <div className="flex flex-wrap gap-2 justify-center">
-                {completeKeywords.map((keyword, index) => (
-                  <span key={index} className="px-3 py-1 bg-white bg-opacity-90 text-gray-800 rounded-full text-sm font-semibold shadow-sm">
-                    {keyword}
-                  </span>
-                ))}
-              </div>
-            </div>
-            
-            {uploadedPhoto && (
-              <div className="mb-3">
-                <img src={uploadedPhoto} alt="预览" className="w-20 h-20 object-cover rounded-lg mx-auto border-2 border-white shadow-md" />
-              </div>
-            )}
-            
-            <div className="flex gap-2 justify-center mb-3">
-              <button onClick={() => handlePhotoCapture('camera')} className="flex items-center gap-1 px-3 py-2 bg-white text-gray-700 rounded-full text-sm font-bold shadow hover:scale-105 transition-all">
-                <Camera className="w-4 h-4" />
-                拍照
-              </button>
-              <button onClick={() => handlePhotoCapture('upload')} className="flex items-center gap-1 px-3 py-2 bg-white text-gray-700 rounded-full text-sm font-bold shadow hover:scale-105 transition-all">
-                <Upload className="w-4 h-4" />
-                上传
-              </button>
-            </div>
-          </>
-        )}
+        {/* 启动倒计时（无背景） */}
+        <div 
+          className="text-4xl font-black mb-2 px-2 py-1"
+          style={{
+            color: '#000000',
+          }}
+        >
+          {formatTime(state.startCountdownLeft)}
+        </div>
         
-        <button onClick={handleComplete} disabled={hasVerification && !uploadedPhoto} className="px-4 py-2 bg-green-500 text-white rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-          {hasVerification ? '✅ 完成验证' : '✅ 完成任务'}
-        </button>
+        {/* 验证状态提示 */}
+        <div className="mb-2 px-4 py-2 rounded-lg shadow-md flex items-center gap-2" 
+             style={{ 
+               backgroundColor: verificationSuccess === false ? '#FEE2E2' : '#DBEAFE', 
+               border: verificationSuccess === false ? '1px solid #FCA5A5' : '1px solid #93C5FD' 
+             }}>
+          {verificationSuccess === null && (
+            <>
+              <span className="animate-spin text-lg">⏳</span>
+              <p className="text-xs font-semibold" style={{ color: '#1E40AF' }}>
+                {verificationMessage || '正在验证中，请稍后...'}
+              </p>
+            </>
+          )}
+          {verificationSuccess === true && (
+            <>
+              <span className="text-lg">✅</span>
+              <p className="text-xs font-semibold" style={{ color: '#065F46' }}>
+                {verificationMessage}
+              </p>
+            </>
+          )}
+          {verificationSuccess === false && (
+            <>
+              <span className="text-lg">❌</span>
+              <p className="text-xs font-semibold" style={{ color: '#991B1B' }}>
+                {verificationMessage}
+              </p>
+            </>
+          )}
+        </div>
         
-        {completePenaltyCount > 0 && (
-          <p className="text-red-600 text-sm mt-2">⚠️ 已扣除 {completePenaltyCount * 20}% 金币</p>
+        {/* 上传照片按钮 - 验证失败时可重新上传 */}
+        {verificationSuccess === false && (
+          <button 
+            onClick={handleStartTask}
+            disabled={isUploading}
+            className="px-6 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center gap-1.5"
+            style={{
+              backgroundColor: '#3B82F6',
+              color: '#ffffff',
+            }}
+          >
+            <span>📷</span>
+            <span>重新上传</span>
+          </button>
         )}
       </div>
     );
   }
 
-  // 任务完成状态
-  const taskDuration = Math.floor((new Date(scheduledEnd).getTime() - new Date(scheduledStart).getTime()) / 60000);
-  const baseReward = Math.floor(taskDuration * 0.8);
-  const totalPenaltyPercent = (startPenaltyCount + completePenaltyCount) * 20;
-  let bonusPercent = 0;
-  if (earlyStartBonus) bonusPercent += 50;
-  if (onTimeCompleteBonus) bonusPercent += 50;
-  const finalReward = Math.max(0, Math.floor(baseReward * (1 - totalPenaltyPercent / 100 + bonusPercent / 100)));
-  
-  return (
-    <div className="text-center py-4">
-      <div className="text-4xl mb-2">✅</div>
-      <div className="text-sm font-bold text-gray-800">任务已完成</div>
-      <p className="text-gray-700 text-sm mt-1">{taskTitle}</p>
-      <p className="text-green-600 text-sm font-bold mt-2">💰 获得 {finalReward} 金币</p>
-      {(totalPenaltyPercent > 0 || bonusPercent > 0) && (
-        <p className="text-xs mt-1">
-          {totalPenaltyPercent > 0 && <span className="text-red-600">（扣除 {totalPenaltyPercent}%）</span>}
-          {bonusPercent > 0 && <span className="text-green-600">（奖励 +{bonusPercent}%）</span>}
-        </p>
-      )}
-      {earlyStartBonus && (
-        <p className="text-green-600 text-xs mt-1">🎉 早启动奖励</p>
-      )}
-      {onTimeCompleteBonus && (
-        <p className="text-green-600 text-xs mt-1">🎉 按时完成奖励</p>
-      )}
-    </div>
-  );
+  // 任务倒计时阶段（任务总时长）
+  if (state.status === 'task_countdown') {
+    return (
+      <div className="w-full flex flex-col items-center py-2 bg-transparent">
+        {/* 顶部状态文字 */}
+        <div className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: '#666' }}>
+          <span>⏱️</span>
+          <span>任务剩余</span>
+        </div>
+        
+        {/* 任务倒计时（无背景） */}
+        <div 
+          className="text-4xl font-black mb-2 px-2 py-1"
+          style={{
+            color: '#000000',
+          }}
+        >
+          {formatTime(state.taskCountdownLeft)}
+        </div>
+        
+        {/* 超时惩罚提示 */}
+        {state.completeTimeoutCount > 0 && (
+          <div className="flex items-center justify-center gap-1.5 px-3 py-1 rounded-lg bg-red-500 shadow-lg mb-2">
+            <span className="text-sm">⚠️</span>
+            <p className="text-white text-xs font-bold">
+              已扣除 {Math.floor(goldReward * 0.2) * state.completeTimeoutCount} 金币（{state.completeTimeoutCount}次超时）
+            </p>
+          </div>
+        )}
+        
+        {/* 验证关键词提示（醒目样式） */}
+        {hasVerification && completeKeywords.length > 0 && (
+          <div className="mb-2 px-4 py-2 rounded-lg shadow-md" style={{ backgroundColor: '#FEF3C7', border: '1px solid #FCD34D' }}>
+            <p className="text-xs font-semibold text-center" style={{ color: '#92400E' }}>
+              📷 请拍摄包含：<span className="font-bold">{completeKeywords.join(' / ')}</span> 的照片
+            </p>
+          </div>
+        )}
+        
+        {/* 完成按钮 - 仅无验证任务显示 */}
+        {!hasVerification && (
+          <button 
+            onClick={handleCompleteTask}
+            disabled={isUploading}
+            className="px-6 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center gap-1.5"
+            style={{
+              backgroundColor: '#10B981',
+              color: '#ffffff',
+            }}
+          >
+            <span>✅</span>
+            <span>完成任务</span>
+          </button>
+        )}
+        
+        {/* 上传照片按钮 - 仅验证任务显示 */}
+        {hasVerification && (
+          <button 
+            onClick={handleCompleteTask}
+            disabled={isUploading}
+            className="px-6 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center gap-1.5"
+            style={{
+              backgroundColor: '#3B82F6',
+              color: '#ffffff',
+            }}
+          >
+            {isUploading ? (
+              <>
+                <span className="animate-spin">⏳</span>
+                <span>验证中...</span>
+              </>
+            ) : (
+              <>
+                <span>📷</span>
+                <span>上传照片</span>
+              </>
+            )}
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // 上传完成验证中 - 在卡片内显示
+  if (state.status === 'uploading_complete') {
+    return (
+      <div className="w-full flex flex-col items-center py-2 bg-transparent">
+        {/* 顶部状态文字 */}
+        <div className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: '#666' }}>
+          <span>⏱️</span>
+          <span>任务剩余</span>
+        </div>
+        
+        {/* 任务倒计时（无背景） */}
+        <div 
+          className="text-4xl font-black mb-2 px-2 py-1"
+          style={{
+            color: '#000000',
+          }}
+        >
+          {formatTime(state.taskCountdownLeft)}
+        </div>
+        
+        {/* 验证状态提示 */}
+        <div className="mb-2 px-4 py-2 rounded-lg shadow-md flex items-center gap-2" 
+             style={{ 
+               backgroundColor: verificationSuccess === false ? '#FEE2E2' : '#DBEAFE', 
+               border: verificationSuccess === false ? '1px solid #FCA5A5' : '1px solid #93C5FD' 
+             }}>
+          {verificationSuccess === null && (
+            <>
+              <span className="animate-spin text-lg">⏳</span>
+              <p className="text-xs font-semibold" style={{ color: '#1E40AF' }}>
+                {verificationMessage || '正在验证中，请稍后...'}
+              </p>
+            </>
+          )}
+          {verificationSuccess === true && (
+            <>
+              <span className="text-lg">✅</span>
+              <p className="text-xs font-semibold" style={{ color: '#065F46' }}>
+                {verificationMessage}
+              </p>
+            </>
+          )}
+          {verificationSuccess === false && (
+            <>
+              <span className="text-lg">❌</span>
+              <p className="text-xs font-semibold" style={{ color: '#991B1B' }}>
+                {verificationMessage}
+              </p>
+            </>
+          )}
+        </div>
+        
+        {/* 上传照片按钮 - 验证失败时可重新上传 */}
+        {verificationSuccess === false && (
+          <button 
+            onClick={handleCompleteTask}
+            disabled={isUploading}
+            className="px-6 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center gap-1.5"
+            style={{
+              backgroundColor: '#3B82F6',
+              color: '#ffffff',
+            }}
+          >
+            <span>📷</span>
+            <span>重新上传</span>
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // 已完成状态：不显示
+  return null;
 }

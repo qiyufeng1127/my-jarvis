@@ -178,38 +178,41 @@ export default function UnifiedTaskEditor({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-2 md:p-4" style={{ zIndex: 10000 }}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full h-full md:max-w-3xl md:h-[95%] flex flex-col">
-        {/* 头部 */}
-        <div className="flex-shrink-0 border-b border-gray-200 px-3 md:px-6 py-3 md:py-4 flex items-center justify-between">
-          <div className="flex-1 min-w-0">
-            <h3 className="text-base md:text-lg font-bold text-gray-900">编辑任务</h3>
-            <p className="text-xs md:text-sm text-gray-500 mt-1 hidden md:block">双击任意字段进行编辑，使用上下箭头调整顺序</p>
-            <p className="text-xs text-gray-500 mt-1 md:hidden">双击字段编辑</p>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-2 md:p-3" style={{ zIndex: 10000 }}>
+      <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 rounded-2xl shadow-2xl w-full h-full md:max-w-3xl md:h-[96%] flex flex-col overflow-hidden border border-gray-200 dark:border-gray-700">
+        {/* 头部 - 紧凑设计 */}
+        <div className="flex-shrink-0 bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-2.5 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">✏️</span>
+            <div>
+              <h3 className="text-base font-bold text-white">任务编辑器</h3>
+              <p className="text-xs text-purple-100">💡 双击编辑 · 🔼🔽 调整顺序</p>
+            </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
-            title="关闭编辑器"
+            className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
+            title="关闭"
           >
-            <X className="w-5 h-5 text-gray-600" />
+            <X className="w-5 h-5 text-white" />
           </button>
         </div>
 
-        {/* 任务卡片列表 - 可滚动 */}
-        <div className="flex-1 overflow-y-auto p-2 md:p-4 space-y-2 md:space-y-3">
+        {/* 任务卡片列表 - 紧凑布局 */}
+        <div className="flex-1 overflow-y-auto p-2 md:p-3 space-y-1.5">
           {editingTasks.map((task, index) => (
             <div
               key={index}
-              className="rounded-xl p-3 md:p-4 border-2 shadow-sm hover:shadow-md transition-all bg-white"
+              className="rounded-xl p-2.5 border-2 shadow-sm hover:shadow-lg transition-all bg-white/95 backdrop-blur-sm"
               style={{
                 borderColor: task.color,
+                background: `linear-gradient(135deg, white 0%, ${task.color}08 100%)`,
               }}
             >
-              {/* 第一行：序号 + 任务名称 + 上下移动 + 删除 */}
-              <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
-                {/* 序号 */}
-                <div className="flex-shrink-0 w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center text-sm md:text-base font-bold text-white" style={{ backgroundColor: task.color }}>
+              {/* 第一行：序号 + 任务名称 + 操作按钮 - 紧凑布局 */}
+              <div className="flex items-center gap-2 mb-1.5">
+                {/* 序号 - 更小更精致 */}
+                <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm" style={{ backgroundColor: task.color }}>
                   {index + 1}
                 </div>
 
@@ -226,7 +229,7 @@ export default function UnifiedTaskEditor({
                         if (e.key === 'Escape') setEditingField(null);
                       }}
                       autoFocus
-                      className="w-full px-2 md:px-3 py-1.5 md:py-2 text-sm md:text-base font-bold rounded-lg focus:outline-none focus:ring-2 bg-white text-gray-900 border-2"
+                      className="w-full px-2 py-1 text-sm font-bold rounded-lg focus:outline-none focus:ring-2 bg-white text-gray-900 border-2"
                       style={{
                         borderColor: task.color,
                       }}
@@ -236,56 +239,55 @@ export default function UnifiedTaskEditor({
                       onDoubleClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        console.log('双击标题字段', index);
                         setEditingField({ taskIndex: index, field: 'title' });
                       }}
-                      className="text-sm md:text-base font-bold cursor-pointer px-2 md:px-3 py-1.5 md:py-2 rounded-lg transition-colors text-gray-900 select-none"
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${task.color}10`}
+                      className="text-sm font-bold cursor-pointer px-2 py-1 rounded-lg transition-colors text-gray-900 select-none"
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${task.color}15`}
                       onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                      title="双击编辑任务名称"
+                      title="💡 双击编辑"
                     >
-                      {task.title}
+                      📝 {task.title}
                     </div>
                   )}
                 </div>
 
-                {/* 操作按钮 */}
-                <div className="flex-shrink-0 flex items-center gap-0.5 md:gap-1">
+                {/* 操作按钮 - 更紧凑 */}
+                <div className="flex-shrink-0 flex items-center gap-0.5">
                   <button
                     onClick={() => moveTaskUp(index)}
                     disabled={index === 0}
-                    className="p-1.5 md:p-2 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95 md:hover:scale-110"
+                    className="p-1 rounded-md disabled:opacity-20 disabled:cursor-not-allowed transition-all active:scale-90 hover:scale-110"
                     style={{
                       backgroundColor: `${task.color}20`,
                     }}
-                    title="上移"
+                    title="⬆️ 上移"
                   >
-                    <ChevronUp className="w-4 h-4 md:w-5 md:h-5" style={{ color: task.color }} />
+                    <ChevronUp className="w-4 h-4" style={{ color: task.color }} />
                   </button>
                   <button
                     onClick={() => moveTaskDown(index)}
                     disabled={index === editingTasks.length - 1}
-                    className="p-1.5 md:p-2 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95 md:hover:scale-110"
+                    className="p-1 rounded-md disabled:opacity-20 disabled:cursor-not-allowed transition-all active:scale-90 hover:scale-110"
                     style={{
                       backgroundColor: `${task.color}20`,
                     }}
-                    title="下移"
+                    title="⬇️ 下移"
                   >
-                    <ChevronDown className="w-4 h-4 md:w-5 md:h-5" style={{ color: task.color }} />
+                    <ChevronDown className="w-4 h-4" style={{ color: task.color }} />
                   </button>
                   <button
                     onClick={() => deleteTask(index)}
-                    className="p-1.5 md:p-2 rounded-lg transition-all active:scale-95 md:hover:scale-110 bg-red-50 hover:bg-red-100"
-                    title="删除任务"
+                    className="p-1 rounded-md transition-all active:scale-90 hover:scale-110 bg-red-50 hover:bg-red-100"
+                    title="🗑️ 删除"
                   >
-                    <X className="w-4 h-4 md:w-5 md:h-5 text-red-600" />
+                    <X className="w-4 h-4 text-red-600" />
                   </button>
                 </div>
               </div>
 
-              {/* 第二行：所有详细信息 */}
-              <div className="flex items-center gap-1.5 md:gap-2 flex-wrap">
-                {/* 时间 - 双击编辑开始时间 */}
+              {/* 第二行：所有详细信息 - 紧凑布局 */}
+              <div className="flex items-center gap-1 flex-wrap">
+                {/* 时间 - 双击编辑 */}
                 <div className="flex-shrink-0">
                   {editingField?.taskIndex === index && editingField?.field === 'start_time' ? (
                     <input
@@ -300,7 +302,6 @@ export default function UnifiedTaskEditor({
                         newTasks[index].scheduled_start_iso = newStart.toISOString();
                         newTasks[index].scheduled_start = e.target.value;
                         
-                        // 重新计算从当前任务开始的所有时间
                         const recalculated = recalculateTaskTimes(newTasks, index);
                         setEditingTasks(recalculated);
                       }}
@@ -310,29 +311,26 @@ export default function UnifiedTaskEditor({
                         if (e.key === 'Escape') setEditingField(null);
                       }}
                       autoFocus
-                      className="px-2 md:px-3 py-1 md:py-1.5 text-xs md:text-sm rounded-lg focus:outline-none focus:ring-2 bg-white text-gray-900 border-2"
-                      style={{
-                        borderColor: task.color,
-                      }}
+                      className="px-2 py-0.5 text-xs rounded-md focus:outline-none focus:ring-2 bg-white text-gray-900 border-2"
+                      style={{ borderColor: task.color }}
                     />
                   ) : (
                     <div 
                       onDoubleClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        console.log('双击时间字段', index);
                         setEditingField({ taskIndex: index, field: 'start_time' });
                       }}
-                      className="flex items-center gap-1 md:gap-1.5 rounded-lg px-2 md:px-3 py-1 md:py-1.5 cursor-pointer transition-colors select-none"
+                      className="flex items-center gap-1 rounded-md px-1.5 py-0.5 cursor-pointer transition-colors select-none"
                       style={{ backgroundColor: `${task.color}15` }}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${task.color}25`}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${task.color}30`}
                       onMouseLeave={(e) => e.currentTarget.style.backgroundColor = `${task.color}15`}
-                      title="双击编辑开始时间"
+                      title="⏰ 双击编辑时间"
                     >
-                      <Clock className="w-3 h-3 md:w-4 md:h-4" style={{ color: task.color }} />
-                      <span className="text-xs md:text-sm font-semibold text-gray-900">{task.scheduled_start}</span>
-                      <span className="text-xs md:text-sm text-gray-500">→</span>
-                      <span className="text-xs md:text-sm font-semibold text-gray-900">{task.scheduled_end}</span>
+                      <Clock className="w-3 h-3" style={{ color: task.color }} />
+                      <span className="text-xs font-semibold text-gray-900">{task.scheduled_start}</span>
+                      <span className="text-xs text-gray-400">→</span>
+                      <span className="text-xs font-semibold text-gray-900">{task.scheduled_end}</span>
                     </div>
                   )}
                 </div>
@@ -351,26 +349,23 @@ export default function UnifiedTaskEditor({
                       }}
                       autoFocus
                       min="1"
-                      className="w-16 md:w-20 px-2 md:px-3 py-1 md:py-1.5 text-xs md:text-sm rounded-lg focus:outline-none focus:ring-2 bg-white text-gray-900 border-2"
-                      style={{
-                        borderColor: task.color,
-                      }}
+                      className="w-14 px-2 py-0.5 text-xs rounded-md focus:outline-none focus:ring-2 bg-white text-gray-900 border-2"
+                      style={{ borderColor: task.color }}
                     />
                   ) : (
                     <div
                       onDoubleClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        console.log('双击时长字段', index);
                         setEditingField({ taskIndex: index, field: 'duration' });
                       }}
-                      className="cursor-pointer px-2 md:px-3 py-1 md:py-1.5 rounded-lg transition-colors select-none"
+                      className="cursor-pointer px-1.5 py-0.5 rounded-md transition-colors select-none flex items-center gap-0.5"
                       style={{ backgroundColor: `${task.color}15` }}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${task.color}25`}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${task.color}30`}
                       onMouseLeave={(e) => e.currentTarget.style.backgroundColor = `${task.color}15`}
-                      title="双击编辑时长"
+                      title="⏱️ 双击编辑时长"
                     >
-                      <span className="text-xs md:text-sm font-bold text-gray-900">{task.estimated_duration}分钟</span>
+                      <span className="text-xs font-bold text-gray-900">⏱️{task.estimated_duration}分</span>
                     </div>
                   )}
                 </div>
@@ -388,21 +383,20 @@ export default function UnifiedTaskEditor({
                         if (e.key === 'Escape') setEditingField(null);
                       }}
                       autoFocus
-                      className="w-16 md:w-20 px-2 md:px-3 py-1 md:py-1.5 text-xs md:text-sm border-2 border-yellow-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-white text-gray-900"
+                      className="w-14 px-2 py-0.5 text-xs border-2 border-yellow-400 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-white text-gray-900"
                     />
                   ) : (
                     <div
                       onDoubleClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        console.log('双击金币字段', index);
                         setEditingField({ taskIndex: index, field: 'gold' });
                       }}
-                      className="flex items-center gap-1 md:gap-1.5 bg-yellow-50 rounded-lg px-2 md:px-3 py-1 md:py-1.5 cursor-pointer hover:bg-yellow-100 transition-colors select-none"
-                      title="双击编辑金币"
+                      className="flex items-center gap-0.5 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-md px-1.5 py-0.5 cursor-pointer hover:from-yellow-100 hover:to-amber-100 transition-all select-none shadow-sm"
+                      title="💰 双击编辑金币"
                     >
-                      <Coins className="w-3 h-3 md:w-4 md:h-4 text-yellow-600" />
-                      <span className="text-xs md:text-sm font-bold text-yellow-700">{task.gold}</span>
+                      <span className="text-xs">💰</span>
+                      <span className="text-xs font-bold text-yellow-700">{task.gold}</span>
                     </div>
                   )}
                 </div>
@@ -410,129 +404,125 @@ export default function UnifiedTaskEditor({
                 {/* 位置 */}
                 <div className="flex-shrink-0">
                   <span 
-                    className="px-2 md:px-3 py-1 md:py-1.5 rounded-lg text-xs md:text-sm font-medium inline-flex items-center gap-1"
+                    className="px-1.5 py-0.5 rounded-md text-xs font-medium inline-flex items-center gap-0.5"
                     style={{
                       backgroundColor: `${task.color}15`,
                       color: task.color,
                     }}
                   >
-                    📍 {task.location}
+                    📍{task.location}
                   </span>
                 </div>
 
                 {/* 标签 */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {task.tags && task.tags.map((tag: string, tagIndex: number) => (
-                    <span
-                      key={tagIndex}
-                      className="px-2 md:px-2.5 py-0.5 md:py-1 rounded-lg text-xs md:text-sm font-medium flex items-center gap-1"
-                      style={{
-                        backgroundColor: `${AISmartProcessor.getColorForTag(tag)}20`,
-                        color: AISmartProcessor.getColorForTag(tag),
+                {task.tags && task.tags.map((tag: string, tagIndex: number) => (
+                  <span
+                    key={tagIndex}
+                    className="px-1.5 py-0.5 rounded-md text-xs font-medium flex items-center gap-0.5 shadow-sm"
+                    style={{
+                      backgroundColor: `${AISmartProcessor.getColorForTag(tag)}20`,
+                      color: AISmartProcessor.getColorForTag(tag),
+                    }}
+                  >
+                    🏷️{tag}
+                    <button
+                      onClick={() => {
+                        const newTasks = [...editingTasks];
+                        newTasks[index].tags = newTasks[index].tags.filter((_: any, i: number) => i !== tagIndex);
+                        newTasks[index].color = AISmartProcessor.getTaskColor(newTasks[index].tags);
+                        setEditingTasks(newTasks);
                       }}
+                      className="rounded-full p-0.5 hover:bg-black/10 active:bg-black/20"
                     >
-                      {tag}
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  </span>
+                ))}
+                
+                {/* 添加标签按钮 */}
+                <button
+                  onClick={() => {
+                    const newTag = prompt('✨ 输入新标签：');
+                    if (newTag) {
+                      const newTasks = [...editingTasks];
+                      newTasks[index].tags.push(newTag);
+                      newTasks[index].color = AISmartProcessor.getTaskColor(newTasks[index].tags);
+                      setEditingTasks(newTasks);
+                    }
+                  }}
+                  className="px-1.5 py-0.5 border border-dashed rounded-md text-xs font-medium hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                  style={{
+                    borderColor: task.color,
+                    color: task.color,
+                  }}
+                  title="➕ 添加标签"
+                >
+                  ➕
+                </button>
+
+                {/* 目标 */}
+                {task.goal ? (
+                  editingField?.taskIndex === index && editingField?.field === 'goal' ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        value={task.goal}
+                        onChange={(e) => updateTaskField(index, 'goal', e.target.value)}
+                        onBlur={() => setEditingField(null)}
+                        onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
+                        autoFocus
+                        className="px-2 py-0.5 text-xs border-2 border-green-400 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 bg-white text-gray-900"
+                      />
                       <button
                         onClick={() => {
-                          const newTasks = [...editingTasks];
-                          newTasks[index].tags = newTasks[index].tags.filter((_: any, i: number) => i !== tagIndex);
-                          newTasks[index].color = AISmartProcessor.getTaskColor(newTasks[index].tags);
-                          setEditingTasks(newTasks);
+                          updateTaskField(index, 'goal', null);
+                          setEditingField(null);
                         }}
-                        className="rounded-full p-0.5 hover:bg-black/10 active:bg-black/20"
+                        className="p-0.5 text-red-500 hover:bg-red-50 rounded"
                       >
                         <X className="w-3 h-3" />
                       </button>
-                    </span>
-                  ))}
-                  <button
-                    onClick={() => {
-                      const newTag = prompt('输入新标签：');
-                      if (newTag) {
-                        const newTasks = [...editingTasks];
-                        newTasks[index].tags.push(newTag);
-                        newTasks[index].color = AISmartProcessor.getTaskColor(newTasks[index].tags);
-                        setEditingTasks(newTasks);
-                      }
-                    }}
-                    className="px-2 md:px-2.5 py-0.5 md:py-1 border-2 border-dashed rounded-lg text-xs md:text-sm font-medium hover:bg-gray-50 active:bg-gray-100 transition-colors"
-                    style={{
-                      borderColor: task.color,
-                      color: task.color,
-                    }}
-                  >
-                    + 标签
-                  </button>
-                </div>
-
-                {/* 目标 */}
-                <div className="flex-shrink-0">
-                  {task.goal ? (
-                    editingField?.taskIndex === index && editingField?.field === 'goal' ? (
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="text"
-                          value={task.goal}
-                          onChange={(e) => updateTaskField(index, 'goal', e.target.value)}
-                          onBlur={() => setEditingField(null)}
-                          onKeyDown={(e) => e.key === 'Enter' && setEditingField(null)}
-                          autoFocus
-                          className="px-2 md:px-3 py-1 md:py-1.5 text-xs md:text-sm border-2 border-green-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white text-gray-900"
-                        />
-                        <button
-                          onClick={() => {
-                            updateTaskField(index, 'goal', null);
-                            setEditingField(null);
-                          }}
-                          className="p-1 text-red-500 hover:bg-red-50 rounded"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div
-                        onDoubleClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          console.log('双击目标字段', index);
-                          setEditingField({ taskIndex: index, field: 'goal' });
-                        }}
-                        className="flex items-center gap-1 md:gap-1.5 bg-green-50 rounded-lg px-2 md:px-3 py-1 md:py-1.5 cursor-pointer hover:bg-green-100 transition-colors select-none"
-                        title="双击编辑目标"
-                      >
-                        <span className="text-xs md:text-sm">🎯</span>
-                        <span className="text-xs md:text-sm font-medium text-green-700">{task.goal}</span>
-                      </div>
-                    )
+                    </div>
                   ) : (
-                    <select
-                      onChange={(e) => {
-                        if (e.target.value === 'new') {
-                          const newGoal = prompt('输入新的长期目标：');
-                          if (newGoal) {
-                            updateTaskField(index, 'goal', newGoal);
-                            updateTaskField(index, 'isNewGoal', true);
-                          }
-                        } else if (e.target.value) {
-                          updateTaskField(index, 'goal', e.target.value);
-                        }
-                        e.target.value = '';
+                    <div
+                      onDoubleClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setEditingField({ taskIndex: index, field: 'goal' });
                       }}
-                      className="px-2 md:px-3 py-1 md:py-1.5 bg-gray-50 border-2 rounded-lg text-xs md:text-sm focus:outline-none focus:ring-2 text-gray-900"
-                      style={{
-                        borderColor: task.color,
-                      }}
+                      className="flex items-center gap-0.5 bg-gradient-to-r from-green-50 to-emerald-50 rounded-md px-1.5 py-0.5 cursor-pointer hover:from-green-100 hover:to-emerald-100 transition-all select-none shadow-sm"
+                      title="🎯 双击编辑目标"
                     >
-                      <option value="">🎯 添加目标</option>
-                      {goals.map((goal) => (
-                        <option key={goal.id} value={goal.title}>
-                          {goal.title}
-                        </option>
-                      ))}
-                      <option value="new">+ 创建新目标</option>
-                    </select>
-                  )}
-                </div>
+                      <span className="text-xs">🎯</span>
+                      <span className="text-xs font-medium text-green-700">{task.goal}</span>
+                    </div>
+                  )
+                ) : (
+                  <select
+                    onChange={(e) => {
+                      if (e.target.value === 'new') {
+                        const newGoal = prompt('🎯 输入新的长期目标：');
+                        if (newGoal) {
+                          updateTaskField(index, 'goal', newGoal);
+                          updateTaskField(index, 'isNewGoal', true);
+                        }
+                      } else if (e.target.value) {
+                        updateTaskField(index, 'goal', e.target.value);
+                      }
+                      e.target.value = '';
+                    }}
+                    className="px-1.5 py-0.5 bg-gray-50 border rounded-md text-xs focus:outline-none focus:ring-2 text-gray-900"
+                    style={{ borderColor: task.color }}
+                  >
+                    <option value="">🎯目标</option>
+                    {goals.map((goal) => (
+                      <option key={goal.id} value={goal.title}>
+                        {goal.title}
+                      </option>
+                    ))}
+                    <option value="new">➕ 新目标</option>
+                  </select>
+                )}
               </div>
 
               {/* 子任务列表（如果有） */}

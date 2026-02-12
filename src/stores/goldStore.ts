@@ -120,7 +120,7 @@ export const useGoldStore = create<GoldState>()(
           const today = new Date().toDateString();
           if (state.lastResetDate !== today) {
             return {
-              balance: Math.max(0, state.balance - amount),
+              balance: state.balance - amount, // 允许负数
               todayEarned: 0,
               todaySpent: amount,
               transactions: [transaction, ...state.transactions],
@@ -129,13 +129,13 @@ export const useGoldStore = create<GoldState>()(
           }
           
           return {
-            balance: Math.max(0, state.balance - amount),
+            balance: state.balance - amount, // 允许负数
             todaySpent: state.todaySpent + amount,
             transactions: [transaction, ...state.transactions],
           };
         });
         
-        console.log(`⚠️ 扣除金币: -${amount} (${reason})`);
+        console.log(`⚠️ 扣除金币: -${amount} (${reason})，当前余额: ${get().balance}`);
       },
       
       getTodayTransactions: () => {
