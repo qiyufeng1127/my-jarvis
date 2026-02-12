@@ -14,6 +14,7 @@ interface TaskVerificationCountdownContentProps {
   completeKeywords?: string[];
   onStart?: (actualStartTime: Date, calculatedEndTime: Date) => void;
   onComplete?: (actualEndTime: Date) => void;
+  onTimeoutUpdate?: (startTimeoutCount: number, completeTimeoutCount: number) => void;
 }
 
 // 倒计时状态：等待启动 -> 启动倒计时(2分钟) -> 上传验证中 -> 完成倒计时(任务总时长) -> 已完成
@@ -41,6 +42,7 @@ export default function TaskVerificationCountdownContent({
   completeKeywords = [],
   onStart,
   onComplete,
+  onTimeoutUpdate,
 }: TaskVerificationCountdownContentProps) {
   const { penaltyGold, addGold } = useGoldStore();
   
@@ -67,10 +69,15 @@ export default function TaskVerificationCountdownContent({
     try {
       localStorage.setItem(storageKey, JSON.stringify(state));
       console.log(`💾 保存倒计时状态: ${taskTitle}`, state);
+      
+      // 通知父组件超时次数更新
+      if (onTimeoutUpdate) {
+        onTimeoutUpdate(state.startTimeoutCount, state.completeTimeoutCount);
+      }
     } catch (error) {
       console.error('❌ 保存倒计时状态失败:', error);
     }
-  }, [storageKey, taskTitle]);
+  }, [storageKey, taskTitle, onTimeoutUpdate]);
   
   // 初始化状态
   const initState = useCallback((): CountdownState => {
@@ -535,7 +542,15 @@ export default function TaskVerificationCountdownContent({
   // 启动倒计时阶段（2分钟）
   if (state.status === 'start_countdown') {
     return (
-      <div className="w-full flex flex-col items-center py-2 bg-transparent">
+      <div className="w-full flex flex-col items-center py-2 bg-transparent relative">
+        {/* 右上角拖延标记 */}
+        {state.startTimeoutCount > 0 && (
+          <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg bg-yellow-100 border border-yellow-400 shadow-sm">
+            <span className="text-base">🐢</span>
+            <span className="text-xs font-bold text-yellow-800">拖延 {state.startTimeoutCount} 次</span>
+          </div>
+        )}
+        
         {/* 顶部状态文字 */}
         <div className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: '#666' }}>
           <span>⏰</span>
@@ -641,7 +656,15 @@ export default function TaskVerificationCountdownContent({
   // 上传启动验证中 - 在卡片内显示
   if (state.status === 'uploading_start') {
     return (
-      <div className="w-full flex flex-col items-center py-2 bg-transparent">
+      <div className="w-full flex flex-col items-center py-2 bg-transparent relative">
+        {/* 右上角拖延标记 */}
+        {state.startTimeoutCount > 0 && (
+          <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg bg-yellow-100 border border-yellow-400 shadow-sm">
+            <span className="text-base">🐢</span>
+            <span className="text-xs font-bold text-yellow-800">拖延 {state.startTimeoutCount} 次</span>
+          </div>
+        )}
+        
         {/* 顶部状态文字 */}
         <div className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: '#666' }}>
           <span>⏰</span>
@@ -726,7 +749,15 @@ export default function TaskVerificationCountdownContent({
   // 任务倒计时阶段（任务总时长）
   if (state.status === 'task_countdown') {
     return (
-      <div className="w-full flex flex-col items-center py-2 bg-transparent">
+      <div className="w-full flex flex-col items-center py-2 bg-transparent relative">
+        {/* 右上角超时标记 */}
+        {state.completeTimeoutCount > 0 && (
+          <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg bg-red-100 border border-red-400 shadow-sm">
+            <span className="text-base">⚠️</span>
+            <span className="text-xs font-bold text-red-800">超时 {state.completeTimeoutCount} 次</span>
+          </div>
+        )}
+        
         {/* 顶部状态文字 */}
         <div className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: '#666' }}>
           <span>⏱️</span>
@@ -832,7 +863,15 @@ export default function TaskVerificationCountdownContent({
   // 上传完成验证中 - 在卡片内显示
   if (state.status === 'uploading_complete') {
     return (
-      <div className="w-full flex flex-col items-center py-2 bg-transparent">
+      <div className="w-full flex flex-col items-center py-2 bg-transparent relative">
+        {/* 右上角超时标记 */}
+        {state.completeTimeoutCount > 0 && (
+          <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg bg-red-100 border border-red-400 shadow-sm">
+            <span className="text-base">⚠️</span>
+            <span className="text-xs font-bold text-red-800">超时 {state.completeTimeoutCount} 次</span>
+          </div>
+        )}
+        
         {/* 顶部状态文字 */}
         <div className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: '#666' }}>
           <span>⏱️</span>
