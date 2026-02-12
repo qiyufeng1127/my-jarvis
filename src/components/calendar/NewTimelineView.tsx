@@ -67,6 +67,9 @@ export default function NewTimelineView({
   // 添加定时刷新状态，用于触发倒计时检查
   const [currentTime, setCurrentTime] = useState(new Date());
   
+  // 使用金币store
+  const goldBalance = useGoldStore(state => state.balance);
+  
   useEffect(() => {
     const checkMobile = () => {
       const userAgent = navigator.userAgent.toLowerCase();
@@ -1509,6 +1512,24 @@ export default function NewTimelineView({
               今日已过去
               {timePassed.hours > 0 && ` ${timePassed.hours}小时`}
               {timePassed.mins > 0 && ` ${timePassed.mins}分钟`}
+            </span>
+          </button>
+          
+          {/* 金币显示按钮 */}
+          <button
+            onClick={() => {
+              // TODO: 打开金币详情弹窗
+              alert('金币详情功能开发中...');
+            }}
+            className="flex items-center gap-2 px-4 py-2 rounded-full transition-all hover:scale-105"
+            style={{ 
+              backgroundColor: isDark ? 'rgba(255,215,0,0.2)' : 'rgba(255,215,0,0.15)',
+              border: `2px solid #FFD700`,
+            }}
+          >
+            <span className="text-xl">💰</span>
+            <span className="text-sm font-bold" style={{ color: '#FFD700' }}>
+              {goldBalance}
             </span>
           </button>
         </div>
