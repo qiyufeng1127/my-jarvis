@@ -180,26 +180,9 @@ export default function UnifiedTaskEditor({
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-2 md:p-3" style={{ zIndex: 10000 }}>
       <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 rounded-2xl shadow-2xl w-full h-full md:max-w-3xl md:h-[96%] flex flex-col overflow-hidden border border-gray-200 dark:border-gray-700">
-        {/* 头部 - 紧凑设计 */}
-        <div className="flex-shrink-0 bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-2.5 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">✏️</span>
-            <div>
-              <h3 className="text-base font-bold text-white">任务编辑器</h3>
-              <p className="text-xs text-purple-100">💡 双击编辑 · 🔼🔽 调整顺序</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
-            title="关闭"
-          >
-            <X className="w-5 h-5 text-white" />
-          </button>
-        </div>
 
-        {/* 任务卡片列表 - 紧凑布局 */}
-        <div className="flex-1 overflow-y-auto p-2 md:p-3 space-y-1.5">
+        {/* 任务卡片列表 - 紧凑布局，顶部留出安全距离 */}
+        <div className="flex-1 overflow-y-auto p-2 md:p-3 space-y-1.5" style={{ paddingTop: '60px' }}>
           {editingTasks.map((task, index) => (
             <div
               key={index}
@@ -209,12 +192,17 @@ export default function UnifiedTaskEditor({
                 background: `linear-gradient(135deg, white 0%, ${task.color}08 100%)`,
               }}
             >
-              {/* 第一行：序号 + 任务名称 + 操作按钮 - 紧凑布局 */}
-              <div className="flex items-center gap-2 mb-1.5">
-                {/* 序号 - 更小更精致 */}
+              {/* 第一行：序号 + Emoji + 任务名称 + 操作按钮 */}
+              <div className="flex items-center gap-2 mb-2">
+                {/* 序号 */}
                 <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm" style={{ backgroundColor: task.color }}>
                   {index + 1}
                 </div>
+
+                {/* Emoji（如果有） */}
+                {task.emoji && (
+                  <span className="text-lg flex-shrink-0">{task.emoji}</span>
+                )}
 
                 {/* 任务名称 - 双击编辑 */}
                 <div className="flex-1 min-w-0">
@@ -246,12 +234,12 @@ export default function UnifiedTaskEditor({
                       onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                       title="💡 双击编辑"
                     >
-                      📝 {task.title}
+                      {task.title}
                     </div>
                   )}
                 </div>
 
-                {/* 操作按钮 - 更紧凑 */}
+                {/* 操作按钮 */}
                 <div className="flex-shrink-0 flex items-center gap-0.5">
                   <button
                     onClick={() => moveTaskUp(index)}
@@ -285,9 +273,9 @@ export default function UnifiedTaskEditor({
                 </div>
               </div>
 
-              {/* 第二行：所有详细信息 - 紧凑布局 */}
-              <div className="flex items-center gap-1 flex-wrap">
-                {/* 时间 - 双击编辑 */}
+              {/* 第二行：时间范围 + 时长 + 金币 */}
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                {/* 时间范围 - 双击编辑 */}
                 <div className="flex-shrink-0">
                   {editingField?.taskIndex === index && editingField?.field === 'start_time' ? (
                     <input
@@ -321,7 +309,7 @@ export default function UnifiedTaskEditor({
                         e.stopPropagation();
                         setEditingField({ taskIndex: index, field: 'start_time' });
                       }}
-                      className="flex items-center gap-1 rounded-md px-1.5 py-0.5 cursor-pointer transition-colors select-none"
+                      className="flex items-center gap-1 rounded-md px-2 py-1 cursor-pointer transition-colors select-none"
                       style={{ backgroundColor: `${task.color}15` }}
                       onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${task.color}30`}
                       onMouseLeave={(e) => e.currentTarget.style.backgroundColor = `${task.color}15`}
@@ -392,19 +380,22 @@ export default function UnifiedTaskEditor({
                         e.stopPropagation();
                         setEditingField({ taskIndex: index, field: 'gold' });
                       }}
-                      className="flex items-center gap-0.5 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-md px-1.5 py-0.5 cursor-pointer hover:from-yellow-100 hover:to-amber-100 transition-all select-none shadow-sm"
+                      className="flex items-center gap-0.5 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-md px-2 py-1 cursor-pointer hover:from-yellow-100 hover:to-amber-100 transition-all select-none shadow-sm"
                       title="💰 双击编辑金币"
                     >
-                      <span className="text-xs">💰</span>
+                      <Coins className="w-3 h-3 text-yellow-600" />
                       <span className="text-xs font-bold text-yellow-700">{task.gold}</span>
                     </div>
                   )}
                 </div>
+              </div>
 
+              {/* 第三行：位置 + 标签 + 目标 */}
+              <div className="flex items-center gap-2 flex-wrap">
                 {/* 位置 */}
                 <div className="flex-shrink-0">
                   <span 
-                    className="px-1.5 py-0.5 rounded-md text-xs font-medium inline-flex items-center gap-0.5"
+                    className="px-2 py-1 rounded-md text-xs font-medium inline-flex items-center gap-1"
                     style={{
                       backgroundColor: `${task.color}15`,
                       color: task.color,
@@ -418,7 +409,7 @@ export default function UnifiedTaskEditor({
                 {task.tags && task.tags.map((tag: string, tagIndex: number) => (
                   <span
                     key={tagIndex}
-                    className="px-1.5 py-0.5 rounded-md text-xs font-medium flex items-center gap-0.5 shadow-sm"
+                    className="px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1 shadow-sm"
                     style={{
                       backgroundColor: `${AISmartProcessor.getColorForTag(tag)}20`,
                       color: AISmartProcessor.getColorForTag(tag),
@@ -450,7 +441,7 @@ export default function UnifiedTaskEditor({
                       setEditingTasks(newTasks);
                     }
                   }}
-                  className="px-1.5 py-0.5 border border-dashed rounded-md text-xs font-medium hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                  className="px-2 py-1 border border-dashed rounded-md text-xs font-medium hover:bg-gray-50 active:bg-gray-100 transition-colors"
                   style={{
                     borderColor: task.color,
                     color: task.color,

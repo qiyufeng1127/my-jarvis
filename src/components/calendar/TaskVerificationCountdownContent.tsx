@@ -174,7 +174,7 @@ export default function TaskVerificationCountdownContent({
   }, [state.status, goldReward, penaltyGold, taskId, taskTitle, saveState]);
 
   // 启动任务（无验证直接启动，有验证需上传照片）
-  const handleStartTask = useCallback(async () => {
+  const handleStartTask = useCallback(async (useCamera: boolean = false) => {
     if (!hasVerification) {
       // 无验证：直接启动任务
       const now = new Date();
@@ -214,7 +214,9 @@ export default function TaskVerificationCountdownContent({
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
-    input.capture = 'environment' as any;
+    if (useCamera) {
+      input.capture = 'environment' as any; // 直接打开相机
+    }
     
     // 处理用户点击叉叉取消上传
     input.oncancel = () => {
@@ -335,7 +337,7 @@ export default function TaskVerificationCountdownContent({
   }, [hasVerification, startKeywords, scheduledStart, scheduledEnd, goldReward, addGold, taskId, taskTitle, onStart]);
 
   // 完成任务（无验证直接完成，有验证需上传照片）
-  const handleCompleteTask = useCallback(async () => {
+  const handleCompleteTask = useCallback(async (useCamera: boolean = false) => {
     if (!hasVerification) {
       // 无验证：直接完成任务
       const now = new Date();
@@ -383,7 +385,9 @@ export default function TaskVerificationCountdownContent({
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
-    input.capture = 'environment' as any;
+    if (useCamera) {
+      input.capture = 'environment' as any; // 直接打开相机
+    }
     
     // 处理用户点击叉叉取消上传
     input.oncancel = () => {
@@ -585,27 +589,50 @@ export default function TaskVerificationCountdownContent({
         
         {/* 上传照片按钮 - 仅验证任务显示 */}
         {hasVerification && (
-          <button 
-            onClick={handleStartTask}
-            disabled={isUploading}
-            className="px-6 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center gap-1.5"
-            style={{
-              backgroundColor: '#3B82F6',
-              color: '#ffffff',
-            }}
-          >
-            {isUploading ? (
-              <>
-                <span className="animate-spin">⏳</span>
-                <span>验证中...</span>
-              </>
-            ) : (
-              <>
-                <span>📷</span>
-                <span>上传照片</span>
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => handleStartTask(true)}
+              disabled={isUploading}
+              className="flex-1 px-4 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+              style={{
+                backgroundColor: '#3B82F6',
+                color: '#ffffff',
+              }}
+            >
+              {isUploading ? (
+                <>
+                  <span className="animate-spin">⏳</span>
+                  <span>验证中...</span>
+                </>
+              ) : (
+                <>
+                  <span>📷</span>
+                  <span>拍摄照片</span>
+                </>
+              )}
+            </button>
+            <button 
+              onClick={() => handleStartTask(false)}
+              disabled={isUploading}
+              className="flex-1 px-4 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+              style={{
+                backgroundColor: '#8B5CF6',
+                color: '#ffffff',
+              }}
+            >
+              {isUploading ? (
+                <>
+                  <span className="animate-spin">⏳</span>
+                  <span>验证中...</span>
+                </>
+              ) : (
+                <>
+                  <span>🖼️</span>
+                  <span>上传照片</span>
+                </>
+              )}
+            </button>
+          </div>
         )}
       </div>
     );
@@ -665,18 +692,32 @@ export default function TaskVerificationCountdownContent({
         
         {/* 上传照片按钮 - 验证失败时可重新上传 */}
         {verificationSuccess === false && (
-          <button 
-            onClick={handleStartTask}
-            disabled={isUploading}
-            className="px-6 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center gap-1.5"
-            style={{
-              backgroundColor: '#3B82F6',
-              color: '#ffffff',
-            }}
-          >
-            <span>📷</span>
-            <span>重新上传</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => handleStartTask(true)}
+              disabled={isUploading}
+              className="flex-1 px-4 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+              style={{
+                backgroundColor: '#3B82F6',
+                color: '#ffffff',
+              }}
+            >
+              <span>📷</span>
+              <span>重新拍摄</span>
+            </button>
+            <button 
+              onClick={() => handleStartTask(false)}
+              disabled={isUploading}
+              className="flex-1 px-4 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+              style={{
+                backgroundColor: '#8B5CF6',
+                color: '#ffffff',
+              }}
+            >
+              <span>🖼️</span>
+              <span>重新上传</span>
+            </button>
+          </div>
         )}
       </div>
     );
@@ -739,27 +780,50 @@ export default function TaskVerificationCountdownContent({
         
         {/* 上传照片按钮 - 仅验证任务显示 */}
         {hasVerification && (
-          <button 
-            onClick={handleCompleteTask}
-            disabled={isUploading}
-            className="px-6 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center gap-1.5"
-            style={{
-              backgroundColor: '#3B82F6',
-              color: '#ffffff',
-            }}
-          >
-            {isUploading ? (
-              <>
-                <span className="animate-spin">⏳</span>
-                <span>验证中...</span>
-              </>
-            ) : (
-              <>
-                <span>📷</span>
-                <span>上传照片</span>
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => handleCompleteTask(true)}
+              disabled={isUploading}
+              className="flex-1 px-4 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+              style={{
+                backgroundColor: '#3B82F6',
+                color: '#ffffff',
+              }}
+            >
+              {isUploading ? (
+                <>
+                  <span className="animate-spin">⏳</span>
+                  <span>验证中...</span>
+                </>
+              ) : (
+                <>
+                  <span>📷</span>
+                  <span>拍摄照片</span>
+                </>
+              )}
+            </button>
+            <button 
+              onClick={() => handleCompleteTask(false)}
+              disabled={isUploading}
+              className="flex-1 px-4 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+              style={{
+                backgroundColor: '#8B5CF6',
+                color: '#ffffff',
+              }}
+            >
+              {isUploading ? (
+                <>
+                  <span className="animate-spin">⏳</span>
+                  <span>验证中...</span>
+                </>
+              ) : (
+                <>
+                  <span>🖼️</span>
+                  <span>上传照片</span>
+                </>
+              )}
+            </button>
+          </div>
         )}
       </div>
     );
@@ -819,18 +883,32 @@ export default function TaskVerificationCountdownContent({
         
         {/* 上传照片按钮 - 验证失败时可重新上传 */}
         {verificationSuccess === false && (
-          <button 
-            onClick={handleCompleteTask}
-            disabled={isUploading}
-            className="px-6 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center gap-1.5"
-            style={{
-              backgroundColor: '#3B82F6',
-              color: '#ffffff',
-            }}
-          >
-            <span>📷</span>
-            <span>重新上传</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => handleCompleteTask(true)}
+              disabled={isUploading}
+              className="flex-1 px-4 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+              style={{
+                backgroundColor: '#3B82F6',
+                color: '#ffffff',
+              }}
+            >
+              <span>📷</span>
+              <span>重新拍摄</span>
+            </button>
+            <button 
+              onClick={() => handleCompleteTask(false)}
+              disabled={isUploading}
+              className="flex-1 px-4 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+              style={{
+                backgroundColor: '#8B5CF6',
+                color: '#ffffff',
+              }}
+            >
+              <span>🖼️</span>
+              <span>重新上传</span>
+            </button>
+          </div>
         )}
       </div>
     );
