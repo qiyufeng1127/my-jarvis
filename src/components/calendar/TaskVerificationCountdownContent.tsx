@@ -39,6 +39,8 @@ export default function TaskVerificationCountdownContent({
   const [uploadedPhoto, setUploadedPhoto] = useState<string | null>(null);
   const [startPenaltyCount, setStartPenaltyCount] = useState(0); // 启动超时次数
   const [completePenaltyCount, setCompletePenaltyCount] = useState(0);
+  const [actualStartTime, setActualStartTime] = useState<Date | null>(null); // 实际开始时间
+  const [dynamicEndTime, setDynamicEndTime] = useState<Date>(scheduledEnd); // 动态结束时间
 
   // 自动触发：检查是否到达设定时间（只在当前时间范围内触发）
   useEffect(() => {
@@ -84,15 +86,22 @@ export default function TaskVerificationCountdownContent({
     if (status === 'in_progress') {
       const calculateTimeLeft = () => {
         const now = new Date();
-        const endTime = new Date(scheduledEnd);
+        const endTime = dynamicEndTime;
         const diff = Math.floor((endTime.getTime() - now.getTime()) / 1000);
         const timeLeft = Math.max(0, diff);
         setTaskTimeLeft(timeLeft);
         
-        // 如果时间到了，自动扣除金币
-        if (timeLeft === 0) {
+        // 如果时间到了，延长10分钟并扣除20%金币
+        if (timeLeft === 0 && completePenaltyCount < 100) { // 最多扣100次
           setCompletePenaltyCount(prev => prev + 1);
-          alert(`⚠️ 任务超时！扣除20%金币（第${completePenaltyCount + 1}次）`);
+          alert(`⚠️ 任务超时！延长10分钟，扣除20%金币（第${completePenaltyCount + 1}次）`);
+          
+          // 延长10分钟
+          const newEndTime = new Date(endTime.getTime() + 10 * 60 * 1000);
+          setDynamicEndTime(newEndTime);
+          setTaskTimeLeft(600); // 重置为10分钟（600秒）
+          
+          console.log('⚠️ 任务超时，延长10分钟至:', newEndTime.toLocaleTimeString());
         }
       };
 
@@ -100,7 +109,7 @@ export default function TaskVerificationCountdownContent({
       const interval = setInterval(calculateTimeLeft, 1000);
       return () => clearInterval(interval);
     }
-  }, [status, scheduledEnd, completePenaltyCount]);
+  }, [status, dynamicEndTime, completePenaltyCount]);
 
   // 处理照片拍摄/上传
   const handlePhotoCapture = async (type: 'camera' | 'upload') => {
@@ -152,7 +161,20 @@ export default function TaskVerificationCountdownContent({
       return;
     }
     
+    // 记录实际开始时间
+    const now = new Date();
+    setActualStartTime(now);
+    
+    // 计算动态结束时间：实际开始时间 + 任务时长
+    const taskDuration = new Date(scheduledEnd).getTime() - new Date(scheduledStart).getTime();
+    const calculatedEndTime = new Date(now.getTime() + taskDuration);
+    setDynamicEndTime(calculatedEndTime);
+    
     console.log('✅ 启动任务，开始倒计时:', taskTitle);
+    console.log('   实际开始时间:', now.toLocaleTimeString());
+    console.log('   计划结束时间:', calculatedEndTime.toLocaleTimeString());
+    console.log('   任务时长:', Math.floor(taskDuration / 60000), '分钟');
+    
     setStatus('in_progress');
     setUploadedPhoto(null);
   };
