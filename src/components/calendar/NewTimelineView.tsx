@@ -36,7 +36,7 @@ import { baiduImageRecognition } from '@/services/baiduImageRecognition';
 import { notificationService } from '@/services/notificationService';
 import TaskVerificationExtension from './TaskVerificationExtension';
 import eventBus from '@/utils/eventBus';
-import TaskVerificationCountdown from './TaskVerificationCountdown';
+import TaskVerificationCountdownContent from './TaskVerificationCountdownContent';
 
 interface NewTimelineViewProps {
   tasks: Task[];
@@ -1874,18 +1874,24 @@ export default function NewTimelineView({
                   
                   return hasScheduledStart && isTimeReached;
                 })() && (
-                  <TaskVerificationCountdown
-                    taskId={block.id}
-                    taskTitle={block.title}
-                    scheduledStart={block.startTime}
-                    scheduledEnd={block.endTime}
-                    startPhotoHint={`请拍摄 ${block.title} 开始的照片`}
-                    endPhotoHint={`请拍摄 ${block.title} 完成的照片`}
-                    cardColor={block.color}
-                    hasVerification={!!taskVerifications[block.id]?.enabled}
-                    startKeywords={taskVerifications[block.id]?.startKeywords || ['启动', '开始']}
-                    completeKeywords={taskVerifications[block.id]?.completionKeywords || ['完成', '结束']}
-                  />
+                  <TaskVerificationCountdownContent
+                     taskId={block.id}
+                     taskTitle={block.title}
+                     scheduledStart={block.startTime}
+                     scheduledEnd={block.endTime}
+                     onComplete={(actualEndTime) => {
+                       // 更新任务的实际结束时间
+                       console.log('✅ 任务完成，更新结束时间:', actualEndTime);
+                       onTaskUpdate(block.id, {
+                         endTime: actualEndTime,
+                         isCompleted: true,
+                         status: 'completed'
+                       });
+                     }}
+                     hasVerification={!!taskVerifications[block.id]?.enabled}
+                     startKeywords={taskVerifications[block.id]?.startKeywords || ['启动', '开始']}
+                     completeKeywords={taskVerifications[block.id]?.completionKeywords || ['完成', '结束']}
+                   />
                 )}
 {/* 完成划线 */}
                 {block.isCompleted && (

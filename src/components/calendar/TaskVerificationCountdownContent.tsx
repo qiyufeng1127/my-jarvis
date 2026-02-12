@@ -1,6 +1,6 @@
 /**
- * 任务验证倒计时内容组件
- * 用于替换卡片内容区域，不是覆盖层
+ * 任务验证倒计时内容组件（优化版）
+ * 核心逻辑：启动验证后只显示一个放大的任务剩余倒计时
  */
 
 import React, { useState, useEffect } from 'react';
@@ -12,7 +12,7 @@ interface TaskVerificationCountdownContentProps {
   taskTitle: string;
   scheduledStart: Date;
   scheduledEnd: Date;
-  onComplete?: () => void;
+  onComplete?: (actualEndTime: Date) => void; // 传递实际完成时间
   hasVerification?: boolean;
   startKeywords?: string[];
   completeKeywords?: string[];
@@ -31,57 +31,48 @@ export default function TaskVerificationCountdownContent({
   completeKeywords = ['完成', '结束'],
 }: TaskVerificationCountdownContentProps) {
   const [status, setStatus] = useState<VerificationStatus>('start_verification');
-  const [countdown, setCountdown] = useState(120);
-  const [taskTimeLeft, setTaskTimeLeft] = useState(0);
-  const [completeCountdown, setCompleteCountdown] = useState(120);
+  const [startCountdown, setStartCountdown] = useState(120); // 启动验证倒计时
+  const [taskTimeLeft, setTaskTimeLeft] = useState(0); // 任务剩余时间
   const [uploadedPhoto, setUploadedPhoto] = useState<string | null>(null);
-  const [penaltyCount, setPenaltyCount] = useState(0);
+  const [startPenaltyCount, setStartPenaltyCount] = useState(0);
   const [completePenaltyCount, setCompletePenaltyCount] = useState(0);
 
-  // 启动验证倒计时
+  // 启动验证倒计时（仅在启动验证阶段）
   useEffect(() => {
-    if (status === 'start_verification' && countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+    if (status === 'start_verification' && startCountdown > 0) {
+      const timer = setTimeout(() => setStartCountdown(startCountdown - 1), 1000);
       return () => clearTimeout(timer);
     }
     
-    if (status === 'start_verification' && countdown === 0) {
-      setPenaltyCount(prev => prev + 1);
-      alert(`⚠️ 验证超时！扣除20%金币（第${penaltyCount + 1}次）`);
-      setCountdown(120);
+    if (status === 'start_verification' && startCountdown === 0) {
+      setStartPenaltyCount(prev => prev + 1);
+      alert(`⚠️ 启动验证超时！扣除20%金币（第${startPenaltyCount + 1}次）`);
+      setStartCountdown(120);
     }
-  }, [status, countdown, penaltyCount]);
+  }, [status, startCountdown, startPenaltyCount]);
 
-  // 任务进行中倒计时
+  // 任务剩余时间倒计时（任务进行中阶段）
   useEffect(() => {
     if (status === 'in_progress') {
       const calculateTimeLeft = () => {
         const now = new Date();
         const endTime = new Date(scheduledEnd);
         const diff = Math.floor((endTime.getTime() - now.getTime()) / 1000);
-        setTaskTimeLeft(Math.max(0, diff));
+        const timeLeft = Math.max(0, diff);
+        setTaskTimeLeft(timeLeft);
+        
+        // 如果时间到了，自动扣除金币
+        if (timeLeft === 0) {
+          setCompletePenaltyCount(prev => prev + 1);
+          alert(`⚠️ 任务超时！扣除20%金币（第${completePenaltyCount + 1}次）`);
+        }
       };
 
       calculateTimeLeft();
       const interval = setInterval(calculateTimeLeft, 1000);
-      
-      if (completeCountdown > 0) {
-        const timer = setTimeout(() => setCompleteCountdown(completeCountdown - 1), 1000);
-        return () => {
-          clearInterval(interval);
-          clearTimeout(timer);
-        };
-      }
-      
-      if (completeCountdown === 0) {
-        setCompletePenaltyCount(prev => prev + 1);
-        alert(`⚠️ 完成验证超时！扣除20%金币（第${completePenaltyCount + 1}次）`);
-        setCompleteCountdown(120);
-      }
-      
       return () => clearInterval(interval);
     }
-  }, [status, scheduledEnd, completeCountdown, completePenaltyCount]);
+  }, [status, scheduledEnd, completePenaltyCount]);
 
   // 处理照片拍摄/上传
   const handlePhotoCapture = async (type: 'camera' | 'upload') => {
@@ -141,8 +132,13 @@ export default function TaskVerificationCountdownContent({
       alert('⚠️ 请先拍摄或上传完成照片！');
       return;
     }
+    
+    // 记录实际完成时间
+    const actualEndTime = new Date();
+    console.log('✅ 任务完成，实际结束时间:', actualEndTime);
+    
     setStatus('completed');
-    onComplete?.();
+    onComplete?.(actualEndTime); // 传递实际完成时间
   };
 
   const formatTime = (seconds: number) => {
@@ -154,19 +150,19 @@ export default function TaskVerificationCountdownContent({
   // 启动验证状态
   if (status === 'start_verification') {
     return (
-      <div className="text-center py-2">
-        <div className="text-xs font-bold text-gray-800 mb-1">⏰ 请开始启动</div>
-        <div className="text-2xl font-bold text-gray-900 mb-2">
-          {Math.floor(countdown / 60)}:{(countdown % 60).toString().padStart(2, '0')}
+      <div className="text-center py-4">
+        <div className="text-xs font-bold text-gray-800 mb-2">⏰ 请开始启动</div>
+        <div className="text-4xl font-bold text-gray-900 mb-3">
+          {Math.floor(startCountdown / 60)}:{(startCountdown % 60).toString().padStart(2, '0')}
         </div>
         
         {hasVerification && (
           <>
-            <div className="mb-2">
-              <p className="text-gray-700 text-xs mb-1">📸 请拍摄包含以下内容：</p>
-              <div className="flex flex-wrap gap-1 justify-center">
+            <div className="mb-3">
+              <p className="text-gray-700 text-sm mb-2">📸 请拍摄包含以下内容：</p>
+              <div className="flex flex-wrap gap-2 justify-center">
                 {startKeywords.map((keyword, index) => (
-                  <span key={index} className="px-2 py-0.5 bg-white bg-opacity-80 text-gray-800 rounded-full text-xs font-semibold shadow-sm">
+                  <span key={index} className="px-3 py-1 bg-white bg-opacity-90 text-gray-800 rounded-full text-sm font-semibold shadow-sm">
                     {keyword}
                   </span>
                 ))}
@@ -174,53 +170,53 @@ export default function TaskVerificationCountdownContent({
             </div>
             
             {uploadedPhoto && (
-              <div className="mb-2">
-                <img src={uploadedPhoto} alt="预览" className="w-16 h-16 object-cover rounded-lg mx-auto border-2 border-white shadow-md" />
+              <div className="mb-3">
+                <img src={uploadedPhoto} alt="预览" className="w-20 h-20 object-cover rounded-lg mx-auto border-2 border-white shadow-md" />
               </div>
             )}
             
-            <div className="flex gap-1 justify-center mb-2">
-              <button onClick={() => handlePhotoCapture('camera')} className="flex items-center gap-1 px-2 py-1 bg-white text-gray-700 rounded-full text-xs font-bold shadow hover:scale-105 transition-all">
-                <Camera className="w-3 h-3" />
+            <div className="flex gap-2 justify-center mb-3">
+              <button onClick={() => handlePhotoCapture('camera')} className="flex items-center gap-1 px-3 py-2 bg-white text-gray-700 rounded-full text-sm font-bold shadow hover:scale-105 transition-all">
+                <Camera className="w-4 h-4" />
                 拍照
               </button>
-              <button onClick={() => handlePhotoCapture('upload')} className="flex items-center gap-1 px-2 py-1 bg-white text-gray-700 rounded-full text-xs font-bold shadow hover:scale-105 transition-all">
-                <Upload className="w-3 h-3" />
+              <button onClick={() => handlePhotoCapture('upload')} className="flex items-center gap-1 px-3 py-2 bg-white text-gray-700 rounded-full text-sm font-bold shadow hover:scale-105 transition-all">
+                <Upload className="w-4 h-4" />
                 上传
               </button>
             </div>
           </>
         )}
         
-        <button onClick={handleStart} disabled={hasVerification && !uploadedPhoto} className="px-3 py-1.5 bg-green-500 text-white rounded-full text-xs font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+        <button onClick={handleStart} disabled={hasVerification && !uploadedPhoto} className="px-4 py-2 bg-green-500 text-white rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
           {hasVerification ? '🚀 启动验证' : '🚀 启动任务'}
         </button>
         
-        {penaltyCount > 0 && (
-          <p className="text-red-600 text-xs mt-1">⚠️ 已扣除 {penaltyCount * 20}% 金币</p>
+        {startPenaltyCount > 0 && (
+          <p className="text-red-600 text-sm mt-2">⚠️ 已扣除 {startPenaltyCount * 20}% 金币</p>
         )}
       </div>
     );
   }
 
-  // 任务进行中状态
+  // 任务进行中状态 - 只显示一个放大的任务剩余倒计时
   if (status === 'in_progress') {
     return (
-      <div className="text-center py-2">
-        <div className="text-xs font-bold text-gray-800 mb-1">⏱️ 任务进行中</div>
-        <div className="text-xs text-gray-700">完成验证倒计时</div>
-        <div className="text-2xl font-bold text-gray-900 mb-1">
-          {Math.floor(completeCountdown / 60)}:{(completeCountdown % 60).toString().padStart(2, '0')}
+      <div className="text-center py-4">
+        <div className="text-sm font-bold text-gray-800 mb-2">⏱️ 任务剩余</div>
+        
+        {/* 放大显示的任务剩余倒计时 */}
+        <div className="text-5xl font-bold text-gray-900 mb-4">
+          {formatTime(taskTimeLeft)}
         </div>
-        <div className="text-xs text-gray-600 mb-2">任务剩余: {formatTime(taskTimeLeft)}</div>
         
         {hasVerification && (
           <>
-            <div className="mb-2">
-              <p className="text-gray-700 text-xs mb-1">📸 请拍摄包含以下内容：</p>
-              <div className="flex flex-wrap gap-1 justify-center">
+            <div className="mb-3">
+              <p className="text-gray-700 text-sm mb-2">📸 请拍摄包含以下内容：</p>
+              <div className="flex flex-wrap gap-2 justify-center">
                 {completeKeywords.map((keyword, index) => (
-                  <span key={index} className="px-2 py-0.5 bg-white bg-opacity-80 text-gray-800 rounded-full text-xs font-semibold shadow-sm">
+                  <span key={index} className="px-3 py-1 bg-white bg-opacity-90 text-gray-800 rounded-full text-sm font-semibold shadow-sm">
                     {keyword}
                   </span>
                 ))}
@@ -228,30 +224,30 @@ export default function TaskVerificationCountdownContent({
             </div>
             
             {uploadedPhoto && (
-              <div className="mb-2">
-                <img src={uploadedPhoto} alt="预览" className="w-16 h-16 object-cover rounded-lg mx-auto border-2 border-white shadow-md" />
+              <div className="mb-3">
+                <img src={uploadedPhoto} alt="预览" className="w-20 h-20 object-cover rounded-lg mx-auto border-2 border-white shadow-md" />
               </div>
             )}
             
-            <div className="flex gap-1 justify-center mb-2">
-              <button onClick={() => handlePhotoCapture('camera')} className="flex items-center gap-1 px-2 py-1 bg-white text-gray-700 rounded-full text-xs font-bold shadow hover:scale-105 transition-all">
-                <Camera className="w-3 h-3" />
+            <div className="flex gap-2 justify-center mb-3">
+              <button onClick={() => handlePhotoCapture('camera')} className="flex items-center gap-1 px-3 py-2 bg-white text-gray-700 rounded-full text-sm font-bold shadow hover:scale-105 transition-all">
+                <Camera className="w-4 h-4" />
                 拍照
               </button>
-              <button onClick={() => handlePhotoCapture('upload')} className="flex items-center gap-1 px-2 py-1 bg-white text-gray-700 rounded-full text-xs font-bold shadow hover:scale-105 transition-all">
-                <Upload className="w-3 h-3" />
+              <button onClick={() => handlePhotoCapture('upload')} className="flex items-center gap-1 px-3 py-2 bg-white text-gray-700 rounded-full text-sm font-bold shadow hover:scale-105 transition-all">
+                <Upload className="w-4 h-4" />
                 上传
               </button>
             </div>
           </>
         )}
         
-        <button onClick={handleComplete} disabled={hasVerification && !uploadedPhoto} className="px-3 py-1.5 bg-green-500 text-white rounded-full text-xs font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+        <button onClick={handleComplete} disabled={hasVerification && !uploadedPhoto} className="px-4 py-2 bg-green-500 text-white rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
           {hasVerification ? '✅ 完成验证' : '✅ 完成任务'}
         </button>
         
         {completePenaltyCount > 0 && (
-          <p className="text-red-600 text-xs mt-1">⚠️ 已扣除 {completePenaltyCount * 20}% 金币</p>
+          <p className="text-red-600 text-sm mt-2">⚠️ 已扣除 {completePenaltyCount * 20}% 金币</p>
         )}
       </div>
     );
@@ -259,12 +255,11 @@ export default function TaskVerificationCountdownContent({
 
   // 任务完成状态
   return (
-    <div className="text-center py-2">
-      <div className="text-3xl mb-1">✅</div>
-      <div className="text-xs font-bold text-gray-800">任务已完成</div>
-      <p className="text-gray-700 text-xs mt-1">{taskTitle}</p>
-      <p className="text-green-600 text-xs font-bold mt-1">💰 获得金币</p>
+    <div className="text-center py-4">
+      <div className="text-4xl mb-2">✅</div>
+      <div className="text-sm font-bold text-gray-800">任务已完成</div>
+      <p className="text-gray-700 text-sm mt-1">{taskTitle}</p>
+      <p className="text-green-600 text-sm font-bold mt-2">💰 获得金币</p>
     </div>
   );
 }
-
