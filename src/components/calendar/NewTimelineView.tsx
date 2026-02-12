@@ -20,8 +20,6 @@ import { useAIStore } from '@/stores/aiStore';
 import { useGoldStore } from '@/stores/goldStore';
 import { useTagStore } from '@/stores/tagStore';
 import CelebrationEffect from '@/components/effects/CelebrationEffect';
-import StartVerificationCountdown from '@/components/countdown/StartVerificationCountdown';
-import FinishVerificationCountdown from '@/components/countdown/FinishVerificationCountdown';
 import { 
   adjustTaskStartTime, 
   adjustTaskEndTime, 
