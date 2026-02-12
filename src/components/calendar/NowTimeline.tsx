@@ -67,10 +67,20 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
       return;
     }
 
-    // 如果当前时间在最后一个任务之后，不显示
+    // 如果当前时间在最后一个任务之后，显示在最后任务下方
     if (now > dayEnd) {
-      console.log('❌ NOW线：当前时间在最后任务之后，不显示');
-      setTopPosition(null);
+      console.log('✅ NOW线：当前时间在最后任务之后，显示在底部');
+      
+      // 计算所有任务的总高度
+      let totalHeight = 0;
+      for (let i = 0; i < timeBlocks.length; i++) {
+        const block = timeBlocks[i];
+        const taskContainer = document.querySelector(`[data-task-id="${block.id}"]`)?.parentElement;
+        const containerHeight = taskContainer ? taskContainer.getBoundingClientRect().height : 120;
+        totalHeight += containerHeight;
+      }
+      
+      setTopPosition(totalHeight);
       return;
     }
 
