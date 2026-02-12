@@ -34,8 +34,10 @@ export default function TaskVerificationCountdownContent({
   completeKeywords = ['完成', '结束'],
 }: TaskVerificationCountdownContentProps) {
   const [status, setStatus] = useState<VerificationStatus>('waiting');
+  const [startCountdown, setStartCountdown] = useState(120); // 启动倒计时2分钟
   const [taskTimeLeft, setTaskTimeLeft] = useState(0);
   const [uploadedPhoto, setUploadedPhoto] = useState<string | null>(null);
+  const [startPenaltyCount, setStartPenaltyCount] = useState(0); // 启动超时次数
   const [completePenaltyCount, setCompletePenaltyCount] = useState(0);
 
   // 自动触发：检查是否到达设定时间（只在当前时间范围内触发）
@@ -59,6 +61,23 @@ export default function TaskVerificationCountdownContent({
     const interval = setInterval(checkTime, 1000);
     return () => clearInterval(interval);
   }, [scheduledStart, scheduledEnd, status, taskTitle]);
+
+  // 启动倒计时：2分钟倒计时，超时扣20%金币并重置
+  useEffect(() => {
+    if (status === 'ready_to_start' && startCountdown > 0) {
+      const timer = setTimeout(() => {
+        setStartCountdown(startCountdown - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+    
+    // 倒计时结束，扣金币并重置
+    if (status === 'ready_to_start' && startCountdown === 0) {
+      setStartPenaltyCount(prev => prev + 1);
+      alert(`⚠️ 启动验证超时！扣除20%金币（第${startPenaltyCount + 1}次）`);
+      setStartCountdown(120); // 重置为2分钟，继续循环
+    }
+  }, [status, startCountdown, startPenaltyCount]);
 
   // 任务剩余时间倒计时（任务进行中阶段）
   useEffect(() => {
@@ -163,11 +182,16 @@ export default function TaskVerificationCountdownContent({
     return null;
   }
 
-  // 准备启动状态：显示启动按钮（无倒计时）
+  // 准备启动状态：显示2分钟倒计时和启动按钮
   if (status === 'ready_to_start') {
     return (
       <div className="text-center py-4">
         <div className="text-xs font-bold text-gray-800 mb-2">⏰ 请开始启动</div>
+        
+        {/* 2分钟启动倒计时 */}
+        <div className="text-4xl font-bold text-gray-900 mb-3">
+          {Math.floor(startCountdown / 60)}:{(startCountdown % 60).toString().padStart(2, '0')}
+        </div>
         
         {hasVerification && (
           <>
@@ -204,6 +228,11 @@ export default function TaskVerificationCountdownContent({
         <button onClick={handleStart} disabled={hasVerification && !uploadedPhoto} className="px-4 py-2 bg-green-500 text-white rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
           {hasVerification ? '🚀 启动验证' : '🚀 启动任务'}
         </button>
+        
+        {/* 显示已扣除的金币 */}
+        {startPenaltyCount > 0 && (
+          <p className="text-red-600 text-sm mt-2">⚠️ 已扣除 {startPenaltyCount * 20}% 金币</p>
+        )}
       </div>
     );
   }
