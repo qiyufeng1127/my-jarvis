@@ -21,7 +21,7 @@ interface TaskVerificationCountdownContentProps {
   completeKeywords?: string[];
 }
 
-type VerificationStatus = 'waiting' | 'start_verification' | 'in_progress' | 'completed';
+type VerificationStatus = 'waiting' | 'ready_to_start' | 'in_progress' | 'completed';
 
 export default function TaskVerificationCountdownContent({
   taskId,
@@ -34,21 +34,21 @@ export default function TaskVerificationCountdownContent({
   completeKeywords = ['完成', '结束'],
 }: TaskVerificationCountdownContentProps) {
   const [status, setStatus] = useState<VerificationStatus>('waiting');
-  const [startCountdown, setStartCountdown] = useState(120);
   const [taskTimeLeft, setTaskTimeLeft] = useState(0);
   const [uploadedPhoto, setUploadedPhoto] = useState<string | null>(null);
-  const [startPenaltyCount, setStartPenaltyCount] = useState(0);
   const [completePenaltyCount, setCompletePenaltyCount] = useState(0);
 
-  // 自动触发：检查是否到达设定时间
+  // 自动触发：检查是否到达设定时间（只在当前时间范围内触发）
   useEffect(() => {
     const checkTime = () => {
       const now = new Date();
       const startTime = new Date(scheduledStart);
+      const endTime = new Date(scheduledEnd);
       
-      if (now >= startTime && status === 'waiting') {
-        console.log('⏰ 任务到达设定时间，自动触发启动验证:', taskTitle);
-        setStatus('start_verification');
+      // 只有在任务时间范围内才触发（当前时间在开始和结束之间）
+      if (now >= startTime && now < endTime && status === 'waiting') {
+        console.log('⏰ 任务到达设定时间，显示启动按钮:', taskTitle);
+        setStatus('ready_to_start');
       }
     };
 
@@ -58,21 +58,7 @@ export default function TaskVerificationCountdownContent({
     // 每秒检查一次
     const interval = setInterval(checkTime, 1000);
     return () => clearInterval(interval);
-  }, [scheduledStart, status, taskTitle]);
-
-  // 启动验证倒计时（仅在启动验证阶段）
-  useEffect(() => {
-    if (status === 'start_verification' && startCountdown > 0) {
-      const timer = setTimeout(() => setStartCountdown(startCountdown - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-    
-    if (status === 'start_verification' && startCountdown === 0) {
-      setStartPenaltyCount(prev => prev + 1);
-      alert(`⚠️ 启动验证超时！扣除20%金币（第${startPenaltyCount + 1}次）`);
-      setStartCountdown(120);
-    }
-  }, [status, startCountdown, startPenaltyCount]);
+  }, [scheduledStart, scheduledEnd, status, taskTitle]);
 
   // 任务剩余时间倒计时（任务进行中阶段）
   useEffect(() => {
@@ -112,7 +98,7 @@ export default function TaskVerificationCountdownContent({
       
       if (hasVerification) {
         try {
-          const keywords = status === 'start_verification' ? startKeywords : completeKeywords;
+          const keywords = status === 'ready_to_start' ? startKeywords : completeKeywords;
           const result = await baiduImageRecognition.smartVerifyImage(file, keywords, 0.2);
           
           if (result.success) {
@@ -146,6 +132,8 @@ export default function TaskVerificationCountdownContent({
       alert('⚠️ 请先拍摄或上传照片！');
       return;
     }
+    
+    console.log('✅ 启动任务，开始倒计时:', taskTitle);
     setStatus('in_progress');
     setUploadedPhoto(null);
   };
@@ -175,14 +163,11 @@ export default function TaskVerificationCountdownContent({
     return null;
   }
 
-  // 启动验证状态
-  if (status === 'start_verification') {
+  // 准备启动状态：显示启动按钮（无倒计时）
+  if (status === 'ready_to_start') {
     return (
       <div className="text-center py-4">
         <div className="text-xs font-bold text-gray-800 mb-2">⏰ 请开始启动</div>
-        <div className="text-4xl font-bold text-gray-900 mb-3">
-          {Math.floor(startCountdown / 60)}:{(startCountdown % 60).toString().padStart(2, '0')}
-        </div>
         
         {hasVerification && (
           <>
@@ -219,10 +204,6 @@ export default function TaskVerificationCountdownContent({
         <button onClick={handleStart} disabled={hasVerification && !uploadedPhoto} className="px-4 py-2 bg-green-500 text-white rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
           {hasVerification ? '🚀 启动验证' : '🚀 启动任务'}
         </button>
-        
-        {startPenaltyCount > 0 && (
-          <p className="text-red-600 text-sm mt-2">⚠️ 已扣除 {startPenaltyCount * 20}% 金币</p>
-        )}
       </div>
     );
   }
