@@ -9,6 +9,7 @@
 import React, { useState, useEffect } from 'react';
 import { Camera, Upload } from 'lucide-react';
 import { baiduImageRecognition } from '@/services/baiduImageRecognition';
+import { useGoldStore } from '@/stores/goldStore';
 
 interface TaskVerificationCountdownContentProps {
   taskId: string;
@@ -33,6 +34,7 @@ export default function TaskVerificationCountdownContent({
   startKeywords = ['启动', '开始'],
   completeKeywords = ['完成', '结束'],
 }: TaskVerificationCountdownContentProps) {
+  const { penaltyGold, addGold } = useGoldStore(); // 使用金币store
   const [status, setStatus] = useState<VerificationStatus>('waiting');
   const [startCountdown, setStartCountdown] = useState(120); // 启动倒计时2分钟
   const [taskTimeLeft, setTaskTimeLeft] = useState(0);
@@ -41,6 +43,7 @@ export default function TaskVerificationCountdownContent({
   const [completePenaltyCount, setCompletePenaltyCount] = useState(0);
   const [actualStartTime, setActualStartTime] = useState<Date | null>(null); // 实际开始时间
   const [dynamicEndTime, setDynamicEndTime] = useState<Date>(scheduledEnd); // 动态结束时间
+  const [baseGoldReward, setBaseGoldReward] = useState(0); // 基础金币奖励
 
   // 自动触发：检查是否到达设定时间（只在当前时间范围内触发）
   useEffect(() => {
@@ -76,10 +79,19 @@ export default function TaskVerificationCountdownContent({
     // 倒计时结束，扣金币并重置
     if (status === 'ready_to_start' && startCountdown === 0) {
       setStartPenaltyCount(prev => prev + 1);
-      alert(`⚠️ 启动验证超时！扣除20%金币（第${startPenaltyCount + 1}次）`);
+      
+      // 计算扣除的金币（基础金币的20%）
+      const taskDuration = Math.floor((new Date(scheduledEnd).getTime() - new Date(scheduledStart).getTime()) / 60000);
+      const baseReward = Math.floor(taskDuration * 0.8);
+      const penaltyAmount = Math.floor(baseReward * 0.2);
+      
+      // 真正扣除金币
+      penaltyGold(penaltyAmount, `启动验证超时（第${startPenaltyCount + 1}次）`, taskId, taskTitle);
+      
+      alert(`⚠️ 启动验证超时！扣除${penaltyAmount}金币（第${startPenaltyCount + 1}次）`);
       setStartCountdown(120); // 重置为2分钟，继续循环
     }
-  }, [status, startCountdown, startPenaltyCount]);
+  }, [status, startCountdown, startPenaltyCount, taskId, taskTitle, scheduledStart, scheduledEnd, penaltyGold]);
 
   // 任务剩余时间倒计时（任务进行中阶段）
   useEffect(() => {
@@ -94,7 +106,16 @@ export default function TaskVerificationCountdownContent({
         // 如果时间到了，延长10分钟并扣除20%金币
         if (timeLeft === 0 && completePenaltyCount < 100) { // 最多扣100次
           setCompletePenaltyCount(prev => prev + 1);
-          alert(`⚠️ 任务超时！延长10分钟，扣除20%金币（第${completePenaltyCount + 1}次）`);
+          
+          // 计算扣除的金币（基础金币的20%）
+          const taskDuration = Math.floor((new Date(scheduledEnd).getTime() - new Date(scheduledStart).getTime()) / 60000);
+          const baseReward = Math.floor(taskDuration * 0.8);
+          const penaltyAmount = Math.floor(baseReward * 0.2);
+          
+          // 真正扣除金币
+          penaltyGold(penaltyAmount, `任务超时延长10分钟（第${completePenaltyCount + 1}次）`, taskId, taskTitle);
+          
+          alert(`⚠️ 任务超时！延长10分钟，扣除${penaltyAmount}金币（第${completePenaltyCount + 1}次）`);
           
           // 延长10分钟
           const newEndTime = new Date(endTime.getTime() + 10 * 60 * 1000);
@@ -109,7 +130,7 @@ export default function TaskVerificationCountdownContent({
       const interval = setInterval(calculateTimeLeft, 1000);
       return () => clearInterval(interval);
     }
-  }, [status, dynamicEndTime, completePenaltyCount]);
+  }, [status, dynamicEndTime, completePenaltyCount, taskId, taskTitle, scheduledStart, scheduledEnd, penaltyGold]);
 
   // 处理照片拍摄/上传
   const handlePhotoCapture = async (type: 'camera' | 'upload') => {
@@ -188,6 +209,22 @@ export default function TaskVerificationCountdownContent({
     // 记录实际完成时间
     const actualEndTime = new Date();
     console.log('✅ 任务完成，实际结束时间:', actualEndTime);
+    
+    // 计算金币奖励
+    const taskDuration = Math.floor((new Date(scheduledEnd).getTime() - new Date(scheduledStart).getTime()) / 60000);
+    const baseReward = Math.floor(taskDuration * 0.8);
+    
+    // 计算总扣除百分比
+    const totalPenaltyPercent = (startPenaltyCount + completePenaltyCount) * 20;
+    
+    // 最终金币 = 基础金币 - 扣除的金币
+    const finalReward = Math.max(0, Math.floor(baseReward * (1 - totalPenaltyPercent / 100)));
+    
+    // 添加金币
+    if (finalReward > 0) {
+      addGold(finalReward, `完成任务`, taskId, taskTitle);
+      console.log(`💰 获得金币: ${finalReward} (基础${baseReward} - 扣除${totalPenaltyPercent}%)`);
+    }
     
     setStatus('completed');
     onComplete?.(actualEndTime); // 传递实际完成时间
@@ -314,12 +351,20 @@ export default function TaskVerificationCountdownContent({
   }
 
   // 任务完成状态
+  const taskDuration = Math.floor((new Date(scheduledEnd).getTime() - new Date(scheduledStart).getTime()) / 60000);
+  const baseReward = Math.floor(taskDuration * 0.8);
+  const totalPenaltyPercent = (startPenaltyCount + completePenaltyCount) * 20;
+  const finalReward = Math.max(0, Math.floor(baseReward * (1 - totalPenaltyPercent / 100)));
+  
   return (
     <div className="text-center py-4">
       <div className="text-4xl mb-2">✅</div>
       <div className="text-sm font-bold text-gray-800">任务已完成</div>
       <p className="text-gray-700 text-sm mt-1">{taskTitle}</p>
-      <p className="text-green-600 text-sm font-bold mt-2">💰 获得金币</p>
+      <p className="text-green-600 text-sm font-bold mt-2">💰 获得 {finalReward} 金币</p>
+      {totalPenaltyPercent > 0 && (
+        <p className="text-red-600 text-xs mt-1">（已扣除 {totalPenaltyPercent}%）</p>
+      )}
     </div>
   );
 }
