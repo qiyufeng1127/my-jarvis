@@ -60,6 +60,7 @@ export default function BaiduAISettings() {
     } else if (threshold >= 0.2) {
       return {
         level: '🔵 宽松',
+        
         desc: '需要匹配20%以上的关键词，大量同义词支持',
         example: '关键词：牙刷、牙膏、水龙头 → 识别到任意相关物品即可通过'
       };
