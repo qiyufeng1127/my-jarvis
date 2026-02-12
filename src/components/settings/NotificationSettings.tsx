@@ -3,16 +3,29 @@ import { Bell, Volume2, Clock, TrendingUp, FileText, AlertTriangle, Coins } from
 import { notificationService } from '@/services/notificationService';
 
 interface NotificationSettings {
-  taskReminder: boolean;
+  // 任务开始前提醒
+  taskStartBeforeReminder: boolean;
+  taskStartBeforeMinutes: number;
+  // 任务开始时提醒
+  taskStartReminder: boolean;
+  // 任务进行中提醒
+  taskDuringReminder: boolean;
+  taskDuringMinutes: number;
+  // 任务结束前提醒
+  taskEndBeforeReminder: boolean;
+  taskEndBeforeMinutes: number;
+  // 任务结束时提醒
+  taskEndReminder: boolean;
+  // 验证提醒
+  verificationStartReminder: boolean;
+  verificationCompleteReminder: boolean;
+  verificationUrgentReminder: boolean;
+  // 其他提醒
   growthReminder: boolean;
   dailyReport: boolean;
   badHabitWarning: boolean;
   goldChange: boolean;
-  taskStartReminder: boolean;
-  taskEndReminder: boolean;
-  taskEndReminderMinutes: number;
-  verificationReminder: boolean;
-  urgentReminder: boolean;
+  // 语音设置
   voiceEnabled: boolean;
   voiceRate: number;
   voicePitch: number;
@@ -27,16 +40,29 @@ interface NotificationSettingsProps {
 
 export default function NotificationSettingsPanel({ isDark, accentColor }: NotificationSettingsProps) {
   const [settings, setSettings] = useState<NotificationSettings>({
-    taskReminder: true,
+    // 任务开始前提醒
+    taskStartBeforeReminder: true,
+    taskStartBeforeMinutes: 2,
+    // 任务开始时提醒
+    taskStartReminder: true,
+    // 任务进行中提醒
+    taskDuringReminder: false,
+    taskDuringMinutes: 10,
+    // 任务结束前提醒
+    taskEndBeforeReminder: true,
+    taskEndBeforeMinutes: 5,
+    // 任务结束时提醒
+    taskEndReminder: true,
+    // 验证提醒
+    verificationStartReminder: true,
+    verificationCompleteReminder: true,
+    verificationUrgentReminder: true,
+    // 其他提醒
     growthReminder: true,
     dailyReport: true,
     badHabitWarning: true,
     goldChange: true,
-    taskStartReminder: true,
-    taskEndReminder: true,
-    taskEndReminderMinutes: 5,
-    verificationReminder: true,
-    urgentReminder: true,
+    // 语音设置
     voiceEnabled: true,
     voiceRate: 1.0,
     voicePitch: 1.0,
@@ -97,24 +123,193 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
         <h2 className="text-2xl font-bold" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>通知与语音设置</h2>
       </div>
 
-      {/* 通知类型设置 */}
+      {/* 任务提醒详细设置 */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold flex items-center gap-2" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>
+          <Clock className="w-5 h-5" />
+          任务提醒设置（语音播报）
+        </h3>
+        
+        <div className="space-y-4">
+          {/* 任务开始前提醒 */}
+          <div className="p-4 rounded-lg border" style={{ borderColor: accentColor, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}>
+            <SettingToggle
+              label="任务开始前提醒"
+              description="例如：「还有2分钟，洗澡任务即将开始」"
+              checked={settings.taskStartBeforeReminder}
+              onChange={(checked) => updateSetting('taskStartBeforeReminder', checked)}
+              isDark={isDark}
+              accentColor={accentColor}
+            />
+            {settings.taskStartBeforeReminder && (
+              <div className="mt-3 pl-6">
+                <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>提前提醒时间</label>
+                <select
+                  value={settings.taskStartBeforeMinutes}
+                  onChange={(e) => updateSetting('taskStartBeforeMinutes', Number(e.target.value))}
+                  className="px-3 py-2 rounded-lg border w-full"
+                  style={{
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'white',
+                    borderColor: accentColor,
+                    color: isDark ? '#ffffff' : '#1f2937',
+                  }}
+                >
+                  <option value={1}>提前 1 分钟</option>
+                  <option value={2}>提前 2 分钟</option>
+                  <option value={3}>提前 3 分钟</option>
+                  <option value={5}>提前 5 分钟</option>
+                  <option value={10}>提前 10 分钟</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* 任务开始时提醒 */}
+          <div className="p-4 rounded-lg border" style={{ borderColor: accentColor, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}>
+            <SettingToggle
+              label="任务开始时提醒"
+              description="例如：「洗澡任务已开始，请立即开始执行」"
+              checked={settings.taskStartReminder}
+              onChange={(checked) => updateSetting('taskStartReminder', checked)}
+              isDark={isDark}
+              accentColor={accentColor}
+            />
+          </div>
+
+          {/* 任务进行中提醒 */}
+          <div className="p-4 rounded-lg border" style={{ borderColor: accentColor, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}>
+            <SettingToggle
+              label="任务进行中提醒"
+              description="例如：「洗澡任务已进行10分钟，请保持专注」"
+              checked={settings.taskDuringReminder}
+              onChange={(checked) => updateSetting('taskDuringReminder', checked)}
+              isDark={isDark}
+              accentColor={accentColor}
+            />
+            {settings.taskDuringReminder && (
+              <div className="mt-3 pl-6">
+                <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>提醒间隔</label>
+                <select
+                  value={settings.taskDuringMinutes}
+                  onChange={(e) => updateSetting('taskDuringMinutes', Number(e.target.value))}
+                  className="px-3 py-2 rounded-lg border w-full"
+                  style={{
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'white',
+                    borderColor: accentColor,
+                    color: isDark ? '#ffffff' : '#1f2937',
+                  }}
+                >
+                  <option value={5}>每 5 分钟</option>
+                  <option value={10}>每 10 分钟</option>
+                  <option value={15}>每 15 分钟</option>
+                  <option value={30}>每 30 分钟</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* 任务结束前提醒 */}
+          <div className="p-4 rounded-lg border" style={{ borderColor: accentColor, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}>
+            <SettingToggle
+              label="任务结束前提醒"
+              description="例如：「还有5分钟，洗澡任务即将结束」"
+              checked={settings.taskEndBeforeReminder}
+              onChange={(checked) => updateSetting('taskEndBeforeReminder', checked)}
+              isDark={isDark}
+              accentColor={accentColor}
+            />
+            {settings.taskEndBeforeReminder && (
+              <div className="mt-3 pl-6">
+                <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>提前提醒时间</label>
+                <select
+                  value={settings.taskEndBeforeMinutes}
+                  onChange={(e) => updateSetting('taskEndBeforeMinutes', Number(e.target.value))}
+                  className="px-3 py-2 rounded-lg border w-full"
+                  style={{
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'white',
+                    borderColor: accentColor,
+                    color: isDark ? '#ffffff' : '#1f2937',
+                  }}
+                >
+                  <option value={1}>提前 1 分钟</option>
+                  <option value={2}>提前 2 分钟</option>
+                  <option value={3}>提前 3 分钟</option>
+                  <option value={5}>提前 5 分钟</option>
+                  <option value={10}>提前 10 分钟</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* 任务结束时提醒 */}
+          <div className="p-4 rounded-lg border" style={{ borderColor: accentColor, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}>
+            <SettingToggle
+              label="任务结束时提醒"
+              description="例如：「洗澡任务已结束，请进行验证」"
+              checked={settings.taskEndReminder}
+              onChange={(checked) => updateSetting('taskEndReminder', checked)}
+              isDark={isDark}
+              accentColor={accentColor}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 验证提醒设置 */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold flex items-center gap-2" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>
+          <AlertTriangle className="w-5 h-5" />
+          验证提醒设置（语音播报）
+        </h3>
+        
+        <div className="space-y-4">
+          {/* 启动验证提醒 */}
+          <div className="p-4 rounded-lg border" style={{ borderColor: accentColor, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}>
+            <SettingToggle
+              label="启动验证提醒"
+              description="例如：「请上传洗澡任务的启动验证照片」"
+              checked={settings.verificationStartReminder}
+              onChange={(checked) => updateSetting('verificationStartReminder', checked)}
+              isDark={isDark}
+              accentColor={accentColor}
+            />
+          </div>
+
+          {/* 完成验证提醒 */}
+          <div className="p-4 rounded-lg border" style={{ borderColor: accentColor, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}>
+            <SettingToggle
+              label="完成验证提醒"
+              description="例如：「请上传洗澡任务的完成验证照片」"
+              checked={settings.verificationCompleteReminder}
+              onChange={(checked) => updateSetting('verificationCompleteReminder', checked)}
+              isDark={isDark}
+              accentColor={accentColor}
+            />
+          </div>
+
+          {/* 紧急验证提醒 */}
+          <div className="p-4 rounded-lg border" style={{ borderColor: accentColor, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}>
+            <SettingToggle
+              label="紧急验证提醒"
+              description="例如：「警告！还有10秒，请立即上传验证照片」"
+              checked={settings.verificationUrgentReminder}
+              onChange={(checked) => updateSetting('verificationUrgentReminder', checked)}
+              isDark={isDark}
+              accentColor={accentColor}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 其他通知类型 */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold flex items-center gap-2" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>
           <Bell className="w-5 h-5" />
-          通知类型
+          其他通知类型
         </h3>
         
         <div className="space-y-3">
-          <SettingToggle
-            icon={<Clock className="w-5 h-5" />}
-            label="任务提醒"
-            description="任务开始、结束、验证等提醒"
-            checked={settings.taskReminder}
-            onChange={(checked) => updateSetting('taskReminder', checked)}
-            isDark={isDark}
-            accentColor={accentColor}
-          />
-          
+        <div className="space-y-3">
           <SettingToggle
             icon={<TrendingUp className="w-5 h-5" />}
             label="成长提醒"
@@ -156,69 +351,6 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
           />
         </div>
       </div>
-
-      {/* 任务提醒详细设置 */}
-      {settings.taskReminder && (
-        <div className="space-y-4 pl-4 border-l-2" style={{ borderColor: accentColor }}>
-          <h4 className="font-semibold" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>任务提醒详细设置</h4>
-          
-          <SettingToggle
-            label="任务开始时提醒"
-            description="任务到达开始时间时播报"
-            checked={settings.taskStartReminder}
-            onChange={(checked) => updateSetting('taskStartReminder', checked)}
-            isDark={isDark}
-            accentColor={accentColor}
-          />
-          
-          <SettingToggle
-            label="任务结束前提醒"
-            description="任务即将结束时提前提醒"
-            checked={settings.taskEndReminder}
-            onChange={(checked) => updateSetting('taskEndReminder', checked)}
-            isDark={isDark}
-            accentColor={accentColor}
-          />
-          
-          {settings.taskEndReminder && (
-            <div className="pl-6">
-              <label className="block text-sm font-medium mb-2" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>提前提醒时间</label>
-              <select
-                value={settings.taskEndReminderMinutes}
-                onChange={(e) => updateSetting('taskEndReminderMinutes', Number(e.target.value))}
-                className="px-3 py-2 rounded-lg border"
-                style={{
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'white',
-                  borderColor: accentColor,
-                  color: isDark ? '#ffffff' : '#1f2937',
-                }}
-              >
-                <option value={1}>提前 1 分钟</option>
-                <option value={5}>提前 5 分钟</option>
-                <option value={10}>提前 10 分钟</option>
-              </select>
-            </div>
-          )}
-          
-          <SettingToggle
-            label="验证提醒"
-            description="启动验证和完成验证提醒"
-            checked={settings.verificationReminder}
-            onChange={(checked) => updateSetting('verificationReminder', checked)}
-            isDark={isDark}
-            accentColor={accentColor}
-          />
-          
-          <SettingToggle
-            label="紧急提醒"
-            description="验证倒计时10秒时紧急播报"
-            checked={settings.urgentReminder}
-            onChange={(checked) => updateSetting('urgentReminder', checked)}
-            isDark={isDark}
-            accentColor={accentColor}
-          />
-        </div>
-      )}
 
       {/* 语音设置 */}
       <div className="space-y-4">
