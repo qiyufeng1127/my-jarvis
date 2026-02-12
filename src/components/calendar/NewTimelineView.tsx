@@ -70,6 +70,12 @@ export default function NewTimelineView({
   // 使用金币store
   const goldBalance = useGoldStore(state => state.balance);
   
+
+
+
+
+
+
   useEffect(() => {
     const checkMobile = () => {
       const userAgent = navigator.userAgent.toLowerCase();

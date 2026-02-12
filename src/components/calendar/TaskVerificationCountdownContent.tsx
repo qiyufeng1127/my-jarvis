@@ -44,6 +44,8 @@ export default function TaskVerificationCountdownContent({
   const [actualStartTime, setActualStartTime] = useState<Date | null>(null); // 实际开始时间
   const [dynamicEndTime, setDynamicEndTime] = useState<Date>(scheduledEnd); // 动态结束时间
   const [baseGoldReward, setBaseGoldReward] = useState(0); // 基础金币奖励
+  const [earlyStartBonus, setEarlyStartBonus] = useState(false); // 是否获得早启动奖励
+  const [onTimeCompleteBonus, setOnTimeCompleteBonus] = useState(false); // 是否获得按时完成奖励
 
   // 自动触发：检查是否到达设定时间（只在当前时间范围内触发）
   useEffect(() => {
@@ -186,6 +188,12 @@ export default function TaskVerificationCountdownContent({
     const now = new Date();
     setActualStartTime(now);
     
+    // 检查是否在第一个2分钟内启动（获得50%奖励）
+    if (startCountdown > 0 && startPenaltyCount === 0) {
+      setEarlyStartBonus(true);
+      console.log('🎉 在第一个2分钟内启动，获得50%金币奖励！');
+    }
+    
     // 计算动态结束时间：实际开始时间 + 任务时长
     const taskDuration = new Date(scheduledEnd).getTime() - new Date(scheduledStart).getTime();
     const calculatedEndTime = new Date(now.getTime() + taskDuration);
@@ -195,6 +203,7 @@ export default function TaskVerificationCountdownContent({
     console.log('   实际开始时间:', now.toLocaleTimeString());
     console.log('   计划结束时间:', calculatedEndTime.toLocaleTimeString());
     console.log('   任务时长:', Math.floor(taskDuration / 60000), '分钟');
+    console.log('   早启动奖励:', earlyStartBonus ? '是' : '否');
     
     setStatus('in_progress');
     setUploadedPhoto(null);
@@ -214,16 +223,37 @@ export default function TaskVerificationCountdownContent({
     const taskDuration = Math.floor((new Date(scheduledEnd).getTime() - new Date(scheduledStart).getTime()) / 60000);
     const baseReward = Math.floor(taskDuration * 0.8);
     
+    // 检查是否在原定时间内完成（没有延长过）
+    const isOnTime = completePenaltyCount === 0;
+    if (isOnTime) {
+      setOnTimeCompleteBonus(true);
+      console.log('🎉 在原定时间内完成，获得50%金币奖励！');
+    }
+    
     // 计算总扣除百分比
     const totalPenaltyPercent = (startPenaltyCount + completePenaltyCount) * 20;
     
-    // 最终金币 = 基础金币 - 扣除的金币
-    const finalReward = Math.max(0, Math.floor(baseReward * (1 - totalPenaltyPercent / 100)));
+    // 计算奖励百分比
+    let bonusPercent = 0;
+    if (earlyStartBonus) bonusPercent += 50;
+    if (onTimeCompleteBonus) bonusPercent += 50;
+    
+    // 最终金币 = 基础金币 * (1 - 扣除% + 奖励%)
+    const finalReward = Math.max(0, Math.floor(baseReward * (1 - totalPenaltyPercent / 100 + bonusPercent / 100)));
     
     // 添加金币
     if (finalReward > 0) {
-      addGold(finalReward, `完成任务`, taskId, taskTitle);
-      console.log(`💰 获得金币: ${finalReward} (基础${baseReward} - 扣除${totalPenaltyPercent}%)`);
+      let reason = '完成任务';
+      if (earlyStartBonus && onTimeCompleteBonus) {
+        reason += '（早启动+按时完成）';
+      } else if (earlyStartBonus) {
+        reason += '（早启动奖励）';
+      } else if (onTimeCompleteBonus) {
+        reason += '（按时完成奖励）';
+      }
+      
+      addGold(finalReward, reason, taskId, taskTitle);
+      console.log(`💰 获得金币: ${finalReward} (基础${baseReward} - 扣除${totalPenaltyPercent}% + 奖励${bonusPercent}%)`);
     }
     
     setStatus('completed');
@@ -354,7 +384,10 @@ export default function TaskVerificationCountdownContent({
   const taskDuration = Math.floor((new Date(scheduledEnd).getTime() - new Date(scheduledStart).getTime()) / 60000);
   const baseReward = Math.floor(taskDuration * 0.8);
   const totalPenaltyPercent = (startPenaltyCount + completePenaltyCount) * 20;
-  const finalReward = Math.max(0, Math.floor(baseReward * (1 - totalPenaltyPercent / 100)));
+  let bonusPercent = 0;
+  if (earlyStartBonus) bonusPercent += 50;
+  if (onTimeCompleteBonus) bonusPercent += 50;
+  const finalReward = Math.max(0, Math.floor(baseReward * (1 - totalPenaltyPercent / 100 + bonusPercent / 100)));
   
   return (
     <div className="text-center py-4">
@@ -362,8 +395,17 @@ export default function TaskVerificationCountdownContent({
       <div className="text-sm font-bold text-gray-800">任务已完成</div>
       <p className="text-gray-700 text-sm mt-1">{taskTitle}</p>
       <p className="text-green-600 text-sm font-bold mt-2">💰 获得 {finalReward} 金币</p>
-      {totalPenaltyPercent > 0 && (
-        <p className="text-red-600 text-xs mt-1">（已扣除 {totalPenaltyPercent}%）</p>
+      {(totalPenaltyPercent > 0 || bonusPercent > 0) && (
+        <p className="text-xs mt-1">
+          {totalPenaltyPercent > 0 && <span className="text-red-600">（扣除 {totalPenaltyPercent}%）</span>}
+          {bonusPercent > 0 && <span className="text-green-600">（奖励 +{bonusPercent}%）</span>}
+        </p>
+      )}
+      {earlyStartBonus && (
+        <p className="text-green-600 text-xs mt-1">🎉 早启动奖励</p>
+      )}
+      {onTimeCompleteBonus && (
+        <p className="text-green-600 text-xs mt-1">🎉 按时完成奖励</p>
       )}
     </div>
   );
