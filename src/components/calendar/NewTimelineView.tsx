@@ -64,6 +64,9 @@ export default function NewTimelineView({
   // 检测是否为移动设备
   const [isMobile, setIsMobile] = useState(false);
   
+  // 添加定时刷新状态，用于触发倒计时检查
+  const [currentTime, setCurrentTime] = useState(new Date());
+  
   useEffect(() => {
     const checkMobile = () => {
       const userAgent = navigator.userAgent.toLowerCase();
@@ -75,6 +78,15 @@ export default function NewTimelineView({
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
+  // 每秒更新当前时间，用于触发倒计时检查
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    
+    return () => clearInterval(timer);
   }, []);
   
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
@@ -1865,7 +1877,7 @@ export default function NewTimelineView({
                 
                 {/* 🔥 验证倒计时组件 - 只在任务时间范围内且未完成时显示 */}
                 {(() => {
-                  const now = new Date();
+                  const now = currentTime; // 使用状态中的当前时间，每秒更新
                   const hasScheduledStart = !!block.startTime;
                   const hasScheduledEnd = !!block.endTime;
                   const scheduledStartTime = block.startTime ? new Date(block.startTime) : null;
