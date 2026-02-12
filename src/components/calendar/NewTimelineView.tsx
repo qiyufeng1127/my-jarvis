@@ -1863,14 +1863,19 @@ export default function NewTimelineView({
                 }}
               >
                 
-                {/* 🔥 验证倒计时覆盖层 - 在卡片内部 */}
+                {/* 🔥 验证倒计时组件 - 只在任务时间范围内且未完成时显示 */}
                 {(() => {
                   const now = new Date();
                   const hasScheduledStart = !!block.startTime;
+                  const hasScheduledEnd = !!block.endTime;
                   const scheduledStartTime = block.startTime ? new Date(block.startTime) : null;
-                  const isTimeReached = scheduledStartTime ? now >= scheduledStartTime : false;
+                  const scheduledEndTime = block.endTime ? new Date(block.endTime) : null;
+                  const isInTimeRange = scheduledStartTime && scheduledEndTime && 
+                                       now >= scheduledStartTime && 
+                                       now < scheduledEndTime;
+                  const isNotCompleted = !block.isCompleted;
                   
-                  return hasScheduledStart && isTimeReached;
+                  return hasScheduledStart && hasScheduledEnd && isInTimeRange && isNotCompleted;
                 })() && (
                   <TaskVerificationCountdownContent
                      taskId={block.id}
