@@ -1,6 +1,9 @@
 /**
- * 任务验证倒计时内容组件（优化版）
- * 核心逻辑：启动验证后只显示一个放大的任务剩余倒计时
+ * 任务验证倒计时组件（统一版本）
+ * 核心功能：
+ * 1. 到达设定时间自动触发启动验证
+ * 2. 启动验证后只显示一个放大的任务剩余倒计时
+ * 3. 完成时自动更新任务的实际结束时间
  */
 
 import React, { useState, useEffect } from 'react';
@@ -12,13 +15,13 @@ interface TaskVerificationCountdownContentProps {
   taskTitle: string;
   scheduledStart: Date;
   scheduledEnd: Date;
-  onComplete?: (actualEndTime: Date) => void; // 传递实际完成时间
+  onComplete?: (actualEndTime: Date) => void;
   hasVerification?: boolean;
   startKeywords?: string[];
   completeKeywords?: string[];
 }
 
-type VerificationStatus = 'start_verification' | 'in_progress' | 'completed';
+type VerificationStatus = 'waiting' | 'start_verification' | 'in_progress' | 'completed';
 
 export default function TaskVerificationCountdownContent({
   taskId,
@@ -30,12 +33,32 @@ export default function TaskVerificationCountdownContent({
   startKeywords = ['启动', '开始'],
   completeKeywords = ['完成', '结束'],
 }: TaskVerificationCountdownContentProps) {
-  const [status, setStatus] = useState<VerificationStatus>('start_verification');
-  const [startCountdown, setStartCountdown] = useState(120); // 启动验证倒计时
-  const [taskTimeLeft, setTaskTimeLeft] = useState(0); // 任务剩余时间
+  const [status, setStatus] = useState<VerificationStatus>('waiting');
+  const [startCountdown, setStartCountdown] = useState(120);
+  const [taskTimeLeft, setTaskTimeLeft] = useState(0);
   const [uploadedPhoto, setUploadedPhoto] = useState<string | null>(null);
   const [startPenaltyCount, setStartPenaltyCount] = useState(0);
   const [completePenaltyCount, setCompletePenaltyCount] = useState(0);
+
+  // 自动触发：检查是否到达设定时间
+  useEffect(() => {
+    const checkTime = () => {
+      const now = new Date();
+      const startTime = new Date(scheduledStart);
+      
+      if (now >= startTime && status === 'waiting') {
+        console.log('⏰ 任务到达设定时间，自动触发启动验证:', taskTitle);
+        setStatus('start_verification');
+      }
+    };
+
+    // 立即检查一次
+    checkTime();
+    
+    // 每秒检查一次
+    const interval = setInterval(checkTime, 1000);
+    return () => clearInterval(interval);
+  }, [scheduledStart, status, taskTitle]);
 
   // 启动验证倒计时（仅在启动验证阶段）
   useEffect(() => {
@@ -146,6 +169,11 @@ export default function TaskVerificationCountdownContent({
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  // 等待状态：时间未到，不显示任何内容
+  if (status === 'waiting') {
+    return null;
+  }
 
   // 启动验证状态
   if (status === 'start_verification') {
