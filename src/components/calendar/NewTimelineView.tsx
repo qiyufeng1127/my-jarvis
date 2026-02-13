@@ -1599,10 +1599,10 @@ export default function NewTimelineView({
           verification={taskVerifications[editingVerification]}
           onClose={() => setEditingVerification(null)}
           onUpdate={(verification) => {
-            setTaskVerifications(prev => ({
-              ...prev,
-              [editingVerification]: verification,
-            }));
+            handleUpdateVerification(editingVerification, verification);
+          }}
+          onDisable={() => {
+            handleDisableVerification(editingVerification);
           }}
           isDark={isDark}
           accentColor={accentColor}
