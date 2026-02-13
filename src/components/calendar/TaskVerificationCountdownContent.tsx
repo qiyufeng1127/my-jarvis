@@ -188,10 +188,18 @@ export default function TaskVerificationCountdownContent({
       const duration = Math.floor((new Date(scheduledEnd).getTime() - new Date(scheduledStart).getTime()) / 60000);
       const taskSeconds = duration * 60;
       
-      // 2分钟内完成启动，奖励50%金币
-      const bonusGold = Math.floor(goldReward * 0.5);
-      addGold(bonusGold, `按时启动任务（奖励50%）`, taskId, taskTitle);
-      console.log(`✅ 按时启动任务，获得${bonusGold}金币奖励`);
+      // 判断是否在启动倒计时内（2分钟内）
+      const isWithinStartWindow = state.status === 'start_countdown';
+      
+      if (isWithinStartWindow) {
+        // 2分钟内完成启动，奖励50%金币
+        const bonusGold = Math.floor(goldReward * 0.5);
+        addGold(bonusGold, `按时启动任务（奖励50%）`, taskId, taskTitle);
+        console.log(`✅ 按时启动任务，获得${bonusGold}金币奖励`);
+      } else {
+        // 提前启动，无奖励
+        console.log(`✅ 提前启动任务: ${taskTitle}`);
+      }
       
       setState(prev => ({
         ...prev,
@@ -201,10 +209,11 @@ export default function TaskVerificationCountdownContent({
         lastUpdateTime: new Date().toISOString(),
       }));
       
-      // 通知父组件更新开始时间
+      // 通知父组件更新开始时间和结束时间（从当前时间开始计算）
       if (onStart) {
         const calculatedEndTime = new Date(now.getTime() + duration * 60000);
         onStart(now, calculatedEndTime);
+        console.log(`📅 任务时间已更新: 开始=${now.toLocaleString('zh-CN')}, 结束=${calculatedEndTime.toLocaleString('zh-CN')}`);
       }
       
       console.log(`✅ 启动任务成功: ${taskTitle}，任务时长${duration}分钟`);
@@ -250,8 +259,11 @@ export default function TaskVerificationCountdownContent({
         console.log('📷 [百度API] 开始识别');
         
         // 添加超时控制：10秒超时
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('验证超时，请重试')), 10000);
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => {
+            console.error('❌ [百度API] 验证超时（10秒）');
+            reject(new Error('验证超时（10秒），请检查网络或重试'));
+          }, 10000);
         });
         
         // 1. 压缩并上传图片
@@ -262,7 +274,6 @@ export default function TaskVerificationCountdownContent({
           setVerificationMessage('❌ 照片上传失败，请重新拍摄');
           setVerificationSuccess(false);
           setIsUploading(false);
-          // 保持在uploading_start状态，不要回到start_countdown
           console.log('❌ [百度API] 照片上传失败');
           return;
         }
@@ -332,11 +343,21 @@ export default function TaskVerificationCountdownContent({
         }, 2000);
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : '未知错误';
-        setVerificationMessage(`❌ 验证异常：${errorMsg}`);
+        console.error('❌ [百度API] 验证异常:', error);
+        
+        // 根据错误类型给出不同的提示
+        let userMessage = `❌ 验证失败：${errorMsg}`;
+        if (errorMsg.includes('超时')) {
+          userMessage = '❌ 验证超时（10秒），请检查网络后重试';
+        } else if (errorMsg.includes('网络')) {
+          userMessage = '❌ 网络错误，请检查网络连接后重试';
+        } else if (errorMsg.includes('API')) {
+          userMessage = '❌ 百度API配置错误，请检查设置';
+        }
+        
+        setVerificationMessage(userMessage);
         setVerificationSuccess(false);
         setIsUploading(false);
-        // 保持在uploading_start状态，不要回到start_countdown
-        console.error('❌ [百度API] 验证异常:', error);
       }
     };
     
@@ -421,8 +442,11 @@ export default function TaskVerificationCountdownContent({
         console.log('📷 [百度API] 开始识别');
         
         // 添加超时控制：10秒超时
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('验证超时，请重试')), 10000);
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => {
+            console.error('❌ [百度API] 验证超时（10秒）');
+            reject(new Error('验证超时（10秒），请检查网络或重试'));
+          }, 10000);
         });
         
         // 1. 压缩并上传图片
@@ -433,7 +457,6 @@ export default function TaskVerificationCountdownContent({
           setVerificationMessage('❌ 照片上传失败，请重新拍摄');
           setVerificationSuccess(false);
           setIsUploading(false);
-          // 保持在uploading_complete状态，不要回到task_countdown
           console.log('❌ [百度API] 照片上传失败');
           return;
         }
@@ -516,11 +539,21 @@ export default function TaskVerificationCountdownContent({
         }, 2000);
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : '未知错误';
-        setVerificationMessage(`❌ 验证异常：${errorMsg}`);
+        console.error('❌ [百度API] 验证异常:', error);
+        
+        // 根据错误类型给出不同的提示
+        let userMessage = `❌ 验证失败：${errorMsg}`;
+        if (errorMsg.includes('超时')) {
+          userMessage = '❌ 验证超时（10秒），请检查网络后重试';
+        } else if (errorMsg.includes('网络')) {
+          userMessage = '❌ 网络错误，请检查网络连接后重试';
+        } else if (errorMsg.includes('API')) {
+          userMessage = '❌ 百度API配置错误，请检查设置';
+        }
+        
+        setVerificationMessage(userMessage);
         setVerificationSuccess(false);
         setIsUploading(false);
-        // 保持在uploading_complete状态，不要回到task_countdown
-        console.error('❌ [百度API] 验证异常:', error);
       }
     };
     
@@ -534,9 +567,59 @@ export default function TaskVerificationCountdownContent({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // 等待启动状态：不显示任何内容
+  // 等待启动状态：显示提前启动按钮
   if (state.status === 'waiting_start') {
-    return null;
+    return (
+      <div className="w-full flex flex-col items-center py-2 bg-transparent">
+        {/* 提示文字 */}
+        <div className="text-xs font-medium mb-2 text-gray-500">
+          任务尚未开始，可以提前启动
+        </div>
+        
+        {/* 提前启动按钮 - 无验证任务 */}
+        {!hasVerification && (
+          <button 
+            onClick={() => handleStartTask()}
+            className="px-6 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all flex items-center gap-1.5"
+            style={{
+              backgroundColor: '#10B981',
+              color: '#ffffff',
+            }}
+          >
+            <span>✅</span>
+            <span>提前启动</span>
+          </button>
+        )}
+        
+        {/* 提前启动按钮 - 验证任务 */}
+        {hasVerification && (
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => handleStartTask(true)}
+              className="flex-1 px-4 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-1.5"
+              style={{
+                backgroundColor: '#3B82F6',
+                color: '#ffffff',
+              }}
+            >
+              <span>📷</span>
+              <span>拍摄照片</span>
+            </button>
+            <button 
+              onClick={() => handleStartTask(false)}
+              className="flex-1 px-4 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-1.5"
+              style={{
+                backgroundColor: '#8B5CF6',
+                color: '#ffffff',
+              }}
+            >
+              <span>🖼️</span>
+              <span>上传照片</span>
+            </button>
+          </div>
+        )}
+      </div>
+    );
   }
 
   // 启动倒计时阶段（2分钟）

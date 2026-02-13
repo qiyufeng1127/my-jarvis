@@ -55,9 +55,9 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
     const dayEnd = lastTask.endTime.getTime();
 
     console.log('🔍 NOW线计算:', {
-      now: new Date(now).toLocaleTimeString(),
-      dayStart: new Date(dayStart).toLocaleTimeString(),
-      dayEnd: new Date(dayEnd).toLocaleTimeString(),
+      now: new Date(now).toLocaleString('zh-CN'),
+      dayStart: new Date(dayStart).toLocaleString('zh-CN'),
+      dayEnd: new Date(dayEnd).toLocaleString('zh-CN'),
       beforeStart: now < dayStart,
       afterEnd: now > dayEnd,
     });
@@ -95,8 +95,8 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
       const blockEnd = block.endTime.getTime();
       
       console.log(`  任务${i}: ${block.title}`, {
-        start: new Date(blockStart).toLocaleTimeString(),
-        end: new Date(blockEnd).toLocaleTimeString(),
+        start: new Date(blockStart).toLocaleString('zh-CN'),
+        end: new Date(blockEnd).toLocaleString('zh-CN'),
         inRange: now >= blockStart && now <= blockEnd,
       });
       
