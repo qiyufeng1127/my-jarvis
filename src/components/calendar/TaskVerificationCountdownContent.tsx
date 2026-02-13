@@ -254,19 +254,21 @@ export default function TaskVerificationCountdownContent({
       }
       
       try {
-        setVerificationMessage('正在验证中，请稍后...');
+        setVerificationMessage('📤 正在上传图片...');
         console.log('📷 [百度API] 开始识别');
         
-        // 添加超时控制：10秒超时
+        // 添加超时控制：5秒超时（缩短超时时间）
         const timeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(() => {
-            console.error('❌ [百度API] 验证超时（10秒）');
-            reject(new Error('验证超时（10秒），请检查网络或重试'));
-          }, 10000);
+            console.error('❌ [百度API] 验证超时（5秒）');
+            reject(new Error('TIMEOUT'));
+          }, 5000);
         });
         
         // 1. 压缩并上传图片
         const compressedFile = await ImageUploader.compressImage(file);
+        setVerificationMessage('📤 图片上传中...');
+        
         const uploadedImageUrl = await ImageUploader.uploadImage(compressedFile);
         
         if (!uploadedImageUrl) {
@@ -277,14 +279,21 @@ export default function TaskVerificationCountdownContent({
           return;
         }
         
+        setVerificationMessage('🔗 正在连接百度AI...');
+        
         // 2. 调用百度API验证（阈值设为0.1，只要匹配到一个关键词就通过）
         // 使用Promise.race实现超时控制
         const verifyResult = await Promise.race([
-          baiduImageRecognition.smartVerifyImage(
-            file,
-            startKeywords,
-            0.1  // 降低阈值到0.1，表示只要匹配10%（即1个关键词）就通过
-          ),
+          (async () => {
+            setVerificationMessage('🤖 百度AI识别中...');
+            const result = await baiduImageRecognition.smartVerifyImage(
+              file,
+              startKeywords,
+              0.1  // 降低阈值到0.1，表示只要匹配10%（即1个关键词）就通过
+            );
+            setVerificationMessage('✨ AI分析完成，正在匹配关键词...');
+            return result;
+          })(),
           timeoutPromise
         ]) as any;
         
@@ -343,14 +352,16 @@ export default function TaskVerificationCountdownContent({
         const errorMsg = error instanceof Error ? error.message : '未知错误';
         console.error('❌ [百度API] 验证异常:', error);
         
-        // 根据错误类型给出不同的提示
-        let userMessage = `❌ 验证失败：${errorMsg}`;
-        if (errorMsg.includes('超时')) {
-          userMessage = '❌ 验证超时（10秒），请检查网络后重试';
+        // 根据错误类型给出简洁的提示
+        let userMessage = '';
+        if (errorMsg === 'TIMEOUT') {
+          userMessage = '❌ 验证超时（5秒）\n\n可能原因：\n• 百度API未配置或配置错误\n• 网络连接问题\n• 服务器响应慢\n\n请检查【设置→AI】中的百度API配置';
         } else if (errorMsg.includes('网络')) {
-          userMessage = '❌ 网络错误，请检查网络连接后重试';
+          userMessage = '❌ 网络错误\n\n请检查网络连接后重试';
         } else if (errorMsg.includes('API')) {
-          userMessage = '❌ 百度API配置错误，请检查设置';
+          userMessage = '❌ API配置错误\n\n请检查【设置→AI】中的百度API配置';
+        } else {
+          userMessage = `❌ 验证失败\n\n${errorMsg}`;
         }
         
         setVerificationMessage(userMessage);
@@ -435,19 +446,21 @@ export default function TaskVerificationCountdownContent({
       }
       
       try {
-        setVerificationMessage('正在验证中，请稍后...');
+        setVerificationMessage('📤 正在上传图片...');
         console.log('📷 [百度API] 开始识别');
         
-        // 添加超时控制：10秒超时
+        // 添加超时控制：5秒超时（缩短超时时间）
         const timeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(() => {
-            console.error('❌ [百度API] 验证超时（10秒）');
-            reject(new Error('验证超时（10秒），请检查网络或重试'));
-          }, 10000);
+            console.error('❌ [百度API] 验证超时（5秒）');
+            reject(new Error('TIMEOUT'));
+          }, 5000);
         });
         
         // 1. 压缩并上传图片
         const compressedFile = await ImageUploader.compressImage(file);
+        setVerificationMessage('📤 图片上传中...');
+        
         const uploadedImageUrl = await ImageUploader.uploadImage(compressedFile);
         
         if (!uploadedImageUrl) {
@@ -458,6 +471,8 @@ export default function TaskVerificationCountdownContent({
           return;
         }
         
+        setVerificationMessage('🔗 正在连接百度AI...');
+        
         // 2. 调用百度API验证（从localStorage读取用户设置的阈值）
         // 使用Promise.race实现超时控制
         const savedThreshold = localStorage.getItem('baidu_verification_threshold');
@@ -466,11 +481,16 @@ export default function TaskVerificationCountdownContent({
         console.log(`🎯 [百度API] 使用验证阈值: ${(threshold * 100).toFixed(0)}%`);
         
         const verifyResult = await Promise.race([
-          baiduImageRecognition.smartVerifyImage(
-            file,
-            completeKeywords,
-            threshold  // 使用用户设置的阈值
-          ),
+          (async () => {
+            setVerificationMessage('🤖 百度AI识别中...');
+            const result = await baiduImageRecognition.smartVerifyImage(
+              file,
+              completeKeywords,
+              threshold  // 使用用户设置的阈值
+            );
+            setVerificationMessage('✨ AI分析完成，正在匹配关键词...');
+            return result;
+          })(),
           timeoutPromise
         ]) as any;
         
@@ -537,14 +557,16 @@ export default function TaskVerificationCountdownContent({
         const errorMsg = error instanceof Error ? error.message : '未知错误';
         console.error('❌ [百度API] 验证异常:', error);
         
-        // 根据错误类型给出不同的提示
-        let userMessage = `❌ 验证失败：${errorMsg}`;
-        if (errorMsg.includes('超时')) {
-          userMessage = '❌ 验证超时（10秒），请检查网络后重试';
+        // 根据错误类型给出简洁的提示
+        let userMessage = '';
+        if (errorMsg === 'TIMEOUT') {
+          userMessage = '❌ 验证超时（5秒）\n\n可能原因：\n• 百度API未配置或配置错误\n• 网络连接问题\n• 服务器响应慢\n\n请检查【设置→AI】中的百度API配置';
         } else if (errorMsg.includes('网络')) {
-          userMessage = '❌ 网络错误，请检查网络连接后重试';
+          userMessage = '❌ 网络错误\n\n请检查网络连接后重试';
         } else if (errorMsg.includes('API')) {
-          userMessage = '❌ 百度API配置错误，请检查设置';
+          userMessage = '❌ API配置错误\n\n请检查【设置→AI】中的百度API配置';
+        } else {
+          userMessage = `❌ 验证失败\n\n${errorMsg}`;
         }
         
         setVerificationMessage(userMessage);
