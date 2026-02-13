@@ -436,15 +436,26 @@ class BaiduImageRecognitionService {
 
       const recognizedKeywords = allKeywords;
 
-      // 🔧 如果识别失败（没有识别到任何内容），直接通过验证（信任用户）
+      // 🔧 如果识别失败（没有识别到任何内容），给出明确的错误提示
       if (allKeywords.length === 0) {
-        console.warn('⚠️ 百度AI未识别到内容，自动通过验证（信任用户）');
+        console.error('❌ 百度AI未识别到任何内容，可能的原因：');
+        console.error('1. 百度API配置错误（API Key或Secret Key不正确）');
+        console.error('2. 网络连接问题（无法访问百度API）');
+        console.error('3. 图片质量问题（过于模糊或光线不足）');
+        console.error('4. 超出每日免费额度（500次/天）');
+        
         return {
-          success: true,
-          matchedKeywords: requiredKeywords,
+          success: false,
+          matchedKeywords: [],
           recognizedKeywords: [],
-          description: `✅ 验证通过！\n\n图像识别服务暂时无法使用，系统信任您已按要求完成。`,
-          matchDetails: requiredKeywords.map(k => `✅ "${k}" - 已信任通过`).join('\n'),
+          description: `❌ 验证失败：未识别到任何内容\n\n可能的原因：\n\n1️⃣ 百度AI配置问题\n   • 请检查【设置 → AI】中的百度API配置\n   • API Key 和 Secret Key 是否正确\n   • 是否已开通图像识别服务\n\n2️⃣ 网络连接问题\n   • 请检查网络连接是否正常\n   • 是否能访问百度AI服务\n\n3️⃣ 图片质量问题\n   • 请确保光线充足\n   • 拍摄目标清晰可见\n   • 避免过度模糊或反光\n\n4️⃣ 超出免费额度\n   • 百度AI每天免费500次\n   • 请检查是否超出额度\n\n💡 建议：\n   • 先检查百度API配置\n   • 重新拍摄更清晰的照片\n   • 或联系开发者排查问题`,
+          matchDetails: requiredKeywords.map(k => `❌ "${k}" - 未识别到任何内容，无法验证`).join('\n'),
+          suggestions: [
+            '🔧 请先检查百度API配置（设置 → AI）',
+            '📸 确保照片清晰、光线充足',
+            '🌐 检查网络连接是否正常',
+            '💰 检查是否超出每日免费额度（500次）',
+          ],
         };
       }
 
