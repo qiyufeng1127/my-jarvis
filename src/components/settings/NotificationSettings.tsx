@@ -309,7 +309,6 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
         </h3>
         
         <div className="space-y-3">
-        <div className="space-y-3">
           <SettingToggle
             icon={<TrendingUp className="w-5 h-5" />}
             label="成长提醒"
