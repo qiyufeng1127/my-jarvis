@@ -127,6 +127,57 @@ export default function NewTimelineView({
   const imageInputRefs = useRef<Record<string, HTMLInputElement>>({});
   const [showGoldModal, setShowGoldModal] = useState(false); // 金币详情弹窗
   
+  // 🔄 从任务对象恢复验证设置和照片
+  useEffect(() => {
+    const newVerifications: Record<string, TaskVerification> = {};
+    const newImages: Record<string, TaskImage[]> = {};
+    
+    allTasks.forEach(task => {
+      // 恢复验证设置
+      if (task.verificationEnabled && task.startKeywords && task.completeKeywords) {
+        const scheduledStart = task.scheduledStart ? new Date(task.scheduledStart) : new Date();
+        const scheduledEnd = task.scheduledEnd 
+          ? new Date(task.scheduledEnd) 
+          : new Date(scheduledStart.getTime() + (task.durationMinutes || 30) * 60 * 1000);
+        
+        newVerifications[task.id] = {
+          enabled: true,
+          startKeywords: task.startKeywords,
+          completionKeywords: task.completeKeywords,
+          startDeadline: new Date(scheduledStart.getTime() + 2 * 60 * 1000),
+          completionDeadline: scheduledEnd,
+          startFailedAttempts: 0,
+          startTimeoutCount: 0,
+          startRetryDeadline: null,
+          completionFailedAttempts: 0,
+          completionTimeoutCount: 0,
+          completionExtensionCount: 0,
+          status: 'pending',
+          actualStartTime: null,
+          actualCompletionTime: null,
+          startGoldEarned: 0,
+          completionGoldEarned: 0,
+          totalGoldPenalty: 0,
+          startPenaltyGold: 0,
+        };
+        
+        console.log(`✅ 恢复任务 ${task.title} 的验证设置:`, {
+          startKeywords: task.startKeywords,
+          completeKeywords: task.completeKeywords,
+        });
+      }
+      
+      // 恢复照片
+      if (task.images && task.images.length > 0) {
+        newImages[task.id] = task.images;
+        console.log(`✅ 恢复任务 ${task.title} 的 ${task.images.length} 张照片`);
+      }
+    });
+    
+    setTaskVerifications(newVerifications);
+    setTaskImages(newImages);
+  }, [allTasks]);
+  
   // 智能识别任务类型：是否为照片任务
   const detectPhotoTaskType = (title: string): { isPhotoTask: boolean; targetCount: number; unit: string } => {
     // 匹配模式：数字 + 量词（张、个、次、幅、份等）
@@ -858,12 +909,57 @@ export default function NewTimelineView({
       console.log('启动关键词:', startKeywords);
       console.log('完成关键词:', completionKeywords);
       
+      // 💾 持久化：保存验证设置到任务对象
+      onTaskUpdate(taskId, {
+        verificationEnabled: true,
+        startKeywords,
+        completeKeywords: completionKeywords,
+      });
+      
+      console.log('💾 验证设置已保存到任务对象');
+      
       // 打开编辑对话框
       setEditingVerification(taskId);
     } catch (error) {
       console.error('❌ 启用验证失败:', error);
       alert('启用验证失败，请重试');
     }
+  };
+  
+  // 更新验证设置（从对话框保存）
+  const handleUpdateVerification = (taskId: string, verification: TaskVerification) => {
+    setTaskVerifications(prev => ({
+      ...prev,
+      [taskId]: verification,
+    }));
+    
+    // 💾 持久化：保存到任务对象
+    onTaskUpdate(taskId, {
+      verificationEnabled: true,
+      startKeywords: verification.startKeywords,
+      completeKeywords: verification.completionKeywords,
+    });
+    
+    console.log('💾 验证设置已更新并保存');
+  };
+  
+  // 取消验证设置
+  const handleDisableVerification = (taskId: string) => {
+    // 从状态中移除
+    setTaskVerifications(prev => {
+      const newVerifications = { ...prev };
+      delete newVerifications[taskId];
+      return newVerifications;
+    });
+    
+    // 💾 持久化：从任务对象中移除
+    onTaskUpdate(taskId, {
+      verificationEnabled: false,
+      startKeywords: [],
+      completeKeywords: [],
+    });
+    
+    console.log('💾 验证设置已取消');
   };
   
   // 启动任务（带验证）
@@ -966,16 +1062,26 @@ export default function NewTimelineView({
           const newImage: TaskImage = {
             id: `img-${Date.now()}-verification`,
             url: imageUrl,
-            type: 'attachment',
+            type: type === 'start' ? 'verification_start' : 'verification_complete',
             uploadedAt: new Date(),
           };
           
+          // 更新本地状态
+          const updatedImages = [...(taskImages[taskId] || []), newImage];
           setTaskImages(prev => ({
             ...prev,
-            [taskId]: [...(prev[taskId] || []), newImage],
+            [taskId]: updatedImages,
           }));
           
-          console.log('📸 验证照片已保存到任务图片列表');
+          // 💾 持久化：保存照片到任务对象
+          const coverImageUrl = updatedImages.length === 1 ? imageUrl : task.coverImageUrl;
+          onTaskUpdate(taskId, {
+            images: updatedImages,
+            coverImageUrl, // 第一张照片作为封面
+          });
+          
+          console.log('📸 验证照片已保存到任务图片列表和任务对象');
+          console.log('📸 封面图片:', coverImageUrl);
         } catch (error) {
           console.error('⚠️ 验证照片保存失败，但验证已通过:', error);
             }

@@ -8,6 +8,7 @@ interface TaskVerificationDialogProps {
   verification: TaskVerification;
   onClose: () => void;
   onUpdate: (verification: TaskVerification) => void;
+  onDisable?: () => void; // 取消验证的回调
   isDark: boolean;
   accentColor: string;
 }
@@ -18,6 +19,7 @@ export default function TaskVerificationDialog({
   verification,
   onClose,
   onUpdate,
+  onDisable,
   isDark,
   accentColor,
 }: TaskVerificationDialogProps) {
@@ -80,6 +82,15 @@ export default function TaskVerificationDialog({
     const completionKws = enableCompletionVerification
       ? completionKeywords.split(',').map(k => k.trim()).filter(k => k)
       : [];
+    
+    // 如果两个验证都不启用，则取消验证
+    if (!enableStartVerification && !enableCompletionVerification) {
+      if (onDisable) {
+        onDisable();
+      }
+      onClose();
+      return;
+    }
     
     onUpdate({
       ...verification,

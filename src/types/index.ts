@@ -118,8 +118,25 @@ export interface Task {
   location?: string; // 任务位置
   goldReward?: number; // 预估金币奖励
   
+  // 验证关键词（持久化）
+  verificationEnabled?: boolean; // 是否启用验证
+  startKeywords?: string[]; // 启动验证关键词
+  completeKeywords?: string[]; // 完成验证关键词
+  
+  // 照片附件
+  images?: TaskImage[]; // 任务照片列表
+  coverImageUrl?: string; // 封面图片URL（第一张照片）
+  
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface TaskImage {
+  id: string;
+  url: string;
+  type: 'cover' | 'attachment' | 'verification_start' | 'verification_complete';
+  uploadedAt: Date;
+  description?: string;
 }
 
 export interface SubTask {
