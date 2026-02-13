@@ -643,7 +643,7 @@ export default function TaskVerificationCountdownContent({
             color: '#000000',
           }}
         >
-          {formatTime(state.startCountdownLeft)}
+          {formatTime(startCountdownLeft)}
         </div>
         
         {/* 超时惩罚提示 */}
@@ -757,7 +757,7 @@ export default function TaskVerificationCountdownContent({
             color: '#000000',
           }}
         >
-          {formatTime(state.startCountdownLeft)}
+          {formatTime(startCountdownLeft)}
         </div>
         
         {/* 验证状态提示 */}
@@ -850,7 +850,7 @@ export default function TaskVerificationCountdownContent({
             color: '#000000',
           }}
         >
-          {formatTime(state.taskCountdownLeft)}
+          {formatTime(taskCountdownLeft)}
         </div>
         
         {/* 超时惩罚提示 */}
@@ -964,7 +964,7 @@ export default function TaskVerificationCountdownContent({
             color: '#000000',
           }}
         >
-          {formatTime(state.taskCountdownLeft)}
+          {formatTime(taskCountdownLeft)}
         </div>
         
         {/* 验证状态提示 */}
