@@ -132,7 +132,7 @@ export default function NewTimelineView({
     const newVerifications: Record<string, TaskVerification> = {};
     const newImages: Record<string, TaskImage[]> = {};
     
-    allTasks.forEach(task => {
+    tasks.forEach(task => {
       // 恢复验证设置
       if (task.verificationEnabled && task.startKeywords && task.completeKeywords) {
         const scheduledStart = task.scheduledStart ? new Date(task.scheduledStart) : new Date();
@@ -176,7 +176,7 @@ export default function NewTimelineView({
     
     setTaskVerifications(newVerifications);
     setTaskImages(newImages);
-  }, [allTasks]);
+  }, [tasks]);
   
   // 智能识别任务类型：是否为照片任务
   const detectPhotoTaskType = (title: string): { isPhotoTask: boolean; targetCount: number; unit: string } => {
