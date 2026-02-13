@@ -23,12 +23,11 @@ type CountdownStatus = 'waiting_start' | 'start_countdown' | 'uploading_start' |
 // 持久化状态接口
 interface CountdownState {
   status: CountdownStatus;
-  startCountdownLeft: number; // 启动倒计时剩余秒数
-  taskCountdownLeft: number; // 任务倒计时剩余秒数
+  startDeadline: string | null; // 启动倒计时截止时间（时间戳）
+  taskDeadline: string | null; // 任务倒计时截止时间（时间戳）
   startTimeoutCount: number; // 启动超时次数
   completeTimeoutCount: number; // 完成超时次数
   actualStartTime: string | null; // 实际启动时间
-  lastUpdateTime: string; // 最后更新时间
 }
 
 export default function TaskVerificationCountdownContent({
@@ -83,28 +82,18 @@ export default function TaskVerificationCountdownContent({
   const initState = useCallback((): CountdownState => {
     const saved = loadState();
     if (saved) {
-      // 恢复状态时，根据最后更新时间计算实际剩余时间
-      const now = Date.now();
-      const lastUpdate = new Date(saved.lastUpdateTime).getTime();
-      const elapsedSeconds = Math.floor((now - lastUpdate) / 1000);
-      
-      return {
-        ...saved,
-        startCountdownLeft: Math.max(0, saved.startCountdownLeft - elapsedSeconds),
-        taskCountdownLeft: Math.max(0, saved.taskCountdownLeft - elapsedSeconds),
-        lastUpdateTime: new Date().toISOString(),
-      };
+      // 直接返回保存的状态，不需要计算经过时间
+      return saved;
     }
     
     // 默认状态
     return {
       status: 'waiting_start',
-      startCountdownLeft: 120, // 2分钟 = 120秒
-      taskCountdownLeft: 0,
+      startDeadline: null,
+      taskDeadline: null,
       startTimeoutCount: 0,
       completeTimeoutCount: 0,
       actualStartTime: null,
-      lastUpdateTime: new Date().toISOString(),
     };
   }, [loadState]);
   
@@ -113,6 +102,17 @@ export default function TaskVerificationCountdownContent({
   const [isUploading, setIsUploading] = useState(false);
   const [verificationMessage, setVerificationMessage] = useState<string>('');
   const [verificationSuccess, setVerificationSuccess] = useState<boolean | null>(null);
+  
+  // 实时计算剩余时间（基于截止时间）
+  const [currentTime, setCurrentTime] = useState(Date.now());
+  
+  const startCountdownLeft = state.startDeadline 
+    ? Math.max(0, Math.floor((new Date(state.startDeadline).getTime() - currentTime) / 1000))
+    : 120;
+    
+  const taskCountdownLeft = state.taskDeadline
+    ? Math.max(0, Math.floor((new Date(state.taskDeadline).getTime() - currentTime) / 1000))
+    : 0;
 
   // 检查是否到达预设开始时间，自动触发启动倒计时
   useEffect(() => {
@@ -122,63 +122,63 @@ export default function TaskVerificationCountdownContent({
     // 如果当前时间 >= 预设开始时间，且状态为等待启动，则触发启动倒计时
     if (now >= start && state.status === 'waiting_start') {
       console.log(`⏰ 任务到达预设时间，触发启动倒计时: ${taskTitle}`);
+      const deadline = new Date(now.getTime() + 2 * 60 * 1000); // 2分钟后
       setState(prev => ({
         ...prev,
         status: 'start_countdown',
-        lastUpdateTime: new Date().toISOString(),
+        startDeadline: deadline.toISOString(),
       }));
     }
   }, [scheduledStart, state.status, taskTitle]);
   
-  // 统一倒计时定时器
+  // 每秒更新当前时间，用于实时计算剩余时间
   useEffect(() => {
-    // 只在启动倒计时或任务倒计时阶段运行
+    const timer = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, []);
+  
+  // 检查超时并处理
+  useEffect(() => {
+    // 只在启动倒计时或任务倒计时阶段检查
     if (state.status !== 'start_countdown' && state.status !== 'task_countdown') {
       return;
     }
     
-    const timer = setInterval(() => {
-      setState(prev => {
-        const newState = { ...prev, lastUpdateTime: new Date().toISOString() };
-        
-        // 启动倒计时阶段
-        if (prev.status === 'start_countdown') {
-          if (prev.startCountdownLeft > 0) {
-            newState.startCountdownLeft = prev.startCountdownLeft - 1;
-          } else {
-            // 启动倒计时超时
-            const penaltyAmount = Math.floor(goldReward * 0.2);
-            penaltyGold(penaltyAmount, `启动超时（第${prev.startTimeoutCount + 1}次）`, taskId, taskTitle);
-            console.log(`⚠️ 启动超时！扣除${penaltyAmount}金币（${prev.startTimeoutCount + 1}次）`);
-            
-            newState.startTimeoutCount = prev.startTimeoutCount + 1;
-            newState.startCountdownLeft = 120; // 重置为2分钟，循环扣除
-          }
-        }
-        
-        // 任务倒计时阶段
-        if (prev.status === 'task_countdown') {
-          if (prev.taskCountdownLeft > 0) {
-            newState.taskCountdownLeft = prev.taskCountdownLeft - 1;
-          } else {
-            // 任务倒计时超时（每10分钟扣20%）
-            const penaltyAmount = Math.floor(goldReward * 0.2);
-            penaltyGold(penaltyAmount, `完成超时（第${prev.completeTimeoutCount + 1}次）`, taskId, taskTitle);
-            console.log(`⚠️ 完成超时！扣除${penaltyAmount}金币（${prev.completeTimeoutCount + 1}次）`);
-            
-            newState.completeTimeoutCount = prev.completeTimeoutCount + 1;
-            newState.taskCountdownLeft = 600; // 重置为10分钟，循环扣除
-          }
-        }
-        
-        // 保存状态
-        saveState(newState);
-        return newState;
-      });
-    }, 1000);
+    // 启动倒计时超时
+    if (state.status === 'start_countdown' && startCountdownLeft === 0 && state.startDeadline) {
+      const penaltyAmount = Math.floor(goldReward * 0.2);
+      penaltyGold(penaltyAmount, `启动超时（第${state.startTimeoutCount + 1}次）`, taskId, taskTitle);
+      console.log(`⚠️ 启动超时！扣除${penaltyAmount}金币（${state.startTimeoutCount + 1}次）`);
+      
+      const newDeadline = new Date(Date.now() + 2 * 60 * 1000); // 重置为2分钟
+      const newState = {
+        ...state,
+        startTimeoutCount: state.startTimeoutCount + 1,
+        startDeadline: newDeadline.toISOString(),
+      };
+      setState(newState);
+      saveState(newState);
+    }
     
-    return () => clearInterval(timer);
-  }, [state.status, goldReward, penaltyGold, taskId, taskTitle, saveState]);
+    // 任务倒计时超时
+    if (state.status === 'task_countdown' && taskCountdownLeft === 0 && state.taskDeadline) {
+      const penaltyAmount = Math.floor(goldReward * 0.2);
+      penaltyGold(penaltyAmount, `完成超时（第${state.completeTimeoutCount + 1}次）`, taskId, taskTitle);
+      console.log(`⚠️ 完成超时！扣除${penaltyAmount}金币（${state.completeTimeoutCount + 1}次）`);
+      
+      const newDeadline = new Date(Date.now() + 10 * 60 * 1000); // 重置为10分钟
+      const newState = {
+        ...state,
+        completeTimeoutCount: state.completeTimeoutCount + 1,
+        taskDeadline: newDeadline.toISOString(),
+      };
+      setState(newState);
+      saveState(newState);
+    }
+  }, [state, startCountdownLeft, taskCountdownLeft, goldReward, penaltyGold, taskId, taskTitle, saveState]);
 
   // 启动任务（无验证直接启动，有验证需上传照片）
   const handleStartTask = useCallback(async (useCamera: boolean = false) => {
@@ -204,9 +204,8 @@ export default function TaskVerificationCountdownContent({
       setState(prev => ({
         ...prev,
         status: 'task_countdown',
-        taskCountdownLeft: taskSeconds,
+        taskDeadline: new Date(now.getTime() + taskSeconds * 1000).toISOString(),
         actualStartTime: now.toISOString(),
-        lastUpdateTime: new Date().toISOString(),
       }));
       
       // 通知父组件更新开始时间和结束时间（从当前时间开始计算）
@@ -324,9 +323,8 @@ export default function TaskVerificationCountdownContent({
           setState(prev => ({
             ...prev,
             status: 'task_countdown',
-            taskCountdownLeft: taskSeconds,
+            taskDeadline: new Date(now.getTime() + taskSeconds * 1000).toISOString(),
             actualStartTime: now.toISOString(),
-            lastUpdateTime: new Date().toISOString(),
           }));
           
           setIsUploading(false);
@@ -389,7 +387,6 @@ export default function TaskVerificationCountdownContent({
       setState(prev => ({
         ...prev,
         status: 'completed',
-        lastUpdateTime: new Date().toISOString(),
       }));
       
       // 通知父组件更新结束时间
@@ -521,7 +518,6 @@ export default function TaskVerificationCountdownContent({
           setState(prev => ({
             ...prev,
             status: 'completed',
-            lastUpdateTime: new Date().toISOString(),
           }));
           
           setIsUploading(false);

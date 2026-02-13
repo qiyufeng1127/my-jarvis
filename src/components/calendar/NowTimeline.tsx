@@ -160,36 +160,6 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
     setTopPosition(null);
   }, [currentTime, timeBlocks]);
 
-  // 自动滚动到NOW线位置
-  useEffect(() => {
-    if (topPosition !== null && nowLineRef.current && !hasScrolled.current) {
-      // 延迟执行，确保DOM已渲染
-      setTimeout(() => {
-        if (nowLineRef.current) {
-          const element = nowLineRef.current;
-          const elementTop = element.getBoundingClientRect().top;
-          const windowHeight = window.innerHeight;
-          
-          // 如果NOW线不在视口中间，则滚动
-          if (elementTop < windowHeight * 0.3 || elementTop > windowHeight * 0.7) {
-            element.scrollIntoView({
-              behavior: 'smooth',
-              block: 'center',
-            });
-            
-            console.log('📍 自动滚动到NOW线位置');
-            hasScrolled.current = true;
-            
-            // 5秒后允许再次滚动
-            setTimeout(() => {
-              hasScrolled.current = false;
-            }, 5000);
-          }
-        }
-      }, 500);
-    }
-  }, [topPosition]);
-
   // 始终显示 NOW 线
   if (topPosition === null) {
     return null;
