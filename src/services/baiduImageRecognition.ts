@@ -379,6 +379,13 @@ class BaiduImageRecognitionService {
     // 每次验证前更新凭证，确保使用最新的配置
     this.updateCredentials();
     
+    console.log('🔍 [验证开始] API配置状态:', {
+      isConfigured: this.isConfigured(),
+      hasApiKey: !!this.apiKey,
+      hasSecretKey: !!this.secretKey,
+      apiKeyPrefix: this.apiKey ? this.apiKey.substring(0, 8) + '...' : '未配置',
+    });
+    
     // 如果未配置百度AI，直接通过（信任用户）
     if (!this.isConfigured()) {
       console.warn('⚠️ 百度AI未配置，自动通过验证（信任用户）');
@@ -397,10 +404,25 @@ class BaiduImageRecognitionService {
       console.log('📝 用户设定的规则关键词:', requiredKeywords);
       
       const [generalKeywords, sceneKeywords, objectKeywords] = await Promise.all([
-        this.recognizeGeneral(file).catch(() => []),      // 通用物体识别
-        this.recognizeScene(file).catch(() => []),         // 场景识别
-        this.detectObjects(file).catch(() => []),          // 物体检测
+        this.recognizeGeneral(file).catch((err) => {
+          console.error('❌ 通用物体识别失败:', err);
+          return [];
+        }),
+        this.recognizeScene(file).catch((err) => {
+          console.error('❌ 场景识别失败:', err);
+          return [];
+        }),
+        this.detectObjects(file).catch((err) => {
+          console.error('❌ 物体检测失败:', err);
+          return [];
+        }),
       ]);
+      
+      console.log('📊 识别结果统计:', {
+        通用物体: generalKeywords.length,
+        场景: sceneKeywords.length,
+        物体检测: objectKeywords.length,
+      });
       
       // 2. 合并所有识别结果
       const allKeywords = [...new Set([
