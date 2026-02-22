@@ -293,9 +293,11 @@ export default function TaskVerificationCountdownContent({
     // 处理用户点击叉叉取消上传
     input.oncancel = () => {
       console.log('❌ 用户取消上传，返回启动倒计时');
-      const newState = { ...state, status: 'start_countdown' as CountdownStatus };
-      setState(newState);
-      saveState(newState);
+      const cancelState = state.status === 'waiting_start' 
+        ? { ...state, status: 'waiting_start' as CountdownStatus }
+        : { ...state, status: 'start_countdown' as CountdownStatus };
+      setState(cancelState);
+      saveState(cancelState);
       setIsUploading(false);
       setVerificationMessage('');
       setVerificationSuccess(null);
@@ -305,9 +307,11 @@ export default function TaskVerificationCountdownContent({
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) {
         console.log('❌ 未选择文件，返回启动倒计时');
-        const newState = { ...state, status: 'start_countdown' as CountdownStatus };
-        setState(newState);
-        saveState(newState);
+        const cancelState = state.status === 'waiting_start' 
+          ? { ...state, status: 'waiting_start' as CountdownStatus }
+          : { ...state, status: 'start_countdown' as CountdownStatus };
+        setState(cancelState);
+        saveState(cancelState);
         setIsUploading(false);
         setVerificationMessage('');
         setVerificationSuccess(null);
@@ -317,7 +321,7 @@ export default function TaskVerificationCountdownContent({
       try {
         console.log('📷 [百度API] 开始识别');
         console.log('📷 [百度API] 关键词:', startKeywords);
-        console.log('📷 [百度API] 阈值: 0.1 (10%)');
+        console.log('📷 [百度API] 阈值: 0.05 (5% - 超级宽松)');
         setVerificationMessage('📤 正在上传图片...');
         
         // 检查百度API配置
@@ -355,7 +359,7 @@ export default function TaskVerificationCountdownContent({
           return;
         }
         
-        // 2. 调用百度API验证（阈值设为0.1，只要匹配到一个关键词就通过）
+        // 2. 调用百度API验证（阈值设为0.05，更宽松的匹配）
         // 使用Promise.race实现超时控制
         const verifyResult = await Promise.race([
           (async () => {
@@ -366,7 +370,7 @@ export default function TaskVerificationCountdownContent({
             const result = await baiduImageRecognition.smartVerifyImage(
               file,
               startKeywords,
-              0.1  // 降低阈值到0.1，表示只要匹配10%（即1个关键词）就通过
+              0.05  // 降低阈值到0.05（5%），更容易通过验证
             );
             
             setVerificationMessage('✨ AI分析完成，正在匹配关键词...');
@@ -486,7 +490,7 @@ export default function TaskVerificationCountdownContent({
       // 无验证：直接完成任务
       const now = new Date();
       
-      // 计算是否提前完成（奖励50%）
+      // 🎯 动态更新完成时间：如果提前完成，使用当前时间作为结束时间
       const scheduledEndTime = new Date(scheduledEnd);
       const isEarly = now < scheduledEndTime;
       
@@ -509,9 +513,10 @@ export default function TaskVerificationCountdownContent({
       setState(newState);
       saveState(newState);
       
-      // 通知父组件更新结束时间
+      // 🎯 通知父组件更新结束时间（使用当前时间，实现动态完成）
       if (onComplete) {
         onComplete(now);
+        console.log(`📅 任务完成时间已更新: ${now.toLocaleString('zh-CN')}`);
       }
       
       // 清除持久化状态
@@ -609,12 +614,9 @@ export default function TaskVerificationCountdownContent({
         
         setVerificationMessage('🔗 正在连接百度AI...');
         
-        // 2. 调用百度API验证（从localStorage读取用户设置的阈值）
+        // 2. 调用百度API验证（阈值设为0.05，更宽松的匹配）
         // 使用Promise.race实现超时控制
-        const savedThreshold = localStorage.getItem('baidu_verification_threshold');
-        const threshold = savedThreshold ? parseFloat(savedThreshold) : 0.3; // 默认0.3
-        
-        console.log(`🎯 [百度API] 使用验证阈值: ${(threshold * 100).toFixed(0)}%`);
+        console.log(`🎯 [百度API] 使用验证阈值: 5%（宽松模式）`);
         
         const verifyResult = await Promise.race([
           (async () => {
@@ -624,7 +626,7 @@ export default function TaskVerificationCountdownContent({
             const result = await baiduImageRecognition.smartVerifyImage(
               file,
               completeKeywords,
-              threshold  // 使用用户设置的阈值
+              0.05  // 降低阈值到0.05（5%），更容易通过验证
             );
             
             setVerificationMessage('✨ AI分析完成，正在匹配关键词...');
@@ -680,7 +682,7 @@ export default function TaskVerificationCountdownContent({
         console.log(`✅ [百度API] 识别成功，匹配关键词：${recognizedItems}`);
         console.log('📝 详细匹配信息:', verifyResult.matchDetails);
         
-        // 计算是否提前完成（奖励50%）
+        // 🎯 动态更新完成时间：如果提前完成，使用当前时间作为结束时间
         const scheduledEndTime = new Date(scheduledEnd);
         const isEarly = now < scheduledEndTime;
         
@@ -695,6 +697,33 @@ export default function TaskVerificationCountdownContent({
         if (totalPenalty > 0) {
           console.log(`⚠️ 累计扣除${totalPenalty}金币（${state.completeTimeoutCount}次超时）`);
         }
+        
+        // 触发语音播报和通知
+        notificationService.notifyVerificationSuccess(taskTitle, 'completion');
+        
+        // 延迟2秒后完成任务，让用户看到验证成功消息
+        setTimeout(() => {
+          const newState = {
+            ...state,
+            status: 'completed' as CountdownStatus,
+          };
+          setState(newState);
+          saveState(newState);
+          
+          setIsUploading(false);
+          setVerificationMessage('');
+          setVerificationSuccess(null);
+          
+          // 🎯 通知父组件更新结束时间（使用当前时间，实现动态完成）
+          if (onComplete) {
+            onComplete(now);
+            console.log(`📅 任务完成时间已更新: ${now.toLocaleString('zh-CN')}`);
+          }
+          
+          // 清除持久化状态
+          localStorage.removeItem(storageKey);
+          console.log(`✅ 完成验证成功: ${taskTitle}`);
+        }, 2000);
         
         // 触发语音播报和通知
         notificationService.notifyVerificationSuccess(taskTitle, 'completion');
