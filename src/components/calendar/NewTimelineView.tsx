@@ -2821,8 +2821,8 @@ export default function NewTimelineView({
               </div>
             </div>
 
-            {/* 间隔添加按钮 */}
-            {gap && (
+            {/* 间隔添加按钮 - 只在间隔大于0时显示 */}
+            {gap && gap.durationMinutes > 0 && (
               <div className="flex items-center gap-3 my-2">
                 {/* 左侧时间对齐 */}
                 <div className="w-12 flex-shrink-0 text-left">
@@ -2834,12 +2834,11 @@ export default function NewTimelineView({
                 {/* 间隔按钮 */}
                 <button
                   onClick={() => {
-                    // 使用当前时间作为开始时间
-                    const now = new Date();
+                    // 使用间隔开始时间作为新任务的开始时间
                     const newTask = {
                       title: '新任务',
-                      scheduledStart: now.toISOString(),
-                      durationMinutes: 30, // 默认30分钟
+                      scheduledStart: gap.startTime.toISOString(),
+                      durationMinutes: gap.durationMinutes, // 使用间隔时长
                       taskType: 'work',
                       status: 'pending' as const,
                     };
@@ -2882,12 +2881,16 @@ export default function NewTimelineView({
           {/* 今日结束按钮 */}
           <button
             onClick={() => {
-              // 使用当前时间作为开始时间
-              const now = new Date();
+              // 从最后一个任务的结束时间开始，如果没有任务则从当前时间开始
+              const lastTask = sortedTasks[sortedTasks.length - 1];
+              const startTime = lastTask && lastTask.scheduledEnd 
+                ? new Date(lastTask.scheduledEnd)
+                : new Date();
+              
               const newTask = {
                 title: '新任务',
-                scheduledStart: now.toISOString(),
-                durationMinutes: 30, // 默认30分钟
+                scheduledStart: startTime.toISOString(),
+                durationMinutes: timeUntilEnd.durationMinutes, // 使用剩余时长
                 taskType: 'work',
                 status: 'pending' as const,
               };

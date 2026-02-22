@@ -98,8 +98,8 @@ export default function TaskVerificationCountdownContent({
     };
   }, [loadState]);
   
-  // 核心状态 - 使用 useEffect 确保只初始化一次
-  const [state, setState] = useState<CountdownState>(() => initState());
+  // 核心状态
+  const [state, setState] = useState<CountdownState>(initState);
   const [isUploading, setIsUploading] = useState(false);
   const [verificationMessage, setVerificationMessage] = useState<string>('');
   const [verificationSuccess, setVerificationSuccess] = useState<boolean | null>(null);
@@ -254,12 +254,14 @@ export default function TaskVerificationCountdownContent({
         console.log(`✅ 提前启动任务: ${taskTitle}`);
       }
       
-      setState(prev => ({
-        ...prev,
-        status: 'task_countdown',
+      const newState = {
+        ...state,
+        status: 'task_countdown' as CountdownStatus,
         taskDeadline: new Date(now.getTime() + taskSeconds * 1000).toISOString(),
         actualStartTime: now.toISOString(),
-      }));
+      };
+      setState(newState);
+      saveState(newState);
       
       // 通知父组件更新开始时间和结束时间（从当前时间开始计算）
       if (onStart) {
@@ -273,7 +275,9 @@ export default function TaskVerificationCountdownContent({
     }
     
     // 有验证：上传照片并验证
-    setState(prev => ({ ...prev, status: 'uploading_start' }));
+    const newState = { ...state, status: 'uploading_start' as CountdownStatus };
+    setState(newState);
+    saveState(newState);
     setIsUploading(true);
     setVerificationMessage('');
     setVerificationSuccess(null);
@@ -289,7 +293,9 @@ export default function TaskVerificationCountdownContent({
     // 处理用户点击叉叉取消上传
     input.oncancel = () => {
       console.log('❌ 用户取消上传，返回启动倒计时');
-      setState(prev => ({ ...prev, status: 'start_countdown' }));
+      const newState = { ...state, status: 'start_countdown' as CountdownStatus };
+      setState(newState);
+      saveState(newState);
       setIsUploading(false);
       setVerificationMessage('');
       setVerificationSuccess(null);
@@ -299,7 +305,9 @@ export default function TaskVerificationCountdownContent({
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) {
         console.log('❌ 未选择文件，返回启动倒计时');
-        setState(prev => ({ ...prev, status: 'start_countdown' }));
+        const newState = { ...state, status: 'start_countdown' as CountdownStatus };
+        setState(newState);
+        saveState(newState);
         setIsUploading(false);
         setVerificationMessage('');
         setVerificationSuccess(null);
@@ -388,12 +396,14 @@ export default function TaskVerificationCountdownContent({
         
         // 延迟2秒后进入任务倒计时，让用户看到验证成功消息
         setTimeout(() => {
-          setState(prev => ({
-            ...prev,
-            status: 'task_countdown',
+          const newState = {
+            ...state,
+            status: 'task_countdown' as CountdownStatus,
             taskDeadline: new Date(now.getTime() + taskSeconds * 1000).toISOString(),
             actualStartTime: now.toISOString(),
-          }));
+          };
+          setState(newState);
+          saveState(newState);
           
           setIsUploading(false);
           setVerificationMessage('');
@@ -454,10 +464,12 @@ export default function TaskVerificationCountdownContent({
         console.log(`⚠️ 累计扣除${totalPenalty}金币（${state.completeTimeoutCount}次超时）`);
       }
       
-      setState(prev => ({
-        ...prev,
-        status: 'completed',
-      }));
+      const newState = {
+        ...state,
+        status: 'completed' as CountdownStatus,
+      };
+      setState(newState);
+      saveState(newState);
       
       // 通知父组件更新结束时间
       if (onComplete) {
@@ -471,7 +483,9 @@ export default function TaskVerificationCountdownContent({
     }
     
     // 有验证：上传照片并验证
-    setState(prev => ({ ...prev, status: 'uploading_complete' }));
+    const newState = { ...state, status: 'uploading_complete' as CountdownStatus };
+    setState(newState);
+    saveState(newState);
     setIsUploading(true);
     setVerificationMessage('');
     setVerificationSuccess(null);
@@ -487,7 +501,9 @@ export default function TaskVerificationCountdownContent({
     // 处理用户点击叉叉取消上传
     input.oncancel = () => {
       console.log('❌ 用户取消上传，返回任务倒计时');
-      setState(prev => ({ ...prev, status: 'task_countdown' }));
+      const newState = { ...state, status: 'task_countdown' as CountdownStatus };
+      setState(newState);
+      saveState(newState);
       setIsUploading(false);
       setVerificationMessage('');
       setVerificationSuccess(null);
@@ -497,7 +513,9 @@ export default function TaskVerificationCountdownContent({
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) {
         console.log('❌ 未选择文件，返回任务倒计时');
-        setState(prev => ({ ...prev, status: 'task_countdown' }));
+        const newState = { ...state, status: 'task_countdown' as CountdownStatus };
+        setState(newState);
+        saveState(newState);
         setIsUploading(false);
         setVerificationMessage('');
         setVerificationSuccess(null);
@@ -602,10 +620,12 @@ export default function TaskVerificationCountdownContent({
         
         // 延迟2秒后完成任务，让用户看到验证成功消息
         setTimeout(() => {
-          setState(prev => ({
-            ...prev,
-            status: 'completed',
-          }));
+          const newState = {
+            ...state,
+            status: 'completed' as CountdownStatus,
+          };
+          setState(newState);
+          saveState(newState);
           
           setIsUploading(false);
           setVerificationMessage('');

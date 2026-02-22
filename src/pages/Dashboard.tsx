@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
-import { X } from 'lucide-react';
+import { X, Volume2 } from 'lucide-react';
 import NotificationContainer from '@/components/ui/NotificationContainer';
 import FloatingAIChat from '@/components/ai/FloatingAIChat';
 // import AISmartInput from '@/components/ai/AISmartInput'; // 临时注释
 import TimelineCalendar from '@/components/calendar/TimelineCalendar';
 import ResponsiveLayout from '@/components/layout/ResponsiveLayout';
 import { taskMonitorService } from '@/services/taskMonitorService';
+import { notificationService } from '@/services/notificationService';
 
 export default function Dashboard() {
   const { tasks, loadTasks, updateTask, createTask, deleteTask } = useTaskStore();
@@ -16,6 +17,33 @@ export default function Dashboard() {
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [isAISmartOpen, setIsAISmartOpen] = useState(false);
   const [currentModule, setCurrentModule] = useState<string>('timeline'); // 跟踪当前模块
+  const [showVoiceActivation, setShowVoiceActivation] = useState(false);
+  const [voiceActivated, setVoiceActivated] = useState(false);
+
+  // 检查语音是否已激活
+  useEffect(() => {
+    const activated = localStorage.getItem('voice_activated');
+    if (!activated) {
+      setShowVoiceActivation(true);
+    } else {
+      setVoiceActivated(true);
+    }
+  }, []);
+
+  // 激活语音播报
+  const handleActivateVoice = async () => {
+    try {
+      await notificationService.initSpeech();
+      notificationService.speak('语音播报已激活！您现在可以听到任务提醒了。');
+      localStorage.setItem('voice_activated', 'true');
+      setVoiceActivated(true);
+      setShowVoiceActivation(false);
+      console.log('✅ 语音播报已激活');
+    } catch (error) {
+      console.error('❌ 语音激活失败:', error);
+      alert('语音激活失败，请检查浏览器设置是否允许自动播放音频');
+    }
+  };
 
   useEffect(() => {
     document.title = 'ManifestOS - 主控面板';
@@ -48,6 +76,35 @@ export default function Dashboard() {
     <div className="min-h-screen bg-neutral-50 dark:bg-black">
       {/* 通知容器 */}
       <NotificationContainer />
+
+      {/* 语音激活提示条 */}
+      {showVoiceActivation && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg">
+          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Volume2 className="w-6 h-6 animate-pulse" />
+              <div>
+                <p className="font-bold">🔊 激活语音播报</p>
+                <p className="text-sm opacity-90">点击激活后，您将听到任务开始、结束、超时等语音提醒</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleActivateVoice}
+                className="px-6 py-2 bg-white text-blue-600 font-bold rounded-lg hover:bg-blue-50 transition-all shadow-lg"
+              >
+                立即激活
+              </button>
+              <button
+                onClick={() => setShowVoiceActivation(false)}
+                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 响应式布局 - 自动适配电脑端和手机端 */}
       <ResponsiveLayout 
