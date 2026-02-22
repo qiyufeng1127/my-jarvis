@@ -97,13 +97,30 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
     setSettings(prev => ({ ...prev, [key]: value }));
   };
 
-  const testVoice = () => {
+  const testVoice = async () => {
     setTestingVoice(true);
-    // 重新加载设置确保使用最新的
-    notificationService.reloadSettings();
-    // 测试通知（包含声音、震动、语音）
-    notificationService.notifyTaskStart('测试任务', true);
-    setTimeout(() => setTestingVoice(false), 3000);
+    
+    try {
+      // 1. 初始化语音（激活语音功能，需要用户交互）
+      await notificationService.initSpeech();
+      
+      // 2. 重新加载设置确保使用最新的
+      notificationService.reloadSettings();
+      
+      // 3. 测试通知（包含声音、震动、语音）
+      notificationService.notifyTaskStart('测试任务', true);
+      
+      // 4. 额外测试纯语音播报
+      setTimeout(() => {
+        notificationService.speak('语音播报测试成功！您现在可以听到语音提醒了。');
+      }, 1000);
+      
+      setTimeout(() => setTestingVoice(false), 5000);
+    } catch (error) {
+      console.error('测试语音失败:', error);
+      alert('语音测试失败，请检查浏览器设置是否允许自动播放音频');
+      setTestingVoice(false);
+    }
   };
 
   const requestNotificationPermission = async () => {

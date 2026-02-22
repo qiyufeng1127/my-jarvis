@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useUserStore } from '@/stores/userStore';
 import { useThemeStore } from '@/stores/themeStore';
 import { migrateStorage, shouldMigrate } from '@/utils/migrateStorage';
+import { notificationService } from '@/services/notificationService';
 
 // 页面组件
 import Dashboard from '@/pages/Dashboard';
@@ -49,6 +50,35 @@ function App() {
     };
 
     initialize();
+  }, []);
+  
+  // 初始化语音播报（需要用户交互）
+  useEffect(() => {
+    let initialized = false;
+    
+    const initSpeech = async () => {
+      if (initialized) return;
+      initialized = true;
+      
+      try {
+        await notificationService.initSpeech();
+        console.log('✅ 语音播报已激活');
+        // 移除监听器
+        document.removeEventListener('click', initSpeech);
+        document.removeEventListener('touchstart', initSpeech);
+      } catch (error) {
+        console.warn('⚠️ 语音播报激活失败:', error);
+      }
+    };
+    
+    // 监听用户的第一次点击或触摸
+    document.addEventListener('click', initSpeech, { once: true });
+    document.addEventListener('touchstart', initSpeech, { once: true });
+    
+    return () => {
+      document.removeEventListener('click', initSpeech);
+      document.removeEventListener('touchstart', initSpeech);
+    };
   }, []);
 
   return (

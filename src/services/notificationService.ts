@@ -284,7 +284,7 @@ class NotificationService {
   }
 
   /**
-   * 语音播报
+   * 语音播报 - 增强版（支持移动端）
    */
   speak(text: string) {
     // 检查设置
@@ -293,10 +293,17 @@ class NotificationService {
       return;
     }
 
-    if ('speechSynthesis' in window) {
-      try {
-        window.speechSynthesis.cancel(); // 取消之前的播报
-        
+    if (!('speechSynthesis' in window)) {
+      console.warn('⚠️ 浏览器不支持语音播报');
+      return;
+    }
+
+    try {
+      // 取消之前的播报
+      window.speechSynthesis.cancel();
+      
+      // 等待一小段时间，确保取消完成
+      setTimeout(() => {
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'zh-CN';
         utterance.rate = this.settings.voiceRate;
@@ -312,13 +319,53 @@ class NotificationService {
         };
 
         utterance.onerror = (e) => {
-          console.error('语音播报失败:', e);
+          console.error('❌ 语音播报失败:', e);
+          
+          // 如果是移动端Safari，尝试重新播报
+          if (e.error === 'not-allowed' || e.error === 'interrupted') {
+            console.log('🔄 尝试重新播报...');
+            setTimeout(() => {
+              window.speechSynthesis.speak(utterance);
+            }, 100);
+          }
         };
 
-        window.speechSynthesis.speak(utterance);
-      } catch (error) {
-        console.error('语音播报失败:', error);
-      }
+        // 移动端需要确保语音合成器已准备好
+        if (window.speechSynthesis.getVoices().length === 0) {
+          window.speechSynthesis.addEventListener('voiceschanged', () => {
+            console.log('🎤 语音列表已加载');
+            window.speechSynthesis.speak(utterance);
+          }, { once: true });
+        } else {
+          window.speechSynthesis.speak(utterance);
+        }
+      }, 100);
+    } catch (error) {
+      console.error('❌ 语音播报异常:', error);
+    }
+  }
+  
+  /**
+   * 初始化语音播报（需要用户交互）
+   * 在用户第一次点击时调用，激活语音功能
+   */
+  async initSpeech(): Promise<boolean> {
+    if (!('speechSynthesis' in window)) {
+      console.warn('⚠️ 浏览器不支持语音播报');
+      return false;
+    }
+
+    try {
+      // 播放一个空的语音来激活
+      const utterance = new SpeechSynthesisUtterance('');
+      utterance.volume = 0;
+      window.speechSynthesis.speak(utterance);
+      
+      console.log('✅ 语音播报已激活');
+      return true;
+    } catch (error) {
+      console.error('❌ 语音播报激活失败:', error);
+      return false;
     }
   }
 
