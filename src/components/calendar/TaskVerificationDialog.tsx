@@ -56,10 +56,23 @@ export default function TaskVerificationDialog({
     const keywords = enableStartVerification 
       ? startKeywords.split(',').map(k => k.trim()).filter(k => k)
       : [];
-    onUpdate({
+    
+    // 立即更新并保存到localStorage
+    const updatedVerification = {
       ...verification,
       startKeywords: keywords,
-    });
+    };
+    onUpdate(updatedVerification);
+    
+    // 保存到localStorage确保持久化
+    try {
+      const storageKey = `task_verification_${taskId}`;
+      localStorage.setItem(storageKey, JSON.stringify(updatedVerification));
+      console.log('✅ 启动关键词已保存:', keywords);
+    } catch (error) {
+      console.error('❌ 保存启动关键词失败:', error);
+    }
+    
     setEditingStart(false);
   };
 
@@ -67,10 +80,23 @@ export default function TaskVerificationDialog({
     const keywords = enableCompletionVerification
       ? completionKeywords.split(',').map(k => k.trim()).filter(k => k)
       : [];
-    onUpdate({
+    
+    // 立即更新并保存到localStorage
+    const updatedVerification = {
       ...verification,
       completionKeywords: keywords,
-    });
+    };
+    onUpdate(updatedVerification);
+    
+    // 保存到localStorage确保持久化
+    try {
+      const storageKey = `task_verification_${taskId}`;
+      localStorage.setItem(storageKey, JSON.stringify(updatedVerification));
+      console.log('✅ 完成关键词已保存:', keywords);
+    } catch (error) {
+      console.error('❌ 保存完成关键词失败:', error);
+    }
+    
     setEditingCompletion(false);
   };
 
@@ -92,11 +118,24 @@ export default function TaskVerificationDialog({
       return;
     }
     
-    onUpdate({
+    // 更新验证配置并保存到localStorage
+    const updatedVerification = {
       ...verification,
       startKeywords: startKws,
       completionKeywords: completionKws,
-    });
+    };
+    
+    onUpdate(updatedVerification);
+    
+    // 保存到localStorage确保持久化
+    try {
+      const storageKey = `task_verification_${taskId}`;
+      localStorage.setItem(storageKey, JSON.stringify(updatedVerification));
+      console.log('✅ 验证配置已保存:', { startKws, completionKws });
+    } catch (error) {
+      console.error('❌ 保存验证配置失败:', error);
+    }
+    
     onClose();
   };
 

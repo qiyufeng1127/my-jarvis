@@ -15,7 +15,7 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
   const [currentTask, setCurrentTask] = useState<string | null>(null);
   const [topPosition, setTopPosition] = useState<number | null>(null);
   const nowLineRef = useRef<HTMLDivElement>(null);
-  const hasScrolled = useRef(false); // 防止重复滚动
+  // 已禁用自动滚动功能，用户可以手动滚动到任意位置
 
   // 每秒更新当前时间
   useEffect(() => {
