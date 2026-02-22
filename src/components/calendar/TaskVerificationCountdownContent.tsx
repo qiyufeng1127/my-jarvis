@@ -316,7 +316,22 @@ export default function TaskVerificationCountdownContent({
       
       try {
         console.log('📷 [百度API] 开始识别');
+        console.log('📷 [百度API] 关键词:', startKeywords);
+        console.log('📷 [百度API] 阈值: 0.1 (10%)');
         setVerificationMessage('📤 正在上传图片...');
+        
+        // 检查百度API配置
+        const apiKey = localStorage.getItem('baidu_api_key');
+        const secretKey = localStorage.getItem('baidu_secret_key');
+        console.log('📷 [百度API] 配置检查:', {
+          hasApiKey: !!apiKey,
+          hasSecretKey: !!secretKey,
+          apiKeyLength: apiKey?.length || 0,
+        });
+        
+        if (!apiKey || !secretKey) {
+          throw new Error('百度API未配置');
+        }
         
         // 添加超时控制：10秒超时
         const timeoutPromise = new Promise<never>((_, reject) => {
@@ -364,14 +379,37 @@ export default function TaskVerificationCountdownContent({
         console.log('📷 [百度API] 验证结果:', verifyResult);
         
         if (!verifyResult.success) {
-          setVerificationMessage(verifyResult.description || `❌ 验证未通过，请重新拍摄（需包含：${startKeywords.join('、')}）`);
+          // 验证失败：扣金币，返回倒计时，重置为2分钟
+          const penaltyAmount = Math.floor(goldReward * 0.2);
+          penaltyGold(penaltyAmount, `启动验证失败（第${state.startTimeoutCount + 1}次）`, taskId, taskTitle);
+          console.log(`❌ 启动验证失败！扣除${penaltyAmount}金币`);
+          
+          // 返回启动倒计时，重置为2分钟
+          const newDeadline = new Date(Date.now() + 2 * 60 * 1000);
+          const newState = {
+            ...state,
+            status: 'start_countdown' as CountdownStatus,
+            startDeadline: newDeadline.toISOString(),
+            startTimeoutCount: state.startTimeoutCount + 1,
+          };
+          setState(newState);
+          saveState(newState);
+          
+          setVerificationMessage(verifyResult.description || `❌ 验证未通过（需包含：${startKeywords.join('、')}）`);
           setVerificationSuccess(false);
           setIsUploading(false);
-          // 保持在uploading_start状态，不要回到start_countdown
+          
           console.log(`❌ [百度API] 识别失败:`, verifyResult.matchDetails);
           if (verifyResult.suggestions) {
             console.log('💡 拍摄建议:', verifyResult.suggestions.join('\n'));
           }
+          
+          // 3秒后清除错误消息
+          setTimeout(() => {
+            setVerificationMessage('');
+            setVerificationSuccess(null);
+          }, 3000);
+          
           return;
         }
         
@@ -523,6 +561,26 @@ export default function TaskVerificationCountdownContent({
       }
       
       try {
+        console.log('📷 [百度API] 开始识别');
+        console.log('📷 [百度API] 关键词:', completeKeywords);
+        
+        // 检查百度API配置
+        const apiKey = localStorage.getItem('baidu_api_key');
+        const secretKey = localStorage.getItem('baidu_secret_key');
+        const savedThreshold = localStorage.getItem('baidu_verification_threshold');
+        const threshold = savedThreshold ? parseFloat(savedThreshold) : 0.3;
+        
+        console.log('📷 [百度API] 配置检查:', {
+          hasApiKey: !!apiKey,
+          hasSecretKey: !!secretKey,
+          apiKeyLength: apiKey?.length || 0,
+          threshold: `${(threshold * 100).toFixed(0)}%`,
+        });
+        
+        if (!apiKey || !secretKey) {
+          throw new Error('百度API未配置');
+        }
+        
         setVerificationMessage('📤 正在上传图片...');
         console.log('📷 [百度API] 开始识别');
         setVerificationMessage('📤 正在上传图片...');
@@ -579,14 +637,37 @@ export default function TaskVerificationCountdownContent({
         console.log('📷 [百度API] 验证结果:', verifyResult);
         
         if (!verifyResult.success) {
-          setVerificationMessage(verifyResult.description || `❌ 验证未通过，请重新拍摄（需包含：${completeKeywords.join('、')}）`);
+          // 验证失败：扣金币，返回倒计时，重置为10分钟
+          const penaltyAmount = Math.floor(goldReward * 0.2);
+          penaltyGold(penaltyAmount, `完成验证失败（第${state.completeTimeoutCount + 1}次）`, taskId, taskTitle);
+          console.log(`❌ 完成验证失败！扣除${penaltyAmount}金币`);
+          
+          // 返回任务倒计时，重置为10分钟
+          const newDeadline = new Date(Date.now() + 10 * 60 * 1000);
+          const newState = {
+            ...state,
+            status: 'task_countdown' as CountdownStatus,
+            taskDeadline: newDeadline.toISOString(),
+            completeTimeoutCount: state.completeTimeoutCount + 1,
+          };
+          setState(newState);
+          saveState(newState);
+          
+          setVerificationMessage(verifyResult.description || `❌ 验证未通过（需包含：${completeKeywords.join('、')}）`);
           setVerificationSuccess(false);
           setIsUploading(false);
-          // 保持在uploading_complete状态，不要回到task_countdown
+          
           console.log(`❌ [百度API] 识别失败:`, verifyResult.matchDetails);
           if (verifyResult.suggestions) {
             console.log('💡 拍摄建议:', verifyResult.suggestions.join('\n'));
           }
+          
+          // 3秒后清除错误消息
+          setTimeout(() => {
+            setVerificationMessage('');
+            setVerificationSuccess(null);
+          }, 3000);
+          
           return;
         }
         
