@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useGoldStore } from '@/stores/goldStore';
 import { baiduImageRecognition } from '@/services/baiduImageRecognition';
 import { ImageUploader } from '@/services/taskVerificationService';
+import { notificationService } from '@/services/notificationService';
 
 interface TaskVerificationCountdownContentProps {
   taskId: string;
@@ -97,8 +98,8 @@ export default function TaskVerificationCountdownContent({
     };
   }, [loadState]);
   
-  // 核心状态
-  const [state, setState] = useState<CountdownState>(initState);
+  // 核心状态 - 使用 useEffect 确保只初始化一次
+  const [state, setState] = useState<CountdownState>(() => initState());
   const [isUploading, setIsUploading] = useState(false);
   const [verificationMessage, setVerificationMessage] = useState<string>('');
   const [verificationSuccess, setVerificationSuccess] = useState<boolean | null>(null);
