@@ -1,0 +1,18 @@
+882:   const handleStartTask = async (taskId: string) => {
+883:     console.log('🎯 [handleStartTask] 点击开始按钮，任务ID:', taskId);
+884:     const verification = taskVerifications[taskId];
+885:     const task = allTasks.find(t => t.id === taskId);
+886:     
+887:     console.log('📋 [handleStartTask] 任务信息:', task);
+888:     console.log('🔧 [handleStartTask] 验证信息:', verification);
+889:     
+890:     if (!task) {
+891:       console.log('❌ [handleStartTask] 任务不存在');
+892:       return;
+893:     }
+894:     
+895:     // 🔧 核心修改：点击"启动验证"后，直接更新任务状态为 in_progress，触发倒计时组件显示
+896:     // 倒计时组件内部会处理验证逻辑
+897:     console.log('✅ [handleStartTask] 更新任务状态为 in_progress，触发倒计时组件');
+898:     onTaskUpdate(taskId, { status: 'in_progress' });
+899:   };

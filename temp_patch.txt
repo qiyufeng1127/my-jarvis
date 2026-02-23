@@ -1,0 +1,15 @@
+﻿                     onComplete={(actualEndTime) => {
+                       // 更新任务的实际结束时间（核心需求：事件卡片结束时间自动更新为实际完成时间）
+                       console.log(`✅ [时间更新] 任务完成: ${block.title}`);
+                       console.log(`  预设结束: ${new Date(block.endTime).toLocaleTimeString()}`);
+                       console.log(`  实际结束: ${actualEndTime.toLocaleTimeString()}`);
+                       
+                       onTaskUpdate(block.id, {
+                         scheduledEnd: actualEndTime.toISOString(),
+                         isCompleted: true,
+                         status: 'completed'
+                       });
+                     }}
+                     hasVerification={!!taskVerifications[block.id]?.enabled}
+                     startKeywords={taskVerifications[block.id]?.startKeywords || ['启动', '开始']}
+                     completeKeywords={taskVerifications[block.id]?.completionKeywords || ['完成', '结束']}

@@ -1,5 +1,5 @@
-// Service Worker - 基础版本
-const CACHE_NAME = 'manifestos-v1';
+// Service Worker - 增强版（支持后台通知和语音）
+const CACHE_NAME = 'manifestos-v2';
 const urlsToCache = [
   '/my-jarvis/',
   '/my-jarvis/index.html',
@@ -7,15 +7,15 @@ const urlsToCache = [
 
 // 安装事件
 self.addEventListener('install', (event) => {
-  console.log('Service Worker 安装中...');
+  console.log('🔧 Service Worker 安装中...');
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('缓存已打开');
+        console.log('✅ 缓存已打开');
         return cache.addAll(urlsToCache);
       })
       .catch((error) => {
-        console.error('缓存失败:', error);
+        console.error('❌ 缓存失败:', error);
       })
   );
   self.skipWaiting();
@@ -23,18 +23,18 @@ self.addEventListener('install', (event) => {
 
 // 激活事件
 self.addEventListener('activate', (event) => {
-  console.log('Service Worker 激活中...');
+  console.log('🚀 Service Worker 激活中...');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
-        return Promise.all(
-          cacheNames.map((cacheName) => {
-            if (cacheName !== CACHE_NAME) {
-            console.log('删除旧缓存:', cacheName);
-              return caches.delete(cacheName);
-            }
-          })
-        );
-      })
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          if (cacheName !== CACHE_NAME) {
+            console.log('🗑️ 删除旧缓存:', cacheName);
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    })
   );
   return self.clients.claim();
 });
@@ -46,16 +46,84 @@ self.addEventListener('fetch', (event) => {
       .then((response) => {
         // 只缓存成功的响应
         if (response && response.status === 200) {
-            const responseToCache = response.clone();
+          const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
-                cache.put(event.request, responseToCache);
-              });
+            cache.put(event.request, responseToCache);
+          });
         }
-            return response;
-          })
+        return response;
+      })
       .catch(() => {
         // 网络失败时从缓存中获取
         return caches.match(event.request);
       })
   );
 });
+
+// 处理通知点击事件
+self.addEventListener('notificationclick', (event) => {
+  console.log('🔔 通知被点击:', event.notification.tag);
+  
+  event.notification.close();
+  
+  // 打开或聚焦应用窗口
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clientList) => {
+        // 如果已有窗口打开，聚焦它
+        for (let i = 0; i < clientList.length; i++) {
+          const client = clientList[i];
+          if (client.url.includes('/my-jarvis') && 'focus' in client) {
+            return client.focus();
+          }
+        }
+        // 否则打开新窗口
+        if (clients.openWindow) {
+          return clients.openWindow('/my-jarvis/');
+        }
+      })
+  );
+});
+
+// 处理通知关闭事件
+self.addEventListener('notificationclose', (event) => {
+  console.log('🔕 通知被关闭:', event.notification.tag);
+});
+
+// 接收来自主线程的消息（用于后台任务）
+self.addEventListener('message', (event) => {
+  console.log('📨 收到消息:', event.data);
+  
+  if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
+    const { title, options } = event.data;
+    self.registration.showNotification(title, options);
+  }
+  
+  if (event.data && event.data.type === 'SPEAK') {
+    // Service Worker 不支持语音播报，需要通知主线程
+    event.ports[0].postMessage({
+      type: 'SPEAK_REQUEST',
+      text: event.data.text
+    });
+  }
+});
+
+// 定期同步（后台同步）
+self.addEventListener('sync', (event) => {
+  console.log('🔄 后台同步:', event.tag);
+  
+  if (event.tag === 'check-tasks') {
+    event.waitUntil(checkTasksAndNotify());
+  }
+});
+
+// 检查任务并发送通知
+async function checkTasksAndNotify() {
+  try {
+    // 从 IndexedDB 或 localStorage 读取任务数据
+    // 这里需要实现具体的逻辑
+    console.log('✅ 后台任务检查完成');
+  } catch (error) {
+    console.error('❌ 后台任务检查失败:', error);
+  }
+}

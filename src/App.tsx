@@ -34,7 +34,7 @@ function App() {
 
   useEffect(() => {
     // 初始化应用
-    const initialize = () => {
+    const initialize = async () => {
       console.log('🚀 应用初始化开始...');
       
       // 执行数据迁移（如果需要）
@@ -46,10 +46,36 @@ function App() {
       // 初始化本地用户
       initializeUser();
       
+      // 启动标签自动同步服务
+      const { tagSyncService } = await import('@/services/tagSyncService');
+      tagSyncService.startAutoSync();
+      
+      // 初始化坏习惯预设
+      const { useHabitCanStore } = await import('@/stores/habitCanStore');
+      useHabitCanStore.getState().initializePresets();
+      console.log('🏺 坏习惯预设已初始化');
+      
+      // 启动坏习惯监控服务
+      const { habitMonitorService } = await import('@/services/habitMonitorService');
+      habitMonitorService.initialize();
+      console.log('🏺 坏习惯监控服务已启动');
+      
+      // 启动后台通知服务（PWA 增强）
+      const { backgroundNotificationService } = await import('@/services/backgroundNotificationService');
+      await backgroundNotificationService.initialize();
+      console.log('🔔 后台通知服务已启动');
+      
       console.log('✅ 应用初始化完成（纯本地模式）');
     };
 
     initialize();
+    
+    // 清理函数
+    return () => {
+      import('@/services/habitMonitorService').then(({ habitMonitorService }) => {
+        habitMonitorService.destroy();
+      });
+    };
   }, []);
   
   // 初始化语音播报（需要用户交互）

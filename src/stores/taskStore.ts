@@ -247,17 +247,17 @@ export const useTaskStore = create<TaskState>()(
     });
     
     // 更新任务状态
+    const completedTask = {
+      ...task,
+      status: 'completed' as TaskStatus,
+      actualEnd: now,
+      goldEarned: goldResult.finalGold,
+      penaltyGold: goldResult.penalty,
+    };
+    
     set((state) => ({
       tasks: state.tasks.map((t) => 
-        t.id === taskId 
-          ? { 
-              ...t, 
-              status: 'completed',
-              actualEnd: now,
-              goldEarned: goldResult.finalGold,
-              penaltyGold: goldResult.penalty,
-            } 
-          : t
+        t.id === taskId ? completedTask : t
       ),
     }));
     
@@ -265,6 +265,10 @@ export const useTaskStore = create<TaskState>()(
     const { useGoldStore } = await import('@/stores/goldStore');
     const goldStore = useGoldStore.getState();
     goldStore.addGold(goldResult.finalGold, 'task_completion', `完成任务: ${task.title}`);
+    
+    // 同步到标签统计
+    const { tagSyncService } = await import('@/services/tagSyncService');
+    tagSyncService.syncTaskToTags(completedTask);
     
     console.log('✅ 任务完成:', taskId, goldResult.reason);
   },

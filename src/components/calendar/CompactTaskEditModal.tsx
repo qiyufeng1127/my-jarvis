@@ -14,6 +14,9 @@ interface CompactTaskEditModalProps {
  * 优化间距，信息密度更高，一屏显示所有内容
  */
 export default function CompactTaskEditModal({ task, onClose, onSave }: CompactTaskEditModalProps) {
+  console.log('🎨 CompactTaskEditModal 已渲染 - 智能分配按钮应该可见');
+  console.log('📝 任务数据:', task);
+  
   const { goals } = useGoalStore();
   
   const [title, setTitle] = useState(task.title || '');
@@ -25,27 +28,45 @@ export default function CompactTaskEditModal({ task, onClose, onSave }: CompactT
     }
     return '';
   });
-  const [duration, setDuration] = useState(task.estimatedDuration || 30);
-  const [gold, setGold] = useState(task.gold || 0);
+  const [duration, setDuration] = useState(task.durationMinutes || 30);
+  const [gold, setGold] = useState(task.goldReward || 0);
   const [tags, setTags] = useState<string[]>(task.tags || []);
-  const [goalId, setGoalId] = useState(task.goalId || '');
+  const [selectedGoalId, setSelectedGoalId] = useState(() => {
+    // 从 longTermGoals 中获取第一个目标ID
+    const goalIds = Object.keys(task.longTermGoals || {});
+    return goalIds.length > 0 ? goalIds[0] : '';
+  });
+  const [location, setLocation] = useState(task.location || '');
   const [newTag, setNewTag] = useState('');
+  const [isAIAssigning, setIsAIAssigning] = useState(false);
 
   const handleSave = () => {
     const updates: Partial<Task> = {
       title,
       description,
-      estimatedDuration: duration,
-      gold,
+      durationMinutes: duration,
+      goldReward: gold,
       tags,
-      goalId: goalId || undefined,
+      location: location || undefined,
     };
+
+    // 更新关联目标
+    if (selectedGoalId) {
+      updates.longTermGoals = { [selectedGoalId]: 100 }; // 100% 贡献度
+    } else {
+      updates.longTermGoals = {};
+    }
 
     if (startTime) {
       const [hours, minutes] = startTime.split(':');
       const date = task.scheduledStart ? new Date(task.scheduledStart) : new Date();
       date.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-      updates.scheduledStart = date.toISOString();
+      updates.scheduledStart = date;
+      
+      // 计算结束时间
+      const endDate = new Date(date);
+      endDate.setMinutes(endDate.getMinutes() + duration);
+      updates.scheduledEnd = endDate;
     }
 
     onSave(updates);
@@ -61,6 +82,83 @@ export default function CompactTaskEditModal({ task, onClose, onSave }: CompactT
 
   const removeTag = (tagToRemove: string) => {
     setTags(tags.filter(t => t !== tagToRemove));
+  };
+
+  // AI智能分配
+  const handleAIAssign = async () => {
+    if (!title.trim()) {
+      alert('请先输入任务标题');
+      return;
+    }
+
+    setIsAIAssigning(true);
+
+    try {
+      // 调用AI服务进行智能分配
+      const { aiService } = await import('@/services/aiService');
+      
+      const prompt = `你是一个任务管理助手。请根据任务标题智能分配以下信息：
+
+任务标题：${title}
+${description ? `任务描述：${description}` : ''}
+
+请分析任务内容，返回以下信息（JSON格式）：
+{
+  "goldReward": 金币奖励（数字，根据任务难度和时长估算，范围10-500），
+  "tags": ["标签1", "标签2"]（最多3个相关标签，例如：工作、学习、生活、运动、创作等），
+  "goalId": "关联目标ID"（如果能匹配到现有目标则返回ID，否则返回空字符串），
+  "location": "位置"（如果任务涉及特定地点则填写，例如：厨房、卧室、办公室、健身房等，否则返回空字符串）
+}
+
+现有目标列表：
+${goals.map(g => `- ${g.id}: ${g.title}`).join('\n')}
+
+只返回JSON，不要有其他说明文字。`;
+
+      const response = await aiService.chat([
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ]);
+
+      if (!response.success || !response.content) {
+        throw new Error(response.error || 'AI调用失败');
+      }
+
+      // 解析AI返回的JSON
+      let aiResult: {
+        goldReward: number;
+        tags: string[];
+        goalId: string;
+        location: string;
+      };
+
+      try {
+        let jsonStr = response.content.trim();
+        const jsonMatch = jsonStr.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+        if (jsonMatch) {
+          jsonStr = jsonMatch[1];
+        }
+        aiResult = JSON.parse(jsonStr);
+      } catch (e) {
+        console.error('解析AI返回的JSON失败:', e);
+        throw new Error('AI返回格式错误，请重试');
+      }
+
+      // 应用AI分配的结果
+      setGold(aiResult.goldReward || 0);
+      setTags(aiResult.tags || []);
+      setSelectedGoalId(aiResult.goalId || '');
+      setLocation(aiResult.location || '');
+
+      console.log('✅ AI智能分配完成:', aiResult);
+    } catch (error) {
+      console.error('AI智能分配失败:', error);
+      alert(`AI智能分配失败：${error instanceof Error ? error.message : '未知错误'}`);
+    } finally {
+      setIsAIAssigning(false);
+    }
   };
 
   return (
@@ -140,9 +238,29 @@ export default function CompactTaskEditModal({ task, onClose, onSave }: CompactT
 
           {/* 金币奖励 */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-              💰 金币奖励
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300">
+                💰 金币奖励
+              </label>
+              <button
+                onClick={handleAIAssign}
+                disabled={isAIAssigning || !title.trim()}
+                className="px-2 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-md text-xs font-semibold hover:from-purple-600 hover:to-pink-600 active:scale-95 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                title="AI智能分配金币、标签、目标和位置"
+              >
+                {isAIAssigning ? (
+                  <>
+                    <span className="animate-spin">⏳</span>
+                    <span>分配中...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>✨</span>
+                    <span>智能分配</span>
+                  </>
+                )}
+              </button>
+            </div>
             <input
               type="number"
               value={gold}
@@ -197,17 +315,31 @@ export default function CompactTaskEditModal({ task, onClose, onSave }: CompactT
               🎯 关联目标
             </label>
             <select
-              value={goalId}
-              onChange={(e) => setGoalId(e.target.value)}
+              value={selectedGoalId}
+              onChange={(e) => setSelectedGoalId(e.target.value)}
               className="w-full px-3 py-2 text-sm border-2 border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-all"
             >
               <option value="">无关联目标</option>
               {goals.map((goal) => (
                 <option key={goal.id} value={goal.id}>
-                  {goal.title}
+                  {goal.name}
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* 位置 */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+              📍 位置
+            </label>
+            <input
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="例如：厨房、卧室、办公室..."
+              className="w-full px-3 py-2 text-sm border-2 border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-all"
+            />
           </div>
         </div>
 

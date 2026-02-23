@@ -53,6 +53,7 @@ export default function TagManagerV2({ isOpen, onClose, isDark = false }: TagMan
   const [selectedMergeTag, setSelectedMergeTag] = useState<string>('');
   const [editingFolderColor, setEditingFolderColor] = useState<string | null>(null);
   const [tempFolderColor, setTempFolderColor] = useState<string>('');
+  const [isSyncing, setIsSyncing] = useState(false);
   
   const { 
     getAllTags, 
@@ -372,6 +373,26 @@ ${tagList}
       alert(`AI智能分类失败：${error instanceof Error ? error.message : '未知错误'}`);
     } finally {
       setIsSmartCategorizing(false);
+    }
+  };
+  
+  // 同步任务数据到标签
+  const handleSyncTasksToTags = async () => {
+    if (!confirm('确定要从时间轴任务重新计算所有标签统计数据吗？\n\n这将清空现有统计数据，从已完成的任务重新计算。')) {
+      return;
+    }
+    
+    setIsSyncing(true);
+    
+    try {
+      const { tagSyncService } = await import('@/services/tagSyncService');
+      tagSyncService.recalculateAllTagStats();
+      alert('✅ 同步完成！标签统计数据已更新。');
+    } catch (error) {
+      console.error('同步失败:', error);
+      alert(`❌ 同步失败：${error instanceof Error ? error.message : '未知错误'}`);
+    } finally {
+      setIsSyncing(false);
     }
   };
   
@@ -790,6 +811,17 @@ ${tagList}
         {/* 标签管理区域 */}
         <div className="px-6 pb-8 pt-6">
           <div className="flex items-center justify-end gap-2 mb-4">
+            {/* 同步任务数据按钮 */}
+            <button
+              onClick={handleSyncTasksToTags}
+              disabled={isSyncing}
+              className="w-12 h-12 rounded-full flex items-center justify-center active:scale-95 transition-transform shadow-md"
+              style={{ backgroundColor: '#52A5CE', opacity: isSyncing ? 0.5 : 1 }}
+              title="同步时间轴数据"
+            >
+              <span className="text-2xl">{isSyncing ? '⏳' : '🔄'}</span>
+            </button>
+            
             {/* AI智能分类按钮 - 只有图标 */}
             <button
               onClick={handleSmartCategorize}
@@ -1398,6 +1430,9 @@ ${tagList}
             </p>
             <p className="text-sm mt-2" style={{ color: isDark ? '#E9D5FF' : '#7C3AED' }}>
               💡 <strong>提示：</strong>重命名标签后，所有使用该标签的任务都会自动更新。AI在分配标签时会优先使用这里的标签。
+            </p>
+            <p className="text-sm mt-2" style={{ color: isDark ? '#E9D5FF' : '#7C3AED' }}>
+              🔄 <strong>数据同步：</strong>点击"同步时间轴数据"按钮，可以从已完成的任务重新计算所有标签的使用次数、时长、收入、支出和时薪。
             </p>
           </div>
         </div>

@@ -126,6 +126,7 @@ export default function NewTimelineView({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRefs = useRef<Record<string, HTMLInputElement>>({});
   const [showGoldModal, setShowGoldModal] = useState(false); // 金币详情弹窗
+  const [isSmartAssigning, setIsSmartAssigning] = useState(false); // 智能分配加载状态
   
   // 🔄 从任务对象恢复验证设置和照片
   useEffect(() => {
@@ -428,7 +429,8 @@ export default function NewTimelineView({
     .map((task) => {
       // 优先使用任务的实际开始/结束时间，如果没有则使用计划时间
       const startTime = task.startTime ? new Date(task.startTime) : new Date(task.scheduledStart!);
-      const endTime = task.endTime ? new Date(task.endTime) : new Date(startTime.getTime() + (task.durationMinutes || 60) * 60000);
+      // 优先使用scheduledEnd（验证完成后会更新），其次是endTime，最后计算
+      const endTime = task.scheduledEnd ? new Date(task.scheduledEnd) : (task.endTime ? new Date(task.endTime) : new Date(startTime.getTime() + (task.durationMinutes || 60) * 60000));
       
       // 默认子任务（如果任务没有子任务）
       const defaultSubtasks = task.title.includes('ins') || task.title.includes('穿搭') ? [
@@ -988,10 +990,56 @@ export default function NewTimelineView({
       return;
     }
     
-    // 🔧 核心修改：点击"启动验证"后，直接更新任务状态为 in_progress，触发倒计时组件显示
-    // 倒计时组件内部会处理验证逻辑
-    console.log('✅ [handleStartTask] 更新任务状态为 in_progress，触发倒计时组件');
-    onTaskUpdate(taskId, { status: 'in_progress' });
+    // 检查是否配置了启动验证
+    if (verification?.enabled && verification?.startKeywords?.length > 0) {
+      console.log('📷 [handleStartTask] 任务有启动验证，创建启动倒计时状态');
+      
+      // 创建启动倒计时状态
+      const countdownState = {
+        status: 'start_countdown',
+        startDeadline: new Date(Date.now() + 2 * 60 * 1000).toISOString(), // 2分钟后
+        taskDeadline: null,
+        startTimeoutCount: 0,
+        completeTimeoutCount: 0,
+        actualStartTime: null,
+      };
+      
+      // 保存到localStorage
+      localStorage.setItem(`countdown_${taskId}`, JSON.stringify(countdownState));
+      console.log('✅ [handleStartTask] 已创建启动倒计时状态:', countdownState);
+      
+      // 更新任务状态为waiting_start，触发倒计时组件显示
+      onTaskUpdate(taskId, { 
+        status: 'waiting_start',
+        scheduledStart: new Date().toISOString(),
+      });
+      
+      // 展开任务卡片，显示倒计时组件
+      setExpandedTasks(prev => new Set([...prev, taskId]));
+      
+      console.log('✅ [handleStartTask] 已进入启动倒计时阶段，任务卡片已展开');
+    } else {
+      // 没有启动验证，直接启动任务
+      console.log('✅ [handleStartTask] 无启动验证，直接启动任务');
+      
+      const now = new Date();
+      const duration = task.duration || task.durationMinutes || 30;
+      const endTime = new Date(now.getTime() + duration * 60 * 1000);
+      
+      onTaskUpdate(taskId, { 
+        status: 'in_progress',
+        scheduledStart: now.toISOString(),
+        scheduledEnd: endTime.toISOString(),
+      });
+      
+      // 记录实际开始时间
+      setTaskActualStartTimes(prev => ({
+        ...prev,
+        [taskId]: now
+      }));
+      
+      console.log('✅ [handleStartTask] 任务已直接启动，开始时间:', now.toISOString(), '结束时间:', endTime.toISOString());
+    }
   };
   
   // 处理验证图片
@@ -1622,6 +1670,8 @@ export default function NewTimelineView({
         
         const currentEditData = editedTaskData?.id === editingTask ? editedTaskData : task;
         
+        console.log('🎨 NewTimelineView 编辑弹窗已渲染 - 智能分配按钮应该可见');
+        
         return (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-3" style={{ paddingBottom: '100px' }}>
             <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col border border-gray-200 dark:border-gray-700">
@@ -1715,7 +1765,117 @@ export default function NewTimelineView({
                 
                 {/* 金币奖励 */}
                 <div>
-                  <label className="block text-xs font-semibold mb-1" style={{ color: isDark ? '#ffffff' : '#000000' }}>💰 金币奖励</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold" style={{ color: isDark ? '#ffffff' : '#000000' }}>💰 金币奖励</label>
+                    <button
+                      onClick={async () => {
+                        console.log('🎨 智能分配按钮被点击');
+                        const taskTitle = currentEditData.title;
+                        
+                        if (!taskTitle || taskTitle.trim() === '') {
+                          alert('请先输入任务标题');
+                          return;
+                        }
+                        
+                        // 立即设置加载状态
+                        setIsSmartAssigning(true);
+                        
+                        try {
+                          console.log('🤖 开始AI智能分配...');
+                          
+                          // 导入 aiService
+                          const { aiService } = await import('@/services/aiService');
+                          
+                          // 获取用户已有的标签
+                          const allTags = useTagStore.getState().getAllTags();
+                          const userTags = allTags.map(tag => tag.name);
+                          const userTagsStr = userTags.length > 0 
+                            ? `\n\n**用户已有标签（优先使用）：**\n${userTags.join('、')}\n请优先从用户已有标签中选择。`
+                            : '';
+                          
+                          const prompt = `请根据任务标题"${taskTitle}"，智能推荐以下内容（请严格按照JSON格式返回，不要有任何其他文字）：${userTagsStr}
+
+{
+  "goldReward": 推荐的金币奖励数值（数字，范围10-500，根据任务难度和时长），
+  "tags": 推荐的标签数组（最多3个中文标签，例如：["学习", "工作"]${userTags.length > 0 ? `，优先从：${userTags.join('、')} 中选择` : ''}），
+  "goals": 推荐的关联目标（字符串，例如："月入5w"、"健康生活"），
+  "location": 推荐的位置（字符串，例如："厨房"、"卧室"、"工作区"）
+}
+
+**示例：**
+任务："学习英语1小时"
+返回：{"goldReward": 100, "tags": ["学习", "英语"], "goals": "提升英语水平", "location": "工作区"}
+
+任务："洗碗"
+返回：{"goldReward": 30, "tags": ["家务", "厨房"], "goals": "保持整洁", "location": "厨房"}
+
+只返回JSON，不要其他内容。`;
+                          
+                          const response = await aiService.chat([
+                            { role: 'system', content: '你是一个任务分析助手，根据任务标题智能推荐金币奖励、标签、目标和位置。' },
+                            { role: 'user', content: prompt }
+                          ]);
+                          
+                          console.log('🤖 AI返回结果:', response);
+                          
+                          if (!response.success || !response.content) {
+                            alert(response.error || '智能分配失败，请重试');
+                            return;
+                          }
+                          
+                          // 解析AI返回的JSON
+                          let jsonContent = response.content.trim();
+                          const jsonMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+                          if (jsonMatch) {
+                            jsonContent = jsonMatch[1].trim();
+                          } else {
+                            const braceMatch = jsonContent.match(/(\{[\s\S]*\})/);
+                            if (braceMatch) {
+                              jsonContent = braceMatch[1];
+                            }
+                          }
+                          
+                          const aiSuggestion = JSON.parse(jsonContent);
+                          console.log('✅ 解析成功:', aiSuggestion);
+                          
+                          // 自动填充表单
+                          setEditedTaskData({
+                            ...currentEditData,
+                            goldReward: aiSuggestion.goldReward || currentEditData.goldReward,
+                            tags: aiSuggestion.tags || currentEditData.tags,
+                            goals: aiSuggestion.goals || currentEditData.goals,
+                            location: aiSuggestion.location || currentEditData.location
+                          });
+                          
+                          console.log('✅ 智能分配完成');
+                        } catch (error) {
+                          console.error('❌ 智能分配失败:', error);
+                          alert(`智能分配失败：${error instanceof Error ? error.message : '未知错误'}`);
+                        } finally {
+                          // 无论成功还是失败，都要恢复按钮状态
+                          setIsSmartAssigning(false);
+                        }
+                      }}
+                      disabled={isSmartAssigning}
+                      className="px-2 py-0.5 rounded-md text-xs font-bold transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                      style={{
+                        backgroundColor: '#8B5CF6',
+                        color: '#ffffff'
+                      }}
+                    >
+                      {isSmartAssigning ? (
+                        <>
+                          <span className="animate-spin">⏳</span>
+                          <span>分配中...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>✨</span>
+                          <span>智能分配</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                   <input
                     type="number"
                     value={currentEditData.goldReward || 0}

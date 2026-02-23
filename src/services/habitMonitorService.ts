@@ -17,7 +17,10 @@ class HabitMonitorService {
     console.log('🏺 坏习惯监控服务启动');
     this.initialized = true;
     
-    // 每分钟检查一次
+    // 立即执行一次检查
+    this.checkAllRules();
+    
+    // 每分钟检查一次任务状态规则（拖延、低效率）
     this.checkInterval = setInterval(() => {
       this.checkAllRules();
     }, 60000);
@@ -55,13 +58,15 @@ class HabitMonitorService {
     
     switch (rule.type) {
       case 'time_threshold':
-        // 时间阈值规则在日结算时检查
+        // 时间阈值规则（熬夜、晚起）- 实时检查
+        this.checkTimeThresholdRuleRealtime(habit);
         break;
       case 'keyword':
-        // 关键词规则在日结算时检查
+        // 关键词规则（点外卖、不吃午饭）- 实时检查
+        this.checkKeywordRuleRealtime(habit);
         break;
       case 'task_status':
-        // 任务状态规则实时监控
+        // 任务状态规则（拖延、低效率）- 实时监控
         this.checkTaskStatusRule(habit);
         break;
       case 'manual':
@@ -99,23 +104,44 @@ class HabitMonitorService {
    * 检查启动超时
    */
   private checkStartTimeout(habit: BadHabit, task: Task) {
-    // 这里需要从任务的验证数据中获取超时次数
-    // 假设任务有 startTimeoutCount 字段记录超时次数
-    const timeoutCount = (task as any).startTimeoutCount || 0;
-    
-    if (timeoutCount > 0) {
-      const { recordOccurrence } = useHabitCanStore.getState();
-      const today = this.formatDate(new Date());
-      const countPerOccurrence = habit.rule.taskStatusRule?.countPerOccurrence || 1;
+    // 从 localStorage 读取任务的倒计时状态
+    const storageKey = `countdown_${task.id}`;
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (!saved) return;
       
-      // 记录每次超时
-      for (let i = 0; i < timeoutCount * countPerOccurrence; i++) {
-        recordOccurrence(habit.id, today, {
-          time: new Date().toTimeString().slice(0, 5),
-          reason: `任务「${task.title}」启动超时`,
-          relatedTaskId: task.id,
-        });
+      const state = JSON.parse(saved);
+      const timeoutCount = state.startTimeoutCount || 0;
+      
+      if (timeoutCount > 0) {
+        const { recordOccurrence } = useHabitCanStore.getState();
+        const today = this.formatDate(new Date());
+        const countPerOccurrence = habit.rule.taskStatusRule?.countPerOccurrence || 1;
+        
+        // 检查已记录的次数
+        const recordedKey = `habit_recorded_start_count_${task.id}_${today}`;
+        const recordedCount = parseInt(localStorage.getItem(recordedKey) || '0');
+        
+        // 只记录新增的超时次数
+        const newTimeouts = timeoutCount - recordedCount;
+        
+        if (newTimeouts > 0) {
+          // 每次超时单独记录一条
+          for (let i = 0; i < newTimeouts * countPerOccurrence; i++) {
+            recordOccurrence(habit.id, today, {
+              time: new Date().toTimeString().slice(0, 5),
+              reason: `任务「${task.title}」启动超时`,
+              relatedTaskId: task.id,
+            });
+          }
+          
+          // 更新已记录的次数
+          localStorage.setItem(recordedKey, timeoutCount.toString());
+          console.log(`🏺 记录拖延: ${task.title} (新增 ${newTimeouts} 次)`);
+        }
       }
+    } catch (error) {
+      console.error('❌ 检查启动超时失败:', error);
     }
   }
 
@@ -125,19 +151,44 @@ class HabitMonitorService {
   private checkCompletionTimeout(habit: BadHabit, task: Task) {
     if (!task.scheduledEnd) return;
     
-    const now = new Date();
-    const endTime = new Date(task.scheduledEnd);
-    
-    // 如果任务已过期但未完成
-    if (now > endTime && task.status !== 'completed') {
-      const { recordOccurrence } = useHabitCanStore.getState();
-      const today = this.formatDate(new Date());
+    // 从 localStorage 读取任务的倒计时状态
+    const storageKey = `countdown_${task.id}`;
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (!saved) return;
       
-      recordOccurrence(habit.id, today, {
-        time: new Date().toTimeString().slice(0, 5),
-        reason: `任务「${task.title}」预设时长内未完成`,
-        relatedTaskId: task.id,
-      });
+      const state = JSON.parse(saved);
+      const timeoutCount = state.completeTimeoutCount || 0;
+      
+      if (timeoutCount > 0) {
+        const { recordOccurrence } = useHabitCanStore.getState();
+        const today = this.formatDate(new Date());
+        const countPerOccurrence = habit.rule.taskStatusRule?.countPerOccurrence || 1;
+        
+        // 检查已记录的次数
+        const recordedKey = `habit_recorded_complete_count_${task.id}_${today}`;
+        const recordedCount = parseInt(localStorage.getItem(recordedKey) || '0');
+        
+        // 只记录新增的超时次数
+        const newTimeouts = timeoutCount - recordedCount;
+        
+        if (newTimeouts > 0) {
+          // 每次超时单独记录一条
+          for (let i = 0; i < newTimeouts * countPerOccurrence; i++) {
+            recordOccurrence(habit.id, today, {
+              time: new Date().toTimeString().slice(0, 5),
+              reason: `任务「${task.title}」完成超时`,
+              relatedTaskId: task.id,
+            });
+          }
+          
+          // 更新已记录的次数
+          localStorage.setItem(recordedKey, timeoutCount.toString());
+          console.log(`🏺 记录低效率: ${task.title} (新增 ${newTimeouts} 次)`);
+        }
+      }
+    } catch (error) {
+      console.error('❌ 检查完成超时失败:', error);
     }
   }
 
@@ -190,6 +241,100 @@ class HabitMonitorService {
     
     // 如果是7:00-23:59，归属到当天
     return this.formatDate(date);
+  }
+
+  /**
+   * 实时检查时间阈值规则（熬夜、晚起）
+   */
+  private checkTimeThresholdRuleRealtime(habit: BadHabit) {
+    if (!habit.rule.timeThreshold) return;
+    
+    const { time, comparison, checkType } = habit.rule.timeThreshold;
+    const { recordOccurrence } = useHabitCanStore.getState();
+    const { tasks } = useTaskStore.getState();
+    
+    const now = new Date();
+    const today = this.formatDate(now);
+    
+    // 获取今天的所有任务
+    const todayTasks = tasks.filter((task) => {
+      if (!task.scheduledStart) return false;
+      const taskDate = this.formatDate(new Date(task.scheduledStart));
+      return taskDate === today;
+    });
+    
+    if (todayTasks.length === 0) return;
+    
+    let targetTask: any;
+    
+    if (checkType === 'first_event') {
+      // 找到最早的任务（晚起检查）
+      targetTask = todayTasks.reduce((earliest, task) => {
+        if (!task.scheduledStart) return earliest;
+        if (!earliest || !earliest.scheduledStart) return task;
+        return new Date(task.scheduledStart) < new Date(earliest.scheduledStart) ? task : earliest;
+      });
+    } else if (checkType === 'last_event') {
+      // 找到最晚的任务（熬夜检查）
+      targetTask = todayTasks.reduce((latest, task) => {
+        if (!task.scheduledEnd) return latest;
+        if (!latest || !latest.scheduledEnd) return task;
+        return new Date(task.scheduledEnd) > new Date(latest.scheduledEnd) ? task : latest;
+      });
+    }
+    
+    if (!targetTask) return;
+    
+    const targetTime = checkType === 'first_event' 
+      ? targetTask.scheduledStart 
+      : targetTask.scheduledEnd;
+    
+    if (!targetTime) return;
+    
+    const taskDateTime = new Date(targetTime);
+    const taskTime = taskDateTime.toTimeString().slice(0, 5);
+    const taskHour = taskDateTime.getHours();
+    const thresholdTime = time;
+    
+    // 检查是否已经记录过
+    const recordKey = `habit_recorded_time_${habit.id}_${targetTask.id}_${today}`;
+    if (localStorage.getItem(recordKey)) return;
+    
+    // 处理跨天情况：凌晨0:00-6:59的时间需要特殊处理
+    let isViolation = false;
+    
+    if (comparison === 'after') {
+      // 检查是否晚于阈值（熬夜）
+      if (taskHour >= 0 && taskHour < 7) {
+        // 凌晨时段（0:00-6:59）：一定算作熬夜
+        isViolation = true;
+      } else {
+        // 正常时段（7:00-23:59）：直接比较时间
+        isViolation = taskTime > thresholdTime;
+      }
+    } else {
+      // 检查是否早于阈值（晚起）
+      if (taskHour >= 0 && taskHour < 7) {
+        // 凌晨时段：不算晚起
+        isViolation = false;
+      } else {
+        // 正常时段：直接比较时间
+        isViolation = taskTime < thresholdTime;
+      }
+    }
+    
+    if (isViolation) {
+      const actualDate = taskDateTime.toLocaleDateString('zh-CN');
+      recordOccurrence(habit.id, today, {
+        time: taskTime,
+        reason: `${checkType === 'first_event' ? '第一个任务' : '最后一个任务'}时间为 ${actualDate} ${taskTime}`,
+        relatedTaskId: targetTask.id,
+      });
+      
+      // 标记已记录
+      localStorage.setItem(recordKey, 'true');
+      console.log(`🏺 记录${habit.name}: ${targetTask.title} (${taskTime})`);
+    }
   }
 
   /**
@@ -264,6 +409,88 @@ class HabitMonitorService {
         reason: `${checkType === 'first_event' ? '第一个任务' : '最后一个任务'}时间为 ${actualDate} ${taskTime}，${comparison === 'after' ? '晚于' : '早于'} ${thresholdTime}`,
         relatedTaskId: targetTask.id,
       });
+    }
+  }
+
+  /**
+   * 实时检查关键词规则（点外卖、不吃午饭）
+   */
+  private checkKeywordRuleRealtime(habit: BadHabit) {
+    if (!habit.rule.keywordRule) return;
+    
+    const { keywords, matchType, timeRange, shouldExist } = habit.rule.keywordRule;
+    const { recordOccurrence } = useHabitCanStore.getState();
+    const { tasks } = useTaskStore.getState();
+    
+    const now = new Date();
+    const today = this.formatDate(now);
+    const currentTime = now.toTimeString().slice(0, 5);
+    
+    // 获取今天的所有任务
+    const todayTasks = tasks.filter((task) => {
+      if (!task.scheduledStart) return false;
+      const taskDate = this.formatDate(new Date(task.scheduledStart));
+      return taskDate === today;
+    });
+    
+    // 过滤时间范围内的任务
+    let filteredTasks = todayTasks;
+    if (timeRange) {
+      filteredTasks = todayTasks.filter((task) => {
+        if (!task.scheduledStart) return false;
+        const taskTime = new Date(task.scheduledStart).toTimeString().slice(0, 5);
+        return taskTime >= timeRange.start && taskTime <= timeRange.end;
+      });
+    }
+    
+    // 检查关键词匹配
+    const matchedTasks = filteredTasks.filter((task) => {
+      const text = `${task.title} ${task.description || ''} ${task.tags?.join(' ') || ''}`.toLowerCase();
+      
+      if (matchType === 'any') {
+        return keywords.some((keyword) => text.includes(keyword.toLowerCase()));
+      } else {
+        return keywords.every((keyword) => text.includes(keyword.toLowerCase()));
+      }
+    });
+    
+    const hasMatch = matchedTasks.length > 0;
+    
+    // shouldExist=true: 存在则记录（如点外卖）
+    if (shouldExist && hasMatch) {
+      // 每个匹配的任务记录一次
+      matchedTasks.forEach((task) => {
+        const recordKey = `habit_recorded_keyword_${habit.id}_${task.id}_${today}`;
+        if (!localStorage.getItem(recordKey)) {
+          recordOccurrence(habit.id, today, {
+            time: task.scheduledStart ? new Date(task.scheduledStart).toTimeString().slice(0, 5) : currentTime,
+            reason: `任务「${task.title}」包含关键词`,
+            relatedTaskId: task.id,
+          });
+          
+          localStorage.setItem(recordKey, 'true');
+          console.log(`🏺 记录${habit.name}: ${task.title}`);
+        }
+      });
+    }
+    
+    // shouldExist=false: 不存在则记录（如不吃午饭）
+    // 只在时间范围结束后检查一次
+    if (!shouldExist && timeRange) {
+      const rangeEndPassed = currentTime > timeRange.end;
+      
+      if (rangeEndPassed && !hasMatch) {
+        const recordKey = `habit_recorded_keyword_${habit.id}_${today}`;
+        if (!localStorage.getItem(recordKey)) {
+          recordOccurrence(habit.id, today, {
+            time: timeRange.end,
+            reason: `${timeRange.start}-${timeRange.end} 未找到包含关键词的任务`,
+          });
+          
+          localStorage.setItem(recordKey, 'true');
+          console.log(`🏺 记录${habit.name}: 时间段内无相关任务`);
+        }
+      }
     }
   }
 
@@ -358,6 +585,14 @@ class HabitMonitorService {
    */
   async settlementForDate(date: Date) {
     await this.performDailySettlement(date);
+  }
+
+  /**
+   * 手动触发检查所有规则（用于任务完成时立即检查）
+   */
+  checkNow() {
+    console.log('🏺 手动触发坏习惯检查');
+    this.checkAllRules();
   }
 }
 
