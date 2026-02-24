@@ -48,6 +48,7 @@ interface NewTimelineViewProps {
   accentColor: string;
   borderColor: string;
   isDark: boolean;
+  onEditingChange?: (isEditing: boolean) => void; // 新增：通知父组件编辑状态
 }
 
 export default function NewTimelineView({
@@ -61,6 +62,7 @@ export default function NewTimelineView({
   accentColor,
   borderColor,
   isDark,
+  onEditingChange,
 }: NewTimelineViewProps) {
   // 检测是否为移动设备
   const [isMobile, setIsMobile] = useState(false);
@@ -105,6 +107,13 @@ export default function NewTimelineView({
   const [dragStartY, setDragStartY] = useState<number>(0);
   const [dragStartTime, setDragStartTime] = useState<Date | null>(null);
   const dragRef = useRef<HTMLDivElement>(null);
+
+  // 通知父组件编辑状态变化
+  useEffect(() => {
+    if (onEditingChange) {
+      onEditingChange(editingTask !== null);
+    }
+  }, [editingTask, onEditingChange]);
   
   // 新增状态
   const [taskImages, setTaskImages] = useState<Record<string, TaskImage[]>>({});
@@ -3041,15 +3050,10 @@ export default function NewTimelineView({
           {/* 今日结束按钮 */}
           <button
             onClick={() => {
-              // 从最后一个任务的结束时间开始，如果没有任务则从当前时间开始
-              const lastTask = sortedTasks[sortedTasks.length - 1];
-              const startTime = lastTask && lastTask.scheduledEnd 
-                ? new Date(lastTask.scheduledEnd)
-                : new Date();
-              
+              // 使用剩余时间的开始时间作为新任务的开始时间
               const newTask = {
                 title: '新任务',
-                scheduledStart: startTime.toISOString(),
+                scheduledStart: timeUntilEnd.startTime.toISOString(),
                 durationMinutes: timeUntilEnd.durationMinutes, // 使用剩余时长
                 taskType: 'work',
                 status: 'pending' as const,

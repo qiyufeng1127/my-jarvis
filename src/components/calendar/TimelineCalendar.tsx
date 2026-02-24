@@ -41,6 +41,7 @@ export default function TimelineCalendar({
   // 手机版默认周视图，电脑版默认月视图
   const [calendarView, setCalendarView] = useState<'week' | 'month'>(isMobile ? 'week' : 'month');
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [isEditingTask, setIsEditingTask] = useState(false); // 新增：跟踪是否正在编辑任务
   
   const timelineRef = useRef<HTMLDivElement>(null);
   
@@ -171,8 +172,9 @@ export default function TimelineCalendar({
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-black">
-      {/* 上半部分：日历视图 */}
-      <div className="flex-shrink-0" style={{ borderBottom: `2px solid ${borderColor}` }}>
+      {/* 上半部分：日历视图 - 编辑任务时隐藏 */}
+      {!isEditingTask && (
+        <div className="flex-shrink-0" style={{ borderBottom: `2px solid ${borderColor}` }}>
         {/* 手机版：简化的周视图头部 */}
         {isMobile ? (
           <div className="px-3 py-2 bg-white dark:bg-black">
@@ -431,6 +433,7 @@ export default function TimelineCalendar({
           </>
         )}
       </div>
+      )}
 
       {/* 下半部分：时间轴视图 */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -450,6 +453,7 @@ export default function TimelineCalendar({
             accentColor={accentColor}
             borderColor={borderColor}
             isDark={isDark}
+            onEditingChange={setIsEditingTask}
           />
                 </div>
               </div>
