@@ -5,11 +5,33 @@
  */
 
 interface NotificationSettings {
-  taskReminder: boolean;
+  // 任务开始前提醒
+  taskStartBeforeReminder: boolean;
+  taskStartBeforeMinutes: number;
+  // 任务开始时提醒
   taskStartReminder: boolean;
+  // 任务进行中提醒
+  taskDuringReminder: boolean;
+  taskDuringMinutes: number;
+  // 任务结束前提醒
+  taskEndBeforeReminder: boolean;
+  taskEndBeforeMinutes: number;
+  // 任务结束时提醒
   taskEndReminder: boolean;
-  verificationReminder: boolean;
-  urgentReminder: boolean;
+  // 验证提醒
+  verificationStartReminder: boolean;
+  verificationCompleteReminder: boolean;
+  verificationUrgentReminder: boolean;
+  // 其他提醒
+  growthReminder: boolean;
+  dailyReport: boolean;
+  badHabitWarning: boolean;
+  goldChange: boolean;
+  // 新增：超时、扣币、拖延提醒
+  overtimeReminder: boolean;
+  goldDeductionReminder: boolean;
+  procrastinationReminder: boolean;
+  // 语音设置
   voiceEnabled: boolean;
   voiceRate: number;
   voicePitch: number;
@@ -50,11 +72,24 @@ class NotificationService {
    */
   private getDefaultSettings(): NotificationSettings {
     return {
-      taskReminder: true,
+      taskStartBeforeReminder: true,
+      taskStartBeforeMinutes: 2,
       taskStartReminder: true,
+      taskDuringReminder: false,
+      taskDuringMinutes: 10,
+      taskEndBeforeReminder: true,
+      taskEndBeforeMinutes: 5,
       taskEndReminder: true,
-      verificationReminder: true,
-      urgentReminder: true,
+      verificationStartReminder: true,
+      verificationCompleteReminder: true,
+      verificationUrgentReminder: true,
+      growthReminder: true,
+      dailyReport: true,
+      badHabitWarning: true,
+      goldChange: true,
+      overtimeReminder: true,
+      goldDeductionReminder: true,
+      procrastinationReminder: true,
       voiceEnabled: true,
       voiceRate: 1.0,
       voicePitch: 1.0,
@@ -202,12 +237,8 @@ class NotificationService {
    * 播放提示音（使用 Web Audio API，更可靠）
    */
   playSound(type: 'start' | 'end' | 'warning' = 'start') {
-    // 检查设置
-    if (!this.settings.taskReminder) {
-      console.log('⏭️ 任务提醒已关闭，跳过音效');
-      return;
-    }
-
+    // 不需要检查设置，因为调用此方法的函数已经检查过了
+    
     try {
       if (!this.audioContext) {
         console.warn('音频上下文未初始化');
@@ -375,8 +406,8 @@ class NotificationService {
   async notifyTaskStart(taskTitle: string, hasVerification: boolean = false) {
     console.log('📢 任务开始通知:', taskTitle);
 
-    // 检查设置
-    if (!this.settings.taskReminder || !this.settings.taskStartReminder) {
+    // 检查设置 - 使用正确的设置项
+    if (!this.settings.taskStartReminder) {
       console.log('⏭️ 任务开始提醒已关闭');
       return;
     }
@@ -386,12 +417,14 @@ class NotificationService {
       : `${taskTitle} 现在已开始`;
 
     // 1. 发送浏览器通知
-    await this.sendNotification('📋 任务开始', {
-      body,
-      tag: 'task-start',
-      requireInteraction: hasVerification,
-      vibrate: [200, 100, 200],
-    });
+    if (this.settings.browserNotification) {
+      await this.sendNotification('📋 任务开始', {
+        body,
+        tag: 'task-start',
+        requireInteraction: hasVerification,
+        vibrate: [200, 100, 200],
+      });
+    }
 
     // 2. 播放音效
     this.playSound('start');
@@ -409,9 +442,9 @@ class NotificationService {
   async notifyTaskEnding(taskTitle: string, minutesLeft: number, hasVerification: boolean = false) {
     console.log('📢 任务即将结束通知:', taskTitle, minutesLeft);
 
-    // 检查设置
-    if (!this.settings.taskReminder || !this.settings.taskEndReminder) {
-      console.log('⏭️ 任务结束提醒已关闭');
+    // 检查设置 - 使用正确的设置项
+    if (!this.settings.taskEndBeforeReminder) {
+      console.log('⏭️ 任务结束前提醒已关闭');
       return;
     }
 
@@ -420,12 +453,14 @@ class NotificationService {
       : `${taskTitle} 还有${minutesLeft}分钟结束`;
 
     // 1. 发送浏览器通知
-    await this.sendNotification('⏰ 任务即将结束', {
-      body,
-      tag: 'task-ending',
-      requireInteraction: hasVerification,
-      vibrate: [100, 50, 100, 50, 100],
-    });
+    if (this.settings.browserNotification) {
+      await this.sendNotification('⏰ 任务即将结束', {
+        body,
+        tag: 'task-ending',
+        requireInteraction: hasVerification,
+        vibrate: [100, 50, 100, 50, 100],
+      });
+    }
 
     // 2. 播放警告音
     this.playSound('warning');
@@ -443,9 +478,9 @@ class NotificationService {
   async notifyTaskEnd(taskTitle: string, hasVerification: boolean = false) {
     console.log('📢 任务结束通知:', taskTitle);
 
-    // 检查设置
-    if (!this.settings.taskReminder) {
-      console.log('⏭️ 任务提醒已关闭');
+    // 检查设置 - 使用正确的设置项
+    if (!this.settings.taskEndReminder) {
+      console.log('⏭️ 任务结束提醒已关闭');
       return;
     }
 
@@ -454,12 +489,14 @@ class NotificationService {
       : `${taskTitle} 已结束`;
 
     // 1. 发送浏览器通知
-    await this.sendNotification('✅ 任务结束', {
-      body,
-      tag: 'task-end',
-      requireInteraction: hasVerification,
-      vibrate: [300, 100, 300],
-    });
+    if (this.settings.browserNotification) {
+      await this.sendNotification('✅ 任务结束', {
+        body,
+        tag: 'task-end',
+        requireInteraction: hasVerification,
+        vibrate: [300, 100, 300],
+      });
+    }
 
     // 2. 播放结束音
     this.playSound('end');
@@ -477,7 +514,12 @@ class NotificationService {
   async notifyVerificationSuccess(taskTitle: string, type: 'start' | 'completion') {
     console.log('📢 验证成功通知:', taskTitle, type);
 
-    if (!this.settings.verificationReminder) {
+    // 检查设置
+    const shouldNotify = type === 'start' 
+      ? this.settings.verificationStartReminder 
+      : this.settings.verificationCompleteReminder;
+    
+    if (!shouldNotify) {
       console.log('⏭️ 验证提醒已关闭');
       return;
     }
@@ -485,11 +527,13 @@ class NotificationService {
     const typeText = type === 'start' ? '启动' : '完成';
     const body = `${taskTitle} ${typeText}验证通过！`;
 
-    await this.sendNotification('✅ 验证成功', {
-      body,
-      tag: 'verification-success',
-      vibrate: [200],
-    });
+    if (this.settings.browserNotification) {
+      await this.sendNotification('✅ 验证成功', {
+        body,
+        tag: 'verification-success',
+        vibrate: [200],
+      });
+    }
 
     this.playSound('start');
     this.vibrate([200]);
@@ -502,7 +546,12 @@ class NotificationService {
   async notifyVerificationFailed(taskTitle: string, type: 'start' | 'completion', reason: string) {
     console.log('📢 验证失败通知:', taskTitle, type, reason);
 
-    if (!this.settings.verificationReminder) {
+    // 检查设置
+    const shouldNotify = type === 'start' 
+      ? this.settings.verificationStartReminder 
+      : this.settings.verificationCompleteReminder;
+    
+    if (!shouldNotify) {
       console.log('⏭️ 验证提醒已关闭');
       return;
     }
@@ -510,12 +559,14 @@ class NotificationService {
     const typeText = type === 'start' ? '启动' : '完成';
     const body = `${taskTitle} ${typeText}验证失败：${reason}`;
 
-    await this.sendNotification('❌ 验证失败', {
-      body,
-      tag: 'verification-failed',
-      requireInteraction: true,
-      vibrate: [100, 50, 100, 50, 100],
-    });
+    if (this.settings.browserNotification) {
+      await this.sendNotification('❌ 验证失败', {
+        body,
+        tag: 'verification-failed',
+        requireInteraction: true,
+        vibrate: [100, 50, 100, 50, 100],
+      });
+    }
 
     this.playSound('warning');
     this.vibrate([100, 50, 100, 50, 100]);
