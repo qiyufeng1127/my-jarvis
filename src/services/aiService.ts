@@ -436,13 +436,34 @@ work, study, life, housework, health, social, hobby, startup, finance, family
       console.warn('⚠️ [AI Service] 获取用户标签失败:', error);
     }
     
+    // 获取 AI 学习记录
+    let learningHints = '';
+    try {
+      const { useWorkflowStore } = await import('@/stores/workflowStore');
+      const workflowStore = useWorkflowStore.getState();
+      const records = workflowStore.learningRecords;
+      
+      if (Object.keys(records).length > 0) {
+        learningHints = '\n\n**AI 学习记录（用户偏好）：**\n';
+        Object.values(records).forEach(record => {
+          if (record.count >= 2) {
+            learningHints += `- "${record.taskKeyword}" → ${record.userCorrectedLocation}\n`;
+          }
+        });
+        learningHints += '\n请优先使用用户偏好的位置。';
+        console.log('🔍 [AI Service] 应用学习记录:', learningHints);
+      }
+    } catch (error) {
+      console.warn('⚠️ [AI Service] 获取学习记录失败:', error);
+    }
+    
     const userTagsStr = userTags.length > 0 
       ? `\n\n**用户已有标签（优先使用）：**\n${userTags.join('、')}\n\n请优先从用户已有标签中选择，如果都不适合再创建新标签。`
       : '';
     
     const systemPrompt = `你是一个任务分解专家。用户会描述一个任务或计划，你需要将其分解为**多个独立的**子任务。
 
-**当前时间：${currentTimeStr}**${userTagsStr}
+**当前时间：${currentTimeStr}**${userTagsStr}${learningHints}
 
 **重要规则：**
 

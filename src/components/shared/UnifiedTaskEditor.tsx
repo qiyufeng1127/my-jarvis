@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { X, ChevronUp, ChevronDown, Clock, Coins, Plus } from 'lucide-react';
+import { X, ChevronUp, ChevronDown, Clock, Coins, Plus, MapPin, Settings } from 'lucide-react';
 import { useGoalStore } from '@/stores/goalStore';
+import { useWorkflowStore } from '@/stores/workflowStore';
 import { AISmartProcessor } from '@/services/aiSmartService';
 
 interface UnifiedTaskEditorProps {
@@ -22,7 +23,14 @@ export default function UnifiedTaskEditor({
 }: UnifiedTaskEditorProps) {
   const [editingTasks, setEditingTasks] = useState<any[]>(tasks);
   const [editingField, setEditingField] = useState<{taskIndex: number, field: string} | null>(null);
+  const [showWorkflowSettings, setShowWorkflowSettings] = useState(false);
   const { goals, addGoal } = useGoalStore();
+  const { 
+    getLocations, 
+    updateLocationOrder, 
+    recordCorrection, 
+    sortTasksByWorkflow 
+  } = useWorkflowStore();
 
   // 重新计算所有任务的时间
   const recalculateTaskTimes = (tasks: any[], startFromIndex: number = 0) => {
@@ -181,8 +189,60 @@ export default function UnifiedTaskEditor({
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-2 md:p-3" style={{ zIndex: 10000 }}>
       <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 rounded-2xl shadow-2xl w-full h-full md:max-w-3xl md:h-[96%] flex flex-col overflow-hidden border border-gray-200 dark:border-gray-700">
 
+        {/* 顶部工具栏 */}
+        <div className="flex-shrink-0 px-3 md:px-6 py-3 border-b border-gray-200 flex items-center justify-between bg-white/50 backdrop-blur-sm">
+          <h2 className="text-lg font-bold text-gray-900">📝 任务编辑器</h2>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={sortTasksByLocation}
+              className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-medium transition-colors flex items-center gap-1"
+              title="按动线顺序排序任务"
+            >
+              <MapPin className="w-4 h-4" />
+              <span>按动线排序</span>
+            </button>
+            <button
+              onClick={() => setShowWorkflowSettings(!showWorkflowSettings)}
+              className="px-3 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 text-sm font-medium transition-colors flex items-center gap-1"
+              title="动线设置"
+            >
+              <Settings className="w-4 h-4" />
+              <span>动线设置</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 动线设置面板 */}
+        {showWorkflowSettings && (
+          <div className="flex-shrink-0 px-3 md:px-6 py-3 bg-purple-50 border-b border-purple-200">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-bold text-purple-900">🗺️ 动线顺序设置</h3>
+              <button
+                onClick={() => setShowWorkflowSettings(false)}
+                className="text-purple-600 hover:text-purple-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-xs text-purple-700 mb-3">拖动调整区域执行顺序，任务将按此顺序排列</p>
+            <div className="flex flex-wrap gap-2">
+              {getLocations().map((loc, idx) => (
+                <div
+                  key={loc.id}
+                  className="px-3 py-2 rounded-lg bg-white border-2 border-purple-200 flex items-center gap-2 shadow-sm"
+                >
+                  <span className="text-sm font-bold text-purple-600">{idx + 1}</span>
+                  <span className="text-lg">{loc.icon}</span>
+                  <span className="text-sm font-medium text-gray-900">{loc.name}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-purple-600 mt-2">💡 提示：AI 会学习你的修改习惯，自动优化位置识别</p>
+          </div>
+        )}
+
         {/* 任务卡片列表 - 紧凑布局，顶部留出安全距离 */}
-        <div className="flex-1 overflow-y-auto p-2 md:p-3 space-y-1.5" style={{ paddingTop: '60px' }}>
+        <div className="flex-1 overflow-y-auto p-2 md:p-3 space-y-1.5">
           {editingTasks.map((task, index) => (
             <div
               key={index}
@@ -392,17 +452,50 @@ export default function UnifiedTaskEditor({
 
               {/* 第三行：位置 + 标签 + 目标 */}
               <div className="flex items-center gap-2 flex-wrap">
-                {/* 位置 */}
+                {/* 位置 - 点击修改 */}
                 <div className="flex-shrink-0">
-                  <span 
-                    className="px-2 py-1 rounded-md text-xs font-medium inline-flex items-center gap-1"
-                    style={{
-                      backgroundColor: `${task.color}15`,
-                      color: task.color,
-                    }}
-                  >
-                    📍{task.location}
-                  </span>
+                  {editingField?.taskIndex === index && editingField?.field === 'location' ? (
+                    <select
+                      value={task.location}
+                      onChange={(e) => {
+                        const aiOriginalLocation = task.aiOriginalLocation || task.location;
+                        const newLocation = e.target.value;
+                        
+                        // 记录 AI 学习
+                        if (aiOriginalLocation !== newLocation) {
+                          recordCorrection(task.title, aiOriginalLocation, newLocation);
+                          console.log(`📚 AI学习：任务"${task.title}"从"${aiOriginalLocation}"修正为"${newLocation}"`);
+                        }
+                        
+                        updateTaskField(index, 'location', newLocation);
+                        setEditingField(null);
+                      }}
+                      onBlur={() => setEditingField(null)}
+                      autoFocus
+                      className="px-2 py-1 rounded-md text-xs font-medium focus:outline-none focus:ring-2 bg-white text-gray-900 border-2"
+                      style={{
+                        borderColor: task.color,
+                      }}
+                    >
+                      {getLocations().map((loc) => (
+                        <option key={loc.id} value={loc.name}>
+                          {loc.icon} {loc.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span 
+                      onClick={() => setEditingField({ taskIndex: index, field: 'location' })}
+                      className="px-2 py-1 rounded-md text-xs font-medium inline-flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"
+                      style={{
+                        backgroundColor: `${task.color}15`,
+                        color: task.color,
+                      }}
+                      title="📍 点击修改位置"
+                    >
+                      📍{task.location}
+                    </span>
+                  )}
                 </div>
 
                 {/* 标签 */}
