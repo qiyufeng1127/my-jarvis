@@ -25,6 +25,10 @@ interface NotificationSettings {
   dailyReport: boolean;
   badHabitWarning: boolean;
   goldChange: boolean;
+  // 新增：超时、扣币、拖延提醒
+  overtimeReminder: boolean;
+  goldDeductionReminder: boolean;
+  procrastinationReminder: boolean;
   // 语音设置
   voiceEnabled: boolean;
   voiceRate: number;
@@ -62,6 +66,10 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
     dailyReport: true,
     badHabitWarning: true,
     goldChange: true,
+    // 新增：超时、扣币、拖延提醒
+    overtimeReminder: true,
+    goldDeductionReminder: true,
+    procrastinationReminder: true,
     // 语音设置
     voiceEnabled: true,
     voiceRate: 1.0,
@@ -365,6 +373,52 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
             isDark={isDark}
             accentColor={accentColor}
           />
+        </div>
+      </div>
+
+      {/* 新增：超时、扣币、拖延提醒 */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold flex items-center gap-2" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>
+          <AlertTriangle className="w-5 h-5" />
+          特殊提醒设置（语音播报）
+        </h3>
+        
+        <div className="space-y-4">
+          {/* 超时提醒 */}
+          <div className="p-4 rounded-lg border" style={{ borderColor: '#ef4444', backgroundColor: isDark ? 'rgba(239,68,68,0.1)' : 'rgba(239,68,68,0.05)' }}>
+            <SettingToggle
+              label="超时提醒"
+              description="例如：「警告！洗澡任务已超时5分钟，请尽快完成」"
+              checked={settings.overtimeReminder}
+              onChange={(checked) => updateSetting('overtimeReminder', checked)}
+              isDark={isDark}
+              accentColor="#ef4444"
+            />
+          </div>
+
+          {/* 扣除金币提醒 */}
+          <div className="p-4 rounded-lg border" style={{ borderColor: '#f59e0b', backgroundColor: isDark ? 'rgba(245,158,11,0.1)' : 'rgba(245,158,11,0.05)' }}>
+            <SettingToggle
+              label="扣除金币提醒"
+              description="例如：「任务失败，扣除50金币，当前余额200金币」"
+              checked={settings.goldDeductionReminder}
+              onChange={(checked) => updateSetting('goldDeductionReminder', checked)}
+              isDark={isDark}
+              accentColor="#f59e0b"
+            />
+          </div>
+
+          {/* 拖延提醒 */}
+          <div className="p-4 rounded-lg border" style={{ borderColor: '#8b5cf6', backgroundColor: isDark ? 'rgba(139,92,246,0.1)' : 'rgba(139,92,246,0.05)' }}>
+            <SettingToggle
+              label="拖延提醒"
+              description="例如：「检测到拖延行为，请立即开始任务」"
+              checked={settings.procrastinationReminder}
+              onChange={(checked) => updateSetting('procrastinationReminder', checked)}
+              isDark={isDark}
+              accentColor="#8b5cf6"
+            />
+          </div>
         </div>
       </div>
 
