@@ -1,0 +1,30 @@
+  createTask: async (taskData) => {
+    try {
+      // 纯本地模式，使用本地ID
+      const userId = 'local-user';
+      
+      // 处理日期
+      const scheduledStartStr = typeof taskData.scheduledStart === 'string' 
+        ? taskData.scheduledStart 
+        : taskData.scheduledStart instanceof Date 
+        ? taskData.scheduledStart.toISOString() 
+        : undefined;
+      
+      const scheduledEndStr = typeof taskData.scheduledEnd === 'string' 
+        ? taskData.scheduledEnd 
+        : taskData.scheduledEnd instanceof Date 
+        ? taskData.scheduledEnd.toISOString() 
+        : undefined;
+      
+      const newTask: Task = {
+        id: crypto.randomUUID(),
+        userId,
+        title: taskData.title || '',
+        description: taskData.description,
+        taskType: taskData.taskType || 'work',
+        priority: taskData.priority || 2,
+        durationMinutes: taskData.durationMinutes || 30,
+        scheduledStart: scheduledStartStr ? new Date(scheduledStartStr) : undefined,
+        scheduledEnd: scheduledEndStr ? new Date(scheduledEndStr) : undefined,
+        growthDimensions: taskData.growthDimensions || {},
+        longTermGoals: taskData.longTermGoals || {},

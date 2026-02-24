@@ -236,7 +236,7 @@ class NotificationService {
   /**
    * 播放提示音（使用 Web Audio API，更可靠）
    */
-  playSound(type: 'start' | 'end' | 'warning' = 'start') {
+  playSound(type: 'start' | 'end' | 'warning' | 'coin' = 'start') {
     // 不需要检查设置，因为调用此方法的函数已经检查过了
     
     try {
@@ -273,6 +273,26 @@ class NotificationService {
           frequency = 1000; // 急促高音
           duration = 0.2;
           break;
+        case 'coin':
+          // 金币音效 - 上升的音调
+          frequency = 600;
+          duration = 0.4;
+          
+          // 创建上升音调效果
+          const now = this.audioContext.currentTime;
+          oscillator.frequency.setValueAtTime(600, now);
+          oscillator.frequency.exponentialRampToValueAtTime(1200, now + 0.2);
+          oscillator.type = 'sine';
+          
+          gainNode.gain.setValueAtTime(0, now);
+          gainNode.gain.linearRampToValueAtTime(0.4, now + 0.01);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, now + duration);
+          
+          oscillator.start(now);
+          oscillator.stop(now + duration);
+          
+          console.log('✅ 金币音效播放成功');
+          return;
       }
 
       oscillator.frequency.value = frequency;
@@ -570,6 +590,73 @@ class NotificationService {
 
     this.playSound('warning');
     this.vibrate([100, 50, 100, 50, 100]);
+    this.speak(body);
+  }
+
+  /**
+   * 金币获得通知
+   */
+  async notifyGoldEarned(taskTitle: string, goldAmount: number) {
+    console.log('📢 金币获得通知:', taskTitle, goldAmount);
+
+    // 检查设置
+    if (!this.settings.goldChange) {
+      console.log('⏭️ 金币变动提醒已关闭');
+      return;
+    }
+
+    const body = `完成 ${taskTitle}，获得 ${goldAmount} 金币！`;
+
+    // 1. 发送浏览器通知
+    if (this.settings.browserNotification) {
+      await this.sendNotification('💰 获得金币', {
+        body,
+        tag: 'gold-earned',
+        vibrate: [200, 100, 200],
+      });
+    }
+
+    // 2. 播放金币音效
+    this.playSound('coin');
+
+    // 3. 震动反馈
+    this.vibrate([200, 100, 200]);
+
+    // 4. 语音播报
+    this.speak(body);
+  }
+
+  /**
+   * 金币扣除通知
+   */
+  async notifyGoldDeducted(reason: string, goldAmount: number) {
+    console.log('📢 金币扣除通知:', reason, goldAmount);
+
+    // 检查设置
+    if (!this.settings.goldDeductionReminder) {
+      console.log('⏭️ 扣除金币提醒已关闭');
+      return;
+    }
+
+    const body = `${reason}，扣除 ${goldAmount} 金币`;
+
+    // 1. 发送浏览器通知
+    if (this.settings.browserNotification) {
+      await this.sendNotification('⚠️ 扣除金币', {
+        body,
+        tag: 'gold-deducted',
+        requireInteraction: true,
+        vibrate: [100, 50, 100, 50, 100],
+      });
+    }
+
+    // 2. 播放警告音
+    this.playSound('warning');
+
+    // 3. 急促震动
+    this.vibrate([100, 50, 100, 50, 100]);
+
+    // 4. 语音播报
     this.speak(body);
   }
 

@@ -1,0 +1,100 @@
+                {/* 任务描述 */}
+                <div>
+                  <label className="block text-xs font-semibold mb-1" style={{ color: isDark ? '#ffffff' : '#000000' }}>📄 任务描述</label>
+                  <textarea
+                    value={currentEditData.description || ''}
+                    onChange={(e) => setEditedTaskData({ ...currentEditData, description: e.target.value })}
+                    rows={2}
+                    className="w-full px-2.5 py-1.5 rounded-lg border-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                    style={{ 
+                      borderColor: isDark ? '#4b5563' : '#d1d5db',
+                      backgroundColor: isDark ? '#374151' : '#ffffff',
+                      color: isDark ? '#ffffff' : '#000000'
+                    }}
+                    placeholder="详细描述..."
+                  />
+                </div>
+                
+                {/* 时间和时长 - 并排 */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: isDark ? '#ffffff' : '#000000' }}>⏰ 开始时间</label>
+                    <input
+                      type="time"
+                      value={currentEditData.scheduledStart ? new Date(currentEditData.scheduledStart).toTimeString().slice(0, 5) : ''}
+                      onChange={(e) => {
+                        const [hours, minutes] = e.target.value.split(':');
+                        const newDate = new Date(currentEditData.scheduledStart || new Date());
+                        newDate.setHours(parseInt(hours), parseInt(minutes));
+                        setEditedTaskData({ ...currentEditData, scheduledStart: newDate.toISOString() });
+                      }}
+                      className="w-full px-2.5 py-1.5 rounded-lg border-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                      style={{ 
+                        borderColor: isDark ? '#4b5563' : '#d1d5db',
+                        backgroundColor: isDark ? '#374151' : '#ffffff',
+                        color: isDark ? '#ffffff' : '#000000'
+                      }}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: isDark ? '#ffffff' : '#000000' }}>⏱️ 时长（分）</label>
+                    <input
+                      type="number"
+                      value={currentEditData.durationMinutes}
+                      onChange={(e) => setEditedTaskData({ ...currentEditData, durationMinutes: parseInt(e.target.value) || 0 })}
+                      className="w-full px-2.5 py-1.5 rounded-lg border-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                      style={{ 
+                        borderColor: isDark ? '#4b5563' : '#d1d5db',
+                        backgroundColor: isDark ? '#374151' : '#ffffff',
+                        color: isDark ? '#ffffff' : '#000000'
+                      }}
+                      min={5}
+                      max={480}
+                    />
+                  </div>
+                </div>
+                
+                {/* 金币奖励 */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold" style={{ color: isDark ? '#ffffff' : '#000000' }}>💰 金币奖励</label>
+                    <button
+                      onClick={async () => {
+                        console.log('🎨 智能分配按钮被点击');
+                        const taskTitle = currentEditData.title;
+                        
+                        if (!taskTitle || taskTitle.trim() === '') {
+                          alert('请先输入任务标题');
+                          return;
+                        }
+                        
+                        // 立即设置加载状态
+                        setIsSmartAssigning(true);
+                        
+                        try {
+                          console.log('🤖 开始AI智能分配...');
+                          
+                          // 导入 aiService
+                          const { aiService } = await import('@/services/aiService');
+                          
+                          // 获取用户已有的标签
+                          const allTags = useTagStore.getState().getAllTags();
+                          const userTags = allTags.map(tag => tag.name);
+                          const userTagsStr = userTags.length > 0 
+                            ? `\n\n**用户已有标签（优先使用）：**\n${userTags.join('、')}\n请优先从用户已有标签中选择。`
+                            : '';
+                          
+                          const prompt = `请根据任务标题"${taskTitle}"，智能推荐以下内容（请严格按照JSON格式返回，不要有任何其他文字）：${userTagsStr}
+
+{
+  "goldReward": 推荐的金币奖励数值（数字，范围10-500，根据任务难度和时长），
+  "tags": 推荐的标签数组（最多3个中文标签，例如：["学习", "工作"]${userTags.length > 0 ? `，优先从：${userTags.join('、')} 中选择` : ''}），
+  "goals": 推荐的关联目标（字符串，例如："月入5w"、"健康生活"），
+  "location": 推荐的位置（字符串，例如："厨房"、"卧室"、"工作区"）
+}
+
+**示例：**
+任务："学习英语1小时"
+返回：{"goldReward": 100, "tags": ["学习", "英语"], "goals": "提升英语水平", "location": "工作区"}
+

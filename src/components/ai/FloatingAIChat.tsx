@@ -143,6 +143,7 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
   const chatRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
+  const sendTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // 使用自定义 Hooks 管理状态
   const theme = useColorTheme(bgColor);
@@ -178,6 +179,20 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
       conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // 自动调整输入框高度
+  useEffect(() => {
+    if (textareaRef.current) {
+      // 重置高度以获取正确的 scrollHeight
+      textareaRef.current.style.height = 'auto';
+      // 设置新高度，最小2行，最大10行
+      const lineHeight = 20; // 大约每行的高度
+      const minHeight = lineHeight * 2;
+      const maxHeight = lineHeight * 10;
+      const scrollHeight = textareaRef.current.scrollHeight;
+      textareaRef.current.style.height = `${Math.min(Math.max(scrollHeight, minHeight), maxHeight)}px`;
+    }
+  }, [inputValue]);
 
   // 保存状态到localStorage（包括 isOpen）
   useEffect(() => {
@@ -811,6 +826,11 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
     const message = inputValue.trim();
     if (!message || isProcessing) return;
 
+    // 清除之前的超时定时器
+    if (sendTimeoutRef.current) {
+      clearTimeout(sendTimeoutRef.current);
+    }
+
     // ✅ 立即显示用户消息并清空输入框（修复延迟问题）
     const userMessage: Message = {
       id: `user-${Date.now()}`,
@@ -822,86 +842,103 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
     setInputValue(''); // 立即清空输入框
     setIsProcessing(true);
 
-    // 检查是否是时间轴操作指令（修复：仅匹配明确的操作意图，避免误判长文本）
-    const isTimelineOp = /^(删除|清空).*(任务|今天|昨天|明天)/.test(message) ||
-                         /(把|将)\s*\d+号.*?(挪到|移到|改到|调到)/.test(message);
-    if (isTimelineOp) {
-      const handled = await handleTimelineOperation(message);
+    // 添加超时保护（30秒）
+    sendTimeoutRef.current = setTimeout(() => {
+      console.error('⚠️ [发送超时] 处理时间超过30秒');
       setIsProcessing(false);
-      if (handled !== false) return;
-    }
+      const errorMessage: Message = {
+        id: `ai-${Date.now()}`,
+        role: 'assistant',
+        content: '❌ 抱歉，处理时间过长，请尝试：\n\n1. 减少输入内容的长度\n2. 分批次输入任务\n3. 检查网络连接\n\n如果问题持续，请刷新页面重试。',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    }, 30000);
 
-    // 检查是否是查询任务的请求
-    if (/查看|查询|今天|任务列表|进度|完成情况/.test(message)) {
-      try {
-        const todayTasks = getTodayTasks();
-        const completedTasks = todayTasks.filter(t => t.status === 'completed');
-        
-        let responseContent = `📊 **今日任务概览**\n\n`;
-        responseContent += `✅ 已完成：${completedTasks.length}/${todayTasks.length}\n`;
-        responseContent += `⏱️ 总时长：${todayTasks.reduce((sum, t) => sum + t.durationMinutes, 0)} 分钟\n\n`;
-
-        if (todayTasks.length === 0) {
-          responseContent += '💡 今天还没有安排任务哦！\n\n';
-          responseContent += '你可以告诉我你想做什么，我来帮你创建任务～';
-        } else {
-          responseContent += '**任务列表**：\n';
-          todayTasks.forEach((task, index) => {
-            const statusEmoji = task.status === 'completed' ? '✅' : task.status === 'in_progress' ? '⏳' : '⏸️';
-            responseContent += `${index + 1}. ${statusEmoji} ${task.title} (${task.durationMinutes}分钟)\n`;
-          });
-        }
-
-        const aiMessage: Message = {
-          id: `ai-${Date.now()}`,
-          role: 'assistant',
-          content: responseContent,
-          timestamp: new Date(),
-        };
-        setMessages(prev => [...prev, aiMessage]);
-      } catch (error) {
-        console.error('查询任务失败:', error);
-      } finally {
-        setIsProcessing(false);
-      }
-      return;
-    }
-
-    // 检查是否配置了API Key
-    const hasAI = isConfigured();
-    if (!hasAI) {
-      const shouldShowPrompt = /分解|拆解|安排时间|智能/.test(message);
-      if (shouldShowPrompt) {
-        const confirmConfig = confirm('AI功能需要配置API Key才能使用。\n\n配置后可以：\n• 智能理解上下文（不依赖关键词）\n• 更准确的标签识别\n• 自然语言对话\n• 智能任务分解\n• 智能动线优化\n\n是否现在配置？');
-        if (confirmConfig) {
-          setShowConfigModal(true);
-          return;
-        }
-      }
-    }
-
-    // 分析标签（AI或关键词）- 在后台异步处理
-    clearThinkingSteps(); // 清空之前的思考步骤
-    
-    let analysis = await analyzeMessageTags(message);
-    
-    // 更新用户消息，添加标签和奖励
-    setMessages(prev => prev.map(msg => 
-      msg.id === userMessage.id 
-        ? {
-            ...msg,
-            tags: {
-              emotions: analysis.emotions,
-              categories: analysis.categories,
-              type: analysis.type,
-            },
-            rewards: analysis.rewards,
-          }
-        : msg
-    ));
-
-    // 智能分析任务并匹配目标
     try {
+      // 检查是否是时间轴操作指令（修复：仅匹配明确的操作意图，避免误判长文本）
+      const isTimelineOp = /^(删除|清空).*(任务|今天|昨天|明天)/.test(message) ||
+                           /(把|将)\s*\d+号.*?(挪到|移到|改到|调到)/.test(message);
+      if (isTimelineOp) {
+        const handled = await handleTimelineOperation(message);
+        if (sendTimeoutRef.current) clearTimeout(sendTimeoutRef.current);
+        setIsProcessing(false);
+        if (handled !== false) return;
+      }
+
+      // 检查是否是查询任务的请求
+      if (/查看|查询|今天|任务列表|进度|完成情况/.test(message)) {
+        try {
+          const todayTasks = getTodayTasks();
+          const completedTasks = todayTasks.filter(t => t.status === 'completed');
+          
+          let responseContent = `📊 **今日任务概览**\n\n`;
+          responseContent += `✅ 已完成：${completedTasks.length}/${todayTasks.length}\n`;
+          responseContent += `⏱️ 总时长：${todayTasks.reduce((sum, t) => sum + t.durationMinutes, 0)} 分钟\n\n`;
+
+          if (todayTasks.length === 0) {
+            responseContent += '💡 今天还没有安排任务哦！\n\n';
+            responseContent += '你可以告诉我你想做什么，我来帮你创建任务～';
+          } else {
+            responseContent += '**任务列表**：\n';
+            todayTasks.forEach((task, index) => {
+              const statusEmoji = task.status === 'completed' ? '✅' : task.status === 'in_progress' ? '⏳' : '⏸️';
+              responseContent += `${index + 1}. ${statusEmoji} ${task.title} (${task.durationMinutes}分钟)\n`;
+            });
+          }
+
+          const aiMessage: Message = {
+            id: `ai-${Date.now()}`,
+            role: 'assistant',
+            content: responseContent,
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, aiMessage]);
+        } catch (error) {
+          console.error('查询任务失败:', error);
+        } finally {
+          if (sendTimeoutRef.current) clearTimeout(sendTimeoutRef.current);
+          setIsProcessing(false);
+        }
+        return;
+      }
+
+      // 检查是否配置了API Key
+      const hasAI = isConfigured();
+      if (!hasAI) {
+        const shouldShowPrompt = /分解|拆解|安排时间|智能/.test(message);
+        if (shouldShowPrompt) {
+          const confirmConfig = confirm('AI功能需要配置API Key才能使用。\n\n配置后可以：\n• 智能理解上下文（不依赖关键词）\n• 更准确的标签识别\n• 自然语言对话\n• 智能任务分解\n• 智能动线优化\n\n是否现在配置？');
+          if (confirmConfig) {
+            setShowConfigModal(true);
+            if (sendTimeoutRef.current) clearTimeout(sendTimeoutRef.current);
+            setIsProcessing(false);
+            return;
+          }
+        }
+      }
+
+      // 分析标签（AI或关键词）- 在后台异步处理
+      clearThinkingSteps(); // 清空之前的思考步骤
+      
+      let analysis = await analyzeMessageTags(message);
+      
+      // 更新用户消息，添加标签和奖励
+      setMessages(prev => prev.map(msg => 
+        msg.id === userMessage.id 
+          ? {
+              ...msg,
+              tags: {
+                emotions: analysis.emotions,
+                categories: analysis.categories,
+                type: analysis.type,
+              },
+              rewards: analysis.rewards,
+            }
+          : msg
+      ));
+
+      // 智能分析任务并匹配目标
       const goals = useGoalStore.getState().goals;
       
       // 添加思考步骤
@@ -1311,16 +1348,22 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
         setMessages(prev => [...prev, aiMessage]);
       }
     } catch (error) {
-      console.error('AI处理失败:', error);
+      console.error('❌ [AI处理失败]', error);
       const aiMessage: Message = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        content: '抱歉，处理请求时出现了问题。请稍后再试。',
+        content: `❌ 抱歉，处理请求时出现了问题：\n\n${error instanceof Error ? error.message : '未知错误'}\n\n💡 建议：\n• 检查输入内容是否过长\n• 尝试分批次输入\n• 刷新页面重试`,
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, aiMessage]);
     } finally {
+      // 清除超时定时器
+      if (sendTimeoutRef.current) {
+        clearTimeout(sendTimeoutRef.current);
+        sendTimeoutRef.current = null;
+      }
       setIsProcessing(false);
+      clearThinkingSteps();
     }
   };
 
@@ -1627,13 +1670,17 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="对我说点什么..."
-                rows={2}
-                className="flex-1 px-3 py-2 rounded-lg resize-none focus:outline-none text-sm border border-gray-300 focus:border-blue-500"
+                className="flex-1 px-3 py-2 rounded-lg resize-none focus:outline-none text-sm border border-gray-300 focus:border-blue-500 overflow-y-auto"
+                style={{
+                  minHeight: '40px',
+                  maxHeight: '200px',
+                }}
               />
               <button
                 onClick={handleSend}
                 disabled={!inputValue.trim() || isProcessing}
-                className="p-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50"
+                className="p-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                title={isProcessing ? "AI正在思考..." : "发送消息"}
               >
                 {isProcessing ? <Hourglass className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               </button>
@@ -2068,12 +2115,13 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder="对我说点什么..."
-                    rows={2}
-                    className="flex-1 px-3 py-2 rounded-lg resize-none focus:outline-none text-sm border"
+                    className="flex-1 px-3 py-2 rounded-lg resize-none focus:outline-none text-sm border overflow-y-auto"
                     style={{
                       backgroundColor: theme.cardBg,
                       color: theme.textColor,
                       borderColor: theme.borderColor,
+                      minHeight: '40px',
+                      maxHeight: '200px',
                     }}
                   />
                   <button

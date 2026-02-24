@@ -1,0 +1,31 @@
+                <button
+                  onClick={async () => {
+                    // 使用间隔开始时间作为新任务的开始时间
+                    const newTask = {
+                      title: '新任务',
+                      scheduledStart: gap.startTime.toISOString(),
+                      durationMinutes: gap.durationMinutes, // 使用间隔时长
+                      taskType: 'work',
+                      status: 'pending' as const,
+                    };
+                    const createdTask = await onTaskCreate(newTask);
+                    // 打开任务编辑器
+                    if (createdTask && createdTask.id) {
+                      setEditingTask(createdTask.id);
+                    }
+                  }}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full transition-all hover:scale-105"
+                  style={{ 
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.9)',
+                    border: `2px dashed ${borderColor}`,
+                  }}
+                >
+                  <div 
+                    className="w-6 h-6 rounded-full flex items-center justify-center"
+                    style={{ backgroundColor: '#C85A7C' }}
+                  >
+                    <Plus className="w-4 h-4 text-white" />
+                  </div>
+                  <span className="text-sm font-semibold" style={{ color: textColor }}>
+                    (间隔{formatDuration(gap.durationMinutes)})
+                  </span>

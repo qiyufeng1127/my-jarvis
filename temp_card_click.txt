@@ -1,0 +1,20 @@
+                      </div>
+                      
+                      <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
+                        <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-bold`} style={{ color: '#ff69b4' }}>
+                          *{block.duration} min
+                        </div>
+                        
+                        {/* 编辑按钮 */}
+                        <button
+                          onClick={() => setEditingTask(block.id)}
+                          className={`${isMobile ? 'p-0.5' : 'p-1'} rounded-full hover:bg-white/20 transition-colors`}
+                          title="编辑任务"
+                        >
+                          <Edit2 className={`${isMobile ? 'w-3 h-3' : 'w-3.5 h-3.5'}`} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 第二行：图片 + 标题区域 - 手机版缩小并减少边距 */}
+                    <div className={`flex ${isMobile ? 'gap-1.5 mb-0.5' : 'gap-2 mb-1'}`}>

@@ -1,0 +1,25 @@
+            点击下方按钮添加第一个任务
+          </p>
+          <button
+            onClick={() => {
+              // 使用当前时间作为开始时间
+              const now = new Date();
+              const newTask = {
+                title: '新任务',
+                scheduledStart: now.toISOString(),
+                durationMinutes: 30, // 默认30分钟
+                taskType: 'work',
+                status: 'pending' as const,
+              };
+              onTaskCreate(newTask);
+            }}
+            className="px-5 py-2 rounded-full font-semibold text-sm transition-all hover:scale-105"
+            style={{ 
+              backgroundColor: '#C85A7C',
+              color: 'white',
+            }}
+          >
+            + 添加任务
+          </button>
+        </div>
+      )}

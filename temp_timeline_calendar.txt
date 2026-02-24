@@ -1,0 +1,200 @@
+import { useState, useRef, useEffect } from 'react';
+import { 
+  Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon
+} from 'lucide-react';
+import type { Task } from '@/types';
+import NewTimelineView from './NewTimelineView';
+
+interface TimelineCalendarProps {
+  tasks: Task[];
+  onTaskUpdate: (taskId: string, updates: Partial<Task>) => void;
+  onTaskCreate: (task: Partial<Task>) => void;
+  onTaskDelete: (taskId: string) => void;
+  bgColor?: string; // 背景颜色
+  moduleSize?: { width: number; height: number }; // 新增：模块尺寸
+}
+
+export default function TimelineCalendar({
+  tasks,
+  onTaskUpdate,
+  onTaskCreate,
+  onTaskDelete,
+  bgColor = '#ffffff',
+  moduleSize, // 接收模块尺寸
+}: TimelineCalendarProps) {
+  // 检测是否为移动设备
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
+      const isSmallScreen = window.innerWidth < 768;
+      setIsMobile(isMobileDevice || isSmallScreen);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
+  // 手机版默认周视图，电脑版默认月视图
+  const [calendarView, setCalendarView] = useState<'week' | 'month'>(isMobile ? 'week' : 'month');
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  
+  const timelineRef = useRef<HTMLDivElement>(null);
+  
+  // 当设备类型改变时更新视图
+  useEffect(() => {
+    if (isMobile) {
+      setCalendarView('week');
+    }
+  }, [isMobile]);
+  
+  // 触摸滑动状态
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+
+  // 判断颜色是否为深色
+  const isColorDark = (color: string): boolean => {
+    const hex = color.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    return brightness < 128;
+  };
+
+  const isDark = isColorDark(bgColor);
+  const textColor = isDark ? '#ffffff' : '#000000';
+  const accentColor = isDark ? 'rgba(255,255,255,0.7)' : '#666666';
+  const borderColor = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)';
+  const hoverBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
+  const cardBg = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)';
+
+  // 任务类别颜色
+  const categoryColors: Record<string, string> = {
+    work: '#C85A7C',
+    study: '#C85A7C',
+    health: '#6BA56D',
+    life: '#8B1538',
+    social: '#C85A7C',
+    finance: '#8B1538',
+    creative: '#C85A7C',
+    rest: '#6BA56D',
+    other: '#C85A7C',
+  };
+
+  // 生成月视图日历数据
+  const generateMonthCalendarDays = () => {
+    const year = selectedDate.getFullYear();
+    const month = selectedDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const startDate = new Date(firstDay);
+    startDate.setDate(startDate.getDate() - firstDay.getDay());
+    
+    const days = [];
+    const current = new Date(startDate);
+    
+    for (let i = 0; i < 42; i++) {
+      const dayTasks = tasks.filter(task => {
+        if (!task.scheduledStart) return false;
+        const taskDate = new Date(task.scheduledStart);
+        return (
+          taskDate.getFullYear() === current.getFullYear() &&
+          taskDate.getMonth() === current.getMonth() &&
+          taskDate.getDate() === current.getDate()
+        );
+      });
+      
+      days.push({
+        date: new Date(current),
+        isCurrentMonth: current.getMonth() === month,
+        isToday: current.toDateString() === new Date().toDateString(),
+        isSelected: current.toDateString() === selectedDate.toDateString(),
+        tasks: dayTasks,
+      });
+      
+      current.setDate(current.getDate() + 1);
+    }
+    
+    return days;
+  };
+
+  // 生成周视图日历数据
+  const generateWeekCalendarDays = () => {
+    const days = [];
+    const startOfWeek = new Date(selectedDate);
+    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+    
+    for (let i = 0; i < 7; i++) {
+      const current = new Date(startOfWeek);
+      current.setDate(current.getDate() + i);
+      
+      const dayTasks = tasks.filter(task => {
+        if (!task.scheduledStart) return false;
+        const taskDate = new Date(task.scheduledStart);
+        return (
+          taskDate.getFullYear() === current.getFullYear() &&
+          taskDate.getMonth() === current.getMonth() &&
+          taskDate.getDate() === current.getDate()
+        );
+      });
+      
+      days.push({
+        date: new Date(current),
+        isCurrentMonth: true,
+        isToday: current.toDateString() === new Date().toDateString(),
+        isSelected: current.toDateString() === selectedDate.toDateString(),
+        tasks: dayTasks,
+      });
+    }
+    
+    return days;
+  };
+
+  const calendarDays = calendarView === 'month' ? generateMonthCalendarDays() : generateWeekCalendarDays();
+
+  // 根据模块尺寸计算时间轴区域的高度
+  const getTimelineHeight = () => {
+    if (!moduleSize) return 600; // 默认高度
+    
+    // 减去顶部日历区域和底部工具栏的高度
+    const calendarHeight = calendarView === 'week' ? 200 : 300; // 日历区域固定高度
+    const toolbarsHeight = 150; // 顶部和底部工具栏高度
+    
+    // 时间轴应该占据至少70%的可用空间
+    const availableHeight = moduleSize.height - calendarHeight - toolbarsHeight;
+    return Math.max(500, availableHeight);
+  };
+
+  const timelineHeight = getTimelineHeight();
+
+  return (
+    <div className="flex flex-col h-full bg-white dark:bg-black">
+      {/* 上半部分：日历视图 */}
+      <div className="flex-shrink-0" style={{ borderBottom: `2px solid ${borderColor}` }}>
+        {/* 手机版：简化的周视图头部 */}
+        {isMobile ? (
+          <div className="px-3 py-2 bg-white dark:bg-black">
+            {/* 周数标题 - 可左右滑动 */}
+            <div 
+              className="flex items-center justify-center mb-2"
+              onTouchStart={(e) => {
+                const touch = e.touches[0];
+                setTouchStart(touch.clientX);
+              }}
+              onTouchMove={(e) => {
+                if (touchStart === null) return;
+                const touch = e.touches[0];
+                const diff = touch.clientX - touchStart;
+                if (Math.abs(diff) > 50) {
+                  if (diff > 0) {
+                    // 向右滑动 - 上一周
+                    const newDate = new Date(selectedDate);
+                    newDate.setDate(newDate.getDate() - 7);
+                    setSelectedDate(newDate);
+                  } else {
+                    // 向左滑动 - 下一周
+                    const newDate = new Date(selectedDate);
+                    newDate.setDate(newDate.getDate() + 7);
+                    setSelectedDate(newDate);

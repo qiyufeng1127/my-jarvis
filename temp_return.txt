@@ -1,0 +1,110 @@
+  const timePassed = calculateTimePassedToday();
+
+  return (
+    <div className="space-y-3 pb-4 relative">
+      {/* 今日已过去提示 - 在第一个任务前 */}
+      {timePassed && timePassed.totalMinutes > 0 && (
+        <div className="flex items-center gap-3 mb-2">
+          {/* 左侧时间对齐 */}
+          <div className="w-12 flex-shrink-0 text-left">
+            <div className="text-sm font-semibold" style={{ color: accentColor }}>
+              00:00
+            </div>
+          </div>
+
+          {/* 今日已过去按钮 */}
+          <button
+            onClick={() => {
+              // 可以添加一些交互，比如显示详细统计
+              alert(`今天已经过去了 ${timePassed.hours}小时${timePassed.mins}分钟`);
+            }}
+            className="flex items-center gap-2 px-4 py-2 rounded-full transition-all hover:scale-105"
+              style={{ 
+                backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.9)',
+                border: `2px dashed ${borderColor}`,
+              }}
+            >
+              <div 
+                className="w-7 h-7 rounded-full flex items-center justify-center"
+                style={{ backgroundColor: '#3B82F6' }}
+              >
+                <Clock className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-sm font-semibold" style={{ color: textColor }}>
+              今日已过去
+              {timePassed.hours > 0 && ` ${timePassed.hours}小时`}
+              {timePassed.mins > 0 && ` ${timePassed.mins}分钟`}
+            </span>
+          </button>
+          
+          {/* 金币显示按钮 */}
+          <button
+            onClick={() => setShowGoldModal(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-full transition-all hover:scale-105 shadow-lg"
+            style={{ 
+              backgroundColor: goldBalance >= 0 
+                ? (isDark ? 'rgba(255,215,0,0.2)' : 'rgba(255,215,0,0.15)')
+                : (isDark ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.15)'),
+              border: goldBalance >= 0 ? `2px solid #FFD700` : `2px solid #EF4444`,
+            }}
+            title="点击查看金币明细和奖励商店"
+          >
+            <span className="text-xl">💰</span>
+            <div className="flex flex-col items-start">
+              <span className="text-xs opacity-80" style={{ color: goldBalance >= 0 ? '#FFD700' : '#EF4444' }}>
+                金币
+              </span>
+              <span className="text-sm font-bold" style={{ color: goldBalance >= 0 ? '#FFD700' : '#EF4444' }}>
+                {goldBalance >= 0 ? goldBalance : `${goldBalance}`}
+              </span>
+            </div>
+          </button>
+        </div>
+      )}
+      
+      {/* 庆祝效果 */}
+      <CelebrationEffect 
+        show={showCelebration} 
+        goldAmount={celebrationGold}
+        onComplete={() => setShowCelebration(false)}
+      />
+      
+      {/* 【低侵入式集成】验证扩展组件 - 完全独立，不影响原有代码 */}
+      <TaskVerificationExtension />
+      
+      {/* 金币详情弹窗 */}
+      <GoldDetailsModal 
+        isOpen={showGoldModal}
+        onClose={() => setShowGoldModal(false)}
+        isDark={isDark}
+      />
+      
+      {/* 验证关键词编辑对话框 */}
+      {editingVerification && taskVerifications[editingVerification] && (
+        <TaskVerificationDialog
+          taskId={editingVerification}
+          taskTitle={allTasks.find(t => t.id === editingVerification)?.title || ''}
+          verification={taskVerifications[editingVerification]}
+          onClose={() => setEditingVerification(null)}
+          onUpdate={(verification) => {
+            handleUpdateVerification(editingVerification, verification);
+          }}
+          onDisable={() => {
+            handleDisableVerification(editingVerification);
+          }}
+          isDark={isDark}
+          accentColor={accentColor}
+        />
+      )}
+      
+
+      {/* 编辑任务弹窗 - 紧凑优化版 */}
+      {editingTask && (() => {
+        const task = allTasks.find(t => t.id === editingTask);
+        if (!task) return null;
+        
+        // 初始化编辑数据（首次打开时）
+        if (!editedTaskData || editedTaskData.id !== editingTask) {
+          setTimeout(() => setEditedTaskData(task), 0);
+        }
+        

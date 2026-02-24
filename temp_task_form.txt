@@ -1,0 +1,60 @@
+      if (task.images && task.images.length > 0) {
+        newImages[task.id] = task.images;
+        console.log(`✅ 恢复任务 ${task.title} 的 ${task.images.length} 张照片`);
+      }
+    });
+    
+    setTaskVerifications(newVerifications);
+    setTaskImages(newImages);
+  }, [tasks]);
+  
+  // 智能识别任务类型：是否为照片任务
+  const detectPhotoTaskType = (title: string): { isPhotoTask: boolean; targetCount: number; unit: string } => {
+    // 匹配模式：数字 + 量词（张、个、次、幅、份等）
+    const patterns = [
+      /(\d+)\s*张/,  // 10张、5张
+      /(\d+)\s*个/,  // 10个、5个
+      /(\d+)\s*次/,  // 10次、3次
+      /(\d+)\s*幅/,  // 10幅、5幅
+      /(\d+)\s*份/,  // 10份、5份
+      /(\d+)\s*件/,  // 10件、5件
+    ];
+    
+    for (const pattern of patterns) {
+      const match = title.match(pattern);
+      if (match) {
+        const count = parseInt(match[1]);
+        const unit = match[0].replace(/\d+\s*/, ''); // 提取量词
+        return { isPhotoTask: true, targetCount: count, unit };
+      }
+    }
+    
+    return { isPhotoTask: false, targetCount: 0, unit: '' };
+  };
+  
+  // 获取任务的照片进度
+  const getPhotoTaskProgress = (taskId: string, targetCount: number) => {
+    const images = taskImages[taskId] || [];
+    const uploadedCount = images.length;
+    const progress = Math.min(100, Math.round((uploadedCount / targetCount) * 100));
+    return { uploadedCount, progress };
+  };
+  
+  // 编辑任务的状态
+  const [editedTaskData, setEditedTaskData] = useState<Task | null>(null);
+  
+  // 使用 AI Store 获取 API 配置
+  const { config, isConfigured } = useAIStore();
+  
+  // 使用金币系统
+  const { addGold, penaltyGold } = useGoldStore();
+  
+  // 使用标签系统
+  const { recordTagUsage } = useTagStore();
+  
+  // 庆祝效果状态
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationGold, setCelebrationGold] = useState(0);
+  
+  // 判断颜色是否为深色
+  const isColorDark = (color: string): boolean => {
