@@ -822,8 +822,9 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
     setInputValue(''); // 立即清空输入框
     setIsProcessing(true);
 
-    // 检查是否是时间轴操作指令
-    const isTimelineOp = /删除|清空|挪到|移到|改到|调到/.test(message);
+    // 检查是否是时间轴操作指令（修复：仅匹配明确的操作意图，避免误判长文本）
+    const isTimelineOp = /^(删除|清空).*(任务|今天|昨天|明天)/.test(message) ||
+                         /(把|将)\s*\d+号.*?(挪到|移到|改到|调到)/.test(message);
     if (isTimelineOp) {
       const handled = await handleTimelineOperation(message);
       setIsProcessing(false);
