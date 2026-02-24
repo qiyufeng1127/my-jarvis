@@ -196,6 +196,9 @@ export default function UnifiedTaskEditor({
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-2 md:p-3" style={{ zIndex: 10000 }}>
       <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 rounded-2xl shadow-2xl w-full h-full md:max-w-3xl md:h-[96%] flex flex-col overflow-hidden border border-gray-200 dark:border-gray-700">
 
+        {/* 顶部安全区域占位 - 避免被灵动岛遮挡 */}
+        <div className="flex-shrink-0 h-12 md:h-0" style={{ paddingTop: 'env(safe-area-inset-top)' }} />
+
         {/* 顶部工具栏 */}
         <div className="flex-shrink-0 px-3 md:px-6 py-3 border-b border-gray-200 flex items-center justify-between bg-white/50 backdrop-blur-sm">
           <h2 className="text-lg font-bold text-gray-900">📝 任务编辑器</h2>
