@@ -32,6 +32,13 @@ export default function UnifiedTaskEditor({
     sortTasksByWorkflow 
   } = useWorkflowStore();
 
+  // 按动线排序任务
+  const sortTasksByLocation = () => {
+    const sorted = sortTasksByWorkflow(editingTasks);
+    const recalculated = recalculateTaskTimes(sorted, 0);
+    setEditingTasks(recalculated);
+  };
+
   // 重新计算所有任务的时间
   const recalculateTaskTimes = (tasks: any[], startFromIndex: number = 0) => {
     const newTasks = [...tasks];
