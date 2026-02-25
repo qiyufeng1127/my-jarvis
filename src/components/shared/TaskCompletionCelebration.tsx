@@ -21,6 +21,8 @@ export default function TaskCompletionCelebration({
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
+    console.log('🎉 庆祝特效组件挂载');
+    
     // 1. 播放金币音效
     notificationService.playSound('coin');
 
@@ -43,25 +45,33 @@ export default function TaskCompletionCelebration({
 
     // 4. 1.8秒后开始淡出
     const fadeTimer = setTimeout(() => {
-      console.log('🎉 庆祝特效开始淡出');
+      console.log('🎉 [1.8秒] 庆祝特效开始淡出');
       setVisible(false);
     }, 1800);
 
-    // 5. 2秒后完全关闭
+    // 5. 2秒后完全关闭 - 调用 onComplete 移除组件
     const closeTimer = setTimeout(() => {
-      console.log('🎉 庆祝特效完全关闭，调用 onComplete');
-      onComplete?.();
+      console.log('🎉 [2秒] 庆祝特效完全关闭，调用 onComplete 移除组件');
+      if (onComplete) {
+        onComplete();
+      }
     }, 2000);
 
     return () => {
+      console.log('🎉 庆祝特效组件卸载，清理定时器');
       clearTimeout(fadeTimer);
       clearTimeout(closeTimer);
     };
   }, [onComplete]);
 
+  // 如果不可见，直接不渲染（彻底移除 DOM）
+  if (!visible) {
+    return null;
+  }
+
   return (
     <div 
-      className={`fixed inset-0 z-[9999] pointer-events-none flex items-center justify-center transition-opacity duration-200 ${visible ? 'opacity-100' : 'opacity-0'}`}
+      className="fixed inset-0 z-[9999] pointer-events-none flex items-center justify-center transition-opacity duration-200 opacity-100"
     >
       {/* 撒花特效 */}
       {confetti.map((item) => (
