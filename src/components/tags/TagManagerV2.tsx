@@ -34,6 +34,154 @@ interface TagManagerV2Props {
 type SortType = 'usage' | 'income' | 'expense' | 'netIncome' | 'hourlyRate' | 'negativeTime';
 type TimeRange = 'today' | 'week' | 'overall';
 
+// 未分类标签项组件
+function UncategorizedTagItem({ 
+  tag, 
+  bgColor, 
+  cardBg, 
+  borderColor, 
+  textColor, 
+  secondaryColor,
+  isDark,
+  isEditing,
+  editValue,
+  onEdit,
+  onDelete,
+  onUpdateEmoji,
+  onEditChange,
+  onEditConfirm,
+  onEditCancel,
+}: { 
+  tag: any;
+  bgColor: string;
+  cardBg: string;
+  borderColor: string;
+  textColor: string;
+  secondaryColor: string;
+  isDark: boolean;
+  isEditing: boolean;
+  editValue: string;
+  onEdit: () => void;
+  onDelete: () => void;
+  onUpdateEmoji: (emoji: string) => void;
+  onEditChange: (value: string) => void;
+  onEditConfirm: () => void;
+  onEditCancel: () => void;
+}) {
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [candidateEmojis, setCandidateEmojis] = useState<string[]>([]);
+  
+  return (
+    <div
+      className="flex items-center gap-3 p-3 rounded-xl hover:opacity-80 transition-opacity"
+      style={{ backgroundColor: cardBg, border: `1px solid ${borderColor}` }}
+    >
+      {/* 标签信息 */}
+      <div className="flex items-center gap-2 flex-1 min-w-0">
+        {/* Emoji - 可点击更换 */}
+        <div className="relative">
+          <button
+            onClick={async () => {
+              if (!showEmojiPicker) {
+                const { EmojiMatcher } = await import('@/services/emojiMatcher');
+                const emojis = EmojiMatcher.getCandidateEmojis(tag.name);
+                setCandidateEmojis(emojis);
+              }
+              setShowEmojiPicker(!showEmojiPicker);
+            }}
+            className="text-2xl flex-shrink-0 hover:scale-110 transition-transform cursor-pointer"
+            title="点击更换 emoji"
+          >
+            {tag.emoji || '🏷️'}
+          </button>
+          
+          {/* Emoji 选择器 */}
+          {showEmojiPicker && (
+            <div 
+              className="absolute left-0 top-10 z-50 p-2 rounded-lg shadow-xl border grid grid-cols-4 gap-1"
+              style={{ backgroundColor: bgColor, borderColor: borderColor }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {candidateEmojis.map((emoji, index) => (
+                <button
+                  key={index}
+                  onClick={() => {
+                    onUpdateEmoji(emoji);
+                    setShowEmojiPicker(false);
+                  }}
+                  className="text-2xl p-2 rounded hover:bg-gray-100 active:scale-95 transition-all"
+                  style={{ backgroundColor: tag.emoji === emoji ? cardBg : 'transparent' }}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        {isEditing ? (
+          // 编辑模式
+          <input
+            type="text"
+            value={editValue}
+            onChange={(e) => onEditChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                onEditConfirm();
+              } else if (e.key === 'Escape') {
+                onEditCancel();
+              }
+            }}
+            onBlur={onEditConfirm}
+            className="flex-1 px-3 py-1 rounded-lg border border-blue-500 focus:outline-none"
+            style={{ backgroundColor: bgColor, color: textColor }}
+            autoFocus
+          />
+        ) : (
+          // 显示模式
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold truncate" style={{ color: textColor }}>
+                {tag.name}
+              </span>
+              {tag.isDisabled && (
+                <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: cardBg, color: secondaryColor }}>
+                  已禁用
+                </span>
+              )}
+            </div>
+            <div className="text-xs mt-0.5" style={{ color: secondaryColor }}>
+              使用 {tag.usageCount} 次 · {Math.round(tag.totalDuration / 60)}h
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 操作按钮 */}
+      {!isEditing && (
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={onEdit}
+            className="p-2 rounded-lg active:opacity-80 transition-opacity"
+            style={{ backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#DBEAFE', color: '#2563EB' }}
+            title="重命名标签"
+          >
+            <Edit2 size={16} />
+          </button>
+          <button
+            onClick={onDelete}
+            className="p-2 rounded-lg active:opacity-80 transition-opacity"
+            style={{ backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : '#FEE2E2', color: '#DC2626' }}
+            title="删除标签"
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TagManagerV2({ isOpen, onClose, isDark = false }: TagManagerV2Props) {
   const [timeRange, setTimeRange] = useState<TimeRange>('today');
   const [showMergeModal, setShowMergeModal] = useState(false);
@@ -1335,84 +1483,53 @@ ${tagList}
           {/* 未分类标签 */}
           {allTagsIncludingDisabled.filter(tag => !tag.folderId).length > 0 && (
             <div className="mt-6">
-              <h3 className="text-lg font-semibold mb-3" style={{ color: textColor }}>未分类标签</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-semibold" style={{ color: textColor }}>未分类标签</h3>
+                
+                {/* 智能分配到文件夹按钮 */}
+                <button
+                  onClick={handleSmartCategorize}
+                  disabled={isSmartCategorizing}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium active:scale-95 transition-all"
+                  style={{ 
+                    backgroundColor: '#DD617C', 
+                    color: '#fff',
+                    opacity: isSmartCategorizing ? 0.5 : 1 
+                  }}
+                  title="AI智能分配到文件夹"
+                >
+                  <Wand2 size={16} />
+                  <span>{isSmartCategorizing ? '分配中...' : '智能分配到文件夹'}</span>
+                </button>
+              </div>
               <div className="space-y-2">
                 {allTagsIncludingDisabled
                   .filter(tag => !tag.folderId)
                   .map((tag) => (
-                    <div
+                    <UncategorizedTagItem
                       key={tag.name}
-                      className="flex items-center gap-3 p-3 rounded-xl hover:opacity-80 transition-opacity"
-                      style={{ backgroundColor: cardBg, border: `1px solid ${borderColor}` }}
-                    >
-                      {/* 标签信息 */}
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <span className="text-2xl flex-shrink-0">{tag.emoji || '🏷️'}</span>
-                        
-                        {editingTag === tag.name ? (
-                          // 编辑模式
-                          <input
-                            type="text"
-                            value={newTagName}
-                            onChange={(e) => setNewTagName(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                handleRenameTag(tag.name);
-                              } else if (e.key === 'Escape') {
-                                setEditingTag(null);
-                                setNewTagName('');
-                              }
-                            }}
-                            onBlur={() => handleRenameTag(tag.name)}
-                            className="flex-1 px-3 py-1 rounded-lg border border-blue-500 focus:outline-none"
-                            style={{ backgroundColor: bgColor, color: textColor }}
-                            autoFocus
-                          />
-                        ) : (
-                          // 显示模式
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-semibold truncate" style={{ color: textColor }}>
-                                {tag.name}
-                              </span>
-                              {tag.isDisabled && (
-                                <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: cardBg, color: secondaryColor }}>
-                                  已禁用
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-xs mt-0.5" style={{ color: secondaryColor }}>
-                              使用 {tag.usageCount} 次 · {Math.round(tag.totalDuration / 60)}h
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* 操作按钮 */}
-                      {editingTag !== tag.name && (
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <button
-                            onClick={() => {
-                              setEditingTag(tag.name);
-                              setNewTagName(tag.name);
-                            }}
-                            className="p-2 rounded-lg active:opacity-80 transition-opacity"
-                            style={{ backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#DBEAFE', color: '#2563EB' }}
-                            title="重命名标签"
-                          >
-                            <Edit2 size={16} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteTag(tag.name)}
-                            className="p-2 rounded-lg active:opacity-80 transition-opacity"
-                            style={{ backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : '#FEE2E2', color: '#DC2626' }}
-                            title="删除标签"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                      tag={tag}
+                      bgColor={bgColor}
+                      cardBg={cardBg}
+                      borderColor={borderColor}
+                      textColor={textColor}
+                      secondaryColor={secondaryColor}
+                      isDark={isDark}
+                      isEditing={editingTag === tag.name}
+                      editValue={newTagName}
+                      onEdit={() => {
+                        setEditingTag(tag.name);
+                        setNewTagName(tag.name);
+                      }}
+                      onDelete={() => handleDeleteTag(tag.name)}
+                      onUpdateEmoji={(emoji) => updateTag(tag.name, tag.name, emoji)}
+                      onEditChange={(value) => setNewTagName(value)}
+                      onEditConfirm={() => handleRenameTag(tag.name)}
+                      onEditCancel={() => {
+                        setEditingTag(null);
+                        setNewTagName('');
+                      }}
+                    />
                   ))}
               </div>
             </div>

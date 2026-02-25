@@ -856,18 +856,27 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
     }, 30000);
 
     try {
-      // 检查是否是时间轴操作指令（修复：仅匹配明确的操作意图，避免误判长文本）
-      const isTimelineOp = /^(删除|清空).*(任务|今天|昨天|明天)/.test(message) ||
-                           /(把|将)\s*\d+号.*?(挪到|移到|改到|调到)/.test(message);
-      if (isTimelineOp) {
+      // 🎯 使用意图识别服务（优先级最高）
+      const { IntentRecognitionService } = await import('@/services/intentRecognitionService');
+      const intentResult = IntentRecognitionService.recognizeIntent(message);
+      
+      console.log('🎯 [意图识别]', intentResult);
+      
+      // 根据意图类型路由到不同的处理函数
+      if (intentResult.intent === 'delete_tasks' && intentResult.confidence > 0.8) {
+        // 删除任务操作
         const handled = await handleTimelineOperation(message);
         if (sendTimeoutRef.current) clearTimeout(sendTimeoutRef.current);
         setIsProcessing(false);
         if (handled !== false) return;
-      }
-
-      // 检查是否是查询任务的请求
-      if (/查看|查询|今天|任务列表|进度|完成情况/.test(message)) {
+      } else if (intentResult.intent === 'move_tasks' && intentResult.confidence > 0.8) {
+        // 移动任务操作
+        const handled = await handleTimelineOperation(message);
+        if (sendTimeoutRef.current) clearTimeout(sendTimeoutRef.current);
+        setIsProcessing(false);
+        if (handled !== false) return;
+      } else if (intentResult.intent === 'query_tasks' && intentResult.confidence > 0.7) {
+        // 查询任务操作 - 直接跳转到查询逻辑
         try {
           const todayTasks = getTodayTasks();
           const completedTasks = todayTasks.filter(t => t.status === 'completed');
@@ -902,7 +911,10 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
         }
         return;
       }
-
+      
+      // 如果意图是创建任务或记录，继续原有流程
+      // 注意：不再使用旧的正则匹配，完全依赖意图识别
+      
       // 检查是否配置了API Key
       const hasAI = isConfigured();
       if (!hasAI) {
@@ -944,11 +956,13 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
       // 添加思考步骤
       addThinkingStep('📝 正在分析你的输入...');
       
-      // 检测是否是任务创建/分解请求
-      const isTaskCreation = /创建|添加|新建|安排|计划|做|完成|学习|工作|运动|分解|拆解|洗漱|洗碗|猫粮|洗衣服|收拾|吃饭|垃圾|分钟后|小时后|之后/.test(message);
-      const needsDecompose = /分解|拆解|详细安排|具体步骤/.test(message) || message.length > 10 || /然后|接着|再|之后|，|、/.test(message);
+      // 使用意图识别结果判断是否是任务创建
+      const isTaskCreation = intentResult.intent === 'create_task' && intentResult.confidence > 0.6;
+      const needsDecompose = intentResult.action === 'decompose_task' || intentResult.params.needsDecompose;
       
       console.log('🔍 [任务检测] 输入:', message);
+      console.log('🔍 [任务检测] 意图:', intentResult.intent);
+      console.log('🔍 [任务检测] 置信度:', intentResult.confidence);
       console.log('🔍 [任务检测] isTaskCreation:', isTaskCreation);
       console.log('🔍 [任务检测] needsDecompose:', needsDecompose);
       console.log('🔍 [任务检测] analysis.type:', analysis.type);
