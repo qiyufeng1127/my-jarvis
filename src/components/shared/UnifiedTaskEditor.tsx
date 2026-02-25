@@ -26,12 +26,17 @@ export default function UnifiedTaskEditor({
   const [editingTasks, setEditingTasks] = useState<any[]>(tasks);
   const [editingField, setEditingField] = useState<{taskIndex: number, field: string} | null>(null);
   const [showWorkflowSettings, setShowWorkflowSettings] = useState(false);
+  const [showAddLocationModal, setShowAddLocationModal] = useState(false);
+  const [newLocationName, setNewLocationName] = useState('');
+  const [newLocationIcon, setNewLocationIcon] = useState('📍');
   const { goals, addGoal } = useGoalStore();
   const { 
     getLocations, 
     updateLocationOrder, 
     recordCorrection, 
-    sortTasksByWorkflow 
+    sortTasksByWorkflow,
+    addLocation,
+    deleteLocation
   } = useWorkflowStore();
   const { addTag, getTagByName, addTagToFolder, getAllFolders } = useTagStore();
 
@@ -42,6 +47,42 @@ export default function UnifiedTaskEditor({
     setEditingTasks(recalculated);
   };
 
+  // 添加自定义区域
+  const handleAddLocation = () => {
+    if (!newLocationName.trim()) {
+      alert('请输入区域名称');
+      return;
+    }
+    
+    const locations = getLocations();
+    const exists = locations.some(loc => loc.name === newLocationName.trim());
+    
+    if (exists) {
+      alert('该区域已存在');
+      return;
+    }
+    
+    // 生成随机颜色
+    const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA15E', '#BC6C25', '#8B5CF6', '#EC4899', '#10B981'];
+    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+    
+    addLocation(newLocationName.trim(), newLocationIcon, randomColor);
+    
+    setNewLocationName('');
+    setNewLocationIcon('📍');
+    setShowAddLocationModal(false);
+    
+    console.log(`✅ 添加自定义区域: ${newLocationIcon} ${newLocationName}`);
+  };
+
+  // 删除自定义区域
+  const handleRemoveLocation = (locationId: string) => {
+    if (confirm('确定要删除这个区域吗？')) {
+      deleteLocation(locationId);
+      console.log(`🗑️ 删除区域: ${locationId}`);
+    }
+  };
+
   // 上移位置
   const moveLocationUp = (index: number) => {
     const locations = getLocations();
@@ -50,10 +91,8 @@ export default function UnifiedTaskEditor({
     const newOrder = [...locations];
     [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
     
-    // 更新顺序
-    newOrder.forEach((loc, idx) => {
-      updateLocationOrder(loc.id, idx);
-    });
+    // 更新顺序 - 传入新的ID顺序数组
+    updateLocationOrder(newOrder.map(loc => loc.id));
   };
 
   // 下移位置
@@ -64,10 +103,8 @@ export default function UnifiedTaskEditor({
     const newOrder = [...locations];
     [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]];
     
-    // 更新顺序
-    newOrder.forEach((loc, idx) => {
-      updateLocationOrder(loc.id, idx);
-    });
+    // 更新顺序 - 传入新的ID顺序数组
+    updateLocationOrder(newOrder.map(loc => loc.id));
   };
 
   // 重新计算所有任务的时间
@@ -283,11 +320,14 @@ export default function UnifiedTaskEditor({
   };
 
   const handleConfirm = async () => {
+    console.log('🚀 [推送到时间轴] 开始推送任务...');
+    
     // 添加新目标到长期目标系统
     for (const task of editingTasks) {
       if (task.goal && task.isNewGoal) {
         const existingGoal = goals.find(g => g.title === task.goal);
         if (!existingGoal) {
+          console.log(`🎯 [新目标] 创建目标: ${task.goal}`);
           await addGoal({
             title: task.goal,
             description: `通过AI智能助手自动创建`,
@@ -299,7 +339,15 @@ export default function UnifiedTaskEditor({
       }
     }
 
+    console.log(`✅ [推送到时间轴] 推送 ${editingTasks.length} 个任务`);
+    
+    // 调用父组件的确认回调
     onConfirm(editingTasks);
+    
+    // 关闭编辑器
+    onClose();
+    
+    console.log('🎉 [推送到时间轴] 推送完成，编辑器已关闭');
   };
 
   return (
@@ -373,11 +421,104 @@ export default function UnifiedTaskEditor({
                     >
                       <ArrowDown className="w-3.5 h-3.5 text-purple-600" />
                     </button>
+                    
+                    {/* 删除按钮 - 仅自定义区域可删除 */}
+                    {loc.isCustom && (
+                      <button
+                        onClick={() => handleRemoveLocation(loc.id)}
+                        className="p-1 rounded hover:bg-red-100 transition-colors ml-1"
+                        title="删除区域"
+                      >
+                        <X className="w-3.5 h-3.5 text-red-600" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
+              
+              {/* 添加自定义区域按钮 */}
+              <button
+                onClick={() => setShowAddLocationModal(true)}
+                className="px-3 py-2 rounded-lg bg-white border-2 border-dashed border-purple-300 hover:border-purple-400 hover:bg-purple-50 flex items-center gap-2 transition-colors"
+              >
+                <Plus className="w-4 h-4 text-purple-600" />
+                <span className="text-sm font-medium text-purple-600">添加自定义区域</span>
+              </button>
             </div>
             <p className="text-xs text-purple-600 mt-2">💡 提示：AI 会学习你的修改习惯，自动优化位置识别</p>
+          </div>
+        )}
+
+        {/* 添加自定义区域弹窗 */}
+        {showAddLocationModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowAddLocationModal(false)}>
+            <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-gray-900">➕ 添加自定义区域</h3>
+                <button
+                  onClick={() => setShowAddLocationModal(false)}
+                  className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                {/* 区域图标选择 */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    选择图标
+                  </label>
+                  <div className="grid grid-cols-6 gap-2">
+                    {['📍', '🏠', '🏢', '🏪', '🏫', '🏥', '🏨', '🏦', '🏛️', '⛪', '🕌', '🛒', '🍽️', '☕', '🎮', '🎨', '📚', '💻'].map((icon) => (
+                      <button
+                        key={icon}
+                        onClick={() => setNewLocationIcon(icon)}
+                        className={`text-2xl p-2 rounded-lg transition-all ${
+                          newLocationIcon === icon
+                            ? 'bg-purple-100 border-2 border-purple-500 scale-110'
+                            : 'bg-gray-50 border-2 border-gray-200 hover:bg-gray-100'
+                        }`}
+                      >
+                        {icon}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* 区域名称输入 */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    区域名称
+                  </label>
+                  <input
+                    type="text"
+                    value={newLocationName}
+                    onChange={(e) => setNewLocationName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddLocation()}
+                    placeholder="例如：书房、阳台、车库..."
+                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    autoFocus
+                  />
+                </div>
+                
+                {/* 按钮 */}
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() => setShowAddLocationModal(false)}
+                    className="flex-1 px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors"
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={handleAddLocation}
+                    className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold transition-all"
+                  >
+                    添加
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -730,19 +871,35 @@ export default function UnifiedTaskEditor({
                     >
                       <span className="text-xs">🎯</span>
                       <span className="text-xs font-medium text-green-700">{task.goal}</span>
+                      {task.isNewGoal && (
+                        <span className="text-xs bg-green-200 text-green-800 px-1 rounded ml-1">新</span>
+                      )}
                     </div>
                   )
                 ) : (
                   <select
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       if (e.target.value === 'new') {
                         const newGoal = prompt('🎯 输入新的长期目标：');
                         if (newGoal) {
+                          // 立即添加到目标系统
+                          const newGoalObj = await addGoal({
+                            title: newGoal,
+                            description: `通过任务编辑器创建`,
+                            category: 'personal',
+                            priority: 'medium',
+                            status: 'active',
+                          });
+                          
+                          console.log(`✅ [新目标] 已创建并可立即选择: ${newGoal}`);
+                          
+                          // 更新任务的目标
                           updateTaskField(index, 'goal', newGoal);
                           updateTaskField(index, 'isNewGoal', true);
                         }
                       } else if (e.target.value) {
                         updateTaskField(index, 'goal', e.target.value);
+                        updateTaskField(index, 'isNewGoal', false);
                       }
                       e.target.value = '';
                     }}

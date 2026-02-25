@@ -9,6 +9,7 @@ export interface LocationArea {
   icon: string;
   color: string;
   order: number; // 动线顺序
+  isCustom?: boolean; // 是否为自定义区域
 }
 
 // AI 学习记录
@@ -87,6 +88,7 @@ export const useWorkflowStore = create<WorkflowState>()(
             icon,
             color,
             order: maxOrder + 1,
+            isCustom: true, // 标记为自定义区域
           };
           return { locations: [...state.locations, newLocation] };
         });
