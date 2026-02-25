@@ -566,7 +566,7 @@ class BaiduImageRecognitionService {
         }
       }
 
-      // 4. 判断是否通过（超级宽松，只要识别到内容就通过）
+      // 4. 判断是否通过（严格模式：必须匹配到至少一个关键词）
       let success = false;
       let finalDescription = '';
       
@@ -583,32 +583,37 @@ class BaiduImageRecognitionService {
           suggestions.push(`📸 ${tips.join(' 或 ')}`);
         }
       } else if (matchedKeywords.length > 0) {
-        // 🎯 关键改动：只要匹配到任意一个关键词就通过！
+        // ✅ 匹配到至少一个关键词 - 通过验证
         success = true;
         if (matchedKeywords.length === requiredKeywords.length) {
           finalDescription = `✅ 验证通过！\n\n图片内容完全符合要求：${matchedKeywords.join('、')}`;
         } else {
           finalDescription = `✅ 验证通过！\n\n已识别到：${matchedKeywords.join('、')}\n\n${unmatchedKeywords.length > 0 ? `未明确识别到：${unmatchedKeywords.join('、')}\n但已满足基本要求。` : ''}`;
         }
-      } else if (allKeywords.length >= 3) {
-        // 🎯 关键改动：即使没匹配到关键词，但识别到了足够多的内容（>=3个），也通过！
-        // 这说明用户确实拍了照片，只是关键词设置可能不够准确
-        success = true;
-        finalDescription = `✅ 验证通过！\n\n虽然未明确识别到设定的关键词，但图片内容丰富（识别到${allKeywords.length}个物体），已满足基本要求。\n\n识别到的内容：${allKeywords.slice(0, 5).join('、')}等`;
       } else {
-        // 识别到的内容太少（<3个）- 不通过
+        // ❌ 没有匹配到任何关键词 - 验证失败
         success = false;
-        finalDescription = `❌ 验证未通过\n\n图片内容不足，仅识别到：${allKeywords.join('、')}\n\n请重新拍摄，确保：\n• 光线充足\n• 目标清晰\n• 包含以下内容：${requiredKeywords.join('、')}`;
+        const recognizedText = allKeywords.length > 0 
+          ? allKeywords.slice(0, 8).join('、') 
+          : '无相关内容';
+        
+        finalDescription = `❌ 验证未通过\n\n要求包含：${requiredKeywords.join(' 或 ')}\n实际识别到：${recognizedText}\n\n请重新拍摄，确保：\n• 光线充足\n• 目标清晰可见\n• 包含要求的内容`;
+        
+        // 给出每个关键词的拍摄建议
+        for (const required of requiredKeywords) {
+          const tips = shootingTips[required.toLowerCase()] || [`拍摄包含"${required}"的照片`];
+          suggestions.push(`📸 ${tips.join(' 或 ')}`);
+        }
       }
 
-      console.log('✅ 超级宽松验证结果:', {
+      console.log('✅ 严格验证结果:', {
         success,
         matchedKeywords,
         unmatchedKeywords,
         requiredKeywords,
         recognizedCount: recognizedKeywords.length,
         matchRate: `${(matchRate * 100).toFixed(0)}%`,
-        通过原因: success ? (matchedKeywords.length > 0 ? '匹配到关键词' : '识别到足够内容') : '内容不足',
+        通过原因: success ? '匹配到关键词' : '未匹配到任何关键词',
       });
 
       return {
