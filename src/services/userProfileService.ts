@@ -5,7 +5,6 @@
 import { useTaskStore } from '@/stores/taskStore';
 import { useGoalStore } from '@/stores/goalStore';
 import { useMemoryStore } from '@/stores/memoryStore';
-import { useBadHabitStore } from '@/stores/badHabitStore';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
 
 /**
@@ -282,7 +281,6 @@ export class UserProfileService {
     const memories = useMemoryStore.getState().memories;
     const goals = useGoalStore.getState().goals;
     const tasks = useTaskStore.getState().tasks;
-    const habits = useBadHabitStore.getState().habits;
     const sideHustles = useSideHustleStore.getState().sideHustles;
     
     const traits: string[] = [];
@@ -326,12 +324,6 @@ export class UserProfileService {
       traits.push('探索精神');
     } else if (sideHustles.length > 0) {
       traits.push('有副业意识');
-    }
-    
-    // 基于坏习惯管理分析
-    if (habits.length > 0) {
-      traits.push('勇于面对问题');
-      traits.push('自我改进意识强');
     }
     
     // 基于使用天数分析
@@ -378,7 +370,6 @@ export class UserProfileService {
    */
   private static async analyzePatterns(profile: UserProfile): Promise<void> {
     const tasks = useTaskStore.getState().tasks;
-    const habits = useBadHabitStore.getState().habits;
     const memories = useMemoryStore.getState().memories;
     
     // 分析时间模式
@@ -483,26 +474,8 @@ export class UserProfileService {
     
     profile.patterns.workPatterns = workPatterns;
     
-    // 分析习惯模式
-    const habitPatterns: HabitPattern[] = [];
-    
-    habits.forEach(habit => {
-      const recentOccurrences = habit.occurrences.filter(occ => {
-        const daysSince = (Date.now() - new Date(occ.occurredAt).getTime()) / (1000 * 60 * 60 * 24);
-        return daysSince <= 7;
-      });
-      
-      if (recentOccurrences.length > 0) {
-        habitPatterns.push({
-          habit: habit.name,
-          trigger: habit.triggerScenarios.join('、') || '未知',
-          frequency: recentOccurrences.length,
-          impact: habit.severity > 3 ? '较大' : '一般',
-        });
-      }
-    });
-    
-    profile.patterns.habitPatterns = habitPatterns;
+    // 分析习惯模式 - 暂时留空，等待原有坏习惯系统集成
+    profile.patterns.habitPatterns = [];
   }
   
   /**
@@ -592,7 +565,6 @@ export class UserProfileService {
   private static async analyzeStrengthsAndChallenges(profile: UserProfile): Promise<void> {
     const tasks = useTaskStore.getState().tasks;
     const goals = useGoalStore.getState().goals;
-    const habits = useBadHabitStore.getState().habits;
     const sideHustles = useSideHustleStore.getState().sideHustles;
     
     const strengths: Strength[] = [];
@@ -627,20 +599,6 @@ export class UserProfileService {
           '目标清晰，有明确的方向',
         ],
         application: '可以尝试更长远的规划，制定3-5年的人生蓝图',
-      });
-    }
-    
-    // 自我觉察优势
-    if (habits.length > 0) {
-      strengths.push({
-        name: '良好的自我觉察',
-        type: 'character',
-        description: '你能够认识到自己的问题并主动改进',
-        evidence: [
-          `识别了 ${habits.length} 个需要改进的习惯`,
-          '勇于面对自己的不足',
-        ],
-        application: '继续保持这种自我觉察，定期反思和调整',
       });
     }
     
@@ -700,26 +658,6 @@ export class UserProfileService {
       });
     }
     
-    // 坏习惯问题
-    const recentHabitOccurrences = habits.reduce((sum, h) => {
-      const recent = h.occurrences.filter(occ => {
-        const daysSince = (Date.now() - new Date(occ.occurredAt).getTime()) / (1000 * 60 * 60 * 24);
-        return daysSince <= 7;
-      });
-      return sum + recent.length;
-    }, 0);
-    
-    if (recentHabitOccurrences > 5) {
-      challenges.push({
-        name: '习惯改变困难',
-        severity: habits.some(h => h.severity > 3) ? 4 : 3,
-        manifestation: `最近7天内坏习惯发生了 ${recentHabitOccurrences} 次`,
-        rootCause: '习惯的触发场景没有改变，缺乏替代行为',
-        impact: '影响效率和心情，阻碍目标达成',
-        solution: '识别触发场景，准备替代行为，寻求支持系统',
-      });
-    }
-    
     // 缺乏行动
     if (goals.length > 0 && tasks.length < 5) {
       challenges.push({
@@ -745,7 +683,6 @@ export class UserProfileService {
     
     const tasks = useTaskStore.getState().tasks;
     const goals = useGoalStore.getState().goals;
-    const habits = useBadHabitStore.getState().habits;
     const memories = useMemoryStore.getState().memories;
     
     // 生成观察
@@ -819,24 +756,6 @@ export class UserProfileService {
     if (completionRate < 0.2 && tasks.length > 10) {
       concerns.push('你的任务完成率很低，我有点担心你的状态');
       concerns.push('是不是遇到了什么困难？需要调整一下节奏吗？');
-    }
-    
-    if (habits.length > 3) {
-      concerns.push(`你记录了 ${habits.length} 个坏习惯，改变习惯不容易`);
-      concerns.push('不要给自己太大压力，一个一个来');
-    }
-    
-    const recentHabitOccurrences = habits.reduce((sum, h) => {
-      const recent = h.occurrences.filter(occ => {
-        const daysSince = (Date.now() - new Date(occ.occurredAt).getTime()) / (1000 * 60 * 60 * 24);
-        return daysSince <= 7;
-      });
-      return sum + recent.length;
-    }, 0);
-    
-    if (recentHabitOccurrences > 10) {
-      concerns.push('最近坏习惯发生得比较频繁');
-      concerns.push('要不要一起分析一下触发原因？');
     }
     
     if (goals.length > 8) {

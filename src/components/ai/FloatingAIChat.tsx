@@ -865,10 +865,10 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
       // 根据意图类型路由到不同的处理函数
       if (intentResult.intent === 'delete_tasks' && intentResult.confidence > 0.8) {
         // 删除任务操作
-        const handled = await handleTimelineOperation(message);
+      const handled = await handleTimelineOperation(message);
         if (sendTimeoutRef.current) clearTimeout(sendTimeoutRef.current);
-        setIsProcessing(false);
-        if (handled !== false) return;
+      setIsProcessing(false);
+      if (handled !== false) return;
       } else if (intentResult.intent === 'move_tasks' && intentResult.confidence > 0.8) {
         // 移动任务操作
         const handled = await handleTimelineOperation(message);
@@ -877,80 +877,80 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
         if (handled !== false) return;
       } else if (intentResult.intent === 'query_tasks' && intentResult.confidence > 0.7) {
         // 查询任务操作 - 直接跳转到查询逻辑
-        try {
-          const todayTasks = getTodayTasks();
-          const completedTasks = todayTasks.filter(t => t.status === 'completed');
-          
-          let responseContent = `📊 **今日任务概览**\n\n`;
-          responseContent += `✅ 已完成：${completedTasks.length}/${todayTasks.length}\n`;
-          responseContent += `⏱️ 总时长：${todayTasks.reduce((sum, t) => sum + t.durationMinutes, 0)} 分钟\n\n`;
+      try {
+        const todayTasks = getTodayTasks();
+        const completedTasks = todayTasks.filter(t => t.status === 'completed');
+        
+        let responseContent = `📊 **今日任务概览**\n\n`;
+        responseContent += `✅ 已完成：${completedTasks.length}/${todayTasks.length}\n`;
+        responseContent += `⏱️ 总时长：${todayTasks.reduce((sum, t) => sum + t.durationMinutes, 0)} 分钟\n\n`;
 
-          if (todayTasks.length === 0) {
-            responseContent += '💡 今天还没有安排任务哦！\n\n';
-            responseContent += '你可以告诉我你想做什么，我来帮你创建任务～';
-          } else {
-            responseContent += '**任务列表**：\n';
-            todayTasks.forEach((task, index) => {
-              const statusEmoji = task.status === 'completed' ? '✅' : task.status === 'in_progress' ? '⏳' : '⏸️';
-              responseContent += `${index + 1}. ${statusEmoji} ${task.title} (${task.durationMinutes}分钟)\n`;
-            });
-          }
-
-          const aiMessage: Message = {
-            id: `ai-${Date.now()}`,
-            role: 'assistant',
-            content: responseContent,
-            timestamp: new Date(),
-          };
-          setMessages(prev => [...prev, aiMessage]);
-        } catch (error) {
-          console.error('查询任务失败:', error);
-        } finally {
-          if (sendTimeoutRef.current) clearTimeout(sendTimeoutRef.current);
-          setIsProcessing(false);
+        if (todayTasks.length === 0) {
+          responseContent += '💡 今天还没有安排任务哦！\n\n';
+          responseContent += '你可以告诉我你想做什么，我来帮你创建任务～';
+        } else {
+          responseContent += '**任务列表**：\n';
+          todayTasks.forEach((task, index) => {
+            const statusEmoji = task.status === 'completed' ? '✅' : task.status === 'in_progress' ? '⏳' : '⏸️';
+            responseContent += `${index + 1}. ${statusEmoji} ${task.title} (${task.durationMinutes}分钟)\n`;
+          });
         }
-        return;
+
+        const aiMessage: Message = {
+          id: `ai-${Date.now()}`,
+          role: 'assistant',
+          content: responseContent,
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, aiMessage]);
+      } catch (error) {
+        console.error('查询任务失败:', error);
+      } finally {
+          if (sendTimeoutRef.current) clearTimeout(sendTimeoutRef.current);
+        setIsProcessing(false);
       }
+      return;
+    }
       
       // 如果意图是创建任务或记录，继续原有流程
       // 注意：不再使用旧的正则匹配，完全依赖意图识别
-      
-      // 检查是否配置了API Key
-      const hasAI = isConfigured();
-      if (!hasAI) {
-        const shouldShowPrompt = /分解|拆解|安排时间|智能/.test(message);
-        if (shouldShowPrompt) {
-          const confirmConfig = confirm('AI功能需要配置API Key才能使用。\n\n配置后可以：\n• 智能理解上下文（不依赖关键词）\n• 更准确的标签识别\n• 自然语言对话\n• 智能任务分解\n• 智能动线优化\n\n是否现在配置？');
-          if (confirmConfig) {
-            setShowConfigModal(true);
+
+    // 检查是否配置了API Key
+    const hasAI = isConfigured();
+    if (!hasAI) {
+      const shouldShowPrompt = /分解|拆解|安排时间|智能/.test(message);
+      if (shouldShowPrompt) {
+        const confirmConfig = confirm('AI功能需要配置API Key才能使用。\n\n配置后可以：\n• 智能理解上下文（不依赖关键词）\n• 更准确的标签识别\n• 自然语言对话\n• 智能任务分解\n• 智能动线优化\n\n是否现在配置？');
+        if (confirmConfig) {
+          setShowConfigModal(true);
             if (sendTimeoutRef.current) clearTimeout(sendTimeoutRef.current);
             setIsProcessing(false);
-            return;
-          }
+          return;
         }
       }
+    }
 
-      // 分析标签（AI或关键词）- 在后台异步处理
-      clearThinkingSteps(); // 清空之前的思考步骤
-      
-      let analysis = await analyzeMessageTags(message);
-      
-      // 更新用户消息，添加标签和奖励
-      setMessages(prev => prev.map(msg => 
-        msg.id === userMessage.id 
-          ? {
-              ...msg,
-              tags: {
-                emotions: analysis.emotions,
-                categories: analysis.categories,
-                type: analysis.type,
-              },
-              rewards: analysis.rewards,
-            }
-          : msg
-      ));
+    // 分析标签（AI或关键词）- 在后台异步处理
+    clearThinkingSteps(); // 清空之前的思考步骤
+    
+    let analysis = await analyzeMessageTags(message);
+    
+    // 更新用户消息，添加标签和奖励
+    setMessages(prev => prev.map(msg => 
+      msg.id === userMessage.id 
+        ? {
+            ...msg,
+            tags: {
+              emotions: analysis.emotions,
+              categories: analysis.categories,
+              type: analysis.type,
+            },
+            rewards: analysis.rewards,
+          }
+        : msg
+    ));
 
-      // 智能分析任务并匹配目标
+    // 智能分析任务并匹配目标
       const goals = useGoalStore.getState().goals;
       
       // 添加思考步骤

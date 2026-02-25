@@ -246,13 +246,44 @@ export const useTaskStore = create<TaskState>()(
       result: goldResult,
     });
     
+    // 🎯 新增：驱动力系统集成
+    const { useDriveStore } = await import('@/stores/driveStore');
+    const driveStore = useDriveStore.getState();
+    
+    // 1. 增加连击
+    const multiplier = driveStore.incrementCombo();
+    
+    // 2. 应用连击倍率
+    const finalGold = Math.round(goldResult.finalGold * multiplier);
+    
+    // 3. 更新连胜
+    driveStore.updateWinStreak();
+    
+    // 4. 检查拖延税
+    let delayTax = 0;
+    if (task.scheduledEnd) {
+      delayTax = driveStore.calculateDelayTax(taskId, task.title, task.scheduledEnd);
+      if (delayTax > 0) {
+        driveStore.recordDelayTax(taskId, task.title, delayTax, 
+          (now.getTime() - task.scheduledEnd.getTime()) / (1000 * 60 * 60)
+        );
+      }
+    }
+    
+    console.log('🎯 驱动力系统:', {
+      原始金币: goldResult.finalGold,
+      连击倍率: multiplier,
+      最终金币: finalGold,
+      拖延税: delayTax,
+    });
+    
     // 更新任务状态
     const completedTask = {
       ...task,
       status: 'completed' as TaskStatus,
       actualEnd: now,
-      goldEarned: goldResult.finalGold,
-      penaltyGold: goldResult.penalty,
+      goldEarned: finalGold,
+      penaltyGold: goldResult.penalty + delayTax,
     };
     
     set((state) => ({
@@ -264,13 +295,34 @@ export const useTaskStore = create<TaskState>()(
     // 更新金币余额
     const { useGoldStore } = await import('@/stores/goldStore');
     const goldStore = useGoldStore.getState();
-    goldStore.addGold(goldResult.finalGold, 'task_completion', `完成任务: ${task.title}`);
+    goldStore.addGold(finalGold, 'task_completion', taskId, task.title);
     
     // 同步到标签统计
     const { tagSyncService } = await import('@/services/tagSyncService');
     tagSyncService.syncTaskToTags(completedTask);
     
+    // 🐾 宠物获得经验
+    const { usePetStore } = await import('@/stores/petStore');
+    const petStore = usePetStore.getState();
+    if (petStore.currentPet) {
+      const expAmount = Math.max(20, Math.floor(actualMinutes / 2)); // 至少20经验，或每2分钟1经验
+      petStore.gainExp(expAmount);
+      console.log(`🐾 宠物获得 ${expAmount} 经验`);
+    }
+    
+    // 🏆 检查成就
+    const { useLeaderboardStore } = await import('@/stores/leaderboardStore');
+    const leaderboardStore = useLeaderboardStore.getState();
+    leaderboardStore.checkAchievements();
+    
     console.log('✅ 任务完成:', taskId, goldResult.reason);
+    
+    // 🎯 返回金币信息，用于触发动画
+    return {
+      goldEarned: finalGold,
+      multiplier,
+      delayTax,
+    };
   },
 
   getTasksByStatus: (status) => {

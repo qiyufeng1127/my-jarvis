@@ -30,8 +30,13 @@ import LevelCustomizeModal from '@/components/level/LevelCustomizeModal';
 import MoodWeeklyCard from '@/components/profile/MoodWeeklyCard';
 import { MobileBottomNav, MobileTopBar } from '@/components/layout';
 import type { NavItem as BottomNavItem } from '@/components/layout';
+import { PetWidget } from '@/components/pet/PetWidget';
+import { PetShop } from '@/components/pet/PetShop';
+import { FocusTimer } from '@/components/focus/FocusTimer';
+import { FocusStatsPanel } from '@/components/focus/FocusStatsPanel';
+import { LeaderboardPanel } from '@/components/leaderboard/LeaderboardPanel';
 
-type TabType = 'timeline' | 'goals' | 'journal' | 'memory' | 'gold' | 'habits' | 'reports' | 'settings' | 'inbox' | 'ai' | 'more' | 'money' | 'tags' | 'home';
+type TabType = 'timeline' | 'goals' | 'journal' | 'memory' | 'gold' | 'habits' | 'reports' | 'settings' | 'inbox' | 'ai' | 'more' | 'money' | 'tags' | 'home' | 'pet' | 'focus' | 'leaderboard';
 
 interface MobileLayoutProps {
   onModuleChange?: (module: string) => void;
@@ -57,6 +62,9 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { id: 'gold', label: '金币', icon: '💎', color: 'yellow', component: GoldModule },
   { id: 'habits', label: '习惯', icon: '⚠️', color: 'green', component: HabitsModule },
   { id: 'reports', label: '报告', icon: '📈', color: 'blue', component: ReportsModule },
+  { id: 'pet', label: '宠物', icon: '🐾', color: 'pink' }, // 宠物系统（特殊处理）
+  { id: 'focus', label: '专注', icon: '🎯', color: 'purple' }, // 专注模式（特殊处理）
+  { id: 'leaderboard', label: '排行榜', icon: '🏆', color: 'yellow' }, // 排行榜（特殊处理）
 ];
 
 export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {}) {
@@ -108,6 +116,7 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
   const [showUserProfile, setShowUserProfile] = useState(false); // 用户画像状态
   const [showDailyReview, setShowDailyReview] = useState(false); // 日复盘状态
   const [showLevelCustomize, setShowLevelCustomize] = useState(false); // 等级自定义状态
+  const [showPetShop, setShowPetShop] = useState(false); // 宠物商店状态
   const [userAvatar, setUserAvatar] = useState<string | undefined>(() => {
     // 从 localStorage 加载头像
     return localStorage.getItem('user_avatar') || undefined;
@@ -165,6 +174,12 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
                     } else if (item.id === 'ai') {
                       // AI助手特殊处理：打开AI输入框
                       setShowAISmartInput(true);
+                    } else if (item.id === 'pet') {
+                      // 宠物系统特殊处理：打开宠物商店
+                      setShowPetShop(true);
+                    } else if (item.id === 'focus' || item.id === 'leaderboard') {
+                      // 游戏系统：切换到对应页面
+                      setActiveTab(item.id);
                     } else {
                       setActiveTab(item.id);
                     }
@@ -190,6 +205,24 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
     // 特殊处理设置模块
     if (activeTab === 'settings') {
       return <SettingsModule {...moduleProps} />;
+    }
+    
+    // 特殊处理游戏系统模块
+    if (activeTab === 'focus') {
+      return (
+        <div className="p-4 space-y-4">
+          <FocusTimer />
+          <FocusStatsPanel />
+        </div>
+      );
+    }
+    
+    if (activeTab === 'leaderboard') {
+      return (
+        <div className="p-4">
+          <LeaderboardPanel />
+        </div>
+      );
     }
 
     const activeItem = ALL_NAV_ITEMS.find(item => item.id === activeTab);
@@ -360,6 +393,29 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         isOpen={showLevelCustomize}
         onClose={() => setShowLevelCustomize(false)}
       />
+      
+      {/* 宠物商店弹窗 */}
+      {showPetShop && (
+        <div 
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+          onClick={() => setShowPetShop(false)}
+        >
+          <div 
+            className="max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="relative">
+              <button
+                onClick={() => setShowPetShop(false)}
+                className="absolute top-4 right-4 z-10 w-10 h-10 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow-lg transition-all"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              <PetShop />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 底部导航栏 - 使用新组件 */}
       <MobileBottomNav
@@ -414,6 +470,9 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
           } else if (item.id === 'ai') {
             // AI助手特殊处理：打开AI输入框
             setShowAISmartInput(true);
+          } else if (item.id === 'pet') {
+            // 宠物系统特殊处理：打开宠物商店
+            setShowPetShop(true);
           } else {
             setActiveTab(item.id);
           }

@@ -226,6 +226,7 @@ export default function TaskVerification({
   // 验证图片
   const verifyImage = async (imageData: string) => {
     setIsVerifying(true);
+    setVerificationReason('正在验证中，请稍后...');
 
     try {
       // 如果没有关键词要求，直接通过（向后兼容）
@@ -241,14 +242,18 @@ export default function TaskVerification({
       }
 
       // 使用百度AI图像识别验证
+      console.log('🔍 开始调用百度AI图像识别...');
+      setVerificationReason('AI 调用中...');
+      
       const { baiduImageRecognition } = await import('@/services/baiduImageRecognition');
       
       // 将base64转换为File对象
       const blob = await fetch(imageData).then(r => r.blob());
       const file = new File([blob], 'verification.jpg', { type: 'image/jpeg' });
       
-      // 调用百度AI验证 - 降低阈值，提高识别成功率
-      const result = await baiduImageRecognition.verifyImage(file, keywords, 0.15); // 从0.3降低到0.15
+      // 调用百度AI验证 - 使用 smartVerifyImage 方法
+      console.log('🔍 调用 smartVerifyImage，关键词:', keywords);
+      const result = await baiduImageRecognition.smartVerifyImage(file, keywords, 0.2);
 
       setIsVerifying(false);
 
@@ -258,23 +263,29 @@ export default function TaskVerification({
         // 验证成功
         console.log('✅ 验证成功！');
         setVerificationResult('success');
-        setVerificationReason(`验证通过！识别到: ${result.matchedKeywords.join(', ')}`);
+        
+        // 显示完整的验证描述
+        const successMessage = result.description || `验证通过！识别到: ${result.matchedKeywords.join(', ')}`;
+        setVerificationReason(successMessage);
 
         setTimeout(() => {
           console.log('✅ 调用 onSuccess 回调');
           onSuccess();
         }, 2000);
       } else {
-        // 验证失败 - 提供更详细的信息
+        // 验证失败 - 显示完整的失败信息
         console.log('❌ 验证失败！');
-        const recognizedText = result.recognizedKeywords.length > 0 
-          ? result.recognizedKeywords.slice(0, 8).join(', ') 
-          : '无相关内容';
         
         setVerificationResult('fail');
-        setVerificationReason(
-          `验证失败！\n要求包含: ${keywords.join(' 或 ')}\n识别到: ${recognizedText}\n\n提示：请确保照片清晰，包含要求的物品`
-        );
+        
+        // 使用 AI 返回的完整描述和建议
+        let failMessage = result.description || '验证失败';
+        
+        if (result.suggestions && result.suggestions.length > 0) {
+          failMessage += '\n\n' + result.suggestions.join('\n');
+        }
+        
+        setVerificationReason(failMessage);
         
         // 扣除金币
         console.log('💰 扣除20金币');
@@ -284,17 +295,20 @@ export default function TaskVerification({
         console.log('❌ 验证失败，等待用户操作');
       }
     } catch (error) {
-      console.error('图片验证错误:', error);
+      console.error('❌ 图片验证错误:', error);
       setIsVerifying(false);
       setVerificationResult('fail');
-      setVerificationReason('验证服务异常，请重试');
+      
+      const errorMessage = error instanceof Error ? error.message : '未知错误';
+      setVerificationReason(
+        `验证服务异常：${errorMessage}\n\n请检查：\n1. 网络连接是否正常\n2. 百度AI配置是否正确（设置 → AI）\n3. 是否超出每日免费额度（500次）\n\n您可以：\n• 重新尝试验证\n• 或暂时跳过验证`
+      );
       
       // 扣除金币
       deductGold(20, `任务验证失败: ${task.title}`);
       
-      setTimeout(() => {
-        onFail();
-      }, 2000);
+      // 不自动关闭，让用户选择
+      console.log('❌ 验证异常，等待用户操作');
     }
   };
 

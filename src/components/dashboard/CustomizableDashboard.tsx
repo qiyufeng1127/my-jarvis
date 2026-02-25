@@ -36,6 +36,11 @@ import VersionInfo from '@/components/VersionInfo';
 import DailyReceipt from '@/components/receipt/DailyReceipt';
 import UserProfileModal from '@/components/profile/UserProfileModal';
 import DailyReviewModal from '@/components/review/DailyReviewModal';
+import { PetWidget } from '@/components/pet/PetWidget';
+import { PetShop } from '@/components/pet/PetShop';
+import { FocusTimer } from '@/components/focus/FocusTimer';
+import { FocusStatsPanel } from '@/components/focus/FocusStatsPanel';
+import { LeaderboardPanel } from '@/components/leaderboard/LeaderboardPanel';
 
 interface Module {
   id: string;
@@ -175,6 +180,30 @@ const availableModules: ModuleDefinition[] = [
     component: () => null, // 标签管理使用弹窗，不需要内容组件
   },
   {
+    id: 'pet',
+    type: 'pet',
+    title: '虚拟宠物',
+    icon: <span className="text-2xl">🐾</span>,
+    defaultColor: '#ffecd2',
+    component: () => null, // 使用自定义组件
+  },
+  {
+    id: 'focus',
+    type: 'focus',
+    title: '专注模式',
+    icon: <span className="text-2xl">🎯</span>,
+    defaultColor: '#667eea',
+    component: () => null, // 使用自定义组件
+  },
+  {
+    id: 'leaderboard',
+    type: 'leaderboard',
+    title: '排行榜',
+    icon: <span className="text-2xl">🏆</span>,
+    defaultColor: '#ffd700',
+    component: () => null, // 使用自定义组件
+  },
+  {
     id: 'image-widget',
     type: 'image-widget',
     title: '图片组件',
@@ -240,6 +269,9 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
   
   // 日复盘状态
   const [showDailyReview, setShowDailyReview] = useState(false);
+  
+  // 宠物商店状态
+  const [showPetShop, setShowPetShop] = useState(false);
 
   // 从副业追踪器获取余额数据
   const { getTotalProfit, loadSideHustles } = useSideHustleStore();
@@ -437,6 +469,12 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
     // 标签管理特殊处理：打开弹窗
     if (moduleDefinition.type === 'tags') {
       setShowTagManager(true);
+      return;
+    }
+    
+    // 宠物系统特殊处理：打开宠物商店
+    if (moduleDefinition.type === 'pet') {
+      setShowPetShop(true);
       return;
     }
     
@@ -1442,7 +1480,18 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                     flexDirection: 'column',
                     }}
                   >
-                    {moduleDefinition?.component && 
+                    {/* 渲染新的游戏系统组件 */}
+                    {module.type === 'pet' && <PetWidget />}
+                    {module.type === 'focus' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem' }}>
+                        <FocusTimer />
+                        <FocusStatsPanel />
+                      </div>
+                    )}
+                    {module.type === 'leaderboard' && <LeaderboardPanel />}
+                    
+                    {/* 原有模块 */}
+                    {moduleDefinition?.component && !['pet', 'focus', 'leaderboard'].includes(module.type) &&
                       React.createElement(moduleDefinition.component, { 
                         isDark: isColorDark(module.color),
                         bgColor: module.color,
@@ -1704,6 +1753,29 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
           isOpen={showDailyReview}
           onClose={() => setShowDailyReview(false)}
         />
+        
+        {/* 宠物商店弹窗 */}
+        {showPetShop && (
+          <div 
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+            onClick={() => setShowPetShop(false)}
+          >
+            <div 
+              className="max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="relative">
+                <button
+                  onClick={() => setShowPetShop(false)}
+                  className="absolute top-4 right-4 z-10 w-10 h-10 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow-lg transition-all"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+                <PetShop />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

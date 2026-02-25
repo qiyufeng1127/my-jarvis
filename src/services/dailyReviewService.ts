@@ -5,7 +5,6 @@
 import { useTaskStore } from '@/stores/taskStore';
 import { useGoalStore } from '@/stores/goalStore';
 import { useMemoryStore } from '@/stores/memoryStore';
-import { useBadHabitStore } from '@/stores/badHabitStore';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
 import { useUserProfileStore } from '@/stores/userProfileStore';
 
@@ -245,24 +244,11 @@ export class DailyReviewService {
   }
   
   /**
-   * 分析坏习惯
+   * 分析坏习惯 - 暂时返回空数组，等待原有坏习惯系统集成
    */
   private static analyzeBadHabits(date: Date): BadHabitRecord[] {
-    const habits = useBadHabitStore.getState().habits;
-    
-    return habits.map(habit => {
-      const todayOccurrences = habit.occurrences.filter(occ =>
-        this.isSameDay(new Date(occ.occurredAt), date)
-      );
-      
-      return {
-        habitName: habit.name,
-        occurrences: todayOccurrences.length,
-        triggerScenarios: habit.triggerScenarios,
-        impact: habit.severity > 3 ? '影响较大' : '影响一般',
-        suggestion: this.getHabitSuggestion(habit.name, todayOccurrences.length),
-      };
-    }).filter(h => h.occurrences > 0);
+    // TODO: 集成原有的坏习惯系统
+    return [];
   }
   
   /**
@@ -305,9 +291,7 @@ export class DailyReviewService {
       behaviorPatterns.push('今天工作时间较长，注意劳逸结合');
     }
     
-    if (todayProfile.badHabitMonitor.length > 0) {
-      behaviorPatterns.push(`今天出现了${todayProfile.badHabitMonitor.length}个坏习惯，需要注意`);
-    }
+
     
     // 效率分析
     const efficiencyAnalysis = completionRate > 0.7
@@ -383,29 +367,10 @@ export class DailyReviewService {
       });
     }
     
-    // 改进建议3：坏习惯
-    if (todayProfile.badHabitMonitor.length > 0) {
-      const worstHabit = todayProfile.badHabitMonitor[0];
-      improvements.push({
-        id: '3',
-        priority: 4,
-        category: '习惯养成',
-        title: `改善「${worstHabit.habitName}」习惯`,
-        problem: `今天「${worstHabit.habitName}」出现了${worstHabit.occurrences}次`,
-        solution: '识别触发场景，准备替代行为',
-        actionSteps: [
-          `记录每次「${worstHabit.habitName}」发生的时间和场景`,
-          '准备3个替代行为（如深呼吸、喝水、散步）',
-          '当触发场景出现时，立即执行替代行为',
-        ],
-        expectedResult: '坏习惯发生频率降低50%',
-      });
-    }
-    
-    // 改进建议4：情绪管理
+    // 改进建议3：情绪管理
     if (todayProfile.emotionCurve.length === 0) {
       improvements.push({
-        id: '4',
+        id: '3',
         priority: 3,
         category: '情绪管理',
         title: '增加情绪觉察',
@@ -420,11 +385,11 @@ export class DailyReviewService {
       });
     }
     
-    // 改进建议5：目标推进
+    // 改进建议4：目标推进
     const goals = useGoalStore.getState().goals;
     if (goals.length > 0) {
       improvements.push({
-        id: '5',
+        id: '4',
         priority: 4,
         category: '目标推进',
         title: '每天至少推进一个长期目标',
@@ -439,7 +404,7 @@ export class DailyReviewService {
       });
     }
     
-    return improvements.slice(0, 5);
+    return improvements.slice(0, 4);
   }
   
   /**

@@ -14,6 +14,10 @@ import DesignSystemDemo from '@/pages/DesignSystemDemo';
 // 通知系统
 import NotificationToast from '@/components/notifications/NotificationToast';
 
+// 新手引导和游戏系统
+import { OnboardingTutorial } from '@/components/onboarding/OnboardingTutorial';
+import { GameSystemPanel } from '@/components/game/GameSystemPanel';
+
 function App() {
   const { initializeUser } = useUserStore();
   const { effectiveTheme, updateEffectiveTheme } = useThemeStore();
@@ -65,6 +69,35 @@ function App() {
       await backgroundNotificationService.initialize();
       console.log('🔔 后台通知服务已启动');
       
+      // 🎯 启动驱动力系统
+      const { dailyCostService } = await import('@/services/dailyCostService');
+      const costResult = await dailyCostService.checkDailyCost();
+      if (costResult.isBankrupt) {
+        console.log('💸 检测到破产状态，需要完成紧急任务');
+      }
+      dailyCostService.startPeriodicCheck();
+      console.log('🎯 驱动力系统已启动');
+      
+      // 🔔 启动连胜提醒服务
+      const { streakReminderService } = await import('@/services/streakReminderService');
+      streakReminderService.start();
+      console.log('🔔 连胜提醒服务已启动');
+      
+      // 🐾 启动宠物状态更新服务
+      const { petUpdateService } = await import('@/services/petUpdateService');
+      petUpdateService.start();
+      console.log('🐾 宠物状态更新服务已启动');
+      
+      // 🏪 初始化宠物商店
+      const { usePetStore } = await import('@/stores/petStore');
+      usePetStore.getState().initializeShop();
+      console.log('🏪 宠物商店已初始化');
+      
+      // 🏆 检查成就
+      const { useLeaderboardStore } = await import('@/stores/leaderboardStore');
+      useLeaderboardStore.getState().checkAchievements();
+      console.log('🏆 成就系统已初始化');
+      
       console.log('✅ 应用初始化完成（纯本地模式）');
     };
 
@@ -112,6 +145,12 @@ function App() {
       <div className="min-h-screen bg-white dark:bg-black transition-colors">
         {/* 全局通知系统 */}
         <NotificationToast />
+        
+        {/* 新手引导 */}
+        <OnboardingTutorial />
+        
+        {/* 游戏系统面板 */}
+        <GameSystemPanel />
         
         <Routes>
           {/* 主控面板 */}
