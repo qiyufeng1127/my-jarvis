@@ -90,6 +90,61 @@ async function recognizeImage(imageBase64: string, accessToken: string): Promise
   }
 }
 
+// 关键词映射表
+const KEYWORD_MAPPING: Record<string, string[]> = {
+  '厨房': ['厨房', '灶台', '炉灶', '油烟机', '橱柜', '厨具', '锅', '碗', '盘子', '筷子'],
+  '水槽': ['水槽', '洗碗池', '水龙头', '洗涤', '厨房'],
+  '厕所': ['厕所', '卫生间', '洗手间', '马桶', '洗手台', '浴室', '淋浴'],
+  '马桶': ['马桶', '坐便器', '卫生间', '厕所', '便池'],
+  '卧室': ['卧室', '床', '被子', '枕头', '衣柜', '床头柜'],
+  '床': ['床', '床铺', '被子', '枕头', '床单', '卧室'],
+  '书桌': ['书桌', '办公桌', '桌子', '电脑桌'],
+  '电脑': ['电脑', '笔记本电脑', '台式机', '显示器', '键盘', '鼠标'],
+};
+
+/**
+ * 匹配关键词
+ */
+function matchKeywords(recognizedObjects: string[], targetKeywords: string[]): {
+  matched: boolean;
+  matchedKeywords: string[];
+  recognizedObjects: string[];
+} {
+  console.log('🔍 [Serverless] 开始匹配关键词');
+  console.log('🎯 [Serverless] 目标关键词:', targetKeywords);
+  console.log('📝 [Serverless] 识别到的物体:', recognizedObjects);
+
+  const matchedKeywords: string[] = [];
+
+  for (const keyword of targetKeywords) {
+    // 获取扩展关键词
+    const expandedKeywords = KEYWORD_MAPPING[keyword] || [keyword];
+    console.log(`🔍 [Serverless] 检查关键词 "${keyword}"，扩展为:`, expandedKeywords);
+
+    // 检查是否有任何识别到的物体匹配扩展关键词
+    for (const recognized of recognizedObjects) {
+      for (const expanded of expandedKeywords) {
+        if (recognized.includes(expanded) || expanded.includes(recognized)) {
+          console.log(`✅ [Serverless] 匹配成功: "${recognized}" 匹配 "${expanded}"`);
+          matchedKeywords.push(keyword);
+          break;
+        }
+      }
+      if (matchedKeywords.includes(keyword)) break;
+    }
+  }
+
+  const matched = matchedKeywords.length > 0;
+  console.log(`🎯 [Serverless] 匹配结果: ${matched ? '成功' : '失败'}`);
+  console.log(`📊 [Serverless] 匹配到的关键词:`, matchedKeywords);
+
+  return {
+    matched,
+    matchedKeywords,
+    recognizedObjects,
+  };
+}
+
 /**
  * Serverless Function入口
  */
@@ -108,28 +163,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ 
       success: false, 
-      error: '只允许POST请求' 
+      message: '只允许POST请求' 
     });
   }
 
   try {
-    const { imageBase64, apiKey, secretKey } = req.body;
+    // 兼容两种参数名：image 和 imageBase64
+    const { image, imageBase64, keywords, apiKey, secretKey } = req.body;
+    const imageData = image || imageBase64;
 
     console.log('🚀 [Serverless] 收到图像识别请求');
     console.log('📦 [Serverless] 请求参数:', {
-      hasImageBase64: !!imageBase64,
-      imageBase64Length: imageBase64?.length || 0,
+      hasImage: !!imageData,
+      imageLength: imageData?.length || 0,
+      keywords: keywords,
       hasApiKey: !!apiKey,
       hasSecretKey: !!secretKey,
       apiKeyPrefix: apiKey ? apiKey.substring(0, 8) + '...' : '未提供',
     });
 
     // 验证必需参数
-    if (!imageBase64) {
+    if (!imageData) {
       console.error('❌ [Serverless] 缺少图片数据');
       return res.status(400).json({ 
         success: false, 
-        error: '缺少图片数据' 
+        message: '缺少图片数据' 
+      });
+    }
+
+    if (!keywords || !Array.isArray(keywords) || keywords.length === 0) {
+      console.error('❌ [Serverless] 缺少关键词');
+      return res.status(400).json({ 
+        success: false, 
+        message: '缺少关键词' 
       });
     }
 
@@ -137,7 +203,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.error('❌ [Serverless] 缺少API密钥配置');
       return res.status(400).json({ 
         success: false, 
-        error: '缺少API密钥配置' 
+        message: '缺少API密钥配置' 
       });
     }
 
@@ -150,14 +216,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // 2. 调用图像识别API
     console.log('📸 [Serverless] 步骤2: 调用图像识别API');
-    const recognitionResult = await recognizeImage(imageBase64, accessToken);
+    const recognitionResult = await recognizeImage(imageData, accessToken);
     console.log('✅ [Serverless] 图像识别完成');
 
-    // 3. 返回结果
+    // 3. 提取识别到的物体名称
+    const recognizedObjects = recognitionResult.result?.map((item: any) => item.keyword) || [];
+    console.log('📝 [Serverless] 识别到的物体:', recognizedObjects);
+
+    // 4. 匹配关键词
+    console.log('🔍 [Serverless] 步骤3: 匹配关键词');
+    const matchResult = matchKeywords(recognizedObjects, keywords);
+
+    // 5. 返回结果
     console.log('📤 [Serverless] 返回识别结果');
     return res.status(200).json({
-      success: true,
-      data: recognitionResult,
+      success: matchResult.matched,
+      message: matchResult.matched 
+        ? `验证成功！识别到：${matchResult.matchedKeywords.join('、')}` 
+        : `验证失败，未识别到：${keywords.join('、')}`,
+      matchedKeywords: matchResult.matchedKeywords,
+      recognizedObjects: matchResult.recognizedObjects,
+      rawData: recognitionResult,
     });
 
   } catch (error) {
@@ -168,7 +247,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
     return res.status(500).json({
       success: false,
-      error: errorMessage,
+      message: errorMessage,
     });
   }
 }

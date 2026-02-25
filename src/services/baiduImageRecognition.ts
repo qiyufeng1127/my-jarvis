@@ -641,6 +641,8 @@ class BaiduImageRecognitionService {
         let matched = false;
         let matchReason = '';
         
+        console.log(`🔍 [匹配检查] 开始检查关键词: "${required}"`);
+        
         // 遍历所有识别到的关键词，进行宽松匹配
         for (const recognized of recognizedKeywords) {
           const recognizedLower = recognized.toLowerCase().trim();
@@ -649,6 +651,7 @@ class BaiduImageRecognitionService {
           if (recognizedLower.includes(requiredLower) || requiredLower.includes(recognizedLower)) {
             matched = true;
             matchReason = `识别到"${recognized}"`;
+            console.log(`✅ [匹配检查] 策略1成功: "${required}" 匹配到 "${recognized}"`);
             break;
           }
           
@@ -661,6 +664,7 @@ class BaiduImageRecognitionService {
               if (recWord.includes(reqWord) || reqWord.includes(recWord)) {
                 matched = true;
                 matchReason = `识别到"${recognized}"`;
+                console.log(`✅ [匹配检查] 策略2成功: "${reqWord}" 匹配到 "${recWord}" (来自"${recognized}")`);
                 break;
               }
             }
@@ -672,10 +676,12 @@ class BaiduImageRecognitionService {
           // 策略3: 同义词匹配
           for (const reqWord of requiredWords) {
             const syns = synonyms[reqWord] || [];
+            console.log(`🔍 [匹配检查] 检查同义词: "${reqWord}" -> [${syns.slice(0, 5).join(', ')}...]`);
             for (const syn of syns) {
               if (recognizedLower.includes(syn)) {
                 matched = true;
                 matchReason = `识别到"${recognized}"（与"${required}"相关）`;
+                console.log(`✅ [匹配检查] 策略3成功: "${reqWord}" 通过同义词 "${syn}" 匹配到 "${recognized}"`);
                 break;
               }
             }
@@ -688,9 +694,12 @@ class BaiduImageRecognitionService {
         if (matched) {
           matchedKeywords.push(required);
           matchDetails.push(`✅ "${required}" - ${matchReason}`);
+          console.log(`✅ [匹配检查] "${required}" 最终匹配成功`);
         } else {
           unmatchedKeywords.push(required);
           matchDetails.push(`❌ "${required}" - 未识别到`);
+          console.log(`❌ [匹配检查] "${required}" 最终匹配失败`);
+          console.log(`❌ [匹配检查] 识别到的所有关键词:`, recognizedKeywords.slice(0, 20));
           
           // 给出具体的拍摄建议
           const tips = shootingTips[requiredLower] || [`拍摄包含"${required}"的照片`];
@@ -704,8 +713,17 @@ class BaiduImageRecognitionService {
       
       const matchRate = matchedKeywords.length / requiredKeywords.length;
       
+      console.log('🔍 [验证判断] 开始判断验证结果:', {
+        识别到的关键词数量: allKeywords.length,
+        要求的关键词: requiredKeywords,
+        匹配到的关键词: matchedKeywords,
+        未匹配的关键词: unmatchedKeywords,
+        匹配率: `${(matchRate * 100).toFixed(0)}%`,
+      });
+      
       if (allKeywords.length === 0) {
         // 完全没识别到内容 - 不通过，给出建议
+        console.log('❌ [验证判断] 未识别到任何内容，验证失败');
         success = false;
         finalDescription = `❌ 验证未通过\n\n图片内容过于模糊，未能识别到任何内容。\n\n请重新拍摄，确保：\n• 光线充足\n• 目标清晰\n• 包含以下内容：${requiredKeywords.join('、')}`;
         
@@ -716,6 +734,7 @@ class BaiduImageRecognitionService {
         }
       } else if (matchedKeywords.length > 0) {
         // ✅ 匹配到至少一个关键词 - 通过验证
+        console.log('✅ [验证判断] 匹配到关键词，验证通过');
         success = true;
         if (matchedKeywords.length === requiredKeywords.length) {
           finalDescription = `✅ 验证通过！\n\n图片内容完全符合要求：${matchedKeywords.join('、')}`;
@@ -724,6 +743,10 @@ class BaiduImageRecognitionService {
         }
       } else {
         // ❌ 没有匹配到任何关键词 - 验证失败
+        console.log('❌ [验证判断] 未匹配到任何关键词，验证失败');
+        console.log('❌ [验证判断] 要求:', requiredKeywords);
+        console.log('❌ [验证判断] 识别到:', allKeywords.slice(0, 20));
+        
         success = false;
         const recognizedText = allKeywords.length > 0 
           ? allKeywords.slice(0, 8).join('、') 
@@ -738,7 +761,7 @@ class BaiduImageRecognitionService {
         }
       }
 
-      console.log('✅ 严格验证结果:', {
+      console.log('✅ 最终验证结果:', {
         success,
         matchedKeywords,
         unmatchedKeywords,

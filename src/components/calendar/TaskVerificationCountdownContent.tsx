@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useGoldStore } from '@/stores/goldStore';
-import { baiduImageRecognition } from '@/services/baiduImageRecognition';
 import { ImageUploader } from '@/services/taskVerificationService';
 import { notificationService } from '@/services/notificationService';
 import VerificationFeedback, { VerificationLog } from '@/components/shared/VerificationFeedback';
@@ -368,15 +367,14 @@ export default function TaskVerificationCountdownContent({
       }
       
       try {
-        console.log('📷 [百度API] 开始识别');
-        console.log('📷 [百度API] 关键词:', startKeywords);
-        console.log('📷 [百度API] 阈值: 0.05 (5% - 超级宽松)');
+        console.log('📷 [Vercel API] 开始识别');
+        console.log('📷 [Vercel API] 关键词:', startKeywords);
         setVerificationMessage('📤 正在上传图片...');
         
         // 检查百度API配置
         const apiKey = localStorage.getItem('baidu_api_key');
         const secretKey = localStorage.getItem('baidu_secret_key');
-        console.log('📷 [百度API] 配置检查:', {
+        console.log('📷 [Vercel API] 配置检查:', {
           hasApiKey: !!apiKey,
           hasSecretKey: !!secretKey,
           apiKeyLength: apiKey?.length || 0,
@@ -386,50 +384,60 @@ export default function TaskVerificationCountdownContent({
           throw new Error('百度API未配置');
         }
         
-        // 添加超时控制：30秒超时（增加超时时间，避免网络慢导致超时）
+        // 添加超时控制：30秒超时
         const timeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(() => {
-            console.error('❌ [百度API] 验证超时（30秒）');
+            console.error('❌ [Vercel API] 验证超时（30秒）');
             reject(new Error('TIMEOUT'));
           }, 30000);
         });
         
-        // 1. 压缩并上传图片
-        const compressedFile = await ImageUploader.compressImage(file);
-        setVerificationMessage('📤 图片上传中...');
+        // 1. 将图片转换为 base64
+        const reader = new FileReader();
+        const imageBase64 = await new Promise<string>((resolve, reject) => {
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
         
-        const uploadedImageUrl = await ImageUploader.uploadImage(compressedFile);
+        setVerificationMessage('🔗 正在连接百度AI...');
         
-        if (!uploadedImageUrl) {
-          setVerificationMessage('❌ 照片上传失败，请重新拍摄');
-          setVerificationSuccess(false);
-          setIsUploading(false);
-          console.log('❌ [百度API] 照片上传失败');
-          return;
-        }
-        
-        // 2. 调用百度API验证（阈值设为0.05，更宽松的匹配）
-        // 使用Promise.race实现超时控制
+        // 2. 调用 Vercel Serverless API 验证
         const verifyResult = await Promise.race([
           (async () => {
-            setVerificationMessage('🔗 正在连接百度AI...');
-            await new Promise(resolve => setTimeout(resolve, 300)); // 短暂延迟，让用户看到状态
-            
             setVerificationMessage('🤖 百度AI识别中...');
-            const result = await baiduImageRecognition.smartVerifyImage(
-              file,
-              startKeywords,
-              0.05  // 降低阈值到0.05（5%），更容易通过验证
-            );
+            
+            console.log('📷 [Vercel API] 调用 /api/baidu-image-recognition');
+            const response = await fetch('/api/baidu-image-recognition', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                image: imageBase64,
+                keywords: startKeywords,
+                apiKey: apiKey,
+                secretKey: secretKey,
+              }),
+            });
+            
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error('❌ [Vercel API] 请求失败:', response.status, errorText);
+              throw new Error(`API请求失败: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            console.log('📷 [Vercel API] 返回结果:', result);
             
             setVerificationMessage('✨ AI分析完成，正在匹配关键词...');
-            await new Promise(resolve => setTimeout(resolve, 300)); // 短暂延迟
+            await new Promise(resolve => setTimeout(resolve, 300));
             return result;
           })(),
           timeoutPromise
         ]) as any;
         
-        console.log('📷 [百度API] 验证结果:', verifyResult);
+        console.log('📷 [Vercel API] 验证结果:', verifyResult);
         
         if (!verifyResult.success) {
           // 验证失败：扣金币，返回倒计时，重置为2分钟
@@ -449,13 +457,10 @@ export default function TaskVerificationCountdownContent({
           saveState(newState);
           
           // 显示验证失败消息
-          setVerificationMessage(verifyResult.description || `❌ 验证未通过（需包含：${startKeywords.join('、')}）`);
+          setVerificationMessage(verifyResult.message || `❌ 验证未通过（需包含：${startKeywords.join('、')}）`);
           setVerificationSuccess(false);
           
-          console.log(`❌ [百度API] 识别失败:`, verifyResult.matchDetails);
-          if (verifyResult.suggestions) {
-            console.log('💡 拍摄建议:', verifyResult.suggestions.join('\n'));
-          }
+          console.log(`❌ [Vercel API] 识别失败:`, verifyResult);
           
           // 🔧 修复：立即结束上传状态，返回倒计时界面
           setIsUploading(false);
@@ -474,11 +479,11 @@ export default function TaskVerificationCountdownContent({
         const duration = Math.floor((new Date(scheduledEnd).getTime() - new Date(scheduledStart).getTime()) / 60000);
         const taskSeconds = duration * 60;
         
-        const recognizedItems = verifyResult.matchedKeywords?.join('、') || '相关内容';
+        const recognizedItems = verifyResult.matchedKeywords?.join('、') || verifyResult.recognizedObjects?.join('、') || '相关内容';
         setVerificationMessage(`✅ 验证成功！已识别到：${recognizedItems}`);
         setVerificationSuccess(true);
-        console.log(`✅ [百度API] 识别成功，匹配关键词：${recognizedItems}`);
-        console.log('📝 详细匹配信息:', verifyResult.matchDetails);
+        console.log(`✅ [Vercel API] 识别成功，匹配关键词：${recognizedItems}`);
+        console.log('📝 详细匹配信息:', verifyResult);
         
         // 2分钟内完成启动，奖励50%金币
         const bonusGold = Math.floor(goldReward * 0.5);
@@ -513,7 +518,7 @@ export default function TaskVerificationCountdownContent({
         }, 2000);
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : '未知错误';
-        console.error('❌ [百度API] 验证异常:', error);
+        console.error('❌ [Vercel API] 验证异常:', error);
         
         // 🔧 修复：验证异常时，立即返回启动倒计时状态，重置为2分钟
         const newDeadline = new Date(Date.now() + 2 * 60 * 1000);
@@ -648,20 +653,17 @@ export default function TaskVerificationCountdownContent({
       }
       
       try {
-        console.log('📷 [百度API] 开始识别');
-        console.log('📷 [百度API] 关键词:', completeKeywords);
+        console.log('📷 [Vercel API] 开始识别');
+        console.log('📷 [Vercel API] 关键词:', completeKeywords);
         
         // 检查百度API配置
         const apiKey = localStorage.getItem('baidu_api_key');
         const secretKey = localStorage.getItem('baidu_secret_key');
-        const savedThreshold = localStorage.getItem('baidu_verification_threshold');
-        const threshold = savedThreshold ? parseFloat(savedThreshold) : 0.3;
         
-        console.log('📷 [百度API] 配置检查:', {
+        console.log('📷 [Vercel API] 配置检查:', {
           hasApiKey: !!apiKey,
           hasSecretKey: !!secretKey,
           apiKeyLength: apiKey?.length || 0,
-          threshold: `${(threshold * 100).toFixed(0)}%`,
         });
         
         if (!apiKey || !secretKey) {
@@ -669,56 +671,62 @@ export default function TaskVerificationCountdownContent({
         }
         
         setVerificationMessage('📤 正在上传图片...');
-        console.log('📷 [百度API] 开始识别');
-        setVerificationMessage('📤 正在上传图片...');
         
-        // 添加超时控制：30秒超时（增加超时时间，避免网络慢导致超时）
+        // 添加超时控制：30秒超时
         const timeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(() => {
-            console.error('❌ [百度API] 验证超时（30秒）');
+            console.error('❌ [Vercel API] 验证超时（30秒）');
             reject(new Error('TIMEOUT'));
           }, 30000);
         });
         
-        // 1. 压缩并上传图片
-        const compressedFile = await ImageUploader.compressImage(file);
-        setVerificationMessage('📤 图片上传中...');
-        
-        const uploadedImageUrl = await ImageUploader.uploadImage(compressedFile);
-        
-        if (!uploadedImageUrl) {
-          setVerificationMessage('❌ 照片上传失败，请重新拍摄');
-          setVerificationSuccess(false);
-          setIsUploading(false);
-          console.log('❌ [百度API] 照片上传失败');
-          return;
-        }
+        // 1. 将图片转换为 base64
+        const reader = new FileReader();
+        const imageBase64 = await new Promise<string>((resolve, reject) => {
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
         
         setVerificationMessage('🔗 正在连接百度AI...');
         
-        // 2. 调用百度API验证（阈值设为0.05，更宽松的匹配）
-        // 使用Promise.race实现超时控制
-        console.log(`🎯 [百度API] 使用验证阈值: 5%（宽松模式）`);
-        
+        // 2. 调用 Vercel Serverless API 验证
         const verifyResult = await Promise.race([
           (async () => {
             setVerificationMessage('🤖 百度AI识别中...');
-            await new Promise(resolve => setTimeout(resolve, 300)); // 短暂延迟
+            await new Promise(resolve => setTimeout(resolve, 300));
             
-            const result = await baiduImageRecognition.smartVerifyImage(
-              file,
-              completeKeywords,
-              0.05  // 降低阈值到0.05（5%），更容易通过验证
-            );
+            console.log('📷 [Vercel API] 调用 /api/baidu-image-recognition');
+            const response = await fetch('/api/baidu-image-recognition', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                image: imageBase64,
+                keywords: completeKeywords,
+                apiKey: apiKey,
+                secretKey: secretKey,
+              }),
+            });
+            
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error('❌ [Vercel API] 请求失败:', response.status, errorText);
+              throw new Error(`API请求失败: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            console.log('📷 [Vercel API] 返回结果:', result);
             
             setVerificationMessage('✨ AI分析完成，正在匹配关键词...');
-            await new Promise(resolve => setTimeout(resolve, 300)); // 短暂延迟
+            await new Promise(resolve => setTimeout(resolve, 300));
             return result;
           })(),
           timeoutPromise
         ]) as any;
         
-        console.log('📷 [百度API] 验证结果:', verifyResult);
+        console.log('📷 [Vercel API] 验证结果:', verifyResult);
         
         if (!verifyResult.success) {
           // 验证失败：扣金币，返回倒计时，重置为10分钟
@@ -738,13 +746,10 @@ export default function TaskVerificationCountdownContent({
           saveState(newState);
           
           // 显示验证失败消息
-          setVerificationMessage(verifyResult.description || `❌ 验证未通过（需包含：${completeKeywords.join('、')}）`);
+          setVerificationMessage(verifyResult.message || `❌ 验证未通过（需包含：${completeKeywords.join('、')}）`);
           setVerificationSuccess(false);
           
-          console.log(`❌ [百度API] 识别失败:`, verifyResult.matchDetails);
-          if (verifyResult.suggestions) {
-            console.log('💡 拍摄建议:', verifyResult.suggestions.join('\n'));
-          }
+          console.log(`❌ [Vercel API] 识别失败:`, verifyResult);
           
           // 🔧 修复：立即结束上传状态，返回倒计时界面
           setIsUploading(false);
@@ -761,11 +766,11 @@ export default function TaskVerificationCountdownContent({
         // 3. 验证成功，自动完成任务
         const now = new Date();
         
-        const recognizedItems = verifyResult.matchedKeywords?.join('、') || '相关内容';
+        const recognizedItems = verifyResult.matchedKeywords?.join('、') || verifyResult.recognizedObjects?.join('、') || '相关内容';
         setVerificationMessage(`✅ 验证成功！已识别到：${recognizedItems}`);
         setVerificationSuccess(true);
-        console.log(`✅ [百度API] 识别成功，匹配关键词：${recognizedItems}`);
-        console.log('📝 详细匹配信息:', verifyResult.matchDetails);
+        console.log(`✅ [Vercel API] 识别成功，匹配关键词：${recognizedItems}`);
+        console.log('📝 详细匹配信息:', verifyResult);
         
         // 🎯 动态更新完成时间：如果提前完成，使用当前时间作为结束时间
         const scheduledEndTime = new Date(scheduledEnd);
@@ -844,7 +849,7 @@ export default function TaskVerificationCountdownContent({
         }, 2000);
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : '未知错误';
-        console.error('❌ [百度API] 验证异常:', error);
+        console.error('❌ [Vercel API] 验证异常:', error);
         
         // 🔧 修复：验证异常时，立即返回任务倒计时状态，重置为10分钟
         const newDeadline = new Date(Date.now() + 10 * 60 * 1000);
