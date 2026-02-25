@@ -101,10 +101,24 @@ class BaiduImageRecognitionService {
   }
 
   /**
-   * 获取Access Token
+   * 检测是否在生产环境（Vercel部署）
+   */
+  private isProduction(): boolean {
+    return window.location.hostname.includes('vercel.app') || 
+           window.location.hostname.includes('your-domain.com') ||
+           import.meta.env.PROD;
+  }
+
+  /**
+   * 获取Access Token（生产环境不需要，直接通过Serverless API）
    */
   private async getAccessToken(): Promise<string> {
-    // 检查缓存的token是否还有效
+    // 生产环境不需要单独获取token，Serverless API会处理
+    if (this.isProduction()) {
+      return 'not-needed-in-production';
+    }
+
+    // 开发环境：检查缓存的token是否还有效
     if (this.accessToken) {
       const now = Date.now();
       const tokenAge = now - this.accessToken.timestamp;
@@ -130,7 +144,7 @@ class BaiduImageRecognitionService {
       console.warn('读取缓存token失败:', error);
     }
 
-    // 获取新token - 通过Vite代理避免CORS
+    // 开发环境：获取新token - 通过Vite代理避免CORS
     const url = `/baidu-api/oauth/2.0/token?grant_type=client_credentials&client_id=${this.apiKey}&client_secret=${this.secretKey}`;
     
     try {
@@ -194,10 +208,54 @@ class BaiduImageRecognitionService {
     }
 
     try {
-      const accessToken = await this.getAccessToken();
       const base64Image = await this.fileToBase64(file);
 
-      // 通过Vite代理访问百度API
+      // 生产环境：使用Serverless API
+      if (this.isProduction()) {
+        console.log('☁️ [生产环境] 使用Serverless API');
+        
+        const response = await fetch('/api/baidu-image-recognition', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            imageBase64: `data:image/jpeg;base64,${base64Image}`,
+            apiKey: this.apiKey,
+            secretKey: this.secretKey,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `API调用失败: ${response.status}`);
+        }
+
+        const result = await response.json();
+        
+        if (!result.success) {
+          throw new Error(result.error || 'API返回失败');
+        }
+
+        const data: BaiduImageResult = result.data;
+
+        if (data.result && data.result.length > 0) {
+          const keywords = data.result
+            .filter(item => item.score > 0.01)
+            .map(item => item.keyword);
+          
+          console.log('🔍 百度AI识别结果 (共' + keywords.length + '个):', keywords);
+          
+          return keywords;
+        }
+
+        console.warn('⚠️ 百度AI未识别到任何内容');
+        return [];
+      }
+
+      // 开发环境：通过Vite代理访问百度API
+      console.log('💻 [开发环境] 使用Vite代理');
+      const accessToken = await this.getAccessToken();
       const url = `/baidu-api/rest/2.0/image-classify/v2/advanced_general?access_token=${accessToken}`;
 
       const response = await fetch(url, {
@@ -215,7 +273,6 @@ class BaiduImageRecognitionService {
       const data: BaiduImageResult = await response.json();
 
       if (data.result && data.result.length > 0) {
-        // 大幅降低置信度阈值到0.01，获取更多识别结果
         const keywords = data.result
           .filter(item => item.score > 0.01)
           .map(item => item.keyword);
@@ -248,9 +305,16 @@ class BaiduImageRecognitionService {
     }
 
     try {
-      const accessToken = await this.getAccessToken();
       const base64Image = await this.fileToBase64(file);
 
+      // 生产环境：暂时跳过场景识别（可选功能）
+      if (this.isProduction()) {
+        console.log('⚠️ [生产环境] 场景识别暂不支持，跳过');
+        return [];
+      }
+
+      // 开发环境
+      const accessToken = await this.getAccessToken();
       const url = `/baidu-api/rest/2.0/image-classify/v1/classify/scene?access_token=${accessToken}`;
 
       const response = await fetch(url, {
@@ -293,9 +357,16 @@ class BaiduImageRecognitionService {
     }
 
     try {
-      const accessToken = await this.getAccessToken();
       const base64Image = await this.fileToBase64(file);
 
+      // 生产环境：暂时跳过物体检测（可选功能）
+      if (this.isProduction()) {
+        console.log('⚠️ [生产环境] 物体检测暂不支持，跳过');
+        return [];
+      }
+
+      // 开发环境
+      const accessToken = await this.getAccessToken();
       const url = `/baidu-api/rest/2.0/image-classify/v1/object_detect?access_token=${accessToken}`;
 
       const response = await fetch(url, {
