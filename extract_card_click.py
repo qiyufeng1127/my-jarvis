@@ -7,3 +7,5 @@ with open('w:/001jiaweis/22222/temp_card_click.txt', 'w', encoding='utf-8') as o
     
 print('Saved lines 2190-2210')
 
+
+

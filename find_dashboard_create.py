@@ -6,3 +6,5 @@ for i, line in enumerate(lines):
     if 'TaskCreate' in line or 'taskCreate' in line:
         print(f'{i+1}: {line.rstrip()[:150]}')
 
+
+

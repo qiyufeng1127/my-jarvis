@@ -11,3 +11,5 @@ for i, line in enumerate(lines):
     if 'setEditingTask' in line:
         print(f'{i+1}: {line.rstrip()[:150]}')
 
+
+

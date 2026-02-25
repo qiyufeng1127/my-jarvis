@@ -6,3 +6,5 @@ for i, line in enumerate(lines):
     if 'completed' in line and ('status' in line or 'Status' in line):
         print(f'{i+1}: {line.rstrip()[:120]}')
 
+
+

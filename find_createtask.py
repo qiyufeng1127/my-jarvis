@@ -10,3 +10,5 @@ for i, line in enumerate(lines):
             if i+j < len(lines):
                 print(f'{i+j+1}: {lines[i+j].rstrip()}')
 
+
+
