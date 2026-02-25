@@ -43,21 +43,21 @@ export default function TaskCompletionCelebration({
 
     // 4. 1.8秒后开始淡出
     const fadeTimer = setTimeout(() => {
+      console.log('🎉 庆祝特效开始淡出');
       setVisible(false);
     }, 1800);
 
     // 5. 2秒后完全关闭
     const closeTimer = setTimeout(() => {
-      if (onComplete) {
-        onComplete();
-      }
+      console.log('🎉 庆祝特效完全关闭，调用 onComplete');
+      onComplete?.();
     }, 2000);
 
     return () => {
       clearTimeout(fadeTimer);
       clearTimeout(closeTimer);
     };
-  }, [goldAmount, onComplete]);
+  }, [onComplete]);
 
   return (
     <div 

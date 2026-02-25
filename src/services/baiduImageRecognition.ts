@@ -217,7 +217,9 @@ class BaiduImageRecognitionService {
     }
 
     try {
+      console.log('📸 [recognizeGeneral] 开始转换图片为Base64...');
       const base64Image = await this.fileToBase64(file);
+      console.log('✅ [recognizeGeneral] Base64转换完成，长度:', base64Image.length);
 
       // 生产环境：使用Serverless API
       if (this.isProduction()) {
@@ -236,6 +238,9 @@ class BaiduImageRecognitionService {
           secretKeyPrefix: this.secretKey.substring(0, 8) + '...',
         });
         
+        console.log('🚀 [recognizeGeneral] 发送请求...');
+        const fetchStartTime = Date.now();
+        
         const response = await fetch('/api/baidu-image-recognition', {
           method: 'POST',
           headers: {
@@ -244,7 +249,8 @@ class BaiduImageRecognitionService {
           body: JSON.stringify(requestBody),
         });
 
-        console.log('📥 收到响应:', {
+        const fetchTime = ((Date.now() - fetchStartTime) / 1000).toFixed(2);
+        console.log(`📥 [recognizeGeneral] 收到响应，耗时 ${fetchTime} 秒:`, {
           status: response.status,
           statusText: response.statusText,
           ok: response.ok,
@@ -252,23 +258,25 @@ class BaiduImageRecognitionService {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error('❌ API调用失败，响应内容:', errorText);
+          console.error('❌ [recognizeGeneral] API调用失败，响应内容:', errorText);
           
           let errorData;
           try {
             errorData = JSON.parse(errorText);
           } catch {
-            throw new Error(`API调用失败: ${response.status} ${response.statusText}\n响应: ${errorText}`);
+            throw new Error(`API调用失败: ${response.status} ${response.statusText}\n响应: ${errorText.substring(0, 200)}`);
           }
           
           throw new Error(errorData.error || `API调用失败: ${response.status}`);
         }
 
+        console.log('📦 [recognizeGeneral] 解析响应JSON...');
         const result = await response.json();
         
-        console.log('✅ API返回结果:', result);
+        console.log('✅ [recognizeGeneral] API返回结果:', result);
         
         if (!result.success) {
+          console.error('❌ [recognizeGeneral] API返回失败:', result.error);
           throw new Error(result.error || 'API返回失败');
         }
 
@@ -279,12 +287,12 @@ class BaiduImageRecognitionService {
             .filter(item => item.score > 0.01)
             .map(item => item.keyword);
           
-          console.log('🔍 百度AI识别结果 (共' + keywords.length + '个):', keywords);
+          console.log('🔍 [recognizeGeneral] 百度AI识别结果 (共' + keywords.length + '个):', keywords);
           
           return keywords;
         }
 
-        console.warn('⚠️ 百度AI未识别到任何内容');
+        console.warn('⚠️ [recognizeGeneral] 百度AI未识别到任何内容');
         return [];
       }
 
@@ -325,7 +333,11 @@ class BaiduImageRecognitionService {
       console.warn('⚠️ 百度AI未识别到任何内容');
       return [];
     } catch (error) {
-      console.error('❌ 百度图像识别失败:', error);
+      console.error('❌ [recognizeGeneral] 百度图像识别失败:', error);
+      console.error('❌ [recognizeGeneral] 错误详情:', {
+        message: error instanceof Error ? error.message : '未知错误',
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       throw error;
     }
   }
@@ -509,20 +521,34 @@ class BaiduImageRecognitionService {
       console.log('🔍 开始图像识别（宽松模式）...');
       console.log('📝 用户设定的规则关键词:', requiredKeywords);
       
-      const [generalKeywords, sceneKeywords, objectKeywords] = await Promise.all([
-        this.recognizeGeneral(file).catch((err) => {
-          console.error('❌ 通用物体识别失败:', err);
-          return [];
-        }),
-        this.recognizeScene(file).catch((err) => {
-          console.error('❌ 场景识别失败:', err);
-          return [];
-        }),
-        this.detectObjects(file).catch((err) => {
-          console.error('❌ 物体检测失败:', err);
-          return [];
-        }),
+      // 添加超时保护（20秒）
+      const recognitionTimeout = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('图像识别超时（20秒），请检查网络连接或API配置')), 20000);
+      });
+      
+      console.log('📸 开始调用百度AI识别API...');
+      const startTime = Date.now();
+      
+      const [generalKeywords, sceneKeywords, objectKeywords] = await Promise.race([
+        Promise.all([
+          this.recognizeGeneral(file).catch((err) => {
+            console.error('❌ 通用物体识别失败:', err);
+            return [];
+          }),
+          this.recognizeScene(file).catch((err) => {
+            console.error('❌ 场景识别失败:', err);
+            return [];
+          }),
+          this.detectObjects(file).catch((err) => {
+            console.error('❌ 物体检测失败:', err);
+            return [];
+          }),
+        ]),
+        recognitionTimeout
       ]);
+      
+      const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2);
+      console.log(`✅ 识别完成，耗时 ${elapsedTime} 秒`);
       
       console.log('📊 识别结果统计:', {
         通用物体: generalKeywords.length,

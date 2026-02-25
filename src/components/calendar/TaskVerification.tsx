@@ -238,6 +238,11 @@ export default function TaskVerification({
     setVerificationLogs([]);
     addLog('🔍 正在验证中，请稍后...');
 
+    // 添加30秒超时保护
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('验证超时（30秒），请检查网络连接')), 30000);
+    });
+
     try {
       // 如果没有关键词要求，直接通过（向后兼容）
       if (!keywords || keywords.length === 0) {
@@ -279,8 +284,11 @@ export default function TaskVerification({
       
       addLog('📤 图片已准备，开始识别...');
       
-      // 调用百度AI验证 - 使用 smartVerifyImage 方法
-      const result = await baiduImageRecognition.smartVerifyImage(file, keywords, 0.2);
+      // 调用百度AI验证 - 使用 smartVerifyImage 方法，添加超时保护
+      const result = await Promise.race([
+        baiduImageRecognition.smartVerifyImage(file, keywords, 0.2),
+        timeoutPromise
+      ]) as any;
 
       addLog('✅ API调用完成');
       
