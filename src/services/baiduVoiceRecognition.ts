@@ -61,10 +61,24 @@ class BaiduVoiceRecognitionService {
   }
 
   /**
+   * 检测是否在生产环境（Vercel部署）
+   */
+  private isProduction(): boolean {
+    return window.location.hostname.includes('vercel.app') || 
+           window.location.hostname.includes('your-domain.com') ||
+           import.meta.env.PROD;
+  }
+
+  /**
    * 获取 Access Token
    */
   private async getAccessToken(): Promise<string> {
-    // 如果 token 还有效，直接返回
+    // 生产环境不需要单独获取token，Serverless API会处理
+    if (this.isProduction()) {
+      return 'not-needed-in-production';
+    }
+
+    // 开发环境：如果 token 还有效，直接返回
     if (this.accessToken && Date.now() < this.tokenExpireTime) {
       return this.accessToken;
     }
@@ -111,10 +125,60 @@ class BaiduVoiceRecognitionService {
         };
       }
 
-      const token = await this.getAccessToken();
-
       // 将 Blob 转为 Base64
       const base64Audio = await this.blobToBase64(audioBlob);
+
+      // 生产环境：使用Serverless API
+      if (this.isProduction()) {
+        console.log('☁️ [生产环境] 使用Serverless API进行语音识别');
+
+        const response = await fetch('/api/baidu-voice-recognition', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            audioBase64: base64Audio,
+            format,
+            rate,
+            apiKey: this.config!.apiKey,
+            secretKey: this.config!.secretKey,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `API调用失败: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (!result.success) {
+          throw new Error(result.error || 'API返回失败');
+        }
+
+        const data = result.data;
+
+        if (data.err_no === 0 && data.result && data.result.length > 0) {
+          const text = data.result[0];
+          console.log('✅ 语音识别成功:', text);
+          return {
+            success: true,
+            text,
+          };
+        } else {
+          const errorMsg = this.getErrorMessage(data.err_no);
+          console.error('❌ 语音识别失败:', errorMsg);
+          return {
+            success: false,
+            error: errorMsg,
+          };
+        }
+      }
+
+      // 开发环境：直接调用百度API
+      console.log('💻 [开发环境] 直接调用百度语音识别API');
+      const token = await this.getAccessToken();
 
       // 调用百度语音识别API
       const response = await fetch(

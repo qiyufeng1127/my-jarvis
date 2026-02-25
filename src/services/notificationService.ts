@@ -457,7 +457,7 @@ class NotificationService {
   }
 
   /**
-   * 任务即将结束通知 - 增强版
+   * 任务即将结束通知 - 增强版（完全遵循用户设置）
    */
   async notifyTaskEnding(taskTitle: string, minutesLeft: number, hasVerification: boolean = false) {
     console.log('📢 任务即将结束通知:', taskTitle, minutesLeft);
@@ -465,6 +465,12 @@ class NotificationService {
     // 检查设置 - 使用正确的设置项
     if (!this.settings.taskEndBeforeReminder) {
       console.log('⏭️ 任务结束前提醒已关闭');
+      return;
+    }
+
+    // 检查是否匹配用户设置的提醒时间
+    if (minutesLeft !== this.settings.taskEndBeforeMinutes) {
+      console.log(`⏭️ 不匹配用户设置的提醒时间（设置：${this.settings.taskEndBeforeMinutes}分钟，当前：${minutesLeft}分钟）`);
       return;
     }
 
@@ -655,6 +661,75 @@ class NotificationService {
 
     // 3. 急促震动
     this.vibrate([100, 50, 100, 50, 100]);
+
+    // 4. 语音播报
+    this.speak(body);
+  }
+
+  /**
+   * 超时提醒通知
+   */
+  async notifyOvertime(taskTitle: string, type: 'start' | 'completion') {
+    console.log('📢 超时提醒通知:', taskTitle, type);
+
+    // 检查设置
+    if (!this.settings.overtimeReminder) {
+      console.log('⏭️ 超时提醒已关闭');
+      return;
+    }
+
+    const typeText = type === 'start' ? '启动' : '完成';
+    const body = `${taskTitle} ${typeText}超时，请尽快处理！`;
+
+    // 1. 发送浏览器通知
+    if (this.settings.browserNotification) {
+      await this.sendNotification('⏰ 超时提醒', {
+        body,
+        tag: 'overtime',
+        requireInteraction: true,
+        vibrate: [200, 100, 200, 100, 200],
+      });
+    }
+
+    // 2. 播放警告音
+    this.playSound('warning');
+
+    // 3. 震动反馈
+    this.vibrate([200, 100, 200, 100, 200]);
+
+    // 4. 语音播报
+    this.speak(body);
+  }
+
+  /**
+   * 拖延提醒通知
+   */
+  async notifyProcrastination(taskTitle: string, count: number) {
+    console.log('📢 拖延提醒通知:', taskTitle, count);
+
+    // 检查设置
+    if (!this.settings.procrastinationReminder) {
+      console.log('⏭️ 拖延提醒已关闭');
+      return;
+    }
+
+    const body = `${taskTitle} 已拖延 ${count} 次，加油完成吧！`;
+
+    // 1. 发送浏览器通知
+    if (this.settings.browserNotification) {
+      await this.sendNotification('🐢 拖延提醒', {
+        body,
+        tag: 'procrastination',
+        requireInteraction: false,
+        vibrate: [100, 50, 100],
+      });
+    }
+
+    // 2. 播放提示音
+    this.playSound('warning');
+
+    // 3. 震动反馈
+    this.vibrate([100, 50, 100]);
 
     // 4. 语音播报
     this.speak(body);

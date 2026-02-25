@@ -4,6 +4,7 @@ import { baiduImageRecognition } from '@/services/baiduImageRecognition';
 import { ImageUploader } from '@/services/taskVerificationService';
 import { notificationService } from '@/services/notificationService';
 import VerificationFeedback, { VerificationLog } from '@/components/shared/VerificationFeedback';
+import TaskCompletionCelebration from '@/components/shared/TaskCompletionCelebration';
 
 interface TaskVerificationCountdownContentProps {
   taskId: string;
@@ -105,6 +106,8 @@ export default function TaskVerificationCountdownContent({
   const [verificationMessage, setVerificationMessage] = useState<string>('');
   const [verificationSuccess, setVerificationSuccess] = useState<boolean | null>(null);
   const [showBadHabitHistory, setShowBadHabitHistory] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationGold, setCelebrationGold] = useState(0);
   
   // 验证流程日志（用于实时反馈）
   const [verificationLogs, setVerificationLogs] = useState<VerificationLog[]>([]);
@@ -200,8 +203,14 @@ export default function TaskVerificationCountdownContent({
       penaltyGold(penaltyAmount, `启动超时（第${state.startTimeoutCount + 1}次）`, taskId, taskTitle);
       console.log(`⚠️ 启动超时！扣除${penaltyAmount}金币（${state.startTimeoutCount + 1}次）`);
       
-      // 触发语音播报和通知
-      notificationService.notifyVerificationFailed(taskTitle, 'start', `启动超时，已扣除${penaltyAmount}金币`);
+      // 触发超时提醒
+      notificationService.notifyOvertime(taskTitle, 'start');
+      
+      // 触发扣币提醒
+      notificationService.notifyGoldDeducted(`${taskTitle} 启动超时`, penaltyAmount);
+      
+      // 触发拖延提醒
+      notificationService.notifyProcrastination(taskTitle, state.startTimeoutCount + 1);
       
       const newDeadline = new Date(Date.now() + 2 * 60 * 1000); // 重置为2分钟
       const newState = {
@@ -219,8 +228,14 @@ export default function TaskVerificationCountdownContent({
       penaltyGold(penaltyAmount, `完成超时（第${state.completeTimeoutCount + 1}次）`, taskId, taskTitle);
       console.log(`⚠️ 完成超时！扣除${penaltyAmount}金币（${state.completeTimeoutCount + 1}次）`);
       
-      // 触发语音播报和通知
-      notificationService.notifyVerificationFailed(taskTitle, 'completion', `完成超时，已扣除${penaltyAmount}金币`);
+      // 触发超时提醒
+      notificationService.notifyOvertime(taskTitle, 'completion');
+      
+      // 触发扣币提醒
+      notificationService.notifyGoldDeducted(`${taskTitle} 完成超时`, penaltyAmount);
+      
+      // 触发拖延提醒
+      notificationService.notifyProcrastination(taskTitle, state.completeTimeoutCount + 1);
       
       const newDeadline = new Date(Date.now() + 10 * 60 * 1000); // 重置为10分钟
       const newState = {
@@ -241,16 +256,14 @@ export default function TaskVerificationCountdownContent({
     
     const duration = Math.floor((new Date(scheduledEnd).getTime() - new Date(scheduledStart).getTime()) / 60000);
     
-    // 短任务（<10分钟）：最后1分钟提醒
-    if (duration < 10 && taskCountdownLeft === 60) {
-      console.log(`⏰ 任务即将结束（1分钟）: ${taskTitle}`);
-      notificationService.notifyTaskEnding(taskTitle, 1, hasVerification);
-    }
+    // 使用用户设置的提醒时间（从 notificationService 获取）
+    const settings = JSON.parse(localStorage.getItem('notification_settings') || '{}');
+    const reminderMinutes = settings.taskEndBeforeMinutes || 5; // 默认5分钟
     
-    // 长任务（>=10分钟）：最后10分钟提醒
-    if (duration >= 10 && taskCountdownLeft === 600) {
-      console.log(`⏰ 任务即将结束（10分钟）: ${taskTitle}`);
-      notificationService.notifyTaskEnding(taskTitle, 10, hasVerification);
+    // 只在用户设置的时间点提醒
+    if (taskCountdownLeft === reminderMinutes * 60) {
+      console.log(`⏰ 任务即将结束（${reminderMinutes}分钟）: ${taskTitle}`);
+      notificationService.notifyTaskEnding(taskTitle, reminderMinutes, hasVerification);
     }
   }, [state.status, taskCountdownLeft, scheduledStart, scheduledEnd, taskTitle, hasVerification]);
 
@@ -545,6 +558,13 @@ export default function TaskVerificationCountdownContent({
         const bonusGold = Math.floor(goldReward * 0.5);
         addGold(bonusGold, `提前完成任务（奖励50%）`, taskId, taskTitle);
         console.log(`✅ 提前完成任务，获得${bonusGold}金币奖励`);
+        
+        // 显示庆祝特效
+        setCelebrationGold(bonusGold);
+        setShowCelebration(true);
+        
+        // 触发金币获得通知
+        notificationService.notifyGoldEarned(taskTitle, bonusGold);
       }
       
       // 扣除超时惩罚金
@@ -740,6 +760,13 @@ export default function TaskVerificationCountdownContent({
           const bonusGold = Math.floor(goldReward * 0.5);
           addGold(bonusGold, `提前完成任务（奖励50%）`, taskId, taskTitle);
           console.log(`✅ 提前完成任务，获得${bonusGold}金币奖励`);
+          
+          // 显示庆祝特效
+          setCelebrationGold(bonusGold);
+          setShowCelebration(true);
+          
+          // 触发金币获得通知
+          notificationService.notifyGoldEarned(taskTitle, bonusGold);
         }
         
         // 扣除超时惩罚金
@@ -1629,5 +1656,16 @@ export default function TaskVerificationCountdownContent({
   }
 
   // 已完成状态：不显示
-  return null;
+  return (
+    <>
+      {/* 任务完成庆祝特效 */}
+      {showCelebration && (
+        <TaskCompletionCelebration
+          taskTitle={taskTitle}
+          goldAmount={celebrationGold}
+          onComplete={() => setShowCelebration(false)}
+        />
+      )}
+    </>
+  );
 }
