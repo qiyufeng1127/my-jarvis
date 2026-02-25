@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { X, ChevronUp, ChevronDown, Clock, Coins, Plus, MapPin, Settings } from 'lucide-react';
+import { X, ChevronUp, ChevronDown, Clock, Coins, Plus, MapPin, Settings, ArrowUp, ArrowDown } from 'lucide-react';
 import { useGoalStore } from '@/stores/goalStore';
 import { useWorkflowStore } from '@/stores/workflowStore';
+import { useTagStore } from '@/stores/tagStore';
+import { TagLearningService } from '@/services/tagLearningService';
 import { AISmartProcessor } from '@/services/aiSmartService';
 
 interface UnifiedTaskEditorProps {
@@ -31,12 +33,41 @@ export default function UnifiedTaskEditor({
     recordCorrection, 
     sortTasksByWorkflow 
   } = useWorkflowStore();
+  const { addTag, getTagByName, addTagToFolder, getAllFolders } = useTagStore();
 
   // 按动线排序任务
   const sortTasksByLocation = () => {
     const sorted = sortTasksByWorkflow(editingTasks);
     const recalculated = recalculateTaskTimes(sorted, 0);
     setEditingTasks(recalculated);
+  };
+
+  // 上移位置
+  const moveLocationUp = (index: number) => {
+    const locations = getLocations();
+    if (index === 0) return;
+    
+    const newOrder = [...locations];
+    [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
+    
+    // 更新顺序
+    newOrder.forEach((loc, idx) => {
+      updateLocationOrder(loc.id, idx);
+    });
+  };
+
+  // 下移位置
+  const moveLocationDown = (index: number) => {
+    const locations = getLocations();
+    if (index === locations.length - 1) return;
+    
+    const newOrder = [...locations];
+    [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]];
+    
+    // 更新顺序
+    newOrder.forEach((loc, idx) => {
+      updateLocationOrder(loc.id, idx);
+    });
   };
 
   // 重新计算所有任务的时间
@@ -120,6 +151,12 @@ export default function UnifiedTaskEditor({
       
       console.log(`🔄 自动更新: 位置=${newTasks[index].location}, 标签=${newTasks[index].tags.join(',')}, 颜色=${newTasks[index].color}, 时长=${newDuration}分钟, 金币=${newTasks[index].gold}`);
       
+      // 🎓 标签学习：记录用户修改后的标签
+      TagLearningService.learnFromUserChoice(value, newTasks[index].tags);
+      
+      // 🏷️ 自动同步标签到标签管理系统
+      syncTagsToStore(newTasks[index].tags);
+      
       // 从当前任务开始重新计算所有时间
       const recalculated = recalculateTaskTimes(newTasks, index);
       setEditingTasks(recalculated);
@@ -135,6 +172,79 @@ export default function UnifiedTaskEditor({
     } else {
       setEditingTasks(newTasks);
     }
+  };
+
+  // 同步标签到标签管理系统
+  const syncTagsToStore = (tags: string[]) => {
+    const folders = getAllFolders();
+    
+    tags.forEach(tagName => {
+      // 检查标签是否已存在
+      const existingTag = getTagByName(tagName);
+      
+      if (!existingTag) {
+        console.log(`🏷️ [新标签] 创建标签: ${tagName}`);
+        
+        // 智能匹配文件夹
+        let matchedFolderId: string | undefined;
+        let maxMatchScore = 0;
+        
+        folders.forEach(folder => {
+          // 检查标签名是否包含文件夹名的关键词
+          const folderKeywords = folder.name.split(/[、，,]/);
+          const matchScore = folderKeywords.filter(keyword => 
+            tagName.includes(keyword) || keyword.includes(tagName)
+          ).length;
+          
+          if (matchScore > maxMatchScore) {
+            maxMatchScore = matchScore;
+            matchedFolderId = folder.id;
+          }
+        });
+        
+        // 如果没有匹配到，尝试根据标签内容智能匹配
+        if (!matchedFolderId) {
+          const tagKeywordMap: Record<string, string[]> = {
+            '享受生活': ['旅行', '美食', '电影', '音乐', '阅读', '游戏', '娱乐', '休闲'],
+            '最美的自己': ['护肤', '化妆', '穿搭', '健身', '瑜伽', '美容', '打扮'],
+            '文创插画': ['绘画', '插画', '设计', '创作', '灵感', '作品', '艺术'],
+            '照相馆工作': ['拍摄', '修图', '客户', '预约', '设备', '照相', '摄影'],
+            '学习成长': ['学习', '阅读', '课程', '笔记', '思考', '成长', '知识'],
+            '开发软件': ['编程', '开发', '调试', '技术', '项目', '代码', '软件'],
+            '家务': ['打扫', '洗衣', '整理', '收纳', '清洁', '家务', '卫生'],
+            '日常生活': ['购物', '做饭', '洗漱', '休息', '日常', '生活', '吃饭'],
+            '副业思考准备': ['副业', '思考', '计划', '准备', '调研', '尝试', '创业'],
+            '健康': ['运动', '健身', '体检', '吃药', '健康', '锻炼', '医疗'],
+            '睡眠': ['睡觉', '午休', '休息', '睡眠', '放松', '小憩'],
+            'AI相关': ['AI', '人工智能', 'ChatGPT', '机器学习', '深度学习'],
+          };
+          
+          for (const [folderName, keywords] of Object.entries(tagKeywordMap)) {
+            if (keywords.some(keyword => tagName.includes(keyword))) {
+              const folder = folders.find(f => f.name === folderName);
+              if (folder) {
+                matchedFolderId = folder.id;
+                break;
+              }
+            }
+          }
+        }
+        
+        // 创建标签
+        addTag(tagName, undefined, undefined, 'business', matchedFolderId);
+        
+        // 如果匹配到文件夹，添加到文件夹
+        if (matchedFolderId) {
+          const folder = folders.find(f => f.id === matchedFolderId);
+          console.log(`📁 [标签归档] ${tagName} → ${folder?.name} (${folder?.emoji})`);
+          addTagToFolder(tagName, matchedFolderId);
+        } else {
+          console.log(`📁 [标签归档] ${tagName} → 未分类`);
+        }
+      } else {
+        console.log(`🏷️ [已存在] 标签已存在: ${tagName}`);
+      }
+    });
   };
 
   // 删除任务
@@ -234,7 +344,7 @@ export default function UnifiedTaskEditor({
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-xs text-purple-700 mb-3">拖动调整区域执行顺序，任务将按此顺序排列</p>
+            <p className="text-xs text-purple-700 mb-3">使用上下箭头调整区域执行顺序，任务将按此顺序排列</p>
             <div className="flex flex-wrap gap-2">
               {getLocations().map((loc, idx) => (
                 <div
@@ -244,6 +354,26 @@ export default function UnifiedTaskEditor({
                   <span className="text-sm font-bold text-purple-600">{idx + 1}</span>
                   <span className="text-lg">{loc.icon}</span>
                   <span className="text-sm font-medium text-gray-900">{loc.name}</span>
+                  
+                  {/* 排序按钮 */}
+                  <div className="flex items-center gap-0.5 ml-2">
+                    <button
+                      onClick={() => moveLocationUp(idx)}
+                      disabled={idx === 0}
+                      className="p-1 rounded hover:bg-purple-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      title="上移"
+                    >
+                      <ArrowUp className="w-3.5 h-3.5 text-purple-600" />
+                    </button>
+                    <button
+                      onClick={() => moveLocationDown(idx)}
+                      disabled={idx === getLocations().length - 1}
+                      className="p-1 rounded hover:bg-purple-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      title="下移"
+                    >
+                      <ArrowDown className="w-3.5 h-3.5 text-purple-600" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -494,17 +624,17 @@ export default function UnifiedTaskEditor({
                       ))}
                     </select>
                   ) : (
-                    <span 
+                  <span 
                       onClick={() => setEditingField({ taskIndex: index, field: 'location' })}
                       className="px-2 py-1 rounded-md text-xs font-medium inline-flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"
-                      style={{
-                        backgroundColor: `${task.color}15`,
-                        color: task.color,
-                      }}
+                    style={{
+                      backgroundColor: `${task.color}15`,
+                      color: task.color,
+                    }}
                       title="📍 点击修改位置"
-                    >
-                      📍{task.location}
-                    </span>
+                  >
+                    📍{task.location}
+                  </span>
                   )}
                 </div>
 
@@ -524,6 +654,10 @@ export default function UnifiedTaskEditor({
                         const newTasks = [...editingTasks];
                         newTasks[index].tags = newTasks[index].tags.filter((_: any, i: number) => i !== tagIndex);
                         newTasks[index].color = AISmartProcessor.getTaskColor(newTasks[index].tags);
+                        
+                        // 🎓 标签学习：记录用户删除标签后的结果
+                        TagLearningService.learnFromUserChoice(task.title, newTasks[index].tags);
+                        
                         setEditingTasks(newTasks);
                       }}
                       className="rounded-full p-0.5 hover:bg-black/10 active:bg-black/20"
@@ -541,6 +675,13 @@ export default function UnifiedTaskEditor({
                       const newTasks = [...editingTasks];
                       newTasks[index].tags.push(newTag);
                       newTasks[index].color = AISmartProcessor.getTaskColor(newTasks[index].tags);
+                      
+                      // 🎓 标签学习：记录用户添加标签后的结果
+                      TagLearningService.learnFromUserChoice(task.title, newTasks[index].tags);
+                      
+                      // 🏷️ 自动同步标签到标签管理系统
+                      syncTagsToStore([newTag]);
+                      
                       setEditingTasks(newTasks);
                     }
                   }}
