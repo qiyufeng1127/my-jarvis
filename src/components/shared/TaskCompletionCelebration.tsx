@@ -21,7 +21,7 @@ export default function TaskCompletionCelebration({
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
-    console.log('🎉 庆祝特效组件挂载');
+    console.log('🎉 [TaskCompletionCelebration] 组件挂载，开始庆祝特效');
     
     // 1. 播放金币音效
     notificationService.playSound('coin');
@@ -45,27 +45,30 @@ export default function TaskCompletionCelebration({
 
     // 4. 1.8秒后开始淡出
     const fadeTimer = setTimeout(() => {
-      console.log('🎉 [1.8秒] 庆祝特效开始淡出');
+      console.log('🎉 [TaskCompletionCelebration] 1.8秒 - 开始淡出');
       setVisible(false);
     }, 1800);
 
-    // 5. 2秒后完全关闭 - 调用 onComplete 移除组件
+    // 5. 2秒后完全关闭 - 强制调用 onComplete 移除组件
     const closeTimer = setTimeout(() => {
-      console.log('🎉 [2秒] 庆祝特效完全关闭，调用 onComplete 移除组件');
+      console.log('🎉 [TaskCompletionCelebration] 2秒 - 调用 onComplete，强制移除组件');
       if (onComplete) {
         onComplete();
+      } else {
+        console.error('❌ [TaskCompletionCelebration] onComplete 回调未定义！');
       }
     }, 2000);
 
     return () => {
-      console.log('🎉 庆祝特效组件卸载，清理定时器');
+      console.log('🎉 [TaskCompletionCelebration] 组件卸载，清理定时器');
       clearTimeout(fadeTimer);
       clearTimeout(closeTimer);
     };
   }, [onComplete]);
 
-  // 如果不可见，直接不渲染（彻底移除 DOM）
+  // 不渲染任何内容，直接返回 null（避免 DOM 阻挡）
   if (!visible) {
+    console.log('🎉 [TaskCompletionCelebration] visible=false，返回 null');
     return null;
   }
 

@@ -1683,7 +1683,10 @@ export default function TaskVerificationCountdownContent({
         <TaskCompletionCelebration
           taskTitle={taskTitle}
           goldAmount={celebrationGold}
-          onComplete={() => setShowCelebration(false)}
+          onComplete={() => {
+            console.log('🎉 [父组件] 收到 onComplete 回调，关闭庆祝特效');
+            setShowCelebration(false);
+          }}
         />
       )}
     </>
