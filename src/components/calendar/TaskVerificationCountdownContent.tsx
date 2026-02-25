@@ -3,6 +3,7 @@ import { useGoldStore } from '@/stores/goldStore';
 import { baiduImageRecognition } from '@/services/baiduImageRecognition';
 import { ImageUploader } from '@/services/taskVerificationService';
 import { notificationService } from '@/services/notificationService';
+import VerificationFeedback, { VerificationLog } from '@/components/shared/VerificationFeedback';
 
 interface TaskVerificationCountdownContentProps {
   taskId: string;
@@ -104,6 +105,25 @@ export default function TaskVerificationCountdownContent({
   const [verificationMessage, setVerificationMessage] = useState<string>('');
   const [verificationSuccess, setVerificationSuccess] = useState<boolean | null>(null);
   const [showBadHabitHistory, setShowBadHabitHistory] = useState(false);
+  
+  // 验证流程日志（用于实时反馈）
+  const [verificationLogs, setVerificationLogs] = useState<VerificationLog[]>([]);
+  
+  // 添加验证日志
+  const addVerificationLog = useCallback((message: string, type: VerificationLog['type']) => {
+    const log: VerificationLog = {
+      id: `${Date.now()}-${Math.random()}`,
+      message,
+      type,
+      timestamp: new Date(),
+    };
+    setVerificationLogs(prev => [...prev, log]);
+  }, []);
+  
+  // 清空验证日志
+  const clearVerificationLogs = useCallback(() => {
+    setVerificationLogs([]);
+  }, []);
   
   // 实时计算剩余时间（基于截止时间）- 使用时间戳确保后台运行
   const [currentTime, setCurrentTime] = useState(Date.now());

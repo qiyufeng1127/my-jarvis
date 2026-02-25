@@ -2023,6 +2023,66 @@ export default function NewTimelineView({
                     </button>
                   </div>
                 </div>
+                
+                {/* 效率追踪设置（独立功能） */}
+                <div className="border-t pt-2" style={{ borderColor: isDark ? '#374151' : '#e5e7eb' }}>
+                  <label className="block text-xs font-semibold mb-1" style={{ color: isDark ? '#ffffff' : '#000000' }}>
+                    📊 效率追踪
+                  </label>
+                  <div className="p-2 rounded-lg space-y-2" style={{ backgroundColor: isDark ? '#374151' : '#f9fafb' }}>
+                    <div>
+                      <label className="block text-xs font-medium mb-1" style={{ color: isDark ? '#d1d5db' : '#6b7280' }}>
+                        📸 计划拍照次数（用于效率评估）
+                      </label>
+                      <input
+                        type="number"
+                        value={taskVerifications[editingTask]?.plannedImageCount || 0}
+                        onChange={(e) => {
+                          const verification = taskVerifications[editingTask] || {
+                            enabled: false,
+                            startKeywords: [],
+                            completionKeywords: [],
+                            startDeadline: null,
+                            completionDeadline: null,
+                            startFailedAttempts: 0,
+                            startTimeoutCount: 0,
+                            startRetryDeadline: null,
+                            completionFailedAttempts: 0,
+                            completionTimeoutCount: 0,
+                            completionExtensionCount: 0,
+                            plannedImageCount: 0,
+                            status: 'pending' as const,
+                            actualStartTime: null,
+                            actualCompletionTime: null,
+                            startGoldEarned: 0,
+                            completionGoldEarned: 0,
+                            totalGoldPenalty: 0,
+                            startPenaltyGold: 0,
+                          };
+                          
+                          setTaskVerifications(prev => ({
+                            ...prev,
+                            [editingTask]: {
+                              ...verification,
+                              plannedImageCount: parseInt(e.target.value) || 0
+                            }
+                          }));
+                        }}
+                        className="w-full px-2 py-1 rounded-md border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        style={{ 
+                          borderColor: isDark ? '#4b5563' : '#d1d5db',
+                          backgroundColor: isDark ? '#1f2937' : '#ffffff',
+                          color: isDark ? '#ffffff' : '#000000'
+                        }}
+                        min={0}
+                        placeholder="0 = 不限制"
+                      />
+                      <p className="text-xs mt-1" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>
+                        完成任务时会对比实际上传照片数量，评估完成效率
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
                 
               {/* 底部按钮 - 紧凑布局 */}
@@ -2043,7 +2103,23 @@ export default function NewTimelineView({
                 
                 <button
                   onClick={() => {
-                    onTaskUpdate(editingTask, currentEditData);
+                    // 保存任务数据
+                    const verification = taskVerifications[editingTask];
+                    const images = taskImages[editingTask];
+                    
+                    onTaskUpdate(editingTask, {
+                      ...currentEditData,
+                      // 保存验证设置
+                      verificationEnabled: verification?.enabled || false,
+                      startKeywords: verification?.startKeywords || [],
+                      completeKeywords: verification?.completionKeywords || [],
+                      // 保存照片
+                      images: images || [],
+                      coverImageUrl: images && images.length > 0 ? images[0].url : undefined,
+                      // 保存计划拍照次数
+                      plannedImageCount: verification?.plannedImageCount || 0,
+                    });
+                    
                     setEditingTask(null);
                     setEditedTaskData(null);
                   }}
@@ -2147,27 +2223,19 @@ export default function NewTimelineView({
                        console.log(`  预设结束: ${new Date(block.endTime).toLocaleTimeString()}`);
                        console.log(`  实际结束: ${actualEndTime.toLocaleTimeString()}`);
                        
-                       // 检查是否需要显示效率模态框
+                       // 🎯 所有任务完成时都显示效率评估模态框
                        const verification = taskVerifications[block.id];
-                       if (verification?.enabled && verification.plannedImageCount && verification.plannedImageCount > 0) {
-                         // 需要效率评估
-                         const actualImageCount = taskImages[block.id]?.length || 0;
-                         setEfficiencyModalTask({
-                           id: block.id,
-                           title: block.title,
-                           plannedImageCount: verification.plannedImageCount,
-                           actualImageCount,
-                           actualEndTime,
-                         });
-                         setEfficiencyModalOpen(true);
-                       } else {
-                         // 直接完成任务
-                         onTaskUpdate(block.id, {
-                           scheduledEnd: actualEndTime.toISOString(),
-                           isCompleted: true,
-                           status: 'completed'
-                         });
-                       }
+                       const plannedImageCount = verification?.plannedImageCount || 0;
+                       const actualImageCount = taskImages[block.id]?.length || 0;
+                       
+                       setEfficiencyModalTask({
+                         id: block.id,
+                         title: block.title,
+                         plannedImageCount,
+                         actualImageCount,
+                         actualEndTime,
+                       });
+                       setEfficiencyModalOpen(true);
                      }}
                      hasVerification={!!taskVerifications[block.id]?.enabled}
                      startKeywords={taskVerifications[block.id]?.startKeywords || ['启动', '开始']}
@@ -3004,6 +3072,51 @@ export default function NewTimelineView({
                         <span className="text-[10px] opacity-60 mt-1">支持多选，第一张为封面</span>
                       </div>
                       )}
+                      
+                      {/* 完成笔记/反思 */}
+                      {block.completionNotes && (
+                        <div className="space-y-1.5">
+                          <div className="text-xs font-medium opacity-80">📝 完成笔记</div>
+                          <div 
+                            className="rounded-lg p-3 text-xs leading-relaxed"
+                            style={{ 
+                              backgroundColor: 'rgba(255,255,255,0.15)',
+                              border: '1px solid rgba(255,255,255,0.2)'
+                            }}
+                          >
+                            {block.completionNotes}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* 效率评分 */}
+                      {block.completionEfficiency !== undefined && (
+                        <div className="space-y-1.5">
+                          <div className="text-xs font-medium opacity-80">⚡ 完成效率</div>
+                          <div 
+                            className="rounded-lg p-3 flex items-center justify-between"
+                            style={{ 
+                              backgroundColor: 'rgba(255,255,255,0.15)',
+                              border: '1px solid rgba(255,255,255,0.2)'
+                            }}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-2xl">
+                                {block.completionEfficiency >= 80 ? '🌟' : 
+                                 block.completionEfficiency >= 60 ? '👍' : 
+                                 block.completionEfficiency >= 40 ? '😐' : '😔'}
+                              </span>
+                              <div>
+                                <div className="text-sm font-bold">{block.completionEfficiency}%</div>
+                                <div className="text-[10px] opacity-70">
+                                  {block.plannedImageCount && block.actualImageCount !== undefined && 
+                                    `计划${block.plannedImageCount}张 / 实际${block.actualImageCount}张`}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -3154,7 +3267,7 @@ export default function NewTimelineView({
             setEfficiencyModalOpen(false);
             setEfficiencyModalTask(null);
           }}
-          onConfirm={(efficiency) => {
+          onConfirm={(efficiency, notes) => {
             // 更新任务效率
             updateTaskEfficiency(
               efficiencyModalTask.id,
@@ -3168,6 +3281,7 @@ export default function NewTimelineView({
               isCompleted: true,
               status: 'completed',
               completionEfficiency: efficiency,
+              completionNotes: notes, // 保存完成笔记
             });
             
             setEfficiencyModalOpen(false);

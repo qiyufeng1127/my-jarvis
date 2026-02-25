@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, ChevronUp, ChevronDown, Clock, Coins, Plus, MapPin, Settings, ArrowUp, ArrowDown } from 'lucide-react';
+import { X, ChevronUp, ChevronDown, Clock, Coins, Plus, MapPin, Settings, ArrowUp, ArrowDown, Calendar } from 'lucide-react';
 import { useGoalStore } from '@/stores/goalStore';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import { useTagStore } from '@/stores/tagStore';
@@ -23,7 +23,38 @@ export default function UnifiedTaskEditor({
   onConfirm,
   isDark = false 
 }: UnifiedTaskEditorProps) {
-  const [editingTasks, setEditingTasks] = useState<any[]>(tasks);
+  // 智能识别跨凌晨任务并自动调整日期
+  const smartAdjustTaskDates = (tasks: any[]) => {
+    const now = new Date();
+    const currentHour = now.getHours();
+    
+    // 只在深夜时段（22:00-23:59）才进行智能识别
+    if (currentHour < 22) {
+      return tasks;
+    }
+    
+    return tasks.map(task => {
+      const taskDate = new Date(task.scheduled_start_iso);
+      const taskHour = taskDate.getHours();
+      
+      // 如果任务时间是凌晨（00:00-05:59），自动切换到次日
+      if (taskHour >= 0 && taskHour < 6) {
+        const adjustedDate = new Date(taskDate);
+        adjustedDate.setDate(adjustedDate.getDate() + 1);
+        
+        console.log(`🌙 智能识别跨凌晨任务："${task.title}" 从 ${taskDate.toLocaleDateString('zh-CN')} ${task.scheduled_start} 调整到 ${adjustedDate.toLocaleDateString('zh-CN')} ${task.scheduled_start}`);
+        
+        return {
+          ...task,
+          scheduled_start_iso: adjustedDate.toISOString()
+        };
+      }
+      
+      return task;
+    });
+  };
+  
+  const [editingTasks, setEditingTasks] = useState<any[]>(smartAdjustTaskDates(tasks));
   const [editingField, setEditingField] = useState<{taskIndex: number, field: string} | null>(null);
   const [showWorkflowSettings, setShowWorkflowSettings] = useState(false);
   const [showAddLocationModal, setShowAddLocationModal] = useState(false);
@@ -614,8 +645,56 @@ export default function UnifiedTaskEditor({
                 </div>
               </div>
 
-              {/* 第二行：时间范围 + 时长 + 金币 */}
+              {/* 第二行：日期 + 时间范围 + 时长 + 金币 */}
               <div className="flex items-center gap-2 mb-2 flex-wrap">
+                {/* 日期选择 - 双击编辑 */}
+                <div className="flex-shrink-0">
+                  {editingField?.taskIndex === index && editingField?.field === 'date' ? (
+                    <input
+                      type="date"
+                      value={new Date(task.scheduled_start_iso).toISOString().split('T')[0]}
+                      onChange={(e) => {
+                        const currentDate = new Date(task.scheduled_start_iso);
+                        const [year, month, day] = e.target.value.split('-');
+                        const newStart = new Date(currentDate);
+                        newStart.setFullYear(parseInt(year), parseInt(month) - 1, parseInt(day));
+                        
+                        const newTasks = [...editingTasks];
+                        newTasks[index].scheduled_start_iso = newStart.toISOString();
+                        
+                        const recalculated = recalculateTaskTimes(newTasks, index);
+                        setEditingTasks(recalculated);
+                      }}
+                      onBlur={() => setEditingField(null)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') setEditingField(null);
+                        if (e.key === 'Escape') setEditingField(null);
+                      }}
+                      autoFocus
+                      className="px-2 py-0.5 text-xs rounded-md focus:outline-none focus:ring-2 bg-white text-gray-900 border-2"
+                      style={{ borderColor: task.color }}
+                    />
+                  ) : (
+                    <div 
+                      onDoubleClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setEditingField({ taskIndex: index, field: 'date' });
+                      }}
+                      className="flex items-center gap-1 rounded-md px-2 py-1 cursor-pointer transition-colors select-none"
+                      style={{ backgroundColor: `${task.color}15` }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${task.color}30`}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = `${task.color}15`}
+                      title="📅 双击编辑日期"
+                    >
+                      <Calendar className="w-3 h-3" style={{ color: task.color }} />
+                      <span className="text-xs font-semibold text-gray-900">
+                        {new Date(task.scheduled_start_iso).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
                 {/* 时间范围 - 双击编辑 */}
                 <div className="flex-shrink-0">
                   {editingField?.taskIndex === index && editingField?.field === 'start_time' ? (
@@ -626,6 +705,17 @@ export default function UnifiedTaskEditor({
                         const [hours, minutes] = e.target.value.split(':');
                         const newStart = new Date(task.scheduled_start_iso);
                         newStart.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                        
+                        // 智能识别跨凌晨场景
+                        const now = new Date();
+                        const currentHour = now.getHours();
+                        const selectedHour = parseInt(hours);
+                        
+                        // 如果当前时间是深夜（22:00-23:59），且选择的时间是凌晨（00:00-05:59），自动切换到次日
+                        if (currentHour >= 22 && selectedHour >= 0 && selectedHour < 6) {
+                          newStart.setDate(newStart.getDate() + 1);
+                          console.log(`🌙 智能识别跨凌晨任务：自动将日期切换到次日 ${newStart.toLocaleDateString('zh-CN')}`);
+                        }
                         
                         const newTasks = [...editingTasks];
                         newTasks[index].scheduled_start_iso = newStart.toISOString();
@@ -732,7 +822,7 @@ export default function UnifiedTaskEditor({
               </div>
 
               {/* 第三行：位置 + 标签 + 目标 */}
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap mt-2">
                 {/* 位置 - 点击修改 */}
                 <div className="flex-shrink-0">
                   {editingField?.taskIndex === index && editingField?.field === 'location' ? (

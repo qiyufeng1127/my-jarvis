@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAIStore } from '@/stores/aiStore';
-import { Key, Check, X, AlertCircle, ExternalLink } from 'lucide-react';
+import { Key, Check, X, AlertCircle, ExternalLink, Mic } from 'lucide-react';
+import { baiduVoiceRecognition } from '@/services/baiduVoiceRecognition';
 
 interface AIConfigModalProps {
   isOpen: boolean;
@@ -14,6 +15,11 @@ export default function AIConfigModal({ isOpen, onClose }: AIConfigModalProps) {
   const [localModel, setLocalModel] = useState(config.model || 'deepseek-chat');
   const [showKey, setShowKey] = useState(false);
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  
+  // 百度语音识别配置
+  const [baiduVoiceApiKey, setBaiduVoiceApiKey] = useState('');
+  const [baiduVoiceSecretKey, setBaiduVoiceSecretKey] = useState('');
+  const [showBaiduVoiceKey, setShowBaiduVoiceKey] = useState(false);
 
   // 当配置加载后，自动填充到表单
   useEffect(() => {
@@ -27,6 +33,12 @@ export default function AIConfigModal({ isOpen, onClose }: AIConfigModalProps) {
     if (config.model) {
       setLocalModel(config.model);
     }
+    
+    // 加载百度语音配置
+    const voiceApiKey = localStorage.getItem('baidu_voice_api_key');
+    const voiceSecretKey = localStorage.getItem('baidu_voice_secret_key');
+    if (voiceApiKey) setBaiduVoiceApiKey(voiceApiKey);
+    if (voiceSecretKey) setBaiduVoiceSecretKey(voiceSecretKey);
   }, [config.apiKey, config.apiEndpoint, config.model]);
 
   if (!isOpen) return null;
@@ -35,6 +47,12 @@ export default function AIConfigModal({ isOpen, onClose }: AIConfigModalProps) {
     setApiKey(localApiKey);
     setApiEndpoint(localEndpoint);
     setModel(localModel);
+    
+    // 保存百度语音配置
+    if (baiduVoiceApiKey && baiduVoiceSecretKey) {
+      baiduVoiceRecognition.configure(baiduVoiceApiKey, baiduVoiceSecretKey);
+    }
+    
     console.log('💾 AI 配置已保存到 localStorage');
     alert('✅ AI 配置已保存！\n\n配置会自动保存到本地，刷新页面后依然有效。');
     onClose();
@@ -249,6 +267,94 @@ export default function AIConfigModal({ isOpen, onClose }: AIConfigModalProps) {
               <li>✅ 生成个性化成长故事</li>
               <li>✅ AI 改进建议</li>
             </ul>
+          </div>
+
+          {/* 百度语音识别配置 */}
+          <div className="border-t-4 border-gray-200 pt-6">
+            <div className="flex items-center space-x-2 mb-4">
+              <Mic className="w-5 h-5 text-green-600" />
+              <h3 className="text-lg font-bold text-gray-900">🎤 百度语音识别配置</h3>
+            </div>
+            
+            <div className="space-y-4">
+              {/* API Key */}
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-900">
+                  🔑 百度语音 API Key
+                </label>
+                <div className="relative">
+                  <input
+                    type={showBaiduVoiceKey ? 'text' : 'password'}
+                    value={baiduVoiceApiKey}
+                    onChange={(e) => setBaiduVoiceApiKey(e.target.value)}
+                    placeholder="输入百度语音识别 API Key"
+                    className="w-full px-4 py-3 pr-24 rounded-lg border-2 border-gray-200 focus:border-green-500 focus:outline-none text-sm font-mono text-gray-900"
+                  />
+                  <button
+                    onClick={() => setShowBaiduVoiceKey(!showBaiduVoiceKey)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors text-gray-900"
+                  >
+                    {showBaiduVoiceKey ? '隐藏' : '显示'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Secret Key */}
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-900">
+                  🔐 百度语音 Secret Key
+                </label>
+                <div className="relative">
+                  <input
+                    type={showBaiduVoiceKey ? 'text' : 'password'}
+                    value={baiduVoiceSecretKey}
+                    onChange={(e) => setBaiduVoiceSecretKey(e.target.value)}
+                    placeholder="输入百度语音识别 Secret Key"
+                    className="w-full px-4 py-3 pr-24 rounded-lg border-2 border-gray-200 focus:border-green-500 focus:outline-none text-sm font-mono text-gray-900"
+                  />
+                  <button
+                    onClick={() => setShowBaiduVoiceKey(!showBaiduVoiceKey)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors text-gray-900"
+                  >
+                    {showBaiduVoiceKey ? '隐藏' : '显示'}
+                  </button>
+                </div>
+              </div>
+
+              {/* 获取指南 */}
+              <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-green-900 mb-2">📚 如何获取百度语音 API？</h4>
+                <div className="space-y-2 text-xs text-green-800">
+                  <p><strong>步骤 1:</strong> 访问百度智能云控制台</p>
+                  <a
+                    href="https://console.bce.baidu.com/ai/#/ai/speech/overview/index"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center text-green-600 hover:text-green-800 underline"
+                  >
+                    前往百度语音识别控制台
+                    <ExternalLink className="w-3 h-3 ml-1" />
+                  </a>
+                  <p><strong>步骤 2:</strong> 创建应用，选择"语音识别"</p>
+                  <p><strong>步骤 3:</strong> 在应用列表中找到 API Key 和 Secret Key</p>
+                  <div className="mt-2 pt-2 border-t border-green-200">
+                    <p>💡 提示：百度语音识别每天有免费额度，适合个人使用</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 功能说明 */}
+              <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-blue-900 mb-2">✨ 配置后可使用的功能</h4>
+                <ul className="space-y-1 text-xs text-blue-800">
+                  <li>✅ 免手模式语音控制</li>
+                  <li>✅ 口语化指令识别（下一个任务、删除今天的任务等）</li>
+                  <li>✅ 语音创建和管理任务</li>
+                  <li>✅ 语音查询任务进度</li>
+                  <li>✅ 更准确的语音识别（相比浏览器内置）</li>
+                </ul>
+              </div>
+            </div>
           </div>
         </div>
 

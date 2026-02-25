@@ -1,12 +1,13 @@
 /**
  * 语音控制（免手模式）组件 - 增强版
- * 支持持续语音识别、模糊匹配、任务控制和验证跳转
+ * 支持百度语音识别、持续监听、模糊匹配、任务控制和验证跳转
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Volume2, VolumeX, X, Mic, MicOff } from 'lucide-react';
+import { Volume2, VolumeX, X, Mic, MicOff, Settings } from 'lucide-react';
 import { useTaskStore } from '@/stores/taskStore';
 import { EnhancedVoiceCommandService } from '@/services/enhancedVoiceCommandService';
+import { baiduVoiceRecognition } from '@/services/baiduVoiceRecognition';
 import TaskVerification from '@/components/calendar/TaskVerification';
 
 interface VoiceControlProps {
@@ -20,6 +21,7 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
   const [response, setResponse] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [useBaiduAPI, setUseBaiduAPI] = useState(false);
   
   // 验证相关
   const [showVerification, setShowVerification] = useState(false);
@@ -29,6 +31,15 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
   const { tasks, deleteTask, updateTask, createTask } = useTaskStore();
   const recognitionRef = useRef<any>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  // 检查是否配置了百度语音API
+  useEffect(() => {
+    const configured = baiduVoiceRecognition.isConfigured();
+    setUseBaiduAPI(configured);
+    console.log('🎤 百度语音API配置状态:', configured ? '已配置' : '未配置');
+  }, [isOpen]);
 
   // 获取当前任务
   const getCurrentTask = () => {
@@ -192,26 +203,100 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
   }, [isOpen]); // 移除 isListening 依赖，避免重复初始化
 
   // 开始/停止监听
-  const toggleListening = () => {
+  const toggleListening = async () => {
     if (isListening) {
+      // 停止监听
       try {
-        recognitionRef.current?.abort();
+        if (useBaiduAPI && mediaRecorderRef.current) {
+          mediaRecorderRef.current.stop();
+        } else {
+          recognitionRef.current?.abort();
+        }
       } catch (e) {
         console.log('停止识别失败:', e);
       }
       setIsListening(false);
+      setResponse('免手模式已关闭');
       speak('免手模式已关闭');
     } else {
-      try {
-        recognitionRef.current?.start();
-        setIsListening(true);
-        speak('免手模式已启动，我在听，请说出您的指令');
-      } catch (e) {
-        console.error('启动识别失败:', e);
-        const errorMsg = '启动语音识别失败，请检查麦克风权限';
-        setResponse(errorMsg);
-        speak(errorMsg);
+      // 开始监听
+      setIsListening(true);
+      setResponse('正在启动麦克风...');
+      
+      if (useBaiduAPI) {
+        // 使用百度语音识别
+        await startBaiduRecognition();
+      } else {
+        // 使用浏览器内置识别
+        try {
+          recognitionRef.current?.start();
+          speak('免手模式已启动，我在听，请说出您的指令');
+        } catch (e) {
+          console.error('启动识别失败:', e);
+          const errorMsg = '启动语音识别失败，请检查麦克风权限';
+          setResponse(errorMsg);
+          speak(errorMsg);
+          setIsListening(false);
+        }
       }
+    }
+  };
+
+  // 启动百度语音识别
+  const startBaiduRecognition = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        audioChunksRef.current = [];
+        
+        // 发送到百度API识别
+        setResponse('正在识别您的指令...');
+        const result = await baiduVoiceRecognition.recognize(audioBlob, 'wav', 16000);
+        
+        if (result.success && result.text) {
+          setTranscript(result.text);
+          handleVoiceCommand(result.text);
+        } else {
+          const errorMsg = result.error || '识别失败';
+          setResponse(errorMsg);
+          speak(errorMsg);
+        }
+        
+        // 继续监听
+        if (isListening) {
+          setTimeout(() => startBaiduRecognition(), 500);
+        }
+      };
+
+      mediaRecorder.start();
+      
+      // 每3秒停止一次，触发识别
+      setTimeout(() => {
+        if (mediaRecorder.state === 'recording') {
+          mediaRecorder.stop();
+        }
+      }, 3000);
+      
+      setResponse('麦克风已启动，请说话...');
+      speak('免手模式已启动，我在听，请说出您的指令');
+      
+    } catch (error) {
+      console.error('启动百度语音识别失败:', error);
+      const errorMsg = '无法访问麦克风，请检查权限设置';
+      setResponse(errorMsg);
+      speak(errorMsg);
+      setIsListening(false);
     }
   };
 
@@ -354,6 +439,42 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
             >
               <X className="w-6 h-6" />
             </button>
+          </div>
+
+          {/* API配置状态提示 */}
+          <div className="mb-4 p-3 bg-white bg-opacity-20 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                {useBaiduAPI ? (
+                  <>
+                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                    <span className="text-sm">✅ 百度语音API已配置</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                    <span className="text-sm">⚠️ 使用浏览器内置识别</span>
+                  </>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  onClose();
+                  // 打开AI配置模态框
+                  const event = new CustomEvent('openAIConfig');
+                  window.dispatchEvent(event);
+                }}
+                className="p-1 hover:bg-white hover:bg-opacity-20 rounded transition-colors"
+                title="配置百度语音API"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            </div>
+            {!useBaiduAPI && (
+              <p className="text-xs mt-2 opacity-80">
+                💡 配置百度语音API可获得更准确的识别效果
+              </p>
+            )}
           </div>
 
           {/* 麦克风按钮 */}

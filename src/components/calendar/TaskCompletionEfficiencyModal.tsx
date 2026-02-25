@@ -4,7 +4,7 @@ import { X, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 interface TaskCompletionEfficiencyModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (efficiency: number) => void;
+  onConfirm: (efficiency: number, notes: string) => void;
   taskTitle: string;
   plannedImageCount: number;
   actualImageCount: number;
@@ -24,6 +24,7 @@ export default function TaskCompletionEfficiencyModal({
 }: TaskCompletionEfficiencyModalProps) {
   const [efficiency, setEfficiency] = useState(100);
   const [isDragging, setIsDragging] = useState(false);
+  const [notes, setNotes] = useState(''); // 备注
 
   if (!isOpen) return null;
 
@@ -43,7 +44,7 @@ export default function TaskCompletionEfficiencyModal({
   };
 
   const handleConfirm = () => {
-    onConfirm(efficiency);
+    onConfirm(efficiency, notes);
     onClose();
   };
 
@@ -176,6 +177,25 @@ export default function TaskCompletionEfficiencyModal({
             </p>
           </div>
         )}
+
+        {/* 备注输入框 */}
+        <div className="mb-6">
+          <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+            📝 完成备注（选填）
+          </label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="记录完成了什么、遇到的问题、心得感悟..."
+            rows={3}
+            className={`w-full px-3 py-2 rounded-xl border-2 text-sm resize-none focus:outline-none focus:ring-2 transition-all ${
+              isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
+            }`}
+            style={{ 
+              focusRing: accentColor 
+            }}
+          />
+        </div>
 
         {/* 按钮 */}
         <div className="flex gap-3">

@@ -21,6 +21,9 @@ export interface TaskVerification {
   completionTimeoutCount: number; // 完成超时次数（用于计算惩罚）
   completionExtensionCount: number; // 完成延期次数
   
+  // 效率追踪
+  plannedImageCount?: number; // 计划拍照次数
+  
   status: 'pending' | 'waiting_start' | 'start_retry' | 'started' | 'waiting_completion' | 'completion_extension' | 'completed' | 'failed';
   actualStartTime: Date | null; // 实际启动时间
   actualCompletionTime: Date | null; // 实际完成时间

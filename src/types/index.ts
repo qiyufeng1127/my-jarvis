@@ -133,6 +133,7 @@ export interface Task {
   actualImageCount?: number; // 实际拍照次数
   completionEfficiency?: number; // 完成效率 (0-100)
   efficiencyLevel?: 'excellent' | 'good' | 'average' | 'poor'; // 效率等级
+  completionNotes?: string; // 完成笔记/反思
   
   createdAt: Date;
   updatedAt: Date;
