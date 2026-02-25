@@ -464,15 +464,17 @@ class NotificationService {
 
     // 检查设置 - 使用正确的设置项
     if (!this.settings.taskEndBeforeReminder) {
-      console.log('⏭️ 任务结束前提醒已关闭');
+      console.log('⏭️ 任务结束前提醒已关闭（用户设置）');
       return;
     }
 
     // 检查是否匹配用户设置的提醒时间
     if (minutesLeft !== this.settings.taskEndBeforeMinutes) {
-      console.log(`⏭️ 不匹配用户设置的提醒时间（设置：${this.settings.taskEndBeforeMinutes}分钟，当前：${minutesLeft}分钟）`);
+      console.log(`⏭️ 不匹配用户设置的提醒时间（用户设置：${this.settings.taskEndBeforeMinutes}分钟，当前：${minutesLeft}分钟）`);
       return;
     }
+
+    console.log(`✅ 匹配用户设置，触发提醒（${minutesLeft}分钟）`);
 
     const body = hasVerification
       ? `${taskTitle} 还有${minutesLeft}分钟结束，准备进行完成验证哦！`

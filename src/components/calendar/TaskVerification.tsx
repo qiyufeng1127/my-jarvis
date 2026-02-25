@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Camera, X, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import { aiService } from '@/services/aiService';
 import { useUserStore } from '@/stores/userStore';
+import '@/styles/verification-animations.css';
 
 interface TaskVerificationProps {
   task: {
@@ -36,6 +37,7 @@ export default function TaskVerification({
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationResult, setVerificationResult] = useState<'success' | 'fail' | null>(null);
   const [verificationReason, setVerificationReason] = useState<string>('');
+  const [verificationLogs, setVerificationLogs] = useState<string[]>([]); // 验证日志
   const [stream, setStream] = useState<MediaStream | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -223,18 +225,27 @@ export default function TaskVerification({
     }
   };
 
+  // 添加验证日志
+  const addLog = (message: string) => {
+    console.log('📝 [验证日志]', message);
+    setVerificationLogs(prev => [...prev, `${new Date().toLocaleTimeString()} - ${message}`]);
+    setVerificationReason(message);
+  };
+
   // 验证图片
   const verifyImage = async (imageData: string) => {
     setIsVerifying(true);
-    setVerificationReason('正在验证中，请稍后...');
+    setVerificationLogs([]);
+    addLog('🔍 正在验证中，请稍后...');
 
     try {
       // 如果没有关键词要求，直接通过（向后兼容）
       if (!keywords || keywords.length === 0) {
         console.warn('⚠️ 没有验证关键词，自动通过验证');
+        addLog('⚠️ 没有验证关键词，自动通过验证');
         setIsVerifying(false);
         setVerificationResult('success');
-        setVerificationReason('验证通过');
+        addLog('✅ 验证通过');
         setTimeout(() => {
           onSuccess();
         }, 2000);
@@ -242,18 +253,49 @@ export default function TaskVerification({
       }
 
       // 使用百度AI图像识别验证
-      console.log('🔍 开始调用百度AI图像识别...');
-      setVerificationReason('AI 调用中...');
+      addLog('🔍 开始调用百度AI图像识别...');
+      addLog(`📝 验证关键词: ${keywords.join('、')}`);
       
       const { baiduImageRecognition } = await import('@/services/baiduImageRecognition');
+      
+      // 检查API配置
+      if (!baiduImageRecognition.isConfigured()) {
+        addLog('⚠️ 百度AI未配置，自动通过验证（信任用户）');
+        setIsVerifying(false);
+        setVerificationResult('success');
+        addLog('✅ 验证通过（未配置AI，信任用户）');
+        setTimeout(() => {
+          onSuccess();
+        }, 2000);
+        return;
+      }
+      
+      addLog('✅ 百度AI配置正常');
+      addLog('🔄 正在调用百度API...');
       
       // 将base64转换为File对象
       const blob = await fetch(imageData).then(r => r.blob());
       const file = new File([blob], 'verification.jpg', { type: 'image/jpeg' });
       
+      addLog('📤 图片已准备，开始识别...');
+      
       // 调用百度AI验证 - 使用 smartVerifyImage 方法
-      console.log('🔍 调用 smartVerifyImage，关键词:', keywords);
       const result = await baiduImageRecognition.smartVerifyImage(file, keywords, 0.2);
+
+      addLog('✅ API调用完成');
+      
+      // 显示识别到的关键词
+      if (result.recognizedKeywords && result.recognizedKeywords.length > 0) {
+        const topKeywords = result.recognizedKeywords.slice(0, 10).join('、');
+        addLog(`🔍 已识别到: ${topKeywords}`);
+      } else {
+        addLog('⚠️ 未识别到任何内容');
+      }
+      
+      // 显示匹配详情
+      if (result.matchDetails) {
+        addLog(`📊 匹配详情:\n${result.matchDetails}`);
+      }
 
       setIsVerifying(false);
 
@@ -264,9 +306,11 @@ export default function TaskVerification({
         console.log('✅ 验证成功！');
         setVerificationResult('success');
         
+        addLog('✅ 验证成功！');
+        
         // 显示完整的验证描述
         const successMessage = result.description || `验证通过！识别到: ${result.matchedKeywords.join(', ')}`;
-        setVerificationReason(successMessage);
+        addLog(successMessage);
 
         setTimeout(() => {
           console.log('✅ 调用 onSuccess 回调');
@@ -278,17 +322,23 @@ export default function TaskVerification({
         
         setVerificationResult('fail');
         
+        addLog('❌ 验证失败');
+        
         // 使用 AI 返回的完整描述和建议
         let failMessage = result.description || '验证失败';
+        addLog(failMessage);
         
         if (result.suggestions && result.suggestions.length > 0) {
-          failMessage += '\n\n' + result.suggestions.join('\n');
+          result.suggestions.forEach(suggestion => {
+            addLog(suggestion);
+          });
         }
         
         setVerificationReason(failMessage);
         
         // 扣除金币
         console.log('💰 扣除20金币');
+        addLog('💰 已扣除20金币');
         deductGold(20, `任务验证失败: ${task.title}`);
         
         // 不自动关闭，让用户看到失败原因并选择重新拍照或跳过
@@ -300,11 +350,17 @@ export default function TaskVerification({
       setVerificationResult('fail');
       
       const errorMessage = error instanceof Error ? error.message : '未知错误';
+      
+      addLog('❌ 验证服务异常');
+      addLog(`错误信息: ${errorMessage}`);
+      addLog('请检查网络连接和API配置');
+      
       setVerificationReason(
         `验证服务异常：${errorMessage}\n\n请检查：\n1. 网络连接是否正常\n2. 百度AI配置是否正确（设置 → AI）\n3. 是否超出每日免费额度（500次）\n\n您可以：\n• 重新尝试验证\n• 或暂时跳过验证`
       );
       
       // 扣除金币
+      addLog('💰 已扣除20金币');
       deductGold(20, `任务验证失败: ${task.title}`);
       
       // 不自动关闭，让用户选择
@@ -530,32 +586,79 @@ export default function TaskVerification({
 
             {/* 验证结果 */}
             {verificationResult && (
-              <div className="w-full h-full flex items-center justify-center">
+              <div className="w-full h-full flex items-center justify-center p-4">
                 {verificationResult === 'success' ? (
                   <div className="text-center animate-bounce">
                     <CheckCircle className="w-24 h-24 text-green-500 mx-auto mb-4" />
                     <p className="text-2xl font-bold text-white">验证成功！</p>
-                    <p className="text-white/80 mt-2">{verificationReason}</p>
-                    <p className="text-white/60 text-sm mt-1">任务即将开始...</p>
+                    
+                    {/* 显示验证日志 */}
+                    <div className="mt-4 bg-black/50 rounded-lg p-4 max-h-48 overflow-y-auto text-left max-w-md mx-auto verification-logs">
+                      {verificationLogs.map((log, index) => (
+                        <div 
+                          key={index} 
+                          className="text-white/90 text-xs mb-1"
+                          style={{ whiteSpace: 'pre-wrap' }}
+                        >
+                          {log}
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <p className="text-white/60 text-sm mt-4">任务即将开始...</p>
                   </div>
                 ) : (
-                  <div className="text-center animate-pulse">
-                    <AlertCircle className="w-24 h-24 text-red-500 mx-auto mb-4" />
+                  <div className="text-center">
+                    <AlertCircle className="w-24 h-24 text-red-500 mx-auto mb-4 animate-pulse" />
                     <p className="text-2xl font-bold text-white">验证失败</p>
-                    <p className="text-white/80 mt-2">{verificationReason}</p>
-                    <p className="text-white/60 text-sm mt-1">已扣除 20 金币</p>
-                    <p className="text-white/60 text-sm">请重新{task.verificationType === 'photo' ? '拍照' : '上传'}或跳过验证</p>
+                    
+                    {/* 显示验证日志 */}
+                    <div className="mt-4 bg-black/50 rounded-lg p-4 max-h-64 overflow-y-auto text-left max-w-md mx-auto verification-logs">
+                      {verificationLogs.map((log, index) => (
+                        <div 
+                          key={index} 
+                          className="text-white/90 text-xs mb-2"
+                          style={{ whiteSpace: 'pre-wrap' }}
+                        >
+                          {log}
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <p className="text-red-400 text-sm mt-4 font-semibold">已扣除 20 金币</p>
+                    <p className="text-white/60 text-sm mt-2">请重新{task.verificationType === 'photo' ? '拍照' : '上传'}或跳过验证</p>
                   </div>
                 )}
               </div>
             )}
 
-            {/* 验证中遮罩 */}
+            {/* 验证中遮罩 - 显示详细日志 */}
             {isVerifying && (
-              <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
-                <div className="text-center">
+              <div className="absolute inset-0 bg-black/90 flex items-center justify-center p-4">
+                <div className="text-center max-w-md w-full">
                   <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                  <p className="text-white text-lg font-semibold">AI 识别中...</p>
+                  <p className="text-white text-lg font-semibold mb-4">AI 识别中...</p>
+                  
+                  {/* 验证日志 - 实时显示 */}
+                  <div className="bg-black/50 rounded-lg p-4 max-h-64 overflow-y-auto text-left verification-logs">
+                    {verificationLogs.map((log, index) => (
+                      <div 
+                        key={index} 
+                        className="text-white/90 text-sm mb-2 animate-fade-in"
+                        style={{ 
+                          animationDelay: `${index * 0.1}s`,
+                          whiteSpace: 'pre-wrap'
+                        }}
+                      >
+                        {log}
+                      </div>
+                    ))}
+                    {verificationLogs.length === 0 && (
+                      <div className="text-white/70 text-sm">
+                        正在初始化验证...
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}

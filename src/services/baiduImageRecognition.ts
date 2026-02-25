@@ -104,9 +104,18 @@ class BaiduImageRecognitionService {
    * 检测是否在生产环境（Vercel部署）
    */
   private isProduction(): boolean {
-    return window.location.hostname.includes('vercel.app') || 
-           window.location.hostname.includes('your-domain.com') ||
+    const hostname = window.location.hostname;
+    const isProd = hostname.includes('vercel.app') || 
+           hostname.includes('your-domain.com') ||
            import.meta.env.PROD;
+    
+    console.log('🌍 环境检测:', {
+      hostname,
+      isProd,
+      mode: import.meta.env.MODE,
+    });
+    
+    return isProd;
   }
 
   /**
@@ -212,26 +221,52 @@ class BaiduImageRecognitionService {
 
       // 生产环境：使用Serverless API
       if (this.isProduction()) {
-        console.log('☁️ [生产环境] 使用Serverless API');
+        console.log('☁️ [生产环境] 使用Serverless API进行图像识别');
+        console.log('📤 准备发送请求到 /api/baidu-image-recognition');
+        
+        const requestBody = {
+          imageBase64: base64Image,
+          apiKey: this.apiKey,
+          secretKey: this.secretKey,
+        };
+        
+        console.log('📦 请求体:', {
+          imageBase64Length: base64Image.length,
+          apiKeyPrefix: this.apiKey.substring(0, 8) + '...',
+          secretKeyPrefix: this.secretKey.substring(0, 8) + '...',
+        });
         
         const response = await fetch('/api/baidu-image-recognition', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            imageBase64: `data:image/jpeg;base64,${base64Image}`,
-            apiKey: this.apiKey,
-            secretKey: this.secretKey,
-          }),
+          body: JSON.stringify(requestBody),
+        });
+
+        console.log('📥 收到响应:', {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok,
         });
 
         if (!response.ok) {
-          const errorData = await response.json();
+          const errorText = await response.text();
+          console.error('❌ API调用失败，响应内容:', errorText);
+          
+          let errorData;
+          try {
+            errorData = JSON.parse(errorText);
+          } catch {
+            throw new Error(`API调用失败: ${response.status} ${response.statusText}\n响应: ${errorText}`);
+          }
+          
           throw new Error(errorData.error || `API调用失败: ${response.status}`);
         }
 
         const result = await response.json();
+        
+        console.log('✅ API返回结果:', result);
         
         if (!result.success) {
           throw new Error(result.error || 'API返回失败');

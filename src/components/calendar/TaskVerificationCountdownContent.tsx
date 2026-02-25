@@ -248,24 +248,39 @@ export default function TaskVerificationCountdownContent({
     }
   }, [state, startCountdownLeft, taskCountdownLeft, goldReward, penaltyGold, taskId, taskTitle, saveState]);
   
-  // 任务即将结束提醒（最后1分钟或10分钟）
+  // 任务即将结束提醒（完全遵循用户设置）
   useEffect(() => {
     if (state.status !== 'task_countdown') {
       return;
     }
     
-    const duration = Math.floor((new Date(scheduledEnd).getTime() - new Date(scheduledStart).getTime()) / 60000);
-    
-    // 使用用户设置的提醒时间（从 notificationService 获取）
-    const settings = JSON.parse(localStorage.getItem('notification_settings') || '{}');
-    const reminderMinutes = settings.taskEndBeforeMinutes || 5; // 默认5分钟
-    
-    // 只在用户设置的时间点提醒
-    if (taskCountdownLeft === reminderMinutes * 60) {
-      console.log(`⏰ 任务即将结束（${reminderMinutes}分钟）: ${taskTitle}`);
-      notificationService.notifyTaskEnding(taskTitle, reminderMinutes, hasVerification);
+    // 从 localStorage 读取用户设置
+    const settingsStr = localStorage.getItem('notification_settings');
+    if (!settingsStr) {
+      return;
     }
-  }, [state.status, taskCountdownLeft, scheduledStart, scheduledEnd, taskTitle, hasVerification]);
+    
+    try {
+      const settings = JSON.parse(settingsStr);
+      
+      // 检查是否开启了任务结束前提醒
+      if (!settings.taskEndBeforeReminder) {
+        console.log('⏭️ 任务结束前提醒已关闭（用户设置）');
+        return;
+      }
+      
+      // 获取用户设置的提醒时间（分钟）
+      const reminderMinutes = settings.taskEndBeforeMinutes || 5;
+      
+      // 只在用户设置的时间点提醒（转换为秒）
+      if (taskCountdownLeft === reminderMinutes * 60) {
+        console.log(`⏰ 任务即将结束（${reminderMinutes}分钟）- 遵循用户设置: ${taskTitle}`);
+        notificationService.notifyTaskEnding(taskTitle, reminderMinutes, hasVerification);
+      }
+    } catch (error) {
+      console.error('读取通知设置失败:', error);
+    }
+  }, [state.status, taskCountdownLeft, taskTitle, hasVerification]);
 
   // 启动任务（无验证直接启动，有验证需上传照片）
   const handleStartTask = useCallback(async (useCamera: boolean = false) => {

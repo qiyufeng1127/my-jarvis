@@ -13,9 +13,10 @@ import TaskVerification from '@/components/calendar/TaskVerification';
 interface VoiceControlProps {
   isOpen: boolean;
   onClose: () => void;
+  onListeningChange?: (isListening: boolean) => void;
 }
 
-export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
+export default function VoiceControl({ isOpen, onClose, onListeningChange }: VoiceControlProps) {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [response, setResponse] = useState('');
@@ -118,6 +119,7 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
           setResponse(errorMessage);
           speak(errorMessage);
           setIsListening(false);
+          onListeningChange?.(false);
           return;
         
         case 'not-allowed':
@@ -125,6 +127,7 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
           setResponse(errorMessage);
           speak(errorMessage);
           setIsListening(false);
+          onListeningChange?.(false);
           return;
         
         case 'network':
@@ -155,6 +158,7 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
           } catch (e) {
             console.log('❌ 重启识别失败:', e);
             setIsListening(false);
+            onListeningChange?.(false);
             const msg = '语音识别重启失败，请手动重新开启';
             setResponse(msg);
             speak(msg);
@@ -216,11 +220,13 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
         console.log('停止识别失败:', e);
       }
       setIsListening(false);
+      onListeningChange?.(false);
       setResponse('免手模式已关闭');
       speak('免手模式已关闭');
     } else {
       // 开始监听
       setIsListening(true);
+      onListeningChange?.(true);
       setResponse('正在启动麦克风...');
       
       if (useBaiduAPI) {
@@ -237,6 +243,7 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
           setResponse(errorMsg);
           speak(errorMsg);
           setIsListening(false);
+          onListeningChange?.(false);
         }
       }
     }
@@ -428,10 +435,10 @@ export default function VoiceControl({ isOpen, onClose }: VoiceControlProps) {
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70">
-        <div className="bg-gradient-to-br from-purple-600 to-blue-600 rounded-3xl shadow-2xl max-w-md w-full mx-4 p-8 text-white">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 p-4">
+        <div className="bg-gradient-to-br from-purple-600 to-blue-600 rounded-3xl shadow-2xl max-w-md w-full mx-4 p-8 text-white max-h-[85vh] overflow-y-auto" style={{ marginTop: '60px' }}>
           {/* 头部 */}
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-6 sticky top-0 bg-gradient-to-br from-purple-600 to-blue-600 pb-2 z-10">
             <h2 className="text-2xl font-bold">🎤 免手模式</h2>
             <button
               onClick={onClose}

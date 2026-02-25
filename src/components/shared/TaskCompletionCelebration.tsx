@@ -18,51 +18,56 @@ export default function TaskCompletionCelebration({
 }: TaskCompletionCelebrationProps) {
   const [confetti, setConfetti] = useState<Array<{ id: number; left: number; delay: number; duration: number }>>([]);
   const [coins, setCoins] = useState<Array<{ id: number; left: number; delay: number }>>([]);
-  const [showGoldText, setShowGoldText] = useState(false);
+  const [visible, setVisible] = useState(true);
 
   useEffect(() => {
     // 1. 播放金币音效
     notificationService.playSound('coin');
 
-    // 2. 生成撒花特效（50个彩纸）
-    const confettiArray = Array.from({ length: 50 }, (_, i) => ({
+    // 2. 生成撒花特效（30个彩纸，更少更精致）
+    const confettiArray = Array.from({ length: 30 }, (_, i) => ({
       id: i,
       left: Math.random() * 100,
-      delay: Math.random() * 0.5,
-      duration: 2 + Math.random() * 1,
+      delay: Math.random() * 0.3,
+      duration: 1.5 + Math.random() * 0.5,
     }));
     setConfetti(confettiArray);
 
-    // 3. 生成金币特效（10个金币）
-    const coinsArray = Array.from({ length: 10 }, (_, i) => ({
+    // 3. 生成金币特效（8个金币）
+    const coinsArray = Array.from({ length: 8 }, (_, i) => ({
       id: i,
-      left: 30 + Math.random() * 40,
-      delay: i * 0.1,
+      left: 35 + Math.random() * 30,
+      delay: i * 0.08,
     }));
     setCoins(coinsArray);
 
-    // 4. 显示金币文字提示
-    setTimeout(() => {
-      setShowGoldText(true);
-    }, 300);
+    // 4. 1.8秒后开始淡出
+    const fadeTimer = setTimeout(() => {
+      setVisible(false);
+    }, 1800);
 
-    // 5. 3秒后自动关闭
-    const timer = setTimeout(() => {
+    // 5. 2秒后完全关闭
+    const closeTimer = setTimeout(() => {
       if (onComplete) {
         onComplete();
       }
-    }, 3000);
+    }, 2000);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(fadeTimer);
+      clearTimeout(closeTimer);
+    };
   }, [goldAmount, onComplete]);
 
   return (
-    <div className="fixed inset-0 z-[9999] pointer-events-none flex items-center justify-center">
+    <div 
+      className={`fixed inset-0 z-[9999] pointer-events-none flex items-center justify-center transition-opacity duration-200 ${visible ? 'opacity-100' : 'opacity-0'}`}
+    >
       {/* 撒花特效 */}
       {confetti.map((item) => (
         <div
           key={`confetti-${item.id}`}
-          className="absolute top-0 w-3 h-3 animate-fall"
+          className="absolute top-0 w-2 h-2 animate-fall"
           style={{
             left: `${item.left}%`,
             animationDelay: `${item.delay}s`,
@@ -77,7 +82,7 @@ export default function TaskCompletionCelebration({
       {coins.map((coin) => (
         <div
           key={`coin-${coin.id}`}
-          className="absolute top-1/3 text-4xl animate-coin-rise"
+          className="absolute top-1/3 text-3xl animate-coin-rise"
           style={{
             left: `${coin.left}%`,
             animationDelay: `${coin.delay}s`,
@@ -87,20 +92,20 @@ export default function TaskCompletionCelebration({
         </div>
       ))}
 
-      {/* 金币文字提示 */}
-      {showGoldText && (
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 animate-scale-in pointer-events-auto">
-          <div className="bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600 text-white px-8 py-4 rounded-2xl shadow-2xl border-4 border-yellow-300">
+      {/* 简洁的金币提示 - 单行显示 */}
+      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 animate-scale-in">
+        <div className="bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600 text-white px-8 py-6 rounded-3xl shadow-2xl border-4 border-yellow-300">
+          <div className="flex items-center gap-4">
+            <div className="text-5xl animate-bounce">🎉</div>
             <div className="text-center">
-              <div className="text-2xl font-black mb-2">🎉 任务完成！</div>
-              <div className="text-xl font-bold">{taskTitle}</div>
-              <div className="text-3xl font-black mt-3 animate-bounce">
+              <div className="text-3xl font-black animate-pulse">
                 +{goldAmount} 💰
               </div>
             </div>
+            <div className="text-5xl animate-bounce" style={{ animationDelay: '0.1s' }}>🎉</div>
           </div>
         </div>
-      )}
+      </div>
 
       {/* CSS 动画 */}
       <style jsx>{`
@@ -121,11 +126,11 @@ export default function TaskCompletionCelebration({
             opacity: 0;
           }
           50% {
-            transform: translateY(-100px) scale(1.5);
+            transform: translateY(-80px) scale(1.3);
             opacity: 1;
           }
           100% {
-            transform: translateY(-200px) scale(0);
+            transform: translateY(-150px) scale(0);
             opacity: 0;
           }
         }
@@ -136,7 +141,7 @@ export default function TaskCompletionCelebration({
             opacity: 0;
           }
           50% {
-            transform: translate(-50%, -50%) scale(1.2);
+            transform: translate(-50%, -50%) scale(1.1);
           }
           100% {
             transform: translate(-50%, -50%) scale(1);
@@ -149,11 +154,11 @@ export default function TaskCompletionCelebration({
         }
 
         .animate-coin-rise {
-          animation: coin-rise 1.5s ease-out forwards;
+          animation: coin-rise 1.2s ease-out forwards;
         }
 
         .animate-scale-in {
-          animation: scale-in 0.5s ease-out forwards;
+          animation: scale-in 0.4s ease-out forwards;
         }
       `}</style>
     </div>
