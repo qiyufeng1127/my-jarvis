@@ -21,6 +21,9 @@ interface TaskState {
   completeStartVerification: (taskId: string) => void;
   completeTask: (taskId: string) => Promise<void>;
   
+  // 效率追踪
+  updateTaskEfficiency: (taskId: string, efficiency: number, actualImageCount: number) => void;
+  
   // Filters
   getTasksByStatus: (status: TaskStatus) => Task[];
   getTasksByType: (type: TaskType) => Task[];
@@ -347,6 +350,78 @@ export const useTaskStore = create<TaskState>()(
 
   getTodayTasks: () => {
     return get().getTasksByDate(new Date());
+  },
+  
+  // 更新任务效率
+  updateTaskEfficiency: (taskId, efficiency, actualImageCount) => {
+    const task = get().tasks.find(t => t.id === taskId);
+    if (!task) return;
+    
+    // 计算效率等级
+    let efficiencyLevel: 'excellent' | 'good' | 'average' | 'poor';
+    if (efficiency >= 90) {
+      efficiencyLevel = 'excellent';
+    } else if (efficiency >= 70) {
+      efficiencyLevel = 'good';
+    } else if (efficiency >= 50) {
+      efficiencyLevel = 'average';
+    } else {
+      efficiencyLevel = 'poor';
+    }
+    
+    // 更新任务
+    set((state) => ({
+      tasks: state.tasks.map((t) => 
+        t.id === taskId 
+          ? { 
+              ...t, 
+              completionEfficiency: efficiency,
+              efficiencyLevel,
+              actualImageCount,
+              updatedAt: new Date(),
+            } 
+          : t
+      ),
+    }));
+    
+    console.log('📊 任务效率已更新:', {
+      taskId,
+      taskTitle: task.title,
+      efficiency: `${efficiency}%`,
+      efficiencyLevel,
+      plannedImageCount: task.plannedImageCount,
+      actualImageCount,
+    });
+    
+    // 如果效率低于50%，记录到坏习惯罐头
+    if (efficiency < 50) {
+      import('@/stores/habitCanStore').then(({ useHabitCanStore }) => {
+        const habitCanStore = useHabitCanStore.getState();
+        
+        // 查找"低效率"预设习惯
+        const lowEfficiencyHabit = habitCanStore.habits.find(
+          h => h.rule.id === 'low-efficiency' && h.enabled
+        );
+        
+        if (lowEfficiencyHabit) {
+          const today = new Date().toISOString().split('T')[0];
+          const now = new Date();
+          const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+          
+          habitCanStore.recordOccurrence(
+            lowEfficiencyHabit.id,
+            today,
+            {
+              time: timeStr,
+              reason: `${task.title} - 完成效率${efficiency}%（低于50%）`,
+              relatedTaskId: taskId,
+            }
+          );
+          
+          console.log('🐢 记录低效率坏习惯:', task.title, `${efficiency}%`);
+        }
+      });
+    }
   },
     }),
     {

@@ -36,6 +36,8 @@ import TaskVerificationExtension from './TaskVerificationExtension';
 import eventBus from '@/utils/eventBus';
 import TaskVerificationCountdownContent from './TaskVerificationCountdownContent';
 import GoldDetailsModal from '@/components/gold/GoldDetailsModal';
+import TaskCompletionEfficiencyModal from './TaskCompletionEfficiencyModal';
+import { useTaskStore } from '@/stores/taskStore';
 
 interface NewTimelineViewProps {
   tasks: Task[];
@@ -72,6 +74,19 @@ export default function NewTimelineView({
   
   // 使用金币store
   const goldBalance = useGoldStore(state => state.balance);
+  
+  // 使用任务store
+  const updateTaskEfficiency = useTaskStore(state => state.updateTaskEfficiency);
+  
+  // 效率模态框状态
+  const [efficiencyModalOpen, setEfficiencyModalOpen] = useState(false);
+  const [efficiencyModalTask, setEfficiencyModalTask] = useState<{
+    id: string;
+    title: string;
+    plannedImageCount: number;
+    actualImageCount: number;
+    actualEndTime: Date;
+  } | null>(null);
   
 
 
@@ -2132,11 +2147,27 @@ export default function NewTimelineView({
                        console.log(`  预设结束: ${new Date(block.endTime).toLocaleTimeString()}`);
                        console.log(`  实际结束: ${actualEndTime.toLocaleTimeString()}`);
                        
-                       onTaskUpdate(block.id, {
-                         scheduledEnd: actualEndTime.toISOString(),
-                         isCompleted: true,
-                         status: 'completed'
-                       });
+                       // 检查是否需要显示效率模态框
+                       const verification = taskVerifications[block.id];
+                       if (verification?.enabled && verification.plannedImageCount && verification.plannedImageCount > 0) {
+                         // 需要效率评估
+                         const actualImageCount = taskImages[block.id]?.length || 0;
+                         setEfficiencyModalTask({
+                           id: block.id,
+                           title: block.title,
+                           plannedImageCount: verification.plannedImageCount,
+                           actualImageCount,
+                           actualEndTime,
+                         });
+                         setEfficiencyModalOpen(true);
+                       } else {
+                         // 直接完成任务
+                         onTaskUpdate(block.id, {
+                           scheduledEnd: actualEndTime.toISOString(),
+                           isCompleted: true,
+                           status: 'completed'
+                         });
+                       }
                      }}
                      hasVerification={!!taskVerifications[block.id]?.enabled}
                      startKeywords={taskVerifications[block.id]?.startKeywords || ['启动', '开始']}
@@ -3113,6 +3144,41 @@ export default function NewTimelineView({
             + 添加任务
           </button>
         </div>
+      )}
+      
+      {/* 效率模态框 */}
+      {efficiencyModalTask && (
+        <TaskCompletionEfficiencyModal
+          isOpen={efficiencyModalOpen}
+          onClose={() => {
+            setEfficiencyModalOpen(false);
+            setEfficiencyModalTask(null);
+          }}
+          onConfirm={(efficiency) => {
+            // 更新任务效率
+            updateTaskEfficiency(
+              efficiencyModalTask.id,
+              efficiency,
+              efficiencyModalTask.actualImageCount
+            );
+            
+            // 完成任务
+            onTaskUpdate(efficiencyModalTask.id, {
+              scheduledEnd: efficiencyModalTask.actualEndTime.toISOString(),
+              isCompleted: true,
+              status: 'completed',
+              completionEfficiency: efficiency,
+            });
+            
+            setEfficiencyModalOpen(false);
+            setEfficiencyModalTask(null);
+          }}
+          taskTitle={efficiencyModalTask.title}
+          plannedImageCount={efficiencyModalTask.plannedImageCount}
+          actualImageCount={efficiencyModalTask.actualImageCount}
+          isDark={isDark}
+          accentColor={accentColor}
+        />
       )}
     </div>
   );

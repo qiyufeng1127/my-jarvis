@@ -127,6 +127,13 @@ export interface Task {
   images?: TaskImage[]; // 任务照片列表
   coverImageUrl?: string; // 封面图片URL（第一张照片）
   
+  // 效率追踪
+  requireImageUpload?: boolean; // 是否需要上传图片
+  plannedImageCount?: number; // 计划拍照次数
+  actualImageCount?: number; // 实际拍照次数
+  completionEfficiency?: number; // 完成效率 (0-100)
+  efficiencyLevel?: 'excellent' | 'good' | 'average' | 'poor'; // 效率等级
+  
   createdAt: Date;
   updatedAt: Date;
 }
