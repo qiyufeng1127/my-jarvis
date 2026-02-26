@@ -109,6 +109,9 @@ export default function TaskVerificationCountdownContent({
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationGold, setCelebrationGold] = useState(0);
   
+  // 🔧 记录已触发的提醒，避免重复触发
+  const [triggeredReminders, setTriggeredReminders] = useState<Set<string>>(new Set());
+  
   // 🔧 分步日志显示（直接在界面上显示）
   const [verifyLog, setVerifyLog] = useState<string>('正在验证中，请稍后...');
   const [showDetailedLog, setShowDetailedLog] = useState(false);
@@ -275,14 +278,188 @@ export default function TaskVerificationCountdownContent({
       
       // 🔧 只在用户设置的时间点提醒（转换为秒），并且只触发一次
       if (taskCountdownLeft === reminderMinutes * 60) {
-        console.log(`⏰ [useEffect] 任务即将结束（${reminderMinutes}分钟）- 遵循用户设置: ${taskTitle}`);
-        console.log(`⏰ [useEffect] 当前倒计时: ${taskCountdownLeft}秒，目标: ${reminderMinutes * 60}秒`);
-        notificationService.notifyTaskEnding(taskTitle, reminderMinutes, hasVerification);
+        const reminderKey = `task-end-before-${taskId}-${reminderMinutes}`;
+        if (!triggeredReminders.has(reminderKey)) {
+          console.log(`⏰ [useEffect] 任务即将结束（${reminderMinutes}分钟）- 遵循用户设置: ${taskTitle}`);
+          console.log(`⏰ [useEffect] 当前倒计时: ${taskCountdownLeft}秒，目标: ${reminderMinutes * 60}秒`);
+          notificationService.notifyTaskEnding(taskTitle, reminderMinutes, hasVerification);
+          setTriggeredReminders(prev => new Set(prev).add(reminderKey));
+        }
       }
     } catch (error) {
       console.error('读取通知设置失败:', error);
     }
-  }, [state.status, taskCountdownLeft, taskTitle, hasVerification]);
+  }, [state.status, taskCountdownLeft, taskTitle, hasVerification, taskId, triggeredReminders]);
+
+  // 🔧 新增：任务开始前提醒
+  useEffect(() => {
+    if (state.status !== 'waiting_start') {
+      return;
+    }
+
+    const settingsStr = localStorage.getItem('notification_settings');
+    if (!settingsStr) {
+      return;
+    }
+
+    try {
+      const settings = JSON.parse(settingsStr);
+      
+      if (!settings.taskStartBeforeReminder) {
+        return;
+      }
+
+      const reminderMinutes = settings.taskStartBeforeMinutes || 2;
+      const now = new Date();
+      const start = new Date(scheduledStart);
+      const minutesUntilStart = Math.floor((start.getTime() - now.getTime()) / 60000);
+
+      // 在设置的时间点提醒（例如：提前2分钟）
+      if (minutesUntilStart === reminderMinutes) {
+        const reminderKey = `task-start-before-${taskId}-${reminderMinutes}`;
+        if (!triggeredReminders.has(reminderKey)) {
+          console.log(`⏰ 任务开始前提醒（${reminderMinutes}分钟）: ${taskTitle}`);
+          notificationService.notifyTaskStartBefore(taskTitle, reminderMinutes, hasVerification);
+          setTriggeredReminders(prev => new Set(prev).add(reminderKey));
+        }
+      }
+    } catch (error) {
+      console.error('读取通知设置失败:', error);
+    }
+  }, [state.status, scheduledStart, taskTitle, hasVerification, taskId, triggeredReminders]);
+
+  // 🔧 新增：任务进行中提醒
+  useEffect(() => {
+    if (state.status !== 'task_countdown' || !state.actualStartTime) {
+      return;
+    }
+
+    const settingsStr = localStorage.getItem('notification_settings');
+    if (!settingsStr) {
+      return;
+    }
+
+    try {
+      const settings = JSON.parse(settingsStr);
+      
+      if (!settings.taskDuringReminder) {
+        return;
+      }
+
+      const intervalMinutes = settings.taskDuringMinutes || 10;
+      const startTime = new Date(state.actualStartTime);
+      const now = new Date();
+      const elapsedMinutes = Math.floor((now.getTime() - startTime.getTime()) / 60000);
+
+      // 每隔设置的时间提醒一次（例如：每10分钟）
+      if (elapsedMinutes > 0 && elapsedMinutes % intervalMinutes === 0) {
+        const reminderKey = `task-during-${taskId}-${elapsedMinutes}`;
+        if (!triggeredReminders.has(reminderKey)) {
+          console.log(`⏰ 任务进行中提醒（已进行${elapsedMinutes}分钟）: ${taskTitle}`);
+          notificationService.notifyTaskDuring(taskTitle, elapsedMinutes);
+          setTriggeredReminders(prev => new Set(prev).add(reminderKey));
+        }
+      }
+    } catch (error) {
+      console.error('读取通知设置失败:', error);
+    }
+  }, [state.status, state.actualStartTime, taskTitle, taskId, triggeredReminders, currentTime]);
+
+  // 🔧 新增：紧急验证提醒（启动倒计时最后10秒）
+  useEffect(() => {
+    if (state.status !== 'start_countdown') {
+      return;
+    }
+
+    const settingsStr = localStorage.getItem('notification_settings');
+    if (!settingsStr) {
+      return;
+    }
+
+    try {
+      const settings = JSON.parse(settingsStr);
+      
+      if (!settings.verificationUrgentReminder) {
+        return;
+      }
+
+      // 最后10秒提醒
+      if (startCountdownLeft === 10) {
+        const reminderKey = `verification-urgent-start-${taskId}`;
+        if (!triggeredReminders.has(reminderKey)) {
+          console.log(`🚨 紧急验证提醒（启动，还有10秒）: ${taskTitle}`);
+          notificationService.notifyVerificationUrgent(taskTitle, 'start', 10);
+          setTriggeredReminders(prev => new Set(prev).add(reminderKey));
+        }
+      }
+    } catch (error) {
+      console.error('读取通知设置失败:', error);
+    }
+  }, [state.status, startCountdownLeft, taskTitle, taskId, triggeredReminders]);
+
+  // 🔧 新增：紧急验证提醒（任务倒计时最后10秒）
+  useEffect(() => {
+    if (state.status !== 'task_countdown') {
+      return;
+    }
+
+    const settingsStr = localStorage.getItem('notification_settings');
+    if (!settingsStr) {
+      return;
+    }
+
+    try {
+      const settings = JSON.parse(settingsStr);
+      
+      if (!settings.verificationUrgentReminder) {
+        return;
+      }
+
+      // 最后10秒提醒
+      if (taskCountdownLeft === 10) {
+        const reminderKey = `verification-urgent-complete-${taskId}`;
+        if (!triggeredReminders.has(reminderKey)) {
+          console.log(`🚨 紧急验证提醒（完成，还有10秒）: ${taskTitle}`);
+          notificationService.notifyVerificationUrgent(taskTitle, 'completion', 10);
+          setTriggeredReminders(prev => new Set(prev).add(reminderKey));
+        }
+      }
+    } catch (error) {
+      console.error('读取通知设置失败:', error);
+    }
+  }, [state.status, taskCountdownLeft, taskTitle, taskId, triggeredReminders]);
+
+  // 🔧 新增：任务结束时提醒（倒计时到0时）
+  useEffect(() => {
+    if (state.status !== 'task_countdown') {
+      return;
+    }
+
+    const settingsStr = localStorage.getItem('notification_settings');
+    if (!settingsStr) {
+      return;
+    }
+
+    try {
+      const settings = JSON.parse(settingsStr);
+      
+      if (!settings.taskEndReminder) {
+        return;
+      }
+
+      // 倒计时到0时提醒
+      if (taskCountdownLeft === 0) {
+        const reminderKey = `task-end-${taskId}`;
+        if (!triggeredReminders.has(reminderKey)) {
+          console.log(`⏰ 任务结束时提醒: ${taskTitle}`);
+          notificationService.notifyTaskEnd(taskTitle, hasVerification);
+          setTriggeredReminders(prev => new Set(prev).add(reminderKey));
+        }
+      }
+    } catch (error) {
+      console.error('读取通知设置失败:', error);
+    }
+  }, [state.status, taskCountdownLeft, taskTitle, hasVerification, taskId, triggeredReminders]);
 
   // 启动任务（无验证直接启动，有验证需上传照片）
   const handleStartTask = useCallback(async (useCamera: boolean = false) => {
