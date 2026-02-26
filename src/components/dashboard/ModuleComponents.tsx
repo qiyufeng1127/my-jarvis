@@ -1070,22 +1070,24 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
 
   return (
     <div className="space-y-4 p-4 bg-white dark:bg-black">
-      {/* 选项卡 - 紧凑布局 */}
-      <div className="grid grid-cols-6 gap-2">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            className={`py-2 px-2 rounded-lg text-xs font-medium transition-all ${
-              activeTab === tab.id 
-                ? 'bg-blue-500 text-white shadow-md' 
-                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-            }`}
-          >
-            <div className="text-lg mb-0.5">{tab.icon}</div>
-            <div>{tab.label}</div>
-          </button>
-        ))}
+      {/* 选项卡 - 横向滚动布局 */}
+      <div className="overflow-x-auto -mx-4 px-4">
+        <div className="flex gap-2 min-w-max pb-2">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`py-2 px-4 rounded-lg text-xs font-medium transition-all whitespace-nowrap flex-shrink-0 ${
+                activeTab === tab.id 
+                  ? 'bg-blue-500 text-white shadow-md' 
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+            >
+              <div className="text-lg mb-0.5">{tab.icon}</div>
+              <div>{tab.label}</div>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* 设备信息 */}
