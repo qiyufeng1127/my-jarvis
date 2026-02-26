@@ -4,9 +4,10 @@ import { PetShop } from '@/components/pet/PetShop';
 import { FocusTimer } from '@/components/focus/FocusTimer';
 import { FocusStatsPanel } from '@/components/focus/FocusStatsPanel';
 import { LeaderboardPanel } from '@/components/leaderboard/LeaderboardPanel';
+import EmergencyTaskManager from '@/components/emergency/EmergencyTaskManager';
 
 export const GameSystemPanel: React.FC = () => {
-  const [activePanel, setActivePanel] = useState<'pet' | 'focus' | 'leaderboard' | null>(null);
+  const [activePanel, setActivePanel] = useState<'pet' | 'focus' | 'leaderboard' | 'emergency' | null>(null);
   const [showPetShop, setShowPetShop] = useState(false);
 
   // 监听打开宠物商店事件
@@ -53,6 +54,13 @@ export const GameSystemPanel: React.FC = () => {
             >
               🏆
             </button>
+            <button
+              className={`fab-item ${activePanel === 'emergency' ? 'active' : ''}`}
+              onClick={() => setActivePanel('emergency')}
+              title="紧急任务库"
+            >
+              🚨
+            </button>
           </div>
         )}
       </div>
@@ -65,6 +73,7 @@ export const GameSystemPanel: React.FC = () => {
               {activePanel === 'pet' && '🐾 宠物系统'}
               {activePanel === 'focus' && '🎯 专注模式'}
               {activePanel === 'leaderboard' && '🏆 排行榜'}
+              {activePanel === 'emergency' && '🚨 紧急任务库'}
             </h3>
             <button className="btn-close" onClick={() => setActivePanel(null)}>
               ✕
@@ -94,6 +103,8 @@ export const GameSystemPanel: React.FC = () => {
             )}
 
             {activePanel === 'leaderboard' && <LeaderboardPanel />}
+            
+            {activePanel === 'emergency' && <EmergencyTaskManager />}
           </div>
         </div>
       )}

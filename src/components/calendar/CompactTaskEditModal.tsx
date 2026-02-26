@@ -215,8 +215,8 @@ ${goals.map(g => `- ${g.id}: ${g.title}`).join('\n')}
           </button>
         </div>
 
-        {/* 表单内容 - 紧凑布局 */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {/* 表单内容 - 紧凑布局，添加底部内边距避免被导航栏遮挡 */}
+        <div className="flex-1 overflow-y-auto p-4 pb-20 space-y-3">
           {/* 任务标题 */}
           <div>
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
@@ -379,8 +379,8 @@ ${goals.map(g => `- ${g.id}: ${g.title}`).join('\n')}
           </div>
         </div>
 
-        {/* 底部按钮 - 紧凑布局 */}
-        <div className="flex-shrink-0 border-t-2 border-gray-200 dark:border-gray-700 px-3 py-2 flex gap-2 bg-gray-50 dark:bg-gray-800/50">
+        {/* 底部按钮 - 固定在底部，避免被导航栏遮挡 */}
+        <div className="flex-shrink-0 border-t-2 border-gray-200 dark:border-gray-700 px-3 py-2 flex gap-2 bg-gray-50 dark:bg-gray-800/50 sticky bottom-0 z-10 shadow-lg">
           <button
             onClick={handleDelete}
             className="px-4 py-2 rounded-lg font-semibold transition-all active:scale-95 text-sm"

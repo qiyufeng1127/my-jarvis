@@ -18,6 +18,9 @@ import NotificationToast from '@/components/notifications/NotificationToast';
 import { OnboardingTutorial } from '@/components/onboarding/OnboardingTutorial';
 import { GameSystemPanel } from '@/components/game/GameSystemPanel';
 
+// 紧急任务系统
+import EmergencyTaskTrigger from '@/components/emergency/EmergencyTaskTrigger';
+
 function App() {
   const { initializeUser } = useUserStore();
   const { effectiveTheme, updateEffectiveTheme } = useThemeStore();
@@ -147,6 +150,9 @@ function App() {
         
         {/* 游戏系统面板 */}
         <GameSystemPanel />
+        
+        {/* 紧急任务触发器 */}
+        <EmergencyTaskTrigger />
         
         <Routes>
           {/* 主控面板 */}

@@ -11,6 +11,8 @@ class ActivityMonitorService {
   private checkInterval: NodeJS.Timeout | null = null;
   private inactivityThreshold = 60 * 60 * 1000; // 1小时（毫秒）
   private checkFrequency = 5 * 60 * 1000; // 每5分钟检查一次
+  private sleepStartHour = 0; // 睡眠开始时间（0点）
+  private sleepEndHour = 9; // 睡眠结束时间（9点）
   
   /**
    * 记录用户活动
@@ -21,11 +23,32 @@ class ActivityMonitorService {
   }
   
   /**
+   * 检查当前是否在睡眠时间段
+   */
+  private isInSleepTime(): boolean {
+    const now = new Date();
+    const currentHour = now.getHours();
+    
+    // 检查是否在睡眠时间段（0点-9点）
+    if (currentHour >= this.sleepStartHour && currentHour < this.sleepEndHour) {
+      return true;
+    }
+    
+    return false;
+  }
+  
+  /**
    * 检查是否需要触发紧急任务
    */
   private checkInactivity() {
     const emergencyTaskStore = useEmergencyTaskStore.getState();
     const driveStore = useDriveStore.getState();
+    
+    // 检查是否在睡眠时间段
+    if (this.isInSleepTime()) {
+      console.log('😴 当前在睡眠时间段（0:00-9:00），不触发紧急任务');
+      return;
+    }
     
     // 如果已经有紧急任务在进行中，不再触发
     if (emergencyTaskStore.currentTask) {
@@ -108,6 +131,15 @@ class ActivityMonitorService {
   setInactivityThreshold(minutes: number) {
     this.inactivityThreshold = minutes * 60 * 1000;
     console.log(`⚙️ 设置不活动阈值: ${minutes} 分钟`);
+  }
+  
+  /**
+   * 设置睡眠时间段
+   */
+  setSleepTime(startHour: number, endHour: number) {
+    this.sleepStartHour = startHour;
+    this.sleepEndHour = endHour;
+    console.log(`😴 设置睡眠时间: ${startHour}:00 - ${endHour}:00`);
   }
   
   /**
