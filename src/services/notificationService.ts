@@ -435,6 +435,53 @@ class NotificationService {
   }
 
   /**
+   * 任务开始前通知 - 新增
+   */
+  async notifyTaskStartBefore(taskTitle: string, minutesBefore: number, hasVerification: boolean = false) {
+    console.log('📢 [notifyTaskStartBefore] 被调用:', { taskTitle, minutesBefore, hasVerification });
+
+    // 🔧 重新加载设置
+    this.loadSettings();
+
+    // 检查设置
+    if (!this.settings.taskStartBeforeReminder) {
+      console.log('⏭️ [notifyTaskStartBefore] 任务开始前提醒已关闭');
+      return;
+    }
+
+    // 检查是否匹配用户设置的提醒时间
+    if (minutesBefore !== this.settings.taskStartBeforeMinutes) {
+      console.log(`⏭️ [notifyTaskStartBefore] 不匹配用户设置（用户设置：${this.settings.taskStartBeforeMinutes}分钟，当前：${minutesBefore}分钟）`);
+      return;
+    }
+
+    console.log(`✅ [notifyTaskStartBefore] 匹配用户设置，触发提醒（${minutesBefore}分钟）`);
+
+    const body = hasVerification
+      ? `还有${minutesBefore}分钟，${taskTitle}即将开始，请准备进行启动验证`
+      : `还有${minutesBefore}分钟，${taskTitle}即将开始`;
+
+    // 1. 发送浏览器通知
+    if (this.settings.browserNotification) {
+      await this.sendNotification('⏰ 任务即将开始', {
+        body,
+        tag: 'task-start-before',
+        requireInteraction: false,
+        vibrate: [100, 50, 100],
+      });
+    }
+
+    // 2. 播放音效
+    this.playSound('start');
+
+    // 3. 震动反馈
+    this.vibrate([100, 50, 100]);
+
+    // 4. 语音播报
+    this.speak(body);
+  }
+
+  /**
    * 任务开始通知 - 增强版
    */
   async notifyTaskStart(taskTitle: string, hasVerification: boolean = false) {
@@ -465,6 +512,45 @@ class NotificationService {
 
     // 3. 震动反馈
     this.vibrate([200, 100, 200]);
+
+    // 4. 语音播报
+    this.speak(body);
+  }
+
+  /**
+   * 任务进行中通知 - 新增
+   */
+  async notifyTaskDuring(taskTitle: string, elapsedMinutes: number) {
+    console.log('📢 [notifyTaskDuring] 被调用:', { taskTitle, elapsedMinutes });
+
+    // 🔧 重新加载设置
+    this.loadSettings();
+
+    // 检查设置
+    if (!this.settings.taskDuringReminder) {
+      console.log('⏭️ [notifyTaskDuring] 任务进行中提醒已关闭');
+      return;
+    }
+
+    console.log(`✅ [notifyTaskDuring] 触发提醒（已进行${elapsedMinutes}分钟）`);
+
+    const body = `${taskTitle} 已进行${elapsedMinutes}分钟，请保持专注`;
+
+    // 1. 发送浏览器通知
+    if (this.settings.browserNotification) {
+      await this.sendNotification('⏱️ 任务进行中', {
+        body,
+        tag: 'task-during',
+        requireInteraction: false,
+        vibrate: [100],
+      });
+    }
+
+    // 2. 播放音效
+    this.playSound('start');
+
+    // 3. 震动反馈
+    this.vibrate([100]);
 
     // 4. 语音播报
     this.speak(body);
@@ -522,13 +608,18 @@ class NotificationService {
    * 任务结束通知 - 增强版
    */
   async notifyTaskEnd(taskTitle: string, hasVerification: boolean = false) {
-    console.log('📢 任务结束通知:', taskTitle);
+    console.log('📢 [notifyTaskEnd] 被调用:', { taskTitle, hasVerification });
+
+    // 🔧 重新加载设置
+    this.loadSettings();
 
     // 检查设置 - 使用正确的设置项
     if (!this.settings.taskEndReminder) {
-      console.log('⏭️ 任务结束提醒已关闭');
+      console.log('⏭️ [notifyTaskEnd] 任务结束提醒已关闭');
       return;
     }
+
+    console.log('✅ [notifyTaskEnd] 触发任务结束提醒');
 
     const body = hasVerification
       ? `${taskTitle} 已结束，请进行完成验证！`
@@ -549,6 +640,46 @@ class NotificationService {
 
     // 3. 长震动
     this.vibrate([300, 100, 300]);
+
+    // 4. 语音播报
+    this.speak(body);
+  }
+
+  /**
+   * 紧急验证提醒 - 新增
+   */
+  async notifyVerificationUrgent(taskTitle: string, type: 'start' | 'completion', secondsLeft: number) {
+    console.log('📢 [notifyVerificationUrgent] 被调用:', { taskTitle, type, secondsLeft });
+
+    // 🔧 重新加载设置
+    this.loadSettings();
+
+    // 检查设置
+    if (!this.settings.verificationUrgentReminder) {
+      console.log('⏭️ [notifyVerificationUrgent] 紧急验证提醒已关闭');
+      return;
+    }
+
+    console.log(`✅ [notifyVerificationUrgent] 触发紧急验证提醒（还有${secondsLeft}秒）`);
+
+    const typeText = type === 'start' ? '启动' : '完成';
+    const body = `警告！还有${secondsLeft}秒，请立即上传${taskTitle}的${typeText}验证照片！`;
+
+    // 1. 发送浏览器通知
+    if (this.settings.browserNotification) {
+      await this.sendNotification('🚨 紧急验证提醒', {
+        body,
+        tag: 'verification-urgent',
+        requireInteraction: true,
+        vibrate: [200, 100, 200, 100, 200],
+      });
+    }
+
+    // 2. 播放警告音
+    this.playSound('warning');
+
+    // 3. 急促震动
+    this.vibrate([200, 100, 200, 100, 200]);
 
     // 4. 语音播报
     this.speak(body);

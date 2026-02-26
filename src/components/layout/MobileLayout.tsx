@@ -320,7 +320,7 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
       )}
 
       {/* 主内容区域 - 可滚动，底部留出导航栏空间，顶部适配刘海屏 */}
-      <div className="flex-1 overflow-y-auto pb-20 relative" style={{ paddingTop: '20px' }}>
+      <div className="flex-1 overflow-y-auto pb-32 relative" style={{ paddingTop: '20px' }}>
         {/* 首页特殊处理：顶部栏和心情周报也放在滚动区域内 */}
         {activeTab === 'home' && (
           <>
