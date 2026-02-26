@@ -5,6 +5,7 @@ import NotificationSettingsPanel from '@/components/settings/NotificationSetting
 import DataBackupPanel from '@/components/settings/DataBackupPanel';
 import AppearanceSettings from '@/components/settings/AppearanceSettings';
 import BaiduAISettings from '@/components/settings/BaiduAISettings';
+import EmergencyTaskSettings from '@/components/settings/EmergencyTaskSettings';
 import { MoneyTracker } from '@/components/money';
 import MoodWeeklyChart from '@/components/journal/MoodWeeklyChart';
 import FloatingAIChat from '@/components/ai/FloatingAIChat';
@@ -1034,7 +1035,7 @@ export function ReportsModule({ isDark = false }: { isDark?: boolean }) {
 
 // 设置模块
 export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: boolean; bgColor?: string }) {
-  const [activeTab, setActiveTab] = useState<'device' | 'backup' | 'appearance' | 'notification' | 'baidu'>('device');
+  const [activeTab, setActiveTab] = useState<'device' | 'backup' | 'appearance' | 'notification' | 'baidu' | 'emergency'>('device');
   
   // 使用真正的主题 store
   const { effectiveTheme } = useThemeStore();
@@ -1064,12 +1065,13 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
     { id: 'appearance', label: '外观', icon: '🎨' },
     { id: 'notification', label: '通知', icon: '🔔' },
     { id: 'baidu', label: 'AI', icon: '🤖' },
+    { id: 'emergency', label: '紧急', icon: '🚨' },
   ];
 
   return (
     <div className="space-y-4 p-4 bg-white dark:bg-black">
       {/* 选项卡 - 紧凑布局 */}
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-6 gap-2">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -1096,14 +1098,14 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
         <DataBackupPanel />
       )}
 
-      {/* 邮箱登录 */}
-      {activeTab === 'auth' && (
-        <AuthPanel isDark={isDark} bgColor={bgColor} />
-      )}
-
       {/* 百度AI配置 */}
       {activeTab === 'baidu' && (
         <BaiduAISettings />
+      )}
+
+      {/* 紧急任务设置 */}
+      {activeTab === 'emergency' && (
+        <EmergencyTaskSettings />
       )}
 
       {/* 云同步设置 */}
