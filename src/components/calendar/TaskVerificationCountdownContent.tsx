@@ -4,6 +4,7 @@ import { ImageUploader } from '@/services/taskVerificationService';
 import { notificationService } from '@/services/notificationService';
 import VerificationFeedback, { VerificationLog } from '@/components/shared/VerificationFeedback';
 import TaskCompletionCelebration from '@/components/shared/TaskCompletionCelebration';
+import { fixImageOrientation } from '@/utils/imageOrientation';
 
 interface TaskVerificationCountdownContentProps {
   taskId: string;
@@ -108,23 +109,24 @@ export default function TaskVerificationCountdownContent({
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationGold, setCelebrationGold] = useState(0);
   
-  // 验证流程日志（用于实时反馈）
-  const [verificationLogs, setVerificationLogs] = useState<VerificationLog[]>([]);
+  // 🔧 分步日志显示（直接在界面上显示）
+  const [verifyLog, setVerifyLog] = useState<string>('正在验证中，请稍后...');
+  const [showDetailedLog, setShowDetailedLog] = useState(false);
+  const [detailedLogs, setDetailedLogs] = useState<string[]>([]);
   
-  // 添加验证日志
-  const addVerificationLog = useCallback((message: string, type: VerificationLog['type']) => {
-    const log: VerificationLog = {
-      id: `${Date.now()}-${Math.random()}`,
-      message,
-      type,
-      timestamp: new Date(),
-    };
-    setVerificationLogs(prev => [...prev, log]);
+  // 添加日志
+  const addLog = useCallback((message: string) => {
+    const timestamp = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+    const logMessage = `[${timestamp}] ${message}`;
+    console.log(logMessage);
+    setDetailedLogs(prev => [...prev, logMessage]);
+    setVerifyLog(message); // 更新主日志显示
   }, []);
   
-  // 清空验证日志
-  const clearVerificationLogs = useCallback(() => {
-    setVerificationLogs([]);
+  // 清空日志
+  const clearLogs = useCallback(() => {
+    setDetailedLogs([]);
+    setVerifyLog('正在验证中，请稍后...');
   }, []);
   
   // 实时计算剩余时间（基于截止时间）- 使用时间戳确保后台运行
@@ -367,60 +369,49 @@ export default function TaskVerificationCountdownContent({
       }
       
       try {
-        console.log('📷 [Vercel API] 开始识别');
-        console.log('📷 [Vercel API] 关键词:', startKeywords);
-        setVerificationMessage('📤 正在上传图片...');
+        clearLogs();
+        addLog('📷 开始验证流程');
+        addLog('📋 目标关键词: ' + startKeywords.join('、'));
         
         // 检查百度API配置
         const apiKey = localStorage.getItem('baidu_api_key');
         const secretKey = localStorage.getItem('baidu_secret_key');
-        console.log('📷 [Vercel API] 配置检查:', {
-          hasApiKey: !!apiKey,
-          hasSecretKey: !!secretKey,
-          apiKeyLength: apiKey?.length || 0,
-        });
         
         if (!apiKey || !secretKey) {
           throw new Error('百度API未配置');
         }
         
+        addLog('✅ API配置检查通过');
+        
         // 添加超时控制：30秒超时
         const timeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(() => {
-            console.error('❌ [Vercel API] 验证超时（30秒）');
+            addLog('❌ 验证超时（30秒）');
             reject(new Error('TIMEOUT'));
           }, 30000);
         });
         
-        // 1. 将图片转换为 base64
+        // 🔧 步骤1：修复图片旋转（PWA手机拍照必做）
+        addLog('🔄 正在处理图片，纠正手机拍摄角度...');
+        const fixedBlob = await fixImageOrientation(file);
+        addLog('✅ 图片旋转已修正');
+        
+        // 🔧 步骤2：将图片转换为 base64
+        addLog('📤 正在转换图片格式...');
         const reader = new FileReader();
         const imageBase64 = await new Promise<string>((resolve, reject) => {
-          reader.onload = () => resolve(reader.result as string);
+          reader.onload = () => {
+            addLog('✅ 图片转换完成');
+            resolve(reader.result as string);
+          };
           reader.onerror = reject;
-          reader.readAsDataURL(file);
+          reader.readAsDataURL(fixedBlob);
         });
         
-        setVerificationMessage('🔗 正在连接百度AI...');
-        
-        // 2. 调用 Vercel Serverless API 验证
+        // 🔧 步骤3：调用 Vercel Serverless API 验证
         const verifyResult = await Promise.race([
           (async () => {
-            setVerificationMessage('🤖 百度AI识别中...');
-            
-            console.log('📷 [PWA验证] ========== 开始调用API ==========');
-            console.log('📷 [PWA验证] 当前环境:', {
-              userAgent: navigator.userAgent,
-              isPWA: window.matchMedia('(display-mode: standalone)').matches,
-              origin: window.location.origin,
-              pathname: window.location.pathname,
-            });
-            console.log('📷 [PWA验证] 调用 /api/baidu-image-recognition');
-            console.log('📷 [PWA验证] 请求参数:', {
-              imageLength: imageBase64.length,
-              keywords: startKeywords,
-              hasApiKey: !!apiKey,
-              hasSecretKey: !!secretKey,
-            });
+            addLog('🔗 正在连接百度AI服务器...');
             
             const requestBody = {
               image: imageBase64,
@@ -429,7 +420,7 @@ export default function TaskVerificationCountdownContent({
               secretKey: secretKey,
             };
             
-            console.log('📷 [PWA验证] 发送请求...');
+            addLog('📡 正在发送验证请求...');
             const startTime = Date.now();
             
             const response = await fetch('/api/baidu-image-recognition', {
@@ -441,41 +432,45 @@ export default function TaskVerificationCountdownContent({
             });
             
             const endTime = Date.now();
-            console.log('📷 [PWA验证] 请求耗时:', endTime - startTime, 'ms');
-            console.log('📷 [PWA验证] 响应状态:', response.status, response.statusText);
-            console.log('📷 [PWA验证] 响应头:', Object.fromEntries(response.headers.entries()));
+            addLog(`⏱️ 请求耗时: ${endTime - startTime}ms`);
             
             if (!response.ok) {
               const errorText = await response.text();
-              console.error('❌ [PWA验证] 请求失败:', response.status, errorText);
+              addLog(`❌ API请求失败: ${response.status}`);
               throw new Error(`API请求失败: ${response.status} - ${errorText}`);
             }
             
             const result = await response.json();
-            console.log('📷 [PWA验证] ========== API返回结果 ==========');
-            console.log('📷 [PWA验证] 完整结果:', JSON.stringify(result, null, 2));
-            console.log('📷 [PWA验证] success:', result.success);
-            console.log('📷 [PWA验证] message:', result.message);
-            console.log('📷 [PWA验证] matchedKeywords:', result.matchedKeywords);
-            console.log('📷 [PWA验证] recognizedObjects:', result.recognizedObjects);
-            console.log('📷 [PWA验证] ========================================');
+            addLog('✅ 收到API响应');
             
-            setVerificationMessage('✨ AI分析完成，正在匹配关键词...');
-            await new Promise(resolve => setTimeout(resolve, 300));
+            // 🔧 步骤4：显示识别结果
+            if (result.recognizedObjects && result.recognizedObjects.length > 0) {
+              addLog('🔍 已识别图片内容: ' + result.recognizedObjects.join('、'));
+            } else {
+              addLog('⚠️ 未识别到任何内容');
+            }
+            
+            // 🔧 步骤5：显示匹配结果
+            if (result.matchedKeywords && result.matchedKeywords.length > 0) {
+              addLog('✅ 匹配到关键词: ' + result.matchedKeywords.join('、'));
+            } else {
+              addLog('❌ 未匹配到任何关键词');
+            }
+            
             return result;
           })(),
           timeoutPromise
         ]) as any;
         
-        console.log('📷 [Vercel API] 验证结果:', verifyResult);
-        
         if (!verifyResult.success) {
-          // 验证失败：扣金币，返回倒计时，重置为2分钟
+          // 验证失败：显示详细原因
+          addLog('❌ 验证失败');
+          addLog('📋 失败原因: ' + (verifyResult.message || '未知原因'));
+          
           const penaltyAmount = Math.floor(goldReward * 0.2);
           penaltyGold(penaltyAmount, `启动验证失败（第${state.startTimeoutCount + 1}次）`, taskId, taskTitle);
-          console.log(`❌ 启动验证失败！扣除${penaltyAmount}金币`);
           
-          // 🔧 修复：立即返回启动倒计时状态，重置为2分钟，确保倒计时继续运行
+          // 立即返回启动倒计时状态，重置为2分钟
           const newDeadline = new Date(Date.now() + 2 * 60 * 1000);
           const newState = {
             ...state,
@@ -486,45 +481,36 @@ export default function TaskVerificationCountdownContent({
           setState(newState);
           saveState(newState);
           
-          // 显示验证失败消息
-          setVerificationMessage(verifyResult.message || `❌ 验证未通过（需包含：${startKeywords.join('、')}）`);
-          setVerificationSuccess(false);
-          
-          console.log(`❌ [Vercel API] 识别失败:`, verifyResult);
-          
-          // 🔧 修复：立即结束上传状态，返回倒计时界面
           setIsUploading(false);
           
-          // 3秒后清除错误消息
+          // 5秒后清除日志
           setTimeout(() => {
-            setVerificationMessage('');
-            setVerificationSuccess(null);
-          }, 3000);
+            clearLogs();
+          }, 5000);
           
           return;
         }
         
-        // 3. 验证成功，自动进入任务倒计时
+        // 验证成功
+        addLog('🎉 验证成功！');
         const now = new Date();
         const duration = Math.floor((new Date(scheduledEnd).getTime() - new Date(scheduledStart).getTime()) / 60000);
         const taskSeconds = duration * 60;
         
         const recognizedItems = verifyResult.matchedKeywords?.join('、') || verifyResult.recognizedObjects?.join('、') || '相关内容';
-        setVerificationMessage(`✅ 验证成功！已识别到：${recognizedItems}`);
-        setVerificationSuccess(true);
-        console.log(`✅ [Vercel API] 识别成功，匹配关键词：${recognizedItems}`);
-        console.log('📝 详细匹配信息:', verifyResult);
+        addLog('✅ 已识别到: ' + recognizedItems);
         
         // 2分钟内完成启动，奖励50%金币
         const bonusGold = Math.floor(goldReward * 0.5);
         addGold(bonusGold, `按时启动任务（奖励50%）`, taskId, taskTitle);
-        console.log(`✅ 按时启动任务，获得${bonusGold}金币奖励`);
+        addLog(`💰 获得${bonusGold}金币奖励`);
         
         // 触发语音播报和通知
         notificationService.notifyVerificationSuccess(taskTitle, 'start');
         
-        // 延迟2秒后进入任务倒计时，让用户看到验证成功消息
+        // 延迟2秒后进入任务倒计时
         setTimeout(() => {
+          addLog('⏱️ 开始任务倒计时');
           const newState = {
             ...state,
             status: 'task_countdown' as CountdownStatus,
@@ -535,22 +521,19 @@ export default function TaskVerificationCountdownContent({
           saveState(newState);
           
           setIsUploading(false);
-          setVerificationMessage('');
-          setVerificationSuccess(null);
+          clearLogs();
           
           // 通知父组件更新开始时间
           if (onStart) {
             const calculatedEndTime = new Date(now.getTime() + duration * 60000);
             onStart(now, calculatedEndTime);
           }
-          
-          console.log(`✅ 启动验证成功: ${taskTitle}，任务时长${duration}分钟`);
         }, 2000);
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : '未知错误';
-        console.error('❌ [Vercel API] 验证异常:', error);
+        addLog('❌ 验证异常: ' + errorMsg);
         
-        // 🔧 修复：验证异常时，立即返回启动倒计时状态，重置为2分钟
+        // 验证异常时，立即返回启动倒计时状态，重置为2分钟
         const newDeadline = new Date(Date.now() + 2 * 60 * 1000);
         const newState = {
           ...state,
@@ -565,28 +548,11 @@ export default function TaskVerificationCountdownContent({
         const penaltyAmount = Math.floor(goldReward * 0.2);
         penaltyGold(penaltyAmount, `启动验证异常（第${state.startTimeoutCount + 1}次）`, taskId, taskTitle);
         
-        // 根据错误类型给出详细的提示
-        let userMessage = '';
-        if (errorMsg === 'TIMEOUT') {
-          userMessage = '❌ 验证超时（30秒）\n\n可能原因：\n1️⃣ 百度API未配置\n   • 请前往【设置→AI】配置百度API\n   • 需要填写API Key和Secret Key\n\n2️⃣ 网络连接问题\n   • 请检查网络连接\n   • 尝试切换网络后重试\n\n3️⃣ 百度服务响应慢\n   • 请稍后重试\n\n💡 提示：如果持续失败，请检查API配置是否正确';
-        } else if (errorMsg.includes('网络')) {
-          userMessage = '❌ 网络错误\n\n请检查网络连接后重试\n\n如果网络正常，可能是：\n• 百度API配置错误\n• 防火墙拦截\n• 代理设置问题';
-        } else if (errorMsg.includes('API')) {
-          userMessage = '❌ API配置错误\n\n请检查【设置→AI】中的百度API配置：\n• API Key是否正确\n• Secret Key是否正确\n• 是否已开通图像识别服务';
-        } else {
-          userMessage = `❌ 验证失败\n\n错误信息：${errorMsg}\n\n请检查：\n• 百度API配置（设置→AI）\n• 网络连接\n• 图片质量`;
-        }
-        
-        setVerificationMessage(userMessage);
-        setVerificationSuccess(false);
-        
-        // 🔧 修复：立即结束上传状态，返回倒计时界面
         setIsUploading(false);
         
-        // 5秒后清除错误消息
+        // 5秒后清除日志
         setTimeout(() => {
-          setVerificationMessage('');
-          setVerificationSuccess(null);
+          clearLogs();
         }, 5000);
       }
     };
@@ -683,63 +649,49 @@ export default function TaskVerificationCountdownContent({
       }
       
       try {
-        console.log('📷 [Vercel API] 开始识别');
-        console.log('📷 [Vercel API] 关键词:', completeKeywords);
+        clearLogs();
+        addLog('📷 开始完成验证流程');
+        addLog('📋 目标关键词: ' + completeKeywords.join('、'));
         
         // 检查百度API配置
         const apiKey = localStorage.getItem('baidu_api_key');
         const secretKey = localStorage.getItem('baidu_secret_key');
         
-        console.log('📷 [Vercel API] 配置检查:', {
-          hasApiKey: !!apiKey,
-          hasSecretKey: !!secretKey,
-          apiKeyLength: apiKey?.length || 0,
-        });
-        
         if (!apiKey || !secretKey) {
           throw new Error('百度API未配置');
         }
         
-        setVerificationMessage('📤 正在上传图片...');
+        addLog('✅ API配置检查通过');
         
         // 添加超时控制：30秒超时
         const timeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(() => {
-            console.error('❌ [Vercel API] 验证超时（30秒）');
+            addLog('❌ 验证超时（30秒）');
             reject(new Error('TIMEOUT'));
           }, 30000);
         });
         
-        // 1. 将图片转换为 base64
+        // 🔧 步骤1：修复图片旋转（PWA手机拍照必做）
+        addLog('🔄 正在处理图片，纠正手机拍摄角度...');
+        const fixedBlob = await fixImageOrientation(file);
+        addLog('✅ 图片旋转已修正');
+        
+        // 🔧 步骤2：将图片转换为 base64
+        addLog('📤 正在转换图片格式...');
         const reader = new FileReader();
         const imageBase64 = await new Promise<string>((resolve, reject) => {
-          reader.onload = () => resolve(reader.result as string);
+          reader.onload = () => {
+            addLog('✅ 图片转换完成');
+            resolve(reader.result as string);
+          };
           reader.onerror = reject;
-          reader.readAsDataURL(file);
+          reader.readAsDataURL(fixedBlob);
         });
         
-        setVerificationMessage('🔗 正在连接百度AI...');
-        
-        // 2. 调用 Vercel Serverless API 验证
+        // 🔧 步骤3：调用 Vercel Serverless API 验证
         const verifyResult = await Promise.race([
           (async () => {
-            setVerificationMessage('🤖 百度AI识别中...');
-            await new Promise(resolve => setTimeout(resolve, 300));
-            
-            console.log('📷 [PWA完成验证] ========== 开始调用API ==========');
-            console.log('📷 [PWA完成验证] 当前环境:', {
-              userAgent: navigator.userAgent,
-              isPWA: window.matchMedia('(display-mode: standalone)').matches,
-              origin: window.location.origin,
-              pathname: window.location.pathname,
-            });
-            console.log('📷 [PWA完成验证] 调用 /api/baidu-image-recognition');
-            console.log('📷 [PWA完成验证] 请求参数:', {
-              imageLength: imageBase64.length,
-              keywords: completeKeywords,
-              hasApiKey: !!apiKey,
-              hasSecretKey: !!secretKey,
-            });
+            addLog('🔗 正在连接百度AI服务器...');
             
             const requestBody = {
               image: imageBase64,
@@ -748,7 +700,7 @@ export default function TaskVerificationCountdownContent({
               secretKey: secretKey,
             };
             
-            console.log('📷 [PWA完成验证] 发送请求...');
+            addLog('📡 正在发送验证请求...');
             const startTime = Date.now();
             
             const response = await fetch('/api/baidu-image-recognition', {
@@ -760,41 +712,45 @@ export default function TaskVerificationCountdownContent({
             });
             
             const endTime = Date.now();
-            console.log('📷 [PWA完成验证] 请求耗时:', endTime - startTime, 'ms');
-            console.log('📷 [PWA完成验证] 响应状态:', response.status, response.statusText);
-            console.log('📷 [PWA完成验证] 响应头:', Object.fromEntries(response.headers.entries()));
+            addLog(`⏱️ 请求耗时: ${endTime - startTime}ms`);
             
             if (!response.ok) {
               const errorText = await response.text();
-              console.error('❌ [PWA完成验证] 请求失败:', response.status, errorText);
+              addLog(`❌ API请求失败: ${response.status}`);
               throw new Error(`API请求失败: ${response.status} - ${errorText}`);
             }
             
             const result = await response.json();
-            console.log('📷 [PWA完成验证] ========== API返回结果 ==========');
-            console.log('📷 [PWA完成验证] 完整结果:', JSON.stringify(result, null, 2));
-            console.log('📷 [PWA完成验证] success:', result.success);
-            console.log('📷 [PWA完成验证] message:', result.message);
-            console.log('📷 [PWA完成验证] matchedKeywords:', result.matchedKeywords);
-            console.log('📷 [PWA完成验证] recognizedObjects:', result.recognizedObjects);
-            console.log('📷 [PWA完成验证] ========================================');
+            addLog('✅ 收到API响应');
             
-            setVerificationMessage('✨ AI分析完成，正在匹配关键词...');
-            await new Promise(resolve => setTimeout(resolve, 300));
+            // 🔧 步骤4：显示识别结果
+            if (result.recognizedObjects && result.recognizedObjects.length > 0) {
+              addLog('🔍 已识别图片内容: ' + result.recognizedObjects.join('、'));
+            } else {
+              addLog('⚠️ 未识别到任何内容');
+            }
+            
+            // 🔧 步骤5：显示匹配结果
+            if (result.matchedKeywords && result.matchedKeywords.length > 0) {
+              addLog('✅ 匹配到关键词: ' + result.matchedKeywords.join('、'));
+            } else {
+              addLog('❌ 未匹配到任何关键词');
+            }
+            
             return result;
           })(),
           timeoutPromise
         ]) as any;
         
-        console.log('📷 [Vercel API] 验证结果:', verifyResult);
-        
         if (!verifyResult.success) {
-          // 验证失败：扣金币，返回倒计时，重置为10分钟
+          // 验证失败：显示详细原因
+          addLog('❌ 验证失败');
+          addLog('📋 失败原因: ' + (verifyResult.message || '未知原因'));
+          
           const penaltyAmount = Math.floor(goldReward * 0.2);
           penaltyGold(penaltyAmount, `完成验证失败（第${state.completeTimeoutCount + 1}次）`, taskId, taskTitle);
-          console.log(`❌ 完成验证失败！扣除${penaltyAmount}金币`);
           
-          // 🔧 修复：立即返回任务倒计时状态，重置为10分钟，确保倒计时继续运行
+          // 立即返回任务倒计时状态，重置为10分钟
           const newDeadline = new Date(Date.now() + 10 * 60 * 1000);
           const newState = {
             ...state,
@@ -805,41 +761,31 @@ export default function TaskVerificationCountdownContent({
           setState(newState);
           saveState(newState);
           
-          // 显示验证失败消息
-          setVerificationMessage(verifyResult.message || `❌ 验证未通过（需包含：${completeKeywords.join('、')}）`);
-          setVerificationSuccess(false);
-          
-          console.log(`❌ [Vercel API] 识别失败:`, verifyResult);
-          
-          // 🔧 修复：立即结束上传状态，返回倒计时界面
           setIsUploading(false);
           
-          // 3秒后清除错误消息
+          // 5秒后清除日志
           setTimeout(() => {
-            setVerificationMessage('');
-            setVerificationSuccess(null);
-          }, 3000);
+            clearLogs();
+          }, 5000);
           
           return;
         }
         
-        // 3. 验证成功，自动完成任务
+        // 验证成功
+        addLog('🎉 验证成功！');
         const now = new Date();
         
         const recognizedItems = verifyResult.matchedKeywords?.join('、') || verifyResult.recognizedObjects?.join('、') || '相关内容';
-        setVerificationMessage(`✅ 验证成功！已识别到：${recognizedItems}`);
-        setVerificationSuccess(true);
-        console.log(`✅ [Vercel API] 识别成功，匹配关键词：${recognizedItems}`);
-        console.log('📝 详细匹配信息:', verifyResult);
+        addLog('✅ 已识别到: ' + recognizedItems);
         
-        // 🎯 动态更新完成时间：如果提前完成，使用当前时间作为结束时间
+        // 动态更新完成时间：如果提前完成，使用当前时间作为结束时间
         const scheduledEndTime = new Date(scheduledEnd);
         const isEarly = now < scheduledEndTime;
         
         if (isEarly) {
           const bonusGold = Math.floor(goldReward * 0.5);
           addGold(bonusGold, `提前完成任务（奖励50%）`, taskId, taskTitle);
-          console.log(`✅ 提前完成任务，获得${bonusGold}金币奖励`);
+          addLog(`💰 提前完成，获得${bonusGold}金币奖励`);
           
           // 显示庆祝特效
           setCelebrationGold(bonusGold);
@@ -852,14 +798,15 @@ export default function TaskVerificationCountdownContent({
         // 扣除超时惩罚金
         const totalPenalty = Math.floor(goldReward * 0.2) * state.completeTimeoutCount;
         if (totalPenalty > 0) {
-          console.log(`⚠️ 累计扣除${totalPenalty}金币（${state.completeTimeoutCount}次超时）`);
+          addLog(`⚠️ 累计扣除${totalPenalty}金币（${state.completeTimeoutCount}次超时）`);
         }
         
         // 触发语音播报和通知
         notificationService.notifyVerificationSuccess(taskTitle, 'completion');
         
-        // 延迟2秒后完成任务，让用户看到验证成功消息
+        // 延迟2秒后完成任务
         setTimeout(() => {
+          addLog('✅ 任务已完成');
           const newState = {
             ...state,
             status: 'completed' as CountdownStatus,
@@ -868,35 +815,7 @@ export default function TaskVerificationCountdownContent({
           saveState(newState);
           
           setIsUploading(false);
-          setVerificationMessage('');
-          setVerificationSuccess(null);
-          
-          // 🎯 通知父组件更新结束时间（使用当前时间，实现动态完成）
-          if (onComplete) {
-            onComplete(now);
-            console.log(`📅 任务完成时间已更新: ${now.toLocaleString('zh-CN')}`);
-          }
-          
-          // 清除持久化状态
-          localStorage.removeItem(storageKey);
-          console.log(`✅ 完成验证成功: ${taskTitle}`);
-        }, 2000);
-        
-        // 触发语音播报和通知
-        notificationService.notifyVerificationSuccess(taskTitle, 'completion');
-        
-        // 延迟2秒后完成任务，让用户看到验证成功消息
-        setTimeout(() => {
-          const newState = {
-            ...state,
-            status: 'completed' as CountdownStatus,
-          };
-          setState(newState);
-          saveState(newState);
-          
-          setIsUploading(false);
-          setVerificationMessage('');
-          setVerificationSuccess(null);
+          clearLogs();
           
           // 通知父组件更新结束时间
           if (onComplete) {
@@ -905,13 +824,12 @@ export default function TaskVerificationCountdownContent({
           
           // 清除持久化状态
           localStorage.removeItem(storageKey);
-          console.log(`✅ 完成验证成功: ${taskTitle}`);
         }, 2000);
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : '未知错误';
-        console.error('❌ [Vercel API] 验证异常:', error);
+        addLog('❌ 验证异常: ' + errorMsg);
         
-        // 🔧 修复：验证异常时，立即返回任务倒计时状态，重置为10分钟
+        // 验证异常时，立即返回任务倒计时状态，重置为10分钟
         const newDeadline = new Date(Date.now() + 10 * 60 * 1000);
         const newState = {
           ...state,
@@ -926,28 +844,11 @@ export default function TaskVerificationCountdownContent({
         const penaltyAmount = Math.floor(goldReward * 0.2);
         penaltyGold(penaltyAmount, `完成验证异常（第${state.completeTimeoutCount + 1}次）`, taskId, taskTitle);
         
-        // 根据错误类型给出详细的提示
-        let userMessage = '';
-        if (errorMsg === 'TIMEOUT') {
-          userMessage = '❌ 验证超时（30秒）\n\n可能原因：\n1️⃣ 百度API未配置\n   • 请前往【设置→AI】配置百度API\n   • 需要填写API Key和Secret Key\n\n2️⃣ 网络连接问题\n   • 请检查网络连接\n   • 尝试切换网络后重试\n\n3️⃣ 百度服务响应慢\n   • 请稍后重试\n\n💡 提示：如果持续失败，请检查API配置是否正确';
-        } else if (errorMsg.includes('网络')) {
-          userMessage = '❌ 网络错误\n\n请检查网络连接后重试\n\n如果网络正常，可能是：\n• 百度API配置错误\n• 防火墙拦截\n• 代理设置问题';
-        } else if (errorMsg.includes('API')) {
-          userMessage = '❌ API配置错误\n\n请检查【设置→AI】中的百度API配置：\n• API Key是否正确\n• Secret Key是否正确\n• 是否已开通图像识别服务';
-        } else {
-          userMessage = `❌ 验证失败\n\n错误信息：${errorMsg}\n\n请检查：\n• 百度API配置（设置→AI）\n• 网络连接\n• 图片质量`;
-        }
-        
-        setVerificationMessage(userMessage);
-        setVerificationSuccess(false);
-        
-        // 🔧 修复：立即结束上传状态，返回倒计时界面
         setIsUploading(false);
         
-        // 5秒后清除错误消息
+        // 5秒后清除日志
         setTimeout(() => {
-          setVerificationMessage('');
-          setVerificationSuccess(null);
+          clearLogs();
         }, 5000);
       }
     };
@@ -1244,67 +1145,33 @@ export default function TaskVerificationCountdownContent({
           {formatTime(startCountdownLeft)}
         </div>
         
-        {/* 验证状态提示 */}
-        <div className="mb-2 px-4 py-2 rounded-lg shadow-md flex items-center gap-2" 
+        {/* 🔧 蓝色日志显示框 */}
+        <div className="w-full mb-2 px-4 py-3 rounded-lg shadow-md" 
              style={{ 
-               backgroundColor: verificationSuccess === false ? '#FEE2E2' : '#DBEAFE', 
-               border: verificationSuccess === false ? '1px solid #FCA5A5' : '1px solid #93C5FD' 
+               backgroundColor: '#DBEAFE', 
+               border: '1px solid #93C5FD',
+               maxHeight: '200px',
+               overflowY: 'auto'
              }}>
-          {verificationSuccess === null && (
-            <>
-              <span className="animate-spin text-lg">⏳</span>
-              <p className="text-xs font-semibold" style={{ color: '#1E40AF' }}>
-                {verificationMessage || '正在验证中，请稍后...'}
+          <div className="flex items-start gap-2">
+            <span className="animate-spin text-lg flex-shrink-0">⏳</span>
+            <div className="flex-1">
+              <p className="text-xs font-semibold mb-1" style={{ color: '#1E40AF' }}>
+                {verifyLog}
               </p>
-            </>
-          )}
-          {verificationSuccess === true && (
-            <>
-              <span className="text-lg">✅</span>
-              <p className="text-xs font-semibold" style={{ color: '#065F46' }}>
-                {verificationMessage}
-              </p>
-            </>
-          )}
-          {verificationSuccess === false && (
-            <>
-              <span className="text-lg">❌</span>
-              <p className="text-xs font-semibold" style={{ color: '#991B1B' }}>
-                {verificationMessage}
-              </p>
-            </>
-          )}
-        </div>
-        
-        {/* 上传照片按钮 - 验证失败时可重新上传 */}
-        {verificationSuccess === false && (
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={() => handleStartTask(true)}
-              disabled={isUploading}
-              className="flex-1 px-4 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
-              style={{
-                backgroundColor: '#3B82F6',
-                color: '#ffffff',
-              }}
-            >
-              <span>📷</span>
-              <span>重新拍摄</span>
-            </button>
-            <button 
-              onClick={() => handleStartTask(false)}
-              disabled={isUploading}
-              className="flex-1 px-4 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
-              style={{
-                backgroundColor: '#8B5CF6',
-                color: '#ffffff',
-              }}
-            >
-              <span>🖼️</span>
-              <span>重新上传</span>
-            </button>
+              {/* 详细日志列表 */}
+              {detailedLogs.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {detailedLogs.slice(-5).map((log, index) => (
+                    <p key={index} className="text-xs" style={{ color: '#1E40AF', opacity: 0.8 }}>
+                      {log}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        )}
+        </div>
         
         {/* 坏习惯历史弹窗 */}
         {showBadHabitHistory && (
@@ -1603,67 +1470,33 @@ export default function TaskVerificationCountdownContent({
           {formatTime(taskCountdownLeft)}
         </div>
         
-        {/* 验证状态提示 */}
-        <div className="mb-2 px-4 py-2 rounded-lg shadow-md flex items-center gap-2" 
+        {/* 🔧 蓝色日志显示框 */}
+        <div className="w-full mb-2 px-4 py-3 rounded-lg shadow-md" 
              style={{ 
-               backgroundColor: verificationSuccess === false ? '#FEE2E2' : '#DBEAFE', 
-               border: verificationSuccess === false ? '1px solid #FCA5A5' : '1px solid #93C5FD' 
+               backgroundColor: '#DBEAFE', 
+               border: '1px solid #93C5FD',
+               maxHeight: '200px',
+               overflowY: 'auto'
              }}>
-          {verificationSuccess === null && (
-            <>
-              <span className="animate-spin text-lg">⏳</span>
-              <p className="text-xs font-semibold" style={{ color: '#1E40AF' }}>
-                {verificationMessage || '正在验证中，请稍后...'}
+          <div className="flex items-start gap-2">
+            <span className="animate-spin text-lg flex-shrink-0">⏳</span>
+            <div className="flex-1">
+              <p className="text-xs font-semibold mb-1" style={{ color: '#1E40AF' }}>
+                {verifyLog}
               </p>
-            </>
-          )}
-          {verificationSuccess === true && (
-            <>
-              <span className="text-lg">✅</span>
-              <p className="text-xs font-semibold" style={{ color: '#065F46' }}>
-                {verificationMessage}
-              </p>
-            </>
-          )}
-          {verificationSuccess === false && (
-            <>
-              <span className="text-lg">❌</span>
-              <p className="text-xs font-semibold" style={{ color: '#991B1B' }}>
-                {verificationMessage}
-              </p>
-            </>
-          )}
-        </div>
-        
-        {/* 上传照片按钮 - 验证失败时可重新上传 */}
-        {verificationSuccess === false && (
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={() => handleCompleteTask(true)}
-              disabled={isUploading}
-              className="flex-1 px-4 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
-              style={{
-                backgroundColor: '#3B82F6',
-                color: '#ffffff',
-              }}
-            >
-              <span>📷</span>
-              <span>重新拍摄</span>
-            </button>
-            <button 
-              onClick={() => handleCompleteTask(false)}
-              disabled={isUploading}
-              className="flex-1 px-4 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
-              style={{
-                backgroundColor: '#8B5CF6',
-                color: '#ffffff',
-              }}
-            >
-              <span>🖼️</span>
-              <span>重新上传</span>
-            </button>
+              {/* 详细日志列表 */}
+              {detailedLogs.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {detailedLogs.slice(-5).map((log, index) => (
+                    <p key={index} className="text-xs" style={{ color: '#1E40AF', opacity: 0.8 }}>
+                      {log}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        )}
+        </div>
         
         {/* 坏习惯历史弹窗 */}
         {showBadHabitHistory && (

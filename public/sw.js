@@ -35,8 +35,21 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// 🔧 排除验证API，不让SW干扰
+const excludeApi = [
+  '/api/baidu-image-recognition',
+  '/api/baidu-voice-recognition',
+  '/api/verify',
+];
+
 // 拦截请求 - 网络优先策略
 self.addEventListener('fetch', (event) => {
+  // 🔧 验证API直接跳过，不缓存、不处理
+  if (excludeApi.some(api => event.request.url.includes(api))) {
+    console.log('[SW] 跳过验证API，直接走网络:', event.request.url);
+    return; // 不拦截，直接走真实网络
+  }
+  
   event.respondWith(
     fetch(event.request)
       .then((response) => {
