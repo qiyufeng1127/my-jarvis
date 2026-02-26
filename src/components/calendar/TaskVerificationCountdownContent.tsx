@@ -371,7 +371,6 @@ export default function TaskVerificationCountdownContent({
       try {
         clearLogs();
         addLog('📷 开始验证流程');
-        addLog('📋 目标关键词: ' + startKeywords.join('、'));
         
         // 检查百度API配置
         const apiKey = localStorage.getItem('baidu_api_key');
@@ -382,95 +381,76 @@ export default function TaskVerificationCountdownContent({
         }
         
         addLog('✅ API配置检查通过');
+        addLog('📋 目标关键词: ' + startKeywords.join('、'));
         
-        // 添加超时控制：30秒超时
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => {
-            addLog('❌ 验证超时（30秒）');
-            reject(new Error('TIMEOUT'));
-          }, 30000);
-        });
-        
-        // 🔧 步骤1：修复图片旋转（PWA手机拍照必做）
-        addLog('🔄 正在处理图片，纠正手机拍摄角度...');
-        const fixedBlob = await fixImageOrientation(file);
-        addLog('✅ 图片旋转已修正');
-        
-        // 🔧 步骤2：将图片转换为 base64
-        addLog('📤 正在转换图片格式...');
+        // 🔧 步骤1：将图片转换为 base64（跳过旋转修正，避免超时）
+        addLog('📤 正在转换图片...');
         const reader = new FileReader();
         const imageBase64 = await new Promise<string>((resolve, reject) => {
-          reader.onload = () => {
-            addLog('✅ 图片转换完成');
-            resolve(reader.result as string);
-          };
+          reader.onload = () => resolve(reader.result as string);
           reader.onerror = reject;
-          reader.readAsDataURL(fixedBlob);
+          reader.readAsDataURL(file);
         });
         
-        // 🔧 步骤3：调用 Vercel Serverless API 验证
-        const verifyResult = await Promise.race([
-          (async () => {
-            addLog('🔗 正在连接百度AI服务器...');
-            
-            const requestBody = {
-              image: imageBase64,
-              keywords: startKeywords,
-              apiKey: apiKey,
-              secretKey: secretKey,
-            };
-            
-            addLog('📡 正在发送验证请求...');
-            const startTime = Date.now();
-            
-            const response = await fetch('/api/baidu-image-recognition', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(requestBody),
-            });
-            
-            const endTime = Date.now();
-            addLog(`⏱️ 请求耗时: ${endTime - startTime}ms`);
-            
-            if (!response.ok) {
-              const errorText = await response.text();
-              addLog(`❌ API请求失败: ${response.status}`);
-              throw new Error(`API请求失败: ${response.status} - ${errorText}`);
-            }
-            
-            const result = await response.json();
-            addLog('✅ 收到API响应');
-            
-            // 🔧 步骤4：显示识别结果
-            if (result.recognizedObjects && result.recognizedObjects.length > 0) {
-              addLog('🔍 已识别图片内容: ' + result.recognizedObjects.join('、'));
-            } else {
-              addLog('⚠️ 未识别到任何内容');
-            }
-            
-            // 🔧 步骤5：显示匹配结果
-            if (result.matchedKeywords && result.matchedKeywords.length > 0) {
-              addLog('✅ 匹配到关键词: ' + result.matchedKeywords.join('、'));
-            } else {
-              addLog('❌ 未匹配到任何关键词');
-            }
-            
-            return result;
-          })(),
-          timeoutPromise
-        ]) as any;
+        addLog('✅ 图片转换完成');
         
+        // 🔧 步骤2：调用 Vercel Serverless API 验证
+        addLog('🔗 正在连接百度AI服务器...');
+        
+        const requestBody = {
+          image: imageBase64,
+          keywords: startKeywords,
+          apiKey: apiKey,
+          secretKey: secretKey,
+        };
+        
+        addLog('📡 正在发送验证请求...');
+        const startTime = Date.now();
+        
+        const response = await fetch('/api/baidu-image-recognition', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+        });
+        
+        const endTime = Date.now();
+        addLog(`⏱️ 请求耗时: ${endTime - startTime}ms`);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          addLog(`❌ API请求失败: ${response.status}`);
+          throw new Error(`API请求失败: ${response.status} - ${errorText}`);
+        }
+        
+        const verifyResult = await response.json();
+        addLog('✅ 收到API响应');
+        
+        // 🔧 步骤3：显示识别结果
+        if (verifyResult.recognizedObjects && verifyResult.recognizedObjects.length > 0) {
+          addLog('🔍 已识别: ' + verifyResult.recognizedObjects.join('、'));
+        } else {
+          addLog('⚠️ 未识别到任何内容');
+        }
+        
+        // 🔧 步骤4：显示匹配结果
+        if (verifyResult.matchedKeywords && verifyResult.matchedKeywords.length > 0) {
+          addLog('✅ 匹配到: ' + verifyResult.matchedKeywords.join('、'));
+        } else {
+          addLog('❌ 未匹配到关键词');
+        }
+        
+        // 判断验证结果
         if (!verifyResult.success) {
-          // 验证失败：显示详细原因
-          addLog('❌ 验证失败');
-          addLog('📋 失败原因: ' + (verifyResult.message || '未知原因'));
+          // 验证失败
+          addLog('❌ 验证失败: ' + (verifyResult.message || '未匹配到关键词'));
           
           const penaltyAmount = Math.floor(goldReward * 0.2);
-          penaltyGold(penaltyAmount, `启动验证失败（第${state.startTimeoutCount + 1}次）`, taskId, taskTitle);
+          penaltyGold(penaltyAmount, `启动验证失败`, taskId, taskTitle);
+          addLog(`💸 扣除${penaltyAmount}金币`);
           
-          // 立即返回启动倒计时状态，重置为2分钟
+          // 返回启动倒计时
           const newDeadline = new Date(Date.now() + 2 * 60 * 1000);
           const newState = {
             ...state,
@@ -480,14 +460,10 @@ export default function TaskVerificationCountdownContent({
           };
           setState(newState);
           saveState(newState);
-          
           setIsUploading(false);
           
           // 5秒后清除日志
-          setTimeout(() => {
-            clearLogs();
-          }, 5000);
-          
+          setTimeout(() => clearLogs(), 5000);
           return;
         }
         
@@ -497,20 +473,16 @@ export default function TaskVerificationCountdownContent({
         const duration = Math.floor((new Date(scheduledEnd).getTime() - new Date(scheduledStart).getTime()) / 60000);
         const taskSeconds = duration * 60;
         
-        const recognizedItems = verifyResult.matchedKeywords?.join('、') || verifyResult.recognizedObjects?.join('、') || '相关内容';
-        addLog('✅ 已识别到: ' + recognizedItems);
-        
-        // 2分钟内完成启动，奖励50%金币
+        // 奖励金币
         const bonusGold = Math.floor(goldReward * 0.5);
-        addGold(bonusGold, `按时启动任务（奖励50%）`, taskId, taskTitle);
-        addLog(`💰 获得${bonusGold}金币奖励`);
+        addGold(bonusGold, `按时启动任务`, taskId, taskTitle);
+        addLog(`💰 获得${bonusGold}金币`);
         
-        // 触发语音播报和通知
+        // 触发通知
         notificationService.notifyVerificationSuccess(taskTitle, 'start');
         
-        // 延迟2秒后进入任务倒计时
+        // 进入任务倒计时
         setTimeout(() => {
-          addLog('⏱️ 开始任务倒计时');
           const newState = {
             ...state,
             status: 'task_countdown' as CountdownStatus,
@@ -519,11 +491,9 @@ export default function TaskVerificationCountdownContent({
           };
           setState(newState);
           saveState(newState);
-          
           setIsUploading(false);
           clearLogs();
           
-          // 通知父组件更新开始时间
           if (onStart) {
             const calculatedEndTime = new Date(now.getTime() + duration * 60000);
             onStart(now, calculatedEndTime);
@@ -533,7 +503,12 @@ export default function TaskVerificationCountdownContent({
         const errorMsg = error instanceof Error ? error.message : '未知错误';
         addLog('❌ 验证异常: ' + errorMsg);
         
-        // 验证异常时，立即返回启动倒计时状态，重置为2分钟
+        // 扣除金币
+        const penaltyAmount = Math.floor(goldReward * 0.2);
+        penaltyGold(penaltyAmount, `启动验证异常`, taskId, taskTitle);
+        addLog(`💸 扣除${penaltyAmount}金币`);
+        
+        // 返回启动倒计时
         const newDeadline = new Date(Date.now() + 2 * 60 * 1000);
         const newState = {
           ...state,
@@ -543,17 +518,10 @@ export default function TaskVerificationCountdownContent({
         };
         setState(newState);
         saveState(newState);
-        
-        // 扣除金币
-        const penaltyAmount = Math.floor(goldReward * 0.2);
-        penaltyGold(penaltyAmount, `启动验证异常（第${state.startTimeoutCount + 1}次）`, taskId, taskTitle);
-        
         setIsUploading(false);
         
         // 5秒后清除日志
-        setTimeout(() => {
-          clearLogs();
-        }, 5000);
+        setTimeout(() => clearLogs(), 5000);
       }
     };
     
@@ -651,7 +619,6 @@ export default function TaskVerificationCountdownContent({
       try {
         clearLogs();
         addLog('📷 开始完成验证流程');
-        addLog('📋 目标关键词: ' + completeKeywords.join('、'));
         
         // 检查百度API配置
         const apiKey = localStorage.getItem('baidu_api_key');
@@ -662,95 +629,76 @@ export default function TaskVerificationCountdownContent({
         }
         
         addLog('✅ API配置检查通过');
+        addLog('📋 目标关键词: ' + completeKeywords.join('、'));
         
-        // 添加超时控制：30秒超时
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => {
-            addLog('❌ 验证超时（30秒）');
-            reject(new Error('TIMEOUT'));
-          }, 30000);
-        });
-        
-        // 🔧 步骤1：修复图片旋转（PWA手机拍照必做）
-        addLog('🔄 正在处理图片，纠正手机拍摄角度...');
-        const fixedBlob = await fixImageOrientation(file);
-        addLog('✅ 图片旋转已修正');
-        
-        // 🔧 步骤2：将图片转换为 base64
-        addLog('📤 正在转换图片格式...');
+        // 🔧 步骤1：将图片转换为 base64（跳过旋转修正，避免超时）
+        addLog('📤 正在转换图片...');
         const reader = new FileReader();
         const imageBase64 = await new Promise<string>((resolve, reject) => {
-          reader.onload = () => {
-            addLog('✅ 图片转换完成');
-            resolve(reader.result as string);
-          };
+          reader.onload = () => resolve(reader.result as string);
           reader.onerror = reject;
-          reader.readAsDataURL(fixedBlob);
+          reader.readAsDataURL(file);
         });
         
-        // 🔧 步骤3：调用 Vercel Serverless API 验证
-        const verifyResult = await Promise.race([
-          (async () => {
-            addLog('🔗 正在连接百度AI服务器...');
-            
-            const requestBody = {
-              image: imageBase64,
-              keywords: completeKeywords,
-              apiKey: apiKey,
-              secretKey: secretKey,
-            };
-            
-            addLog('📡 正在发送验证请求...');
-            const startTime = Date.now();
-            
-            const response = await fetch('/api/baidu-image-recognition', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(requestBody),
-            });
-            
-            const endTime = Date.now();
-            addLog(`⏱️ 请求耗时: ${endTime - startTime}ms`);
-            
-            if (!response.ok) {
-              const errorText = await response.text();
-              addLog(`❌ API请求失败: ${response.status}`);
-              throw new Error(`API请求失败: ${response.status} - ${errorText}`);
-            }
-            
-            const result = await response.json();
-            addLog('✅ 收到API响应');
-            
-            // 🔧 步骤4：显示识别结果
-            if (result.recognizedObjects && result.recognizedObjects.length > 0) {
-              addLog('🔍 已识别图片内容: ' + result.recognizedObjects.join('、'));
-            } else {
-              addLog('⚠️ 未识别到任何内容');
-            }
-            
-            // 🔧 步骤5：显示匹配结果
-            if (result.matchedKeywords && result.matchedKeywords.length > 0) {
-              addLog('✅ 匹配到关键词: ' + result.matchedKeywords.join('、'));
-            } else {
-              addLog('❌ 未匹配到任何关键词');
-            }
-            
-            return result;
-          })(),
-          timeoutPromise
-        ]) as any;
+        addLog('✅ 图片转换完成');
         
+        // 🔧 步骤2：调用 Vercel Serverless API 验证
+        addLog('🔗 正在连接百度AI服务器...');
+        
+        const requestBody = {
+          image: imageBase64,
+          keywords: completeKeywords,
+          apiKey: apiKey,
+          secretKey: secretKey,
+        };
+        
+        addLog('📡 正在发送验证请求...');
+        const startTime = Date.now();
+        
+        const response = await fetch('/api/baidu-image-recognition', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+        });
+        
+        const endTime = Date.now();
+        addLog(`⏱️ 请求耗时: ${endTime - startTime}ms`);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          addLog(`❌ API请求失败: ${response.status}`);
+          throw new Error(`API请求失败: ${response.status} - ${errorText}`);
+        }
+        
+        const verifyResult = await response.json();
+        addLog('✅ 收到API响应');
+        
+        // 🔧 步骤3：显示识别结果
+        if (verifyResult.recognizedObjects && verifyResult.recognizedObjects.length > 0) {
+          addLog('🔍 已识别: ' + verifyResult.recognizedObjects.join('、'));
+        } else {
+          addLog('⚠️ 未识别到任何内容');
+        }
+        
+        // 🔧 步骤4：显示匹配结果
+        if (verifyResult.matchedKeywords && verifyResult.matchedKeywords.length > 0) {
+          addLog('✅ 匹配到: ' + verifyResult.matchedKeywords.join('、'));
+        } else {
+          addLog('❌ 未匹配到关键词');
+        }
+        
+        // 判断验证结果
         if (!verifyResult.success) {
-          // 验证失败：显示详细原因
-          addLog('❌ 验证失败');
-          addLog('📋 失败原因: ' + (verifyResult.message || '未知原因'));
+          // 验证失败
+          addLog('❌ 验证失败: ' + (verifyResult.message || '未匹配到关键词'));
           
           const penaltyAmount = Math.floor(goldReward * 0.2);
-          penaltyGold(penaltyAmount, `完成验证失败（第${state.completeTimeoutCount + 1}次）`, taskId, taskTitle);
+          penaltyGold(penaltyAmount, `完成验证失败`, taskId, taskTitle);
+          addLog(`💸 扣除${penaltyAmount}金币`);
           
-          // 立即返回任务倒计时状态，重置为10分钟
+          // 返回任务倒计时
           const newDeadline = new Date(Date.now() + 10 * 60 * 1000);
           const newState = {
             ...state,
@@ -760,14 +708,10 @@ export default function TaskVerificationCountdownContent({
           };
           setState(newState);
           saveState(newState);
-          
           setIsUploading(false);
           
           // 5秒后清除日志
-          setTimeout(() => {
-            clearLogs();
-          }, 5000);
-          
+          setTimeout(() => clearLogs(), 5000);
           return;
         }
         
@@ -775,17 +719,14 @@ export default function TaskVerificationCountdownContent({
         addLog('🎉 验证成功！');
         const now = new Date();
         
-        const recognizedItems = verifyResult.matchedKeywords?.join('、') || verifyResult.recognizedObjects?.join('、') || '相关内容';
-        addLog('✅ 已识别到: ' + recognizedItems);
-        
-        // 动态更新完成时间：如果提前完成，使用当前时间作为结束时间
+        // 动态更新完成时间
         const scheduledEndTime = new Date(scheduledEnd);
         const isEarly = now < scheduledEndTime;
         
         if (isEarly) {
           const bonusGold = Math.floor(goldReward * 0.5);
-          addGold(bonusGold, `提前完成任务（奖励50%）`, taskId, taskTitle);
-          addLog(`💰 提前完成，获得${bonusGold}金币奖励`);
+          addGold(bonusGold, `提前完成任务`, taskId, taskTitle);
+          addLog(`💰 提前完成，获得${bonusGold}金币`);
           
           // 显示庆祝特效
           setCelebrationGold(bonusGold);
@@ -801,35 +742,36 @@ export default function TaskVerificationCountdownContent({
           addLog(`⚠️ 累计扣除${totalPenalty}金币（${state.completeTimeoutCount}次超时）`);
         }
         
-        // 触发语音播报和通知
+        // 触发通知
         notificationService.notifyVerificationSuccess(taskTitle, 'completion');
         
-        // 延迟2秒后完成任务
+        // 完成任务
         setTimeout(() => {
-          addLog('✅ 任务已完成');
           const newState = {
             ...state,
             status: 'completed' as CountdownStatus,
           };
           setState(newState);
           saveState(newState);
-          
           setIsUploading(false);
           clearLogs();
           
-          // 通知父组件更新结束时间
           if (onComplete) {
             onComplete(now);
           }
           
-          // 清除持久化状态
           localStorage.removeItem(storageKey);
         }, 2000);
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : '未知错误';
         addLog('❌ 验证异常: ' + errorMsg);
         
-        // 验证异常时，立即返回任务倒计时状态，重置为10分钟
+        // 扣除金币
+        const penaltyAmount = Math.floor(goldReward * 0.2);
+        penaltyGold(penaltyAmount, `完成验证异常`, taskId, taskTitle);
+        addLog(`💸 扣除${penaltyAmount}金币`);
+        
+        // 返回任务倒计时
         const newDeadline = new Date(Date.now() + 10 * 60 * 1000);
         const newState = {
           ...state,
@@ -839,17 +781,10 @@ export default function TaskVerificationCountdownContent({
         };
         setState(newState);
         saveState(newState);
-        
-        // 扣除金币
-        const penaltyAmount = Math.floor(goldReward * 0.2);
-        penaltyGold(penaltyAmount, `完成验证异常（第${state.completeTimeoutCount + 1}次）`, taskId, taskTitle);
-        
         setIsUploading(false);
         
         // 5秒后清除日志
-        setTimeout(() => {
-          clearLogs();
-        }, 5000);
+        setTimeout(() => clearLogs(), 5000);
       }
     };
     
