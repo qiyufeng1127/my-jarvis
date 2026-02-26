@@ -43,6 +43,7 @@ class NotificationService {
   private permission: NotificationPermission = 'default';
   private settings: NotificationSettings;
   private audioContext: AudioContext | null = null;
+  private isPlayingSound: boolean = false; // 🔧 防止音效重复播放
 
   constructor() {
     this.checkPermission();
@@ -237,7 +238,13 @@ class NotificationService {
    * 播放提示音（使用 Web Audio API，更可靠）
    */
   playSound(type: 'start' | 'end' | 'warning' | 'coin' = 'start') {
-    // 不需要检查设置，因为调用此方法的函数已经检查过了
+    console.log('🔊 [playSound] 被调用:', type);
+    
+    // 🔧 检查是否有音频正在播放，避免重复播放
+    if (this.isPlayingSound) {
+      console.log('⏭️ [playSound] 音效正在播放中，跳过');
+      return;
+    }
     
     try {
       if (!this.audioContext) {
@@ -249,6 +256,9 @@ class NotificationService {
       if (this.audioContext.state === 'suspended') {
         this.audioContext.resume();
       }
+
+      // 🔧 标记正在播放
+      this.isPlayingSound = true;
 
       const oscillator = this.audioContext.createOscillator();
       const gainNode = this.audioContext.createGain();
@@ -291,6 +301,11 @@ class NotificationService {
           oscillator.start(now);
           oscillator.stop(now + duration);
           
+          // 🔧 播放完成后解除锁定
+          setTimeout(() => {
+            this.isPlayingSound = false;
+          }, duration * 1000);
+          
           console.log('✅ 金币音效播放成功');
           return;
       }
@@ -309,14 +324,13 @@ class NotificationService {
 
       console.log('✅ 音效播放成功:', type);
 
-      // 如果是警告音，播放两次
-      if (type === 'warning') {
-        setTimeout(() => {
-          this.playSound('warning');
-        }, 300);
-      }
+      // 🔧 播放完成后解除锁定（警告音不播放两次了）
+      setTimeout(() => {
+        this.isPlayingSound = false;
+      }, duration * 1000);
     } catch (error) {
       console.error('播放提示音失败:', error);
+      this.isPlayingSound = false;
     }
   }
 
@@ -460,21 +474,25 @@ class NotificationService {
    * 任务即将结束通知 - 增强版（完全遵循用户设置）
    */
   async notifyTaskEnding(taskTitle: string, minutesLeft: number, hasVerification: boolean = false) {
-    console.log('📢 任务即将结束通知:', taskTitle, minutesLeft);
+    console.log('📢 [notifyTaskEnding] 被调用:', { taskTitle, minutesLeft, hasVerification });
+    console.log('📢 [notifyTaskEnding] 当前设置:', this.settings);
+
+    // 🔧 重新加载设置，确保使用最新的用户设置
+    this.loadSettings();
 
     // 检查设置 - 使用正确的设置项
     if (!this.settings.taskEndBeforeReminder) {
-      console.log('⏭️ 任务结束前提醒已关闭（用户设置）');
+      console.log('⏭️ [notifyTaskEnding] 任务结束前提醒已关闭（用户设置）');
       return;
     }
 
     // 检查是否匹配用户设置的提醒时间
     if (minutesLeft !== this.settings.taskEndBeforeMinutes) {
-      console.log(`⏭️ 不匹配用户设置的提醒时间（用户设置：${this.settings.taskEndBeforeMinutes}分钟，当前：${minutesLeft}分钟）`);
+      console.log(`⏭️ [notifyTaskEnding] 不匹配用户设置的提醒时间（用户设置：${this.settings.taskEndBeforeMinutes}分钟，当前：${minutesLeft}分钟）`);
       return;
     }
 
-    console.log(`✅ 匹配用户设置，触发提醒（${minutesLeft}分钟）`);
+    console.log(`✅ [notifyTaskEnding] 匹配用户设置，触发提醒（${minutesLeft}分钟）`);
 
     const body = hasVerification
       ? `${taskTitle} 还有${minutesLeft}分钟结束，准备进行完成验证哦！`

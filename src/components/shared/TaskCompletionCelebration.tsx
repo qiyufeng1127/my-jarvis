@@ -25,21 +25,24 @@ export default function TaskCompletionCelebration({
     
     // 1. 播放金币音效
     notificationService.playSound('coin');
+    
+    // 2. 播放庆祝音效
+    notificationService.playSound('success');
 
-    // 2. 生成撒花特效（30个彩纸，更少更精致）
-    const confettiArray = Array.from({ length: 30 }, (_, i) => ({
+    // 3. 生成撒花特效（100个彩纸，更密集）
+    const confettiArray = Array.from({ length: 100 }, (_, i) => ({
       id: i,
       left: Math.random() * 100,
-      delay: Math.random() * 0.3,
-      duration: 1.5 + Math.random() * 0.5,
+      delay: Math.random() * 0.5,
+      duration: 1.5 + Math.random() * 0.8,
     }));
     setConfetti(confettiArray);
 
-    // 3. 生成金币特效（8个金币）
-    const coinsArray = Array.from({ length: 8 }, (_, i) => ({
+    // 4. 生成金币特效（15个金币）
+    const coinsArray = Array.from({ length: 15 }, (_, i) => ({
       id: i,
-      left: 35 + Math.random() * 30,
-      delay: i * 0.08,
+      left: 30 + Math.random() * 40,
+      delay: i * 0.06,
     }));
     setCoins(coinsArray);
 
@@ -74,7 +77,7 @@ export default function TaskCompletionCelebration({
 
   return (
     <div 
-      className="fixed inset-0 z-[9999] pointer-events-none flex items-center justify-center transition-opacity duration-200 opacity-100"
+      className="fixed inset-0 z-[99999] pointer-events-none flex items-center justify-center transition-opacity duration-200 opacity-100"
     >
       {/* 撒花特效 */}
       {confetti.map((item) => (

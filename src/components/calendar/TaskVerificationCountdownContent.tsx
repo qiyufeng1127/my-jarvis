@@ -273,9 +273,10 @@ export default function TaskVerificationCountdownContent({
       // 获取用户设置的提醒时间（分钟）
       const reminderMinutes = settings.taskEndBeforeMinutes || 5;
       
-      // 只在用户设置的时间点提醒（转换为秒）
+      // 🔧 只在用户设置的时间点提醒（转换为秒），并且只触发一次
       if (taskCountdownLeft === reminderMinutes * 60) {
-        console.log(`⏰ 任务即将结束（${reminderMinutes}分钟）- 遵循用户设置: ${taskTitle}`);
+        console.log(`⏰ [useEffect] 任务即将结束（${reminderMinutes}分钟）- 遵循用户设置: ${taskTitle}`);
+        console.log(`⏰ [useEffect] 当前倒计时: ${taskCountdownLeft}秒，目标: ${reminderMinutes * 60}秒`);
         notificationService.notifyTaskEnding(taskTitle, reminderMinutes, hasVerification);
       }
     } catch (error) {
