@@ -23,7 +23,7 @@ export const useAIStore = create<AIStore>()(
   persist(
     (set, get) => ({
       config: {
-        apiKey: '',
+        apiKey: 'sk-feff761a4a744e789711f2d88801d80b',
         apiEndpoint: 'https://api.deepseek.com/v1/chat/completions',
         model: 'deepseek-chat', // DeepSeek Chat 模型（适合结构化输出）
         temperature: 0.7,

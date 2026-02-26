@@ -9,8 +9,8 @@ export default function BaiduAISettings() {
 
   // 加载保存的设置
   useEffect(() => {
-    const savedApiKey = localStorage.getItem('baidu_api_key') || '';
-    const savedSecretKey = localStorage.getItem('baidu_secret_key') || '';
+    const savedApiKey = localStorage.getItem('baidu_api_key') || 's8Hva3oqIiFaeU9uoYpCmvV9';
+    const savedSecretKey = localStorage.getItem('baidu_secret_key') || 'VvugzlhsmyZ8HBk707HMqkGa9YMvb8Ly';
     const savedThreshold = localStorage.getItem('baidu_verification_threshold');
     
     setApiKey(savedApiKey);
