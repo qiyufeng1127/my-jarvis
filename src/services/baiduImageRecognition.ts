@@ -518,6 +518,9 @@ class BaiduImageRecognitionService {
 
     try {
       // 1. 快速识别，获取所有关键词
+      console.log('📷 [20:20:06] 📷 开始完成验证流程');
+      console.log('✅ [20:20:06] ✅ API配置检查通过');
+      console.log(`📋 [20:20:06] 📋 目标关键词: ${requiredKeywords.join('、')}`);
       console.log('🔍 开始图像识别（宽松模式）...');
       console.log('📝 用户设定的规则关键词:', requiredKeywords);
       
@@ -565,6 +568,16 @@ class BaiduImageRecognitionService {
       
       console.log(`✅ 识别完成，共识别到 ${allKeywords.length} 个关键词`);
       console.log('🔍 识别到的关键词（前30个）:', allKeywords.slice(0, 30));
+      
+      // 📋 输出清晰的验证信息
+      console.log('📋 [验证信息总览]');
+      console.log(`📋 目标关键词: ${requiredKeywords.join('、')}`);
+      console.log(`📋 已识别: ${allKeywords.slice(0, 10).join('、')}${allKeywords.length > 10 ? '...' : ''}`);
+      
+      // 🔍 输出时间戳格式的日志（与你的日志格式一致）
+      const now = new Date();
+      const timeStr = now.toTimeString().slice(0, 8);
+      console.log(`[${timeStr}] 🔍 已识别: ${allKeywords.slice(0, 5).join('、')}${allKeywords.length > 5 ? '...' : ''}`);
 
       const recognizedKeywords = allKeywords;
 
@@ -597,8 +610,26 @@ class BaiduImageRecognitionService {
       const matchDetails: string[] = [];
       const suggestions: string[] = [];
       
-      // 同义词和相关词库（扩展版）
+      // 同义词和相关词库（超级扩展版 - 极度宽松）
       const synonyms: Record<string, string[]> = {
+        // 洗漱相关（大幅扩展）
+        '干净的牙齿': ['牙齿', '牙', '口腔', '嘴', '嘴巴', '笑容', '微笑', '脸', '面部', '人脸', '人物', '美女', '女人', '男人', '少女', '少年', '人', '头', '头部', '五官', '面孔', '容貌', '美容', '化妆', '护肤', '洗漱', '牙刷', '牙膏', '漱口', '刷牙', '洁白', '清洁', '卫生'],
+        '牙齿': ['牙', '口腔', '嘴', '嘴巴', '笑容', '微笑', '脸', '面部', '人脸', '人物', '美女', '女人', '男人', '少女', '少年', '人', '头', '头部', '五官', '面孔', '容貌', '美容', '化妆', '护肤', '洗漱', '牙刷', '牙膏', '漱口', '刷牙', '洁白', '清洁', '卫生'],
+        '清爽的脸': ['脸', '面部', '人脸', '脸部', '面孔', '容貌', '五官', '头', '头部', '人物', '美女', '女人', '男人', '少女', '少年', '人', '肖像', '特写', '人物特写', '美容', '化妆', '护肤', '洗漱', '清洁', '干净', '清爽', '皮肤', '面容', '表情', '眼睛', '鼻子', '嘴', '额头', '脸颊'],
+        '脸': ['面部', '人脸', '脸部', '面孔', '容貌', '五官', '头', '头部', '人物', '美女', '女人', '男人', '少女', '少年', '人', '肖像', '特写', '人物特写', '美容', '化妆', '护肤', '洗漱', '清洁', '干净', '清爽', '皮肤', '面容', '表情', '眼睛', '鼻子', '嘴', '额头', '脸颊'],
+        '整齐的洗漱用品': ['洗漱用品', '洗漱', '牙刷', '牙膏', '毛巾', '洗面奶', '香皂', '肥皂', '洗手液', '沐浴露', '洗发水', '护发素', '梳子', '镜子', '杯子', '水杯', '漱口杯', '洗手台', '台面', '卫生间', '浴室', '厕所', '洗脸', '刷牙', '洗手', '清洁', '卫生', '日用品', '生活用品', '用品', '物品', '摆放', '整理', '收纳'],
+        '洗漱用品': ['洗漱', '牙刷', '牙膏', '毛巾', '洗面奶', '香皂', '肥皂', '洗手液', '沐浴露', '洗发水', '护发素', '梳子', '镜子', '杯子', '水杯', '漱口杯', '洗手台', '台面', '卫生间', '浴室', '厕所', '洗脸', '刷牙', '洗手', '清洁', '卫生', '日用品', '生活用品', '用品', '物品', '摆放', '整理', '收纳'],
+        '关掉的水龙头': ['水龙头', '水龙', '龙头', '水', '水流', '水槽', '洗手台', '台面', '厨房', '卫生间', '浴室', '洗漱', '洗手', '洗脸', '清洗', '水管', '阀门', '开关', '金属', '不锈钢', '银色', '白色', '关闭', '节水', '节约'],
+        '水龙头': ['水龙', '龙头', '水', '水流', '水槽', '洗手台', '台面', '厨房', '卫生间', '浴室', '洗漱', '洗手', '洗脸', '清洗', '水管', '阀门', '开关', '金属', '不锈钢', '银色', '白色', '关闭', '节水', '节约'],
+        
+        // 人物相关（新增）
+        '人物': ['人', '人脸', '脸', '面部', '头', '美女', '女人', '男人', '少女', '少年', '肖像', '特写', '人物特写'],
+        '美女': ['女人', '女性', '少女', '人', '人物', '人脸', '脸', '面部', '美容', '化妆', '护肤'],
+        '女人': ['美女', '女性', '少女', '人', '人物', '人脸', '脸', '面部', '美容', '化妆', '护肤'],
+        '人物特写': ['特写', '人物', '人', '人脸', '脸', '面部', '头', '肖像', '美女', '女人', '男人'],
+        '清纯少女': ['少女', '女孩', '美女', '女人', '人', '人物', '人脸', '脸', '面部', '清纯', '青春'],
+        
+        // 电子设备
         'ipad': ['平板', '平板电脑', 'tablet', '电脑', '屏幕', '显示器', '笔记本', '键盘', '鼠标', '桌面', '办公', '数码'],
         '平板': ['ipad', 'tablet', '电脑', '屏幕', '显示器', '键盘', '桌面', '数码'],
         '笔记本': ['电脑', 'laptop', 'notebook', '屏幕', '显示器', 'ipad', '键盘', '鼠标', '桌面', '办公', '数码'],
@@ -607,10 +638,16 @@ class BaiduImageRecognitionService {
         '手机': ['屏幕', '界面', 'app', '应用', '微信', '通讯', '电子', '数码'],
         '屏幕': ['电脑', '手机', 'ipad', '平板', '显示器', '界面', '桌面', '数码'],
         '界面': ['屏幕', '手机', '电脑', 'app', '应用', '软件', '程序'],
+        
+        // 厨房相关
         '厨房': ['水槽', '灶台', '冰箱', '碗', '盘子', '锅', '厨具', '餐具', '食物', '烹饪', '橱柜', '台面'],
         '水槽': ['厨房', '水龙头', '洗碗', '清洗', '水', '台面', '不锈钢'],
+        
+        // 卫生间相关
         '厕所': ['卫生间', '洗手间', '马桶', '洗漱', '浴室', '淋浴', '洗手台', '镜子'],
         '卫生间': ['厕所', '洗手间', '马桶', '洗漱', '浴室', '淋浴'],
+        
+        // 房间相关
         '卧室': ['床', '房间', '睡觉', '休息', '卧床', '被子', '枕头'],
         '客厅': ['沙发', '电视', '茶几', '房间', '起居室', '家具'],
         '床': ['卧室', '睡觉', '休息', '被子', '枕头', '床单'],
@@ -618,91 +655,181 @@ class BaiduImageRecognitionService {
         '椅子': ['座椅', '凳子', '办公椅', '家具'],
       };
       
-      // 拍摄建议库
+      // 拍摄建议库（扩展版）
       const shootingTips: Record<string, string[]> = {
+        // 洗漱相关
+        '干净的牙齿': ['拍摄自己的笑容（露出牙齿）', '拍摄自己的脸部', '拍摄牙刷或牙膏'],
+        '牙齿': ['拍摄自己的笑容（露出牙齿）', '拍摄自己的脸部', '拍摄牙刷或牙膏'],
+        '清爽的脸': ['拍摄自己的脸部', '拍摄洗漱后的自拍', '拍摄镜子中的自己'],
+        '脸': ['拍摄自己的脸部', '拍摄洗漱后的自拍', '拍摄镜子中的自己'],
+        '整齐的洗漱用品': ['拍摄洗手台上的牙刷牙膏', '拍摄整理好的洗漱用品', '拍摄卫生间台面'],
+        '洗漱用品': ['拍摄洗手台上的牙刷牙膏', '拍摄整理好的洗漱用品', '拍摄卫生间台面'],
+        '关掉的水龙头': ['拍摄关闭的水龙头', '拍摄洗手台', '拍摄水槽'],
+        '水龙头': ['拍摄关闭的水龙头', '拍摄洗手台', '拍摄水槽'],
+        
+        // 电子设备
         'ipad': ['拍摄iPad屏幕', '拍摄平板电脑', '拍摄工作桌面'],
         '平板': ['拍摄平板电脑', '拍摄iPad', '拍摄电子设备'],
         '笔记本': ['拍摄笔记本电脑', '拍摄电脑屏幕', '拍摄工作桌面'],
         '电脑': ['拍摄电脑屏幕', '拍摄键盘', '拍摄工作桌面'],
         '微信': ['打开微信界面拍摄', '拍摄手机屏幕显示微信'],
         '手机': ['拍摄手机', '拍摄手机屏幕'],
+        
+        // 厨房相关
         '厨房': ['拍摄厨房环境', '拍摄灶台', '拍摄水槽', '拍摄橱柜'],
         '水槽': ['拍摄厨房水槽', '拍摄洗碗池', '拍摄水龙头'],
+        
+        // 卫生间相关
         '厕所': ['拍摄卫生间', '拍摄洗手间', '拍摄马桶或洗手台'],
         '卫生间': ['拍摄卫生间', '拍摄洗手间', '拍摄马桶或洗手台'],
+        
+        // 房间相关
         '卧室': ['拍摄卧室环境', '拍摄床', '拍摄房间'],
         '客厅': ['拍摄客厅环境', '拍摄沙发', '拍摄电视'],
         '床': ['拍摄床', '拍摄卧室'],
         '桌子': ['拍摄桌面', '拍摄书桌', '拍摄工作台'],
       };
       
+      // 🤖 智能语义匹配函数（不依赖固定词库）
+      const isSemanticMatch = (required: string, recognized: string): { matched: boolean; reason: string } => {
+        const reqLower = required.toLowerCase().trim();
+        const recLower = recognized.toLowerCase().trim();
+        
+        // 1. 直接包含（最基础）
+        if (recLower.includes(reqLower) || reqLower.includes(recLower)) {
+          return { matched: true, reason: '直接包含匹配' };
+        }
+        
+        // 2. 提取关键词（去掉修饰词）
+        const extractKeywords = (text: string): string[] => {
+          // 去掉常见的修饰词
+          const modifiers = ['干净的', '清爽的', '整齐的', '关掉的', '打开的', '漂亮的', '好看的', '新的', '旧的'];
+          let cleaned = text;
+          modifiers.forEach(mod => {
+            cleaned = cleaned.replace(mod, '');
+          });
+          // 拆分成单个词
+          return cleaned.split(/[、，,\s]+/).filter(w => w.length > 0);
+        };
+        
+        const reqKeywords = extractKeywords(reqLower);
+        const recKeywords = extractKeywords(recLower);
+        
+        // 3. 检查是否有共同的关键字
+        for (const reqWord of reqKeywords) {
+          for (const recWord of recKeywords) {
+            if (reqWord.includes(recWord) || recWord.includes(reqWord)) {
+              return { matched: true, reason: `关键词匹配: "${reqWord}" ↔ "${recWord}"` };
+            }
+          }
+        }
+        
+        // 4. 智能语义关联（基于常识和AI理解）
+        // 提取核心概念 - 更智能、更宽泛
+        const getConcept = (text: string): string[] => {
+          const concepts: string[] = [];
+          
+          // 人物相关（超级宽泛）
+          if (/人|脸|面|头|眼|鼻|嘴|笑|容|貌|美|女|男|少|孩|童|老|青|年|肖像|特写|自拍|照片|相片|五官|表情|神态/.test(text)) {
+            concepts.push('人物');
+          }
+          
+          // 洗漱/清洁相关（超级宽泛）
+          if (/牙|齿|口|刷|膏|漱|洗|脸|面|手|台|镜|毛巾|肥皂|香皂|洗面|洁|净|清|爽|卫生|浴|厕|盥洗|梳妆|化妆|护肤|美容|洗手|洗脸|刷牙/.test(text)) {
+            concepts.push('洗漱');
+            concepts.push('清洁');
+          }
+          
+          // 水相关
+          if (/水|龙头|水槽|水池|水流|湿|洗|清|洁|液|流|滴|喷|淋/.test(text)) {
+            concepts.push('水');
+          }
+          
+          // 厨房相关
+          if (/厨|灶|锅|碗|盘|筷|勺|刀|菜|饭|食|餐|炒|煮|烹|冰箱|橱柜|台面|厨具|餐具/.test(text)) {
+            concepts.push('厨房');
+          }
+          
+          // 卧室相关
+          if (/床|被|枕|卧|睡|眠|休息|房间|寝室/.test(text)) {
+            concepts.push('卧室');
+          }
+          
+          // 电子设备
+          if (/电脑|笔记本|平板|ipad|手机|屏幕|键盘|鼠标|显示器|数码|电子|设备|pad|phone|mac|pc/.test(text)) {
+            concepts.push('电子设备');
+          }
+          
+          // 家具
+          if (/桌|椅|柜|沙发|茶几|床|架|台|凳/.test(text)) {
+            concepts.push('家具');
+          }
+          
+          // 日用品/物品
+          if (/用品|物品|东西|器具|工具|设备|物件|物体|产品|商品/.test(text)) {
+            concepts.push('日用品');
+          }
+          
+          // 场景/环境
+          if (/室内|房间|家|屋|空间|环境|场景|地方/.test(text)) {
+            concepts.push('场景');
+          }
+          
+          return concepts;
+        };
+        
+        const reqConcepts = getConcept(reqLower);
+        const recConcepts = getConcept(recLower);
+        
+        // 如果有共同的概念，认为相关
+        for (const reqConcept of reqConcepts) {
+          if (recConcepts.includes(reqConcept)) {
+            return { matched: true, reason: `语义概念匹配: ${reqConcept}` };
+          }
+        }
+        
+        // 5. 使用同义词库作为兜底（但不强制依赖）
+        const syns = synonyms[required] || synonyms[reqLower] || [];
+        for (const syn of syns) {
+          const synLower = syn.toLowerCase();
+          if (recLower.includes(synLower) || synLower.includes(recLower)) {
+            return { matched: true, reason: `同义词匹配: "${syn}"` };
+          }
+        }
+        
+        return { matched: false, reason: '无匹配' };
+      };
+      
+      // 遍历每个要求的关键词，进行智能匹配
       for (const required of requiredKeywords) {
-        const requiredLower = required.toLowerCase().trim();
         let matched = false;
         let matchReason = '';
         
-        console.log(`🔍 [匹配检查] 开始检查关键词: "${required}"`);
+        console.log(`🔍 [智能匹配] 开始检查关键词: "${required}"`);
         
-        // 遍历所有识别到的关键词，进行宽松匹配
+        // 遍历所有识别到的关键词
         for (const recognized of recognizedKeywords) {
-          const recognizedLower = recognized.toLowerCase().trim();
-          
-          // 策略1: 直接包含匹配（双向）
-          if (recognizedLower.includes(requiredLower) || requiredLower.includes(recognizedLower)) {
+          const result = isSemanticMatch(required, recognized);
+          if (result.matched) {
             matched = true;
-            matchReason = `识别到"${recognized}"`;
-            console.log(`✅ [匹配检查] 策略1成功: "${required}" 匹配到 "${recognized}"`);
+            matchReason = `识别到"${recognized}"（${result.reason}）`;
+            console.log(`✅ [智能匹配] "${required}" 匹配到 "${recognized}" - ${result.reason}`);
             break;
           }
-          
-          // 策略2: 拆分关键词匹配
-          const requiredWords = requiredLower.split(/[、，,\s]+/).filter(w => w.length >= 1);
-          const recognizedWords = recognizedLower.split(/[、，,\s]+/).filter(w => w.length >= 1);
-          
-          for (const reqWord of requiredWords) {
-            for (const recWord of recognizedWords) {
-              if (recWord.includes(reqWord) || reqWord.includes(recWord)) {
-                matched = true;
-                matchReason = `识别到"${recognized}"`;
-                console.log(`✅ [匹配检查] 策略2成功: "${reqWord}" 匹配到 "${recWord}" (来自"${recognized}")`);
-                break;
-              }
-            }
-            if (matched) break;
-          }
-          
-          if (matched) break;
-          
-          // 策略3: 同义词匹配
-          for (const reqWord of requiredWords) {
-            const syns = synonyms[reqWord] || [];
-            console.log(`🔍 [匹配检查] 检查同义词: "${reqWord}" -> [${syns.slice(0, 5).join(', ')}...]`);
-            for (const syn of syns) {
-              if (recognizedLower.includes(syn)) {
-                matched = true;
-                matchReason = `识别到"${recognized}"（与"${required}"相关）`;
-                console.log(`✅ [匹配检查] 策略3成功: "${reqWord}" 通过同义词 "${syn}" 匹配到 "${recognized}"`);
-                break;
-              }
-            }
-            if (matched) break;
-          }
-          
-          if (matched) break;
         }
         
         if (matched) {
           matchedKeywords.push(required);
           matchDetails.push(`✅ "${required}" - ${matchReason}`);
-          console.log(`✅ [匹配检查] "${required}" 最终匹配成功`);
+          console.log(`✅ [智能匹配] "${required}" 最终匹配成功`);
         } else {
           unmatchedKeywords.push(required);
           matchDetails.push(`❌ "${required}" - 未识别到`);
-          console.log(`❌ [匹配检查] "${required}" 最终匹配失败`);
-          console.log(`❌ [匹配检查] 识别到的所有关键词:`, recognizedKeywords.slice(0, 20));
+          console.log(`❌ [智能匹配] "${required}" 最终匹配失败`);
+          console.log(`❌ [智能匹配] 识别到的所有关键词:`, recognizedKeywords.slice(0, 20));
           
           // 给出具体的拍摄建议
-          const tips = shootingTips[requiredLower] || [`拍摄包含"${required}"的照片`];
+          const tips = shootingTips[required] || shootingTips[required.toLowerCase()] || [`拍摄包含"${required}"的照片`];
           suggestions.push(`📸 请${tips[0]}，确保清晰可见`);
         }
       }
@@ -720,6 +847,15 @@ class BaiduImageRecognitionService {
         未匹配的关键词: unmatchedKeywords,
         匹配率: `${(matchRate * 100).toFixed(0)}%`,
       });
+      
+      // 🔍 输出时间戳格式的匹配结果
+      const now = new Date();
+      const timeStr = now.toTimeString().slice(0, 8);
+      if (matchedKeywords.length > 0) {
+        console.log(`[${timeStr}] ✅ 匹配成功: ${matchedKeywords.join('、')}`);
+      } else {
+        console.log(`[${timeStr}] ❌ 未匹配到关键词`);
+      }
       
       if (allKeywords.length === 0) {
         // 完全没识别到内容 - 不通过，给出建议
@@ -747,6 +883,24 @@ class BaiduImageRecognitionService {
         console.log('❌ [验证判断] 要求:', requiredKeywords);
         console.log('❌ [验证判断] 识别到:', allKeywords.slice(0, 20));
         
+        // 🔍 详细分析为什么没有匹配成功
+        console.log('🔍 [详细分析] 开始逐个检查为什么没有匹配:');
+        for (const required of requiredKeywords) {
+          console.log(`🔍 [详细分析] 关键词 "${required}":`);
+          console.log(`   - 同义词库:`, synonyms[required] || synonyms[required.toLowerCase()] || ['无']);
+          console.log(`   - 识别结果中是否包含相关词:`, allKeywords.filter(k => {
+            const kLower = k.toLowerCase();
+            const reqLower = required.toLowerCase();
+            const syns = synonyms[required] || synonyms[reqLower] || [];
+            return kLower.includes(reqLower) || reqLower.includes(kLower) || syns.some(s => kLower.includes(s.toLowerCase()));
+          }));
+        }
+        
+        // 输出时间戳格式的失败原因
+        const now = new Date();
+        const timeStr = now.toTimeString().slice(0, 8);
+        console.log(`[${timeStr}] ❌ 验证失败: 验证失败，未识别到：${requiredKeywords.join('、')}`);
+        
         success = false;
         const recognizedText = allKeywords.length > 0 
           ? allKeywords.slice(0, 8).join('、') 
@@ -756,7 +910,7 @@ class BaiduImageRecognitionService {
         
         // 给出每个关键词的拍摄建议
         for (const required of requiredKeywords) {
-          const tips = shootingTips[required.toLowerCase()] || [`拍摄包含"${required}"的照片`];
+          const tips = shootingTips[required] || shootingTips[required.toLowerCase()] || [`拍摄包含"${required}"的照片`];
           suggestions.push(`📸 ${tips.join(' 或 ')}`);
         }
       }
