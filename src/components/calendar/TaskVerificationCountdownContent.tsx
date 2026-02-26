@@ -407,28 +407,58 @@ export default function TaskVerificationCountdownContent({
           (async () => {
             setVerificationMessage('🤖 百度AI识别中...');
             
-            console.log('📷 [Vercel API] 调用 /api/baidu-image-recognition');
+            console.log('📷 [PWA验证] ========== 开始调用API ==========');
+            console.log('📷 [PWA验证] 当前环境:', {
+              userAgent: navigator.userAgent,
+              isPWA: window.matchMedia('(display-mode: standalone)').matches,
+              origin: window.location.origin,
+              pathname: window.location.pathname,
+            });
+            console.log('📷 [PWA验证] 调用 /api/baidu-image-recognition');
+            console.log('📷 [PWA验证] 请求参数:', {
+              imageLength: imageBase64.length,
+              keywords: startKeywords,
+              hasApiKey: !!apiKey,
+              hasSecretKey: !!secretKey,
+            });
+            
+            const requestBody = {
+              image: imageBase64,
+              keywords: startKeywords,
+              apiKey: apiKey,
+              secretKey: secretKey,
+            };
+            
+            console.log('📷 [PWA验证] 发送请求...');
+            const startTime = Date.now();
+            
             const response = await fetch('/api/baidu-image-recognition', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({
-                image: imageBase64,
-                keywords: startKeywords,
-                apiKey: apiKey,
-                secretKey: secretKey,
-              }),
+              body: JSON.stringify(requestBody),
             });
+            
+            const endTime = Date.now();
+            console.log('📷 [PWA验证] 请求耗时:', endTime - startTime, 'ms');
+            console.log('📷 [PWA验证] 响应状态:', response.status, response.statusText);
+            console.log('📷 [PWA验证] 响应头:', Object.fromEntries(response.headers.entries()));
             
             if (!response.ok) {
               const errorText = await response.text();
-              console.error('❌ [Vercel API] 请求失败:', response.status, errorText);
-              throw new Error(`API请求失败: ${response.status}`);
+              console.error('❌ [PWA验证] 请求失败:', response.status, errorText);
+              throw new Error(`API请求失败: ${response.status} - ${errorText}`);
             }
             
             const result = await response.json();
-            console.log('📷 [Vercel API] 返回结果:', result);
+            console.log('📷 [PWA验证] ========== API返回结果 ==========');
+            console.log('📷 [PWA验证] 完整结果:', JSON.stringify(result, null, 2));
+            console.log('📷 [PWA验证] success:', result.success);
+            console.log('📷 [PWA验证] message:', result.message);
+            console.log('📷 [PWA验证] matchedKeywords:', result.matchedKeywords);
+            console.log('📷 [PWA验证] recognizedObjects:', result.recognizedObjects);
+            console.log('📷 [PWA验证] ========================================');
             
             setVerificationMessage('✨ AI分析完成，正在匹配关键词...');
             await new Promise(resolve => setTimeout(resolve, 300));
@@ -696,28 +726,58 @@ export default function TaskVerificationCountdownContent({
             setVerificationMessage('🤖 百度AI识别中...');
             await new Promise(resolve => setTimeout(resolve, 300));
             
-            console.log('📷 [Vercel API] 调用 /api/baidu-image-recognition');
+            console.log('📷 [PWA完成验证] ========== 开始调用API ==========');
+            console.log('📷 [PWA完成验证] 当前环境:', {
+              userAgent: navigator.userAgent,
+              isPWA: window.matchMedia('(display-mode: standalone)').matches,
+              origin: window.location.origin,
+              pathname: window.location.pathname,
+            });
+            console.log('📷 [PWA完成验证] 调用 /api/baidu-image-recognition');
+            console.log('📷 [PWA完成验证] 请求参数:', {
+              imageLength: imageBase64.length,
+              keywords: completeKeywords,
+              hasApiKey: !!apiKey,
+              hasSecretKey: !!secretKey,
+            });
+            
+            const requestBody = {
+              image: imageBase64,
+              keywords: completeKeywords,
+              apiKey: apiKey,
+              secretKey: secretKey,
+            };
+            
+            console.log('📷 [PWA完成验证] 发送请求...');
+            const startTime = Date.now();
+            
             const response = await fetch('/api/baidu-image-recognition', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({
-                image: imageBase64,
-                keywords: completeKeywords,
-                apiKey: apiKey,
-                secretKey: secretKey,
-              }),
+              body: JSON.stringify(requestBody),
             });
+            
+            const endTime = Date.now();
+            console.log('📷 [PWA完成验证] 请求耗时:', endTime - startTime, 'ms');
+            console.log('📷 [PWA完成验证] 响应状态:', response.status, response.statusText);
+            console.log('📷 [PWA完成验证] 响应头:', Object.fromEntries(response.headers.entries()));
             
             if (!response.ok) {
               const errorText = await response.text();
-              console.error('❌ [Vercel API] 请求失败:', response.status, errorText);
-              throw new Error(`API请求失败: ${response.status}`);
+              console.error('❌ [PWA完成验证] 请求失败:', response.status, errorText);
+              throw new Error(`API请求失败: ${response.status} - ${errorText}`);
             }
             
             const result = await response.json();
-            console.log('📷 [Vercel API] 返回结果:', result);
+            console.log('📷 [PWA完成验证] ========== API返回结果 ==========');
+            console.log('📷 [PWA完成验证] 完整结果:', JSON.stringify(result, null, 2));
+            console.log('📷 [PWA完成验证] success:', result.success);
+            console.log('📷 [PWA完成验证] message:', result.message);
+            console.log('📷 [PWA完成验证] matchedKeywords:', result.matchedKeywords);
+            console.log('📷 [PWA完成验证] recognizedObjects:', result.recognizedObjects);
+            console.log('📷 [PWA完成验证] ========================================');
             
             setVerificationMessage('✨ AI分析完成，正在匹配关键词...');
             await new Promise(resolve => setTimeout(resolve, 300));
