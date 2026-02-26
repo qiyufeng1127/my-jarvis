@@ -21,6 +21,7 @@ interface GoldState {
   // Actions
   addGold: (amount: number, reason: string, taskId?: string, taskTitle?: string) => void;
   spendGold: (amount: number, reason: string) => void;
+  deductGold: (amount: number, reason: string, taskId?: string, taskTitle?: string) => boolean;
   penaltyGold: (amount: number, reason: string, taskId?: string, taskTitle?: string) => void;
   getTodayTransactions: () => GoldTransaction[];
   resetDailyStats: () => void;
@@ -103,6 +104,48 @@ export const useGoldStore = create<GoldState>()(
         });
         
         console.log(`💸 消费金币: -${amount} (${reason})`);
+      },
+      
+      deductGold: (amount, reason, taskId, taskTitle) => {
+        const state = get();
+        
+        // 校验金币余额是否足够
+        if (state.balance < amount) {
+          console.warn(`⚠️ 金币余额不足: 需要 ${amount}，当前余额 ${state.balance}`);
+          return false;
+        }
+        
+        const transaction: GoldTransaction = {
+          id: crypto.randomUUID(),
+          type: 'spend',
+          amount,
+          reason,
+          taskId,
+          taskTitle,
+          timestamp: new Date(),
+        };
+        
+        set((state) => {
+          const today = new Date().toDateString();
+          if (state.lastResetDate !== today) {
+            return {
+              balance: state.balance - amount,
+              todayEarned: 0,
+              todaySpent: amount,
+              transactions: [transaction, ...state.transactions],
+              lastResetDate: today,
+            };
+          }
+          
+          return {
+            balance: state.balance - amount,
+            todaySpent: state.todaySpent + amount,
+            transactions: [transaction, ...state.transactions],
+          };
+        });
+        
+        console.log(`💸 扣除金币: -${amount} (${reason})，当前余额: ${get().balance}`);
+        return true;
       },
       
       penaltyGold: (amount, reason, taskId, taskTitle) => {

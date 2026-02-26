@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, Plus, Search } from 'lucide-react';
 import { useGoalStore } from '@/stores/goalStore';
 import { useGoldStore } from '@/stores/goldStore';
 import type { Task } from '@/types';
@@ -19,8 +19,8 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
   console.log('🎨 CompactTaskEditModal 已渲染 - 智能分配按钮应该可见');
   console.log('📝 任务数据:', task);
   
-  const { goals } = useGoalStore();
-  const { deductGold } = useGoldStore();
+  const { goals, createGoal } = useGoalStore();
+  const { deductGold, balance } = useGoldStore();
   
   const [title, setTitle] = useState(task.title || '');
   const [description, setDescription] = useState(task.description || '');
@@ -42,6 +42,71 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
   const [location, setLocation] = useState(task.location || '');
   const [newTag, setNewTag] = useState('');
   const [isAIAssigning, setIsAIAssigning] = useState(false);
+  
+  // 关联目标选择弹窗状态
+  const [showGoalSelector, setShowGoalSelector] = useState(false);
+  const [goalSearchQuery, setGoalSearchQuery] = useState('');
+  const [showNewGoalInput, setShowNewGoalInput] = useState(false);
+  const [newGoalName, setNewGoalName] = useState('');
+  
+  // 用于自动滚动的引用
+  const titleRef = useRef<HTMLInputElement>(null);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
+  const startTimeRef = useRef<HTMLInputElement>(null);
+  const durationRef = useRef<HTMLInputElement>(null);
+  const goldRef = useRef<HTMLInputElement>(null);
+  const goalRef = useRef<HTMLDivElement>(null);
+  const locationRef = useRef<HTMLInputElement>(null);
+  
+  // 自动滚动到编辑项的函数
+  const scrollToElement = (element: HTMLElement | null) => {
+    if (!element) return;
+    
+    element.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+    });
+    
+    // 延迟聚焦，确保滚动完成
+    setTimeout(() => {
+      if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+        element.focus();
+      }
+    }, 300);
+  };
+  
+  // 过滤后的目标列表
+  const filteredGoals = goals.filter(goal => 
+    goal.name.toLowerCase().includes(goalSearchQuery.toLowerCase())
+  );
+  
+  // 处理选择目标
+  const handleSelectGoal = (goalId: string) => {
+    setSelectedGoalId(goalId);
+    setShowGoalSelector(false);
+    setGoalSearchQuery('');
+  };
+  
+  // 处理新增目标
+  const handleCreateNewGoal = () => {
+    if (!newGoalName.trim()) {
+      alert('请输入目标名称');
+      return;
+    }
+    
+    const newGoal = createGoal({
+      name: newGoalName.trim(),
+      description: '',
+      goalType: 'boolean',
+      isActive: true,
+    });
+    
+    setSelectedGoalId(newGoal.id);
+    setNewGoalName('');
+    setShowNewGoalInput(false);
+    setShowGoalSelector(false);
+    setGoalSearchQuery('');
+  };
 
   const handleSave = () => {
     const updates: Partial<Task> = {
@@ -102,21 +167,35 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
       return;
     }
     
+    // 校验金币余额
+    if (balance < taskGold) {
+      alert(`余额不足，无法删除此任务。\n需要: ${taskGold} 金币\n当前余额: ${balance} 金币`);
+      return;
+    }
+    
     // 如果任务有金币奖励，需要扣除相应金币
-    if (confirm(`删除任务"${task.title}"将扣除 ${taskGold} 金币，确定要删除吗？`)) {
-      // 扣除金币
-      const success = deductGold(taskGold, `删除任务: ${task.title}`);
-      
-      if (!success) {
-        alert('金币不足，无法删除任务');
-        return;
+    if (confirm(`删除任务"${task.title}"将扣除 ${taskGold} 金币，确定要删除吗？\n当前余额: ${balance} 金币`)) {
+      try {
+        // 扣除金币
+        const success = deductGold(taskGold, `删除任务: ${task.title}`, task.id, task.title);
+        
+        if (!success) {
+          alert('余额不足，无法删除此任务');
+          return;
+        }
+        
+        // 删除任务
+        if (onDelete) {
+          onDelete(task.id);
+        }
+        
+        // 显示成功提示
+        alert(`任务已删除，扣除 ${taskGold} 金币`);
+        onClose();
+      } catch (error) {
+        console.error('删除任务失败:', error);
+        alert(`删除失败，请重试。错误: ${error instanceof Error ? error.message : '未知错误'}`);
       }
-      
-      // 删除任务
-      if (onDelete) {
-        onDelete(task.id);
-      }
-      onClose();
     }
   };
 
@@ -223,9 +302,11 @@ ${goals.map(g => `- ${g.id}: ${g.title}`).join('\n')}
               📝 任务标题
             </label>
             <input
+              ref={titleRef}
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              onFocus={() => scrollToElement(titleRef.current)}
               placeholder="输入任务名称..."
               className="w-full px-3 py-2 text-sm border-2 border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-all"
             />
@@ -237,8 +318,10 @@ ${goals.map(g => `- ${g.id}: ${g.title}`).join('\n')}
               📄 任务描述
             </label>
             <textarea
+              ref={descriptionRef}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              onFocus={() => scrollToElement(descriptionRef.current)}
               placeholder="详细描述任务内容..."
               rows={2}
               className="w-full px-3 py-2 text-sm border-2 border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none transition-all"
@@ -252,9 +335,11 @@ ${goals.map(g => `- ${g.id}: ${g.title}`).join('\n')}
                 ⏰ 开始时间
               </label>
               <input
+                ref={startTimeRef}
                 type="time"
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
+                onFocus={() => scrollToElement(startTimeRef.current)}
                 className="w-full px-3 py-2 text-sm border-2 border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-all"
               />
             </div>
@@ -263,9 +348,11 @@ ${goals.map(g => `- ${g.id}: ${g.title}`).join('\n')}
                 ⏱️ 时长（分钟）
               </label>
               <input
+                ref={durationRef}
                 type="number"
                 value={duration}
                 onChange={(e) => setDuration(parseInt(e.target.value) || 0)}
+                onFocus={() => scrollToElement(durationRef.current)}
                 min="1"
                 className="w-full px-3 py-2 text-sm border-2 border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-all"
               />
@@ -298,9 +385,11 @@ ${goals.map(g => `- ${g.id}: ${g.title}`).join('\n')}
               </button>
             </div>
             <input
+              ref={goldRef}
               type="number"
               value={gold}
               onChange={(e) => setGold(parseInt(e.target.value) || 0)}
+              onFocus={() => scrollToElement(goldRef.current)}
               min="0"
               className="w-full px-3 py-2 text-sm border-2 border-yellow-300 dark:border-yellow-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 text-gray-900 dark:text-white font-semibold transition-all"
             />
@@ -346,22 +435,25 @@ ${goals.map(g => `- ${g.id}: ${g.title}`).join('\n')}
           </div>
 
           {/* 关联目标 */}
-          <div>
+          <div ref={goalRef}>
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
               🎯 关联目标
             </label>
-            <select
-              value={selectedGoalId}
-              onChange={(e) => setSelectedGoalId(e.target.value)}
-              className="w-full px-3 py-2 text-sm border-2 border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-all"
+            <div
+              onClick={() => {
+                scrollToElement(goalRef.current);
+                setShowGoalSelector(true);
+              }}
+              className="w-full px-3 py-2 text-sm border-2 border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-all cursor-pointer hover:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
             >
-              <option value="">无关联目标</option>
-              {goals.map((goal) => (
-                <option key={goal.id} value={goal.id}>
-                  {goal.name}
-                </option>
-              ))}
-            </select>
+              {selectedGoalId ? (
+                <span className="font-medium">
+                  {goals.find(g => g.id === selectedGoalId)?.name || '选择目标...'}
+                </span>
+              ) : (
+                <span className="text-gray-400">点击选择或新增目标...</span>
+              )}
+            </div>
           </div>
 
           {/* 位置 */}
@@ -370,14 +462,139 @@ ${goals.map(g => `- ${g.id}: ${g.title}`).join('\n')}
               📍 位置
             </label>
             <input
+              ref={locationRef}
               type="text"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
+              onFocus={() => scrollToElement(locationRef.current)}
               placeholder="例如：厨房、卧室、办公室..."
               className="w-full px-3 py-2 text-sm border-2 border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-all"
             />
           </div>
         </div>
+
+        {/* 关联目标选择弹窗 */}
+        {showGoalSelector && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[70vh] flex flex-col overflow-hidden border-2 border-purple-300 dark:border-purple-700">
+              {/* 弹窗头部 */}
+              <div className="flex-shrink-0 bg-gradient-to-r from-purple-500 to-pink-500 px-4 py-3 flex items-center justify-between">
+                <h4 className="text-base font-bold text-white">🎯 选择关联目标</h4>
+                <button
+                  onClick={() => {
+                    setShowGoalSelector(false);
+                    setGoalSearchQuery('');
+                    setShowNewGoalInput(false);
+                  }}
+                  className="p-1 hover:bg-white/20 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-white" />
+                </button>
+              </div>
+
+              {/* 搜索框 */}
+              <div className="flex-shrink-0 p-3 border-b border-gray-200 dark:border-gray-700">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={goalSearchQuery}
+                    onChange={(e) => setGoalSearchQuery(e.target.value)}
+                    placeholder="搜索目标..."
+                    className="w-full pl-10 pr-3 py-2 text-sm border-2 border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              {/* 目标列表 */}
+              <div className="flex-1 overflow-y-auto p-3">
+                {/* 无关联目标选项 */}
+                <div
+                  onClick={() => handleSelectGoal('')}
+                  className={`p-3 mb-2 rounded-lg cursor-pointer transition-all ${
+                    selectedGoalId === ''
+                      ? 'bg-purple-100 dark:bg-purple-900/30 border-2 border-purple-500'
+                      : 'bg-gray-50 dark:bg-gray-800 border-2 border-transparent hover:border-purple-300'
+                  }`}
+                >
+                  <div className="font-medium text-gray-700 dark:text-gray-300">
+                    无关联目标
+                  </div>
+                </div>
+
+                {filteredGoals.length > 0 ? (
+                  filteredGoals.map((goal) => (
+                    <div
+                      key={goal.id}
+                      onClick={() => handleSelectGoal(goal.id)}
+                      className={`p-3 mb-2 rounded-lg cursor-pointer transition-all ${
+                        selectedGoalId === goal.id
+                          ? 'bg-purple-100 dark:bg-purple-900/30 border-2 border-purple-500'
+                          : 'bg-gray-50 dark:bg-gray-800 border-2 border-transparent hover:border-purple-300'
+                      }`}
+                    >
+                      <div className="font-medium text-gray-900 dark:text-white">
+                        {goal.name}
+                      </div>
+                      {goal.description && (
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          {goal.description}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-400">
+                    {goalSearchQuery ? '未找到匹配的目标' : '暂无已创建目标'}
+                  </div>
+                )}
+              </div>
+
+              {/* 新增目标区域 */}
+              <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-800/50">
+                {showNewGoalInput ? (
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={newGoalName}
+                      onChange={(e) => setNewGoalName(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleCreateNewGoal()}
+                      placeholder="输入新目标名称..."
+                      className="w-full px-3 py-2 text-sm border-2 border-purple-300 dark:border-purple-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleCreateNewGoal}
+                        className="flex-1 px-3 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg text-sm font-semibold hover:from-purple-600 hover:to-pink-600 transition-all"
+                      >
+                        确认新增
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowNewGoalInput(false);
+                          setNewGoalName('');
+                        }}
+                        className="px-3 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-all"
+                      >
+                        取消
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowNewGoalInput(true)}
+                    className="w-full px-3 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg text-sm font-semibold hover:from-green-600 hover:to-emerald-600 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>新增目标</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 底部按钮 - 固定在底部，避免被导航栏遮挡 */}
         <div className="flex-shrink-0 border-t-2 border-gray-200 dark:border-gray-700 px-3 py-2 flex gap-2 bg-gray-50 dark:bg-gray-800/50 sticky bottom-0 z-10 shadow-lg">
