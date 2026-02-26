@@ -6,30 +6,36 @@
 import React, { useState } from 'react';
 import { useEmergencyTaskStore } from '@/stores/emergencyTaskStore';
 import EmergencyVerification from '@/components/calendar/EmergencyVerification';
+import { activityMonitorService } from '@/services/activityMonitorService';
 
 interface EmergencyTaskModalProps {
   onClose: () => void;
 }
 
 export default function EmergencyTaskModal({ onClose }: EmergencyTaskModalProps) {
-  const { currentTask, replaceCurrentTask, skipCurrentTask, completeCurrentTask, failCurrentTask } = useEmergencyTaskStore();
+  const { currentTask, completeCurrentTask, failCurrentTask } = useEmergencyTaskStore();
   const [showVerification, setShowVerification] = useState(false);
   const [isReplacing, setIsReplacing] = useState(false);
+  const [remainingReplaces, setRemainingReplaces] = useState(activityMonitorService.getRemainingReplaces());
 
   if (!currentTask) {
     return null;
   }
 
   const handleReplace = () => {
-    setIsReplacing(true);
-    const newTask = replaceCurrentTask();
+    const result = activityMonitorService.tryReplaceTask();
     
-    setTimeout(() => {
-      setIsReplacing(false);
-      if (newTask) {
-        console.log('🔄 已替换为新任务:', newTask.title);
-      }
-    }, 500);
+    if (result.success) {
+      setIsReplacing(true);
+      setRemainingReplaces(activityMonitorService.getRemainingReplaces());
+      
+      setTimeout(() => {
+        setIsReplacing(false);
+        alert(result.message);
+      }, 500);
+    } else {
+      alert(result.message);
+    }
   };
 
   const handleStartVerification = () => {
@@ -163,10 +169,10 @@ export default function EmergencyTaskModal({ onClose }: EmergencyTaskModalProps)
 
                 <button
                   onClick={handleReplace}
-                  disabled={isReplacing}
-                  className="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-bold transition-colors disabled:opacity-50"
+                  disabled={isReplacing || remainingReplaces === 0}
+                  className="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isReplacing ? '🔄 替换中...' : '🔄 换一个任务'}
+                  {isReplacing ? '🔄 替换中...' : `🔄 换一个任务 (剩余${remainingReplaces}次)`}
                 </button>
 
                 <button
@@ -181,7 +187,7 @@ export default function EmergencyTaskModal({ onClose }: EmergencyTaskModalProps)
               {/* 提示 */}
               <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-xs text-blue-800">
-                  💡 提示：完成任务后需要拍照验证。如果不想做当前任务，可以点击"换一个任务"随机更换。
+                  💡 提示：完成任务后需要拍照验证。每日最多可替换3次任务，当前剩余 {remainingReplaces} 次。
                 </p>
               </div>
             </>
