@@ -550,10 +550,8 @@ export default function TaskVerificationCountdownContent({
         // 触发金币获得通知
         notificationService.notifyGoldEarned(taskTitle, bonusGold);
         
-        // 🔧 2秒后关闭庆祝特效并完成任务
+        // 🔧 2秒后完成任务（庆祝特效会自己消失）
         setTimeout(() => {
-          setShowCelebration(false);
-          
           const newState = {
             ...state,
             status: 'completed' as CountdownStatus,
