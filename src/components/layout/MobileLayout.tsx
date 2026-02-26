@@ -35,7 +35,6 @@ import { PetShop } from '@/components/pet/PetShop';
 import { FocusTimer } from '@/components/focus/FocusTimer';
 import { FocusStatsPanel } from '@/components/focus/FocusStatsPanel';
 import { LeaderboardPanel } from '@/components/leaderboard/LeaderboardPanel';
-import VoiceButton from '@/components/voice/VoiceButton';
 
 type TabType = 'timeline' | 'goals' | 'journal' | 'memory' | 'gold' | 'habits' | 'reports' | 'settings' | 'inbox' | 'ai' | 'more' | 'money' | 'tags' | 'home' | 'pet' | 'focus' | 'leaderboard';
 
@@ -648,9 +647,6 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
     </div>
     
     {/* FloatingAIChat 已移到 TimelineModule 组件内部 */}
-
-    {/* 免手模式按钮 - 右下角悬浮 */}
-    <VoiceButton />
     </>
   );
 }

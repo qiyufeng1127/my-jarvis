@@ -96,6 +96,10 @@ export const useTaskStore = create<TaskState>()(
         tasks: [...state.tasks, newTask],
       }));
       
+      // 记录用户活动（添加任务）
+      const { activityMonitorService } = await import('@/services/activityMonitorService');
+      activityMonitorService.recordActivity();
+      
       // 开始监控任务
       if (newTask.scheduledStart && newTask.scheduledEnd) {
         taskMonitorService.startMonitoring(newTask);

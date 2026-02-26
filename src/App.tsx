@@ -69,14 +69,10 @@ function App() {
       await backgroundNotificationService.initialize();
       console.log('🔔 后台通知服务已启动');
       
-      // 🎯 启动驱动力系统
-      const { dailyCostService } = await import('@/services/dailyCostService');
-      const costResult = await dailyCostService.checkDailyCost();
-      if (costResult.isBankrupt) {
-        console.log('💸 检测到破产状态，需要完成紧急任务');
-      }
-      dailyCostService.startPeriodicCheck();
-      console.log('🎯 驱动力系统已启动');
+      // 🎯 启动活动监控服务（替代每日成本检查）
+      const { activityMonitorService } = await import('@/services/activityMonitorService');
+      activityMonitorService.start();
+      console.log('🎯 活动监控服务已启动');
       
       // 🔔 启动连胜提醒服务
       const { streakReminderService } = await import('@/services/streakReminderService');

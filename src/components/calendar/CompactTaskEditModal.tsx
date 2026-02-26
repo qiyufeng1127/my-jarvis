@@ -1,23 +1,26 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useGoalStore } from '@/stores/goalStore';
+import { useGoldStore } from '@/stores/goldStore';
 import type { Task } from '@/types';
 
 interface CompactTaskEditModalProps {
   task: Task;
   onClose: () => void;
   onSave: (updates: Partial<Task>) => void;
+  onDelete?: (taskId: string) => void;
 }
 
 /**
  * 紧凑型任务编辑弹窗
  * 优化间距，信息密度更高，一屏显示所有内容
  */
-export default function CompactTaskEditModal({ task, onClose, onSave }: CompactTaskEditModalProps) {
+export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }: CompactTaskEditModalProps) {
   console.log('🎨 CompactTaskEditModal 已渲染 - 智能分配按钮应该可见');
   console.log('📝 任务数据:', task);
   
   const { goals } = useGoalStore();
+  const { deductGold } = useGoldStore();
   
   const [title, setTitle] = useState(task.title || '');
   const [description, setDescription] = useState(task.description || '');
@@ -82,6 +85,39 @@ export default function CompactTaskEditModal({ task, onClose, onSave }: CompactT
 
   const removeTag = (tagToRemove: string) => {
     setTags(tags.filter(t => t !== tagToRemove));
+  };
+
+  // 删除任务处理
+  const handleDelete = () => {
+    const taskGold = task.goldReward || 0;
+    
+    if (taskGold <= 0) {
+      // 如果任务没有金币奖励，直接删除
+      if (confirm(`确定要删除任务"${task.title}"吗？`)) {
+        if (onDelete) {
+          onDelete(task.id);
+        }
+        onClose();
+      }
+      return;
+    }
+    
+    // 如果任务有金币奖励，需要扣除相应金币
+    if (confirm(`删除任务"${task.title}"将扣除 ${taskGold} 金币，确定要删除吗？`)) {
+      // 扣除金币
+      const success = deductGold(taskGold, `删除任务: ${task.title}`);
+      
+      if (!success) {
+        alert('金币不足，无法删除任务');
+        return;
+      }
+      
+      // 删除任务
+      if (onDelete) {
+        onDelete(task.id);
+      }
+      onClose();
+    }
   };
 
   // AI智能分配
@@ -163,7 +199,7 @@ ${goals.map(g => `- ${g.id}: ${g.title}`).join('\n')}
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 z-50">
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden border-2 border-purple-200 dark:border-purple-800">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden border-2 border-purple-200 dark:border-purple-800">
         {/* 头部 - 紧凑设计 */}
         <div className="flex-shrink-0 bg-gradient-to-r from-purple-500 to-pink-500 px-4 py-2.5 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -344,18 +380,26 @@ ${goals.map(g => `- ${g.id}: ${g.title}`).join('\n')}
         </div>
 
         {/* 底部按钮 - 紧凑布局 */}
-        <div className="flex-shrink-0 border-t-2 border-gray-200 dark:border-gray-700 px-4 py-3 flex gap-2 bg-gray-50 dark:bg-gray-800/50">
+        <div className="flex-shrink-0 border-t-2 border-gray-200 dark:border-gray-700 px-3 py-2 flex gap-2 bg-gray-50 dark:bg-gray-800/50">
+          <button
+            onClick={handleDelete}
+            className="px-4 py-2 rounded-lg font-semibold transition-all active:scale-95 text-sm"
+            style={{ backgroundColor: '#EF4444', color: 'white' }}
+            title={`删除任务将扣除 ${task.goldReward || 0} 金币`}
+          >
+            删除此任务
+          </button>
           <button
             onClick={onClose}
             className="flex-1 px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold transition-all active:scale-95"
           >
-            ❌ 取消
+            取消
           </button>
           <button
             onClick={handleSave}
             className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white text-sm font-bold transition-all active:scale-95 shadow-lg"
           >
-            ✅ 保存
+            保存
           </button>
         </div>
       </div>

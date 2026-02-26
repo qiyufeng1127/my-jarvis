@@ -19,6 +19,7 @@ import NowTimeline from './NowTimeline';
 import { useAIStore } from '@/stores/aiStore';
 import { useGoldStore } from '@/stores/goldStore';
 import { useTagStore } from '@/stores/tagStore';
+import { useGoalStore } from '@/stores/goalStore';
 import CelebrationEffect from '@/components/effects/CelebrationEffect';
 import { 
   adjustTaskStartTime, 
@@ -37,6 +38,7 @@ import eventBus from '@/utils/eventBus';
 import TaskVerificationCountdownContent from './TaskVerificationCountdownContent';
 import GoldDetailsModal from '@/components/gold/GoldDetailsModal';
 import TaskCompletionEfficiencyModal from './TaskCompletionEfficiencyModal';
+import CompactTaskEditModal from './CompactTaskEditModal';
 import { useTaskStore } from '@/stores/taskStore';
 
 interface NewTimelineViewProps {
@@ -1720,6 +1722,12 @@ export default function NewTimelineView({
                     type="text"
                     value={currentEditData.title}
                     onChange={(e) => setEditedTaskData({ ...currentEditData, title: e.target.value })}
+                    onFocus={(e) => {
+                      // 点击时自动滚动到可见区域
+                      setTimeout(() => {
+                        e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      }, 100);
+                    }}
                     placeholder="任务标题"
                     className="w-full px-2.5 py-1.5 rounded-lg border text-base font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                     style={{ 
@@ -1736,6 +1744,12 @@ export default function NewTimelineView({
                   <textarea
                     value={currentEditData.description || ''}
                     onChange={(e) => setEditedTaskData({ ...currentEditData, description: e.target.value })}
+                    onFocus={(e) => {
+                      // 点击时自动滚动到可见区域
+                      setTimeout(() => {
+                        e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      }, 100);
+                    }}
                     rows={2}
                     className="w-full px-2.5 py-1.5 rounded-lg border-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
                     style={{ 
@@ -1760,6 +1774,12 @@ export default function NewTimelineView({
                         newDate.setHours(parseInt(hours), parseInt(minutes));
                         setEditedTaskData({ ...currentEditData, scheduledStart: newDate.toISOString() });
                       }}
+                      onFocus={(e) => {
+                        // 点击时自动滚动到可见区域
+                        setTimeout(() => {
+                          e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }, 100);
+                      }}
                       className="w-full px-2.5 py-1.5 rounded-lg border-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
                       style={{ 
                         borderColor: isDark ? '#4b5563' : '#d1d5db',
@@ -1775,6 +1795,12 @@ export default function NewTimelineView({
                       type="number"
                       value={currentEditData.durationMinutes}
                       onChange={(e) => setEditedTaskData({ ...currentEditData, durationMinutes: parseInt(e.target.value) || 0 })}
+                      onFocus={(e) => {
+                        // 点击时自动滚动到可见区域
+                        setTimeout(() => {
+                          e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }, 100);
+                      }}
                       className="w-full px-2.5 py-1.5 rounded-lg border-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
                       style={{ 
                         borderColor: isDark ? '#4b5563' : '#d1d5db',
@@ -1904,6 +1930,12 @@ export default function NewTimelineView({
                     type="number"
                     value={currentEditData.goldReward || 0}
                     onChange={(e) => setEditedTaskData({ ...currentEditData, goldReward: parseInt(e.target.value) || 0 })}
+                    onFocus={(e) => {
+                      // 点击时自动滚动到可见区域
+                      setTimeout(() => {
+                        e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      }, 100);
+                    }}
                     className="w-full px-2.5 py-1.5 rounded-lg border-2 border-yellow-300 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-yellow-500 transition-all bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20"
                     style={{ color: isDark ? '#ffffff' : '#000000' }}
                     min={0}
@@ -1960,18 +1992,61 @@ export default function NewTimelineView({
                 {/* 关联目标 */}
                 <div>
                   <label className="block text-xs font-semibold mb-1" style={{ color: isDark ? '#ffffff' : '#000000' }}>🎯 关联目标</label>
-                  <input
-                    type="text"
-                    value={currentEditData.description || ''}
-                    onChange={(e) => setEditedTaskData({ ...currentEditData, description: e.target.value })}
-                    placeholder="例如：月入5w..."
-                    className="w-full px-2.5 py-1.5 rounded-lg border-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 transition-all"
-                    style={{ 
-                      borderColor: isDark ? '#4b5563' : '#d1d5db',
-                      backgroundColor: isDark ? '#374151' : '#ffffff',
-                      color: isDark ? '#ffffff' : '#000000'
-                    }}
-                  />
+                  <div className="flex gap-2">
+                    <select
+                      value={currentEditData.goals || ''}
+                      onChange={(e) => {
+                        if (e.target.value === '__add_new__') {
+                          // 添加新目标
+                          const newGoalName = prompt('✨ 输入新目标名称：');
+                          if (newGoalName && newGoalName.trim()) {
+                            // 创建新目标
+                            const newGoal = useGoalStore.getState().createGoal({
+                              name: newGoalName.trim(),
+                              description: '',
+                              goalType: 'boolean',
+                              isActive: true,
+                            });
+                            // 设置为当前任务的关联目标
+                            setEditedTaskData({ ...currentEditData, goals: newGoal.name });
+                          }
+                        } else {
+                          setEditedTaskData({ ...currentEditData, goals: e.target.value });
+                        }
+                      }}
+                      onFocus={(e) => {
+                        // 点击时自动滚动到可见区域
+                        setTimeout(() => {
+                          e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }, 100);
+                      }}
+                      className="flex-1 px-2.5 py-1.5 rounded-lg border-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 transition-all"
+                      style={{ 
+                        borderColor: isDark ? '#4b5563' : '#d1d5db',
+                        backgroundColor: isDark ? '#374151' : '#ffffff',
+                        color: isDark ? '#ffffff' : '#000000'
+                      }}
+                    >
+                      <option value="">选择目标...</option>
+                      {useGoalStore.getState().getActiveGoals().map((goal) => (
+                        <option key={goal.id} value={goal.name}>
+                          {goal.name}
+                        </option>
+                      ))}
+                      <option value="__add_new__" style={{ fontWeight: 'bold', color: '#10B981' }}>
+                        ➕ 添加新目标
+                      </option>
+                    </select>
+                    {currentEditData.goals && (
+                      <button
+                        onClick={() => setEditedTaskData({ ...currentEditData, goals: '' })}
+                        className="px-2 py-1 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                        title="清除目标"
+                      >
+                        <X className="w-4 h-4 text-red-500" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 
                 {/* 位置 */}
@@ -1981,6 +2056,12 @@ export default function NewTimelineView({
                     type="text"
                     value={currentEditData.location || ''}
                     onChange={(e) => setEditedTaskData({ ...currentEditData, location: e.target.value })}
+                    onFocus={(e) => {
+                      // 点击时自动滚动到可见区域
+                      setTimeout(() => {
+                        e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      }, 100);
+                    }}
                     placeholder="例如：厨房、卧室..."
                     className="w-full px-2.5 py-1.5 rounded-lg border-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
                     style={{ 
@@ -3294,6 +3375,29 @@ export default function NewTimelineView({
           accentColor={accentColor}
         />
       )}
+      
+      {/* 编辑任务模态框 */}
+      {editingTask && (() => {
+        const task = allTasks.find(t => t.id === editingTask);
+        if (!task) return null;
+        
+        return (
+          <CompactTaskEditModal
+            task={task}
+            onClose={() => setEditingTask(null)}
+            onSave={(updates) => {
+              onTaskUpdate(editingTask, updates);
+              setEditingTask(null);
+            }}
+            onDelete={(taskId) => {
+              if (onTaskDelete) {
+                onTaskDelete(taskId);
+              }
+              setEditingTask(null);
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }
