@@ -549,6 +549,28 @@ export default function TaskVerificationCountdownContent({
         
         // 触发金币获得通知
         notificationService.notifyGoldEarned(taskTitle, bonusGold);
+        
+        // 🔧 2秒后关闭庆祝特效并完成任务
+        setTimeout(() => {
+          setShowCelebration(false);
+          
+          const newState = {
+            ...state,
+            status: 'completed' as CountdownStatus,
+          };
+          setState(newState);
+          saveState(newState);
+          
+          if (onComplete) {
+            onComplete(now);
+            console.log(`📅 任务完成时间已更新: ${now.toLocaleString('zh-CN')}`);
+          }
+          
+          localStorage.removeItem(storageKey);
+          console.log(`✅ 完成任务: ${taskTitle}`);
+        }, 2000);
+        
+        return;
       }
       
       // 扣除超时惩罚金
@@ -557,6 +579,7 @@ export default function TaskVerificationCountdownContent({
         console.log(`⚠️ 累计扣除${totalPenalty}金币（${state.completeTimeoutCount}次超时）`);
       }
       
+      // 没有提前完成，直接完成任务（无庆祝特效）
       const newState = {
         ...state,
         status: 'completed' as CountdownStatus,
@@ -755,6 +778,9 @@ export default function TaskVerificationCountdownContent({
           saveState(newState);
           setIsUploading(false);
           clearLogs();
+          
+          // 🔧 关闭庆祝特效（重要！）
+          setShowCelebration(false);
           
           if (onComplete) {
             onComplete(now);
