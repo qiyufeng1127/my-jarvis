@@ -849,12 +849,12 @@ class BaiduImageRecognitionService {
       });
       
       // 🔍 输出时间戳格式的匹配结果
-      const now = new Date();
-      const timeStr = now.toTimeString().slice(0, 8);
+      const now2 = new Date();
+      const timeStr2 = now2.toTimeString().slice(0, 8);
       if (matchedKeywords.length > 0) {
-        console.log(`[${timeStr}] ✅ 匹配成功: ${matchedKeywords.join('、')}`);
+        console.log(`[${timeStr2}] ✅ 匹配成功: ${matchedKeywords.join('、')}`);
       } else {
-        console.log(`[${timeStr}] ❌ 未匹配到关键词`);
+        console.log(`[${timeStr2}] ❌ 未匹配到关键词`);
       }
       
       if (allKeywords.length === 0) {
@@ -897,9 +897,9 @@ class BaiduImageRecognitionService {
         }
         
         // 输出时间戳格式的失败原因
-        const now = new Date();
-        const timeStr = now.toTimeString().slice(0, 8);
-        console.log(`[${timeStr}] ❌ 验证失败: 验证失败，未识别到：${requiredKeywords.join('、')}`);
+        const now3 = new Date();
+        const timeStr3 = now3.toTimeString().slice(0, 8);
+        console.log(`[${timeStr3}] ❌ 验证失败: 验证失败，未识别到：${requiredKeywords.join('、')}`);
         
         success = false;
         const recognizedText = allKeywords.length > 0 

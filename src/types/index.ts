@@ -64,7 +64,7 @@ export interface UserSettings {
 // ============================================
 // 任务相关类型
 // ============================================
-export type TaskType = 'work' | 'study' | 'health' | 'life' | 'finance' | 'creative' | 'rest';
+export type TaskType = 'work' | 'study' | 'health' | 'life' | 'finance' | 'creative' | 'rest' | 'emergency';
 export type TaskStatus = 'pending' | 'scheduled' | 'waiting_start' | 'verifying_start' | 'in_progress' | 'verifying_complete' | 'completed' | 'failed' | 'cancelled';
 export type TaskPriority = 1 | 2 | 3 | 4; // 1最高，4最低
 

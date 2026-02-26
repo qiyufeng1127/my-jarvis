@@ -9,10 +9,11 @@ import { activityMonitorService } from '@/services/activityMonitorService';
 import { AlertCircle, Plus, Edit2, Trash2, Power, PowerOff } from 'lucide-react';
 
 export default function EmergencyTaskSettings() {
-  const { tasks, addTask, updateTask, deleteTask, toggleTaskEnabled } = useEmergencyTaskStore();
+  const { tasks, addTask, updateTask, deleteTask, toggleTaskEnabled, triggerRandomTask } = useEmergencyTaskStore();
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [remainingReplaces, setRemainingReplaces] = useState(activityMonitorService.getRemainingReplaces());
+  const [enableVoice, setEnableVoice] = useState(false);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -24,6 +25,46 @@ export default function EmergencyTaskSettings() {
     keywords: '',
     enabled: true,
   });
+
+  // 加载语音播报设置
+  React.useEffect(() => {
+    try {
+      const settings = localStorage.getItem('emergency-task-settings');
+      if (settings) {
+        const parsed = JSON.parse(settings);
+        setEnableVoice(parsed.enableVoice || false);
+      }
+    } catch (error) {
+      console.warn('⚠️ 读取紧急任务设置失败:', error);
+    }
+  }, []);
+
+  // 保存语音播报设置
+  const saveVoiceSetting = (enabled: boolean) => {
+    setEnableVoice(enabled);
+    try {
+      const settings = { enableVoice: enabled };
+      localStorage.setItem('emergency-task-settings', JSON.stringify(settings));
+      console.log('✅ 语音播报设置已保存:', enabled);
+    } catch (error) {
+      console.error('❌ 保存语音播报设置失败:', error);
+    }
+  };
+
+  // 手动测试触发
+  const handleTestTrigger = () => {
+    if (tasks.length === 0) {
+      alert('请先添加至少一个紧急任务');
+      return;
+    }
+
+    const task = triggerRandomTask();
+    if (task) {
+      alert('测试触发成功！紧急任务弹窗应该已显示');
+    } else {
+      alert('触发失败：没有可用的任务');
+    }
+  };
 
   const resetForm = () => {
     setFormData({
@@ -127,6 +168,46 @@ export default function EmergencyTaskSettings() {
             </ul>
           </div>
         </div>
+      </div>
+
+      {/* 系统设置 */}
+      <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+        <h3 className="text-sm font-bold text-gray-800 dark:text-white mb-3">
+          ⚙️ 系统设置
+        </h3>
+
+        {/* 语音播报开关 */}
+        <label className="flex items-center justify-between cursor-pointer">
+          <div>
+            <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              🔊 语音播报
+            </div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              触发任务时自动语音提醒
+            </div>
+          </div>
+          <div className="relative">
+            <input
+              type="checkbox"
+              checked={enableVoice}
+              onChange={(e) => saveVoiceSetting(e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-checked:bg-green-500 transition-colors"></div>
+            <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5"></div>
+          </div>
+        </label>
+
+        {/* 测试按钮 */}
+        <button
+          onClick={handleTestTrigger}
+          className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-bold transition-colors text-sm flex items-center justify-center gap-2"
+        >
+          🧪 测试触发紧急任务
+        </button>
+        <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+          点击后会立即触发一个随机紧急任务，用于测试功能
+        </p>
       </div>
 
       {/* 添加按钮 */}

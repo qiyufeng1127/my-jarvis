@@ -82,6 +82,7 @@ export default function TimelineCalendar({
     finance: '#8B1538',
     creative: '#C85A7C',
     rest: '#6BA56D',
+    emergency: '#FF4444', // 紧急任务：醒目的红色
     other: '#C85A7C',
   };
 
