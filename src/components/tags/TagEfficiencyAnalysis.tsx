@@ -9,12 +9,21 @@ interface TagEfficiencyAnalysisProps {
 }
 
 export default function TagEfficiencyAnalysis({ tags, isDark = false }: TagEfficiencyAnalysisProps) {
-  const { getTagEfficiencyLevel, getTagEfficiencyEmoji } = useTagStore();
+  const { getTagEfficiencyLevel, getTagEfficiencyEmoji, getTagAverageEfficiency } = useTagStore();
   
   const textColor = isDark ? '#ffffff' : '#1D1D1F';
   const secondaryColor = isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)';
   const cardBg = isDark ? 'rgba(255,255,255,0.05)' : '#F5F5F7';
   const borderColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)';
+  
+  // 🔧 计算每个标签的平均效率
+  const tagsWithEfficiency = tags.map(tag => ({
+    ...tag,
+    averageEfficiency: getTagAverageEfficiency(tag.name),
+  }));
+  
+  // 🔧 按平均效率倒序排列（效率最低的排第一）
+  const sortedTags = [...tagsWithEfficiency].sort((a, b) => a.averageEfficiency - b.averageEfficiency);
   
   // 按效率等级分类标签
   const categorizedTags = {
@@ -228,29 +237,96 @@ export default function TagEfficiencyAnalysis({ tags, isDark = false }: TagEffic
         </div>
       )}
       
-      {/* 效率分类统计 */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-        {[
-          { level: 'high', label: '💰 高效标签', color: '#34C759', count: categorizedTags.high.length },
-          { level: 'medium', label: '📈 中效标签', color: '#007AFF', count: categorizedTags.medium.length },
-          { level: 'low', label: '⚠️ 低效标签', color: '#FFCC00', count: categorizedTags.low.length },
-          { level: 'negative', label: '❌ 负效标签', color: '#FF3B30', count: categorizedTags.negative.length },
-          { level: 'life_essential', label: '🏠 生活必需', color: '#8E8E93', count: categorizedTags.life_essential.length },
-          { level: 'passive', label: '🪙 被动收入', color: '#FFD60A', count: categorizedTags.passive.length },
-        ].map((item) => (
-          <div
-            key={item.level}
-            className="p-4 rounded-2xl"
-            style={{ backgroundColor: cardBg }}
-          >
-            <p className="text-xs mb-1" style={{ color: secondaryColor }}>
-              {item.label}
-            </p>
-            <p className="text-2xl font-bold" style={{ color: item.color }}>
-              {item.count}
-            </p>
-          </div>
-        ))}
+      {/* 🔧 效率排名列表（按平均效率倒序，最低的排第一） */}
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold mb-4" style={{ color: textColor }}>
+          📊 效率排名（按平均效率）
+        </h3>
+        <div className="space-y-2">
+          {sortedTags.slice(0, 10).map((tag, index) => (
+            <div
+              key={tag.name}
+              className="p-4 rounded-2xl flex items-center justify-between"
+              style={{ backgroundColor: cardBg }}
+            >
+              <div className="flex items-center gap-3">
+                <div 
+                  className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm"
+                  style={{ 
+                    backgroundColor: tag.averageEfficiency >= 70 ? '#34C759' : 
+                                   tag.averageEfficiency >= 50 ? '#FFCC00' : '#FF3B30',
+                    color: '#ffffff',
+                  }}
+                >
+                  {index + 1}
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">{tag.emoji}</span>
+                  <span className="font-medium" style={{ color: textColor }}>
+                    {tag.name}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="text-right">
+                <p className="text-2xl font-bold" style={{ 
+                  color: tag.averageEfficiency >= 70 ? '#34C759' : 
+                         tag.averageEfficiency >= 50 ? '#FFCC00' : '#FF3B30'
+                }}>
+                  {tag.averageEfficiency}%
+                </p>
+                <p className="text-xs" style={{ color: secondaryColor }}>
+                  平均效率
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      
+      {/* 时薪排名（独立展示，与效率区分） */}
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold mb-4" style={{ color: textColor }}>
+          💰 时薪排名（按单位时间收益）
+        </h3>
+        <div className="space-y-2">
+          {[...tags].sort((a, b) => b.hourlyRate - a.hourlyRate).slice(0, 10).map((tag, index) => (
+            <div
+              key={tag.name}
+              className="p-4 rounded-2xl flex items-center justify-between"
+              style={{ backgroundColor: cardBg }}
+            >
+              <div className="flex items-center gap-3">
+                <div 
+                  className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm"
+                  style={{ 
+                    backgroundColor: '#007AFF',
+                    color: '#ffffff',
+                  }}
+                >
+                  {index + 1}
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">{tag.emoji}</span>
+                  <span className="font-medium" style={{ color: textColor }}>
+                    {tag.name}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="text-right">
+                <p className="text-xl font-bold" style={{ color: '#34C759' }}>
+                  💰 {tag.hourlyRate.toFixed(0)}元/h
+                </p>
+                <p className="text-xs" style={{ color: secondaryColor }}>
+                  {Math.round((tag.totalDuration - tag.invalidDuration) / 60)}小时
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
       
       {/* 效率-时长散点图 */}

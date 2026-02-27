@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useHabitCanStore } from '@/stores/habitCanStore';
+import { useTaskStore } from '@/stores/taskStore';
 import type { HabitOccurrence } from '@/types/habitTypes';
 
 interface TaskHabitBadgeProps {
@@ -9,6 +10,7 @@ interface TaskHabitBadgeProps {
 
 export default function TaskHabitBadge({ taskId, taskTitle }: TaskHabitBadgeProps) {
   const { habits, occurrences, getOccurrencesByDate } = useHabitCanStore();
+  const { tasks } = useTaskStore();
   const [showDetail, setShowDetail] = useState(false);
   const [taskHabits, setTaskHabits] = useState<Array<{
     habitId: string;
@@ -17,6 +19,11 @@ export default function TaskHabitBadge({ taskId, taskTitle }: TaskHabitBadgeProp
     count: number;
     records: Array<{ time: string; reason: string; date: string }>;
   }>>([]);
+  
+  // 🔧 获取任务的完成备注
+  const task = tasks.find(t => t.id === taskId);
+  const taskNotes = task?.completionNotes || '';
+  const taskEfficiency = task?.completionEfficiency || 0;
 
   // 获取当前任务相关的所有坏习惯记录
   useEffect(() => {
@@ -77,19 +84,32 @@ export default function TaskHabitBadge({ taskId, taskTitle }: TaskHabitBadgeProp
 
   return (
     <>
-      {/* 徽章按钮 */}
-      <button
-        onClick={() => setShowDetail(true)}
-        className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg bg-yellow-100 border border-yellow-400 shadow-sm hover:scale-105 transition-transform"
-      >
-        <span className="text-base">{taskHabits[0].habitEmoji}</span>
-        <span className="text-xs font-bold text-yellow-800">
-          {taskHabits.length === 1 
-            ? `${taskHabits[0].habitName} ${taskHabits[0].count} 次`
-            : `${totalCount} 次坏习惯`
-          }
-        </span>
-      </button>
+      {/* 徽章按钮 - 🔧 低效率任务也显示 */}
+      {(taskHabits.length > 0 || taskEfficiency < 50) && (
+        <button
+          onClick={() => setShowDetail(true)}
+          className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg bg-yellow-100 border border-yellow-400 shadow-sm hover:scale-105 transition-transform"
+        >
+          {taskHabits.length > 0 ? (
+            <>
+              <span className="text-base">{taskHabits[0].habitEmoji}</span>
+              <span className="text-xs font-bold text-yellow-800">
+                {taskHabits.length === 1 
+                  ? `${taskHabits[0].habitName} ${taskHabits[0].count} 次`
+                  : `${totalCount} 次坏习惯`
+                }
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="text-base">⚠️</span>
+              <span className="text-xs font-bold text-yellow-800">
+                低效率 {taskEfficiency}%
+              </span>
+            </>
+          )}
+        </button>
+      )}
 
       {/* 详情弹窗 */}
       {showDetail && (
@@ -121,6 +141,36 @@ export default function TaskHabitBadge({ taskId, taskTitle }: TaskHabitBadgeProp
 
             {/* 内容区域 */}
             <div className="flex-1 overflow-y-auto px-6 py-4">
+              {/* 🔧 低效率信息展示 */}
+              {taskEfficiency < 50 && (
+                <div className="mb-6 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-2xl">⚠️</span>
+                    <div className="flex-1">
+                      <h4 className="text-base font-bold text-red-800 dark:text-red-300">
+                        低效率记录
+                      </h4>
+                      <p className="text-xs text-red-600 dark:text-red-400">
+                        完成效率：{taskEfficiency}%
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* 🔧 显示用户填写的备注 */}
+                  {taskNotes && (
+                    <div className="mt-3 pl-10">
+                      <div className="bg-white dark:bg-gray-800 rounded-lg px-3 py-2 border border-red-200 dark:border-red-700">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">📝 备注：</p>
+                        <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                          {taskNotes}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* 坏习惯记录 */}
               {taskHabits.map((habit) => (
                 <div key={habit.habitId} className="mb-6 last:mb-0">
                   {/* 习惯标题 */}

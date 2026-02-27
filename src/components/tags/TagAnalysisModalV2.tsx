@@ -368,21 +368,50 @@ export default function TagAnalysisModalV2({ tag, onClose, isDark = false }: Tag
                     {durationRecords.slice(0, 10).map((record, index) => (
                       <div
                         key={index}
-                        className="p-3 rounded-xl flex items-center justify-between"
+                        className="p-3 rounded-xl"
                         style={{ backgroundColor: cardBg }}
                       >
-                        <div>
-                          <p className="font-medium text-sm" style={{ color: textColor }}>
-                            {record.taskTitle}
-                          </p>
-                          <p className="text-xs mt-0.5" style={{ color: secondaryColor }}>
-                            {record.date.toLocaleDateString('zh-CN')}
-                            {record.isInvalid && <span className="ml-2 text-xs" style={{ color: '#FF3B30' }}>⏳ 无效时长</span>}
-                          </p>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex-1">
+                            <p className="font-medium text-sm" style={{ color: textColor }}>
+                              {record.taskTitle}
+                            </p>
+                            <p className="text-xs mt-0.5" style={{ color: secondaryColor }}>
+                              {record.date.toLocaleDateString('zh-CN')}
+                              {record.isInvalid && <span className="ml-2 text-xs" style={{ color: '#FF3B30' }}>⏳ 无效时长</span>}
+                              {/* 🔧 显示效率 */}
+                              {record.completionEfficiency !== undefined && (
+                                <span 
+                                  className="ml-2 text-xs font-semibold"
+                                  style={{ 
+                                    color: record.completionEfficiency >= 70 ? '#34C759' : 
+                                           record.completionEfficiency >= 50 ? '#FFCC00' : '#FF3B30'
+                                  }}
+                                >
+                                  📊 {record.completionEfficiency}%
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                          <div className="text-sm font-semibold" style={{ color: tag.color }}>
+                            {Math.floor(record.duration / 60)}h {record.duration % 60}m
+                          </div>
                         </div>
-                        <div className="text-sm font-semibold" style={{ color: tag.color }}>
-                          {Math.floor(record.duration / 60)}h {record.duration % 60}m
-                        </div>
+                        {/* 🔧 显示备注 */}
+                        {record.completionNotes && (
+                          <div 
+                            className="mt-2 p-2 rounded-lg text-xs"
+                            style={{ 
+                              backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+                              borderLeft: `3px solid ${tag.color}`
+                            }}
+                          >
+                            <p style={{ color: secondaryColor }}>📝 备注：</p>
+                            <p className="mt-1 whitespace-pre-wrap" style={{ color: textColor }}>
+                              {record.completionNotes}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

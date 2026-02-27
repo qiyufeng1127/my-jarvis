@@ -35,6 +35,8 @@ export interface TagDurationRecord {
   duration: number; // 分钟
   date: Date;
   isInvalid?: boolean; // 是否无效时长
+  completionNotes?: string; // 🔧 新增：完成备注
+  completionEfficiency?: number; // 🔧 新增：完成效率 (0-100)
 }
 
 // 标签收支记录
@@ -106,7 +108,7 @@ interface TagState {
   initializeDefaultFolders: () => void;
   
   // 标签使用记录
-  recordTagUsage: (tagName: string, taskId: string, taskTitle: string, duration: number, isInvalid?: boolean) => void;
+  recordTagUsage: (tagName: string, taskId: string, taskTitle: string, duration: number, isInvalid?: boolean, completionNotes?: string, completionEfficiency?: number) => void;
   markDurationInvalid: (recordId: string) => void;
   
   // 财务记录
@@ -135,6 +137,7 @@ interface TagState {
   getTagHourlyRate: (tagName: string, startDate?: Date, endDate?: Date) => number;
   getTagEfficiencyLevel: (tagName: string) => TagEfficiencyLevel;
   getTagEfficiencyEmoji: (level: TagEfficiencyLevel) => string;
+  getTagAverageEfficiency: (tagName: string, startDate?: Date, endDate?: Date) => number; // 🔧 新增：获取平均效率
   
   // 标签分组
   createGroup: (name: string, tagNames: string[]) => void;
@@ -516,7 +519,7 @@ export const useTagStore = create<TagState>()(
         set({ tags: newTags });
       },
       
-      recordTagUsage: (tagName, taskId, taskTitle, duration, isInvalid = false) => {
+      recordTagUsage: (tagName, taskId, taskTitle, duration, isInvalid = false, completionNotes, completionEfficiency) => {
         const tags = get().tags;
         
         // 更新标签统计
@@ -556,6 +559,8 @@ export const useTagStore = create<TagState>()(
               duration,
               date: new Date(),
               isInvalid,
+              completionNotes, // 🔧 新增：完成备注
+              completionEfficiency, // 🔧 新增：完成效率
             },
           ],
         });
@@ -826,6 +831,22 @@ export const useTagStore = create<TagState>()(
           passive: '🪙',
         };
         return emojiMap[level];
+      },
+      
+      // 🔧 新增：获取标签的平均效率（基于任务完成效率，而非时薪）
+      getTagAverageEfficiency: (tagName, startDate, endDate): number => {
+        const records = get().getTagDurationRecords(tagName, startDate, endDate);
+        
+        // 过滤出有效率数据的记录
+        const recordsWithEfficiency = records.filter(r => r.completionEfficiency !== undefined && r.completionEfficiency !== null);
+        
+        if (recordsWithEfficiency.length === 0) {
+          return 0; // 没有效率数据，返回0
+        }
+        
+        // 计算平均效率
+        const totalEfficiency = recordsWithEfficiency.reduce((sum, r) => sum + (r.completionEfficiency || 0), 0);
+        return Math.round(totalEfficiency / recordsWithEfficiency.length);
       },
       
       // 排序
