@@ -199,7 +199,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
     }
   };
 
-  // AI智能分配
+  // AI智能分配 - 使用与AI助手相同的逻辑
   const handleAIAssign = async () => {
     if (!title.trim()) {
       alert('请先输入任务标题');
@@ -209,68 +209,67 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
     setIsAIAssigning(true);
 
     try {
-      // 调用AI服务进行智能分配
-      const { aiService } = await import('@/services/aiService');
+      // 导入AI智能处理服务（与AI助手使用相同的服务）
+      const { AISmartProcessor } = await import('@/services/aiSmartService');
+      const { useTaskHistoryStore } = await import('@/stores/taskHistoryStore');
       
-      const prompt = `你是一个任务管理助手。请根据任务标题智能分配以下信息：
-
-任务标题：${title}
-${description ? `任务描述：${description}` : ''}
-
-请分析任务内容，返回以下信息（JSON格式）：
-{
-  "goldReward": 金币奖励（数字，根据任务难度和时长估算，范围10-500），
-  "tags": ["标签1", "标签2"]（最多3个相关标签，例如：工作、学习、生活、运动、创作等），
-  "goalId": "关联目标ID"（如果能匹配到现有目标则返回ID，否则返回空字符串），
-  "location": "位置"（如果任务涉及特定地点则填写，例如：厨房、卧室、办公室、健身房等，否则返回空字符串）
-}
-
-现有目标列表：
-${goals.map(g => `- ${g.id}: ${g.title}`).join('\n')}
-
-只返回JSON，不要有其他说明文字。`;
-
-      const response = await aiService.chat([
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ]);
-
-      if (!response.success || !response.content) {
-        throw new Error(response.error || 'AI调用失败');
-      }
-
-      // 解析AI返回的JSON
-      let aiResult: {
-        goldReward: number;
-        tags: string[];
-        goalId: string;
-        location: string;
-      };
-
-      try {
-        let jsonStr = response.content.trim();
-        const jsonMatch = jsonStr.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-        if (jsonMatch) {
-          jsonStr = jsonMatch[1];
-        }
-        aiResult = JSON.parse(jsonStr);
-      } catch (e) {
-        console.error('解析AI返回的JSON失败:', e);
-        throw new Error('AI返回格式错误，请重试');
-      }
-
+      console.log('🤖 开始AI智能分析任务:', title);
+      
+      // 调用AI智能分析（与AI助手分解任务使用相同的方法）
+      const aiAnalysis = await AISmartProcessor.analyzeTaskWithAI(
+        title,
+        duration || undefined,
+        description || undefined
+      );
+      
+      console.log('✅ AI智能分析完成:', aiAnalysis);
+      
       // 应用AI分配的结果
-      setGold(aiResult.goldReward || 0);
-      setTags(aiResult.tags || []);
-      setSelectedGoalId(aiResult.goalId || '');
-      setLocation(aiResult.location || '');
-
-      console.log('✅ AI智能分配完成:', aiResult);
+      setGold(aiAnalysis.duration ? AISmartProcessor.calculateGold({
+        estimated_duration: aiAnalysis.duration,
+        task_type: aiAnalysis.taskType,
+        title: title,
+        tags: aiAnalysis.tags,
+      }) : gold);
+      
+      setTags(aiAnalysis.tags || []);
+      setLocation(aiAnalysis.location || '');
+      
+      // 如果AI优化了标题，询问是否使用
+      if (aiAnalysis.optimizedTitle && aiAnalysis.optimizedTitle !== title) {
+        if (confirm(`AI建议优化标题为：\n\n"${aiAnalysis.optimizedTitle}"\n\n是否采用？`)) {
+          setTitle(aiAnalysis.optimizedTitle);
+        }
+      }
+      
+      // 尝试从历史记录中获取平均时长
+      try {
+        const historyStore = useTaskHistoryStore.getState();
+        const avgDuration = historyStore.getAverageDuration(title);
+        if (avgDuration && avgDuration !== duration) {
+          if (confirm(`根据历史记录，"${title}"平均需要 ${avgDuration} 分钟\n\n是否采用？`)) {
+            setDuration(avgDuration);
+          }
+        }
+      } catch (e) {
+        console.warn('无法获取历史记录');
+      }
+      
+      // 尝试匹配关联目标
+      const goalName = AISmartProcessor.identifyGoal(title);
+      if (goalName) {
+        const matchedGoal = goals.find(g => g.name.includes(goalName) || goalName.includes(g.name));
+        if (matchedGoal) {
+          setSelectedGoalId(matchedGoal.id);
+          console.log('🎯 自动关联目标:', matchedGoal.name);
+        }
+      }
+      
+      alert('✅ AI智能分配完成！\n\n已根据你的历史习惯和任务内容智能分配了时长、金币、标签和位置。');
+      
     } catch (error) {
       console.error('AI智能分配失败:', error);
-      alert(`AI智能分配失败：${error instanceof Error ? error.message : '未知错误'}`);
+      alert(`AI智能分配失败：${error instanceof Error ? error.message : '未知错误'}\n\n请检查AI配置是否正确。`);
     } finally {
       setIsAIAssigning(false);
     }
@@ -294,8 +293,8 @@ ${goals.map(g => `- ${g.id}: ${g.title}`).join('\n')}
           </button>
         </div>
 
-        {/* 表单内容 - 紧凑布局，添加底部内边距避免被导航栏遮挡 */}
-        <div className="flex-1 overflow-y-auto p-4 pb-20 space-y-3">
+        {/* 表单内容 - 紧凑布局，添加底部内边距避免被按钮遮挡 */}
+        <div className="flex-1 overflow-y-auto p-4 pb-24 space-y-3">
           {/* 任务标题 */}
           <div>
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
@@ -596,8 +595,8 @@ ${goals.map(g => `- ${g.id}: ${g.title}`).join('\n')}
           </div>
         )}
 
-        {/* 底部按钮 - 固定在底部，避免被导航栏遮挡 */}
-        <div className="flex-shrink-0 border-t-2 border-gray-200 dark:border-gray-700 px-3 py-2 flex gap-2 bg-gray-50 dark:bg-gray-800/50 sticky bottom-0 z-10 shadow-lg">
+        {/* 底部按钮 - 固定在底部，避免被导航栏遮挡，增加z-index确保在最上层 */}
+        <div className="flex-shrink-0 border-t-2 border-gray-200 dark:border-gray-700 px-3 py-3 flex gap-2 bg-white dark:bg-gray-800 sticky bottom-0 z-[100] shadow-2xl">
           <button
             onClick={handleDelete}
             className="px-4 py-2 rounded-lg font-semibold transition-all active:scale-95 text-sm"
