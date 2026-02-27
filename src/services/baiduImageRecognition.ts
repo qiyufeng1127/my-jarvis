@@ -575,9 +575,9 @@ class BaiduImageRecognitionService {
       console.log(`📋 已识别: ${allKeywords.slice(0, 10).join('、')}${allKeywords.length > 10 ? '...' : ''}`);
       
       // 🔍 输出时间戳格式的日志（与你的日志格式一致）
-      const now = new Date();
-      const timeStr = now.toTimeString().slice(0, 8);
-      console.log(`[${timeStr}] 🔍 已识别: ${allKeywords.slice(0, 5).join('、')}${allKeywords.length > 5 ? '...' : ''}`);
+      const nowTime = new Date();
+      const timeString = nowTime.toTimeString().slice(0, 8);
+      console.log(`[${timeString}] 🔍 已识别: ${allKeywords.slice(0, 5).join('、')}${allKeywords.length > 5 ? '...' : ''}`);
 
       const recognizedKeywords = allKeywords;
 
@@ -849,12 +849,12 @@ class BaiduImageRecognitionService {
       });
       
       // 🔍 输出时间戳格式的匹配结果
-      const now = new Date();
-      const timeStr = now.toTimeString().slice(0, 8);
+      const matchTime = new Date();
+      const matchTimeStr = matchTime.toTimeString().slice(0, 8);
       if (matchedKeywords.length > 0) {
-        console.log(`[${timeStr}] ✅ 匹配成功: ${matchedKeywords.join('、')}`);
+        console.log(`[${matchTimeStr}] ✅ 匹配成功: ${matchedKeywords.join('、')}`);
       } else {
-        console.log(`[${timeStr}] ❌ 未匹配到关键词`);
+        console.log(`[${matchTimeStr}] ❌ 未匹配到关键词`);
       }
       
       if (allKeywords.length === 0) {
@@ -897,9 +897,9 @@ class BaiduImageRecognitionService {
         }
         
         // 输出时间戳格式的失败原因
-        const now = new Date();
-        const timeStr = now.toTimeString().slice(0, 8);
-        console.log(`[${timeStr}] ❌ 验证失败: 验证失败，未识别到：${requiredKeywords.join('、')}`);
+        const failTime = new Date();
+        const failTimeStr = failTime.toTimeString().slice(0, 8);
+        console.log(`[${failTimeStr}] ❌ 验证失败: 验证失败，未识别到：${requiredKeywords.join('、')}`);
         
         success = false;
         const recognizedText = allKeywords.length > 0 
