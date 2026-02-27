@@ -1247,6 +1247,17 @@ export default function TaskVerificationCountdownContent({
           {formatTime(startCountdownLeft)}
         </div>
         
+        {/* 🔧 显示正在验证的照片 */}
+        {previewImage && (
+          <div className="w-full mb-2 rounded-lg overflow-hidden shadow-lg">
+            <img 
+              src={previewImage} 
+              alt="验证中" 
+              className="w-full h-auto"
+            />
+          </div>
+        )}
+        
         {/* 🔧 蓝色日志显示框 */}
         <div className="w-full mb-2 px-4 py-3 rounded-lg shadow-md" 
              style={{ 
@@ -1571,6 +1582,17 @@ export default function TaskVerificationCountdownContent({
         >
           {formatTime(taskCountdownLeft)}
         </div>
+        
+        {/* 🔧 显示正在验证的照片 */}
+        {previewImage && (
+          <div className="w-full mb-2 rounded-lg overflow-hidden shadow-lg">
+            <img 
+              src={previewImage} 
+              alt="验证中" 
+              className="w-full h-auto"
+            />
+          </div>
+        )}
         
         {/* 🔧 蓝色日志显示框 */}
         <div className="w-full mb-2 px-4 py-3 rounded-lg shadow-md" 
