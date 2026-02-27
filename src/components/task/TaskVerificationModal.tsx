@@ -33,6 +33,7 @@ export default function TaskVerificationModal({
   const [timeLeft, setTimeLeft] = useState(timeout);
   const [isVerifying, setIsVerifying] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [verificationLogs, setVerificationLogs] = useState<string[]>([]); // 🆕 实时日志
   const [verificationResult, setVerificationResult] = useState<{
     success: boolean;
     isValid: boolean;
@@ -100,6 +101,12 @@ export default function TaskVerificationModal({
     reader.readAsDataURL(file);
   };
 
+  // 🆕 添加日志的辅助函数
+  const addLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+    setVerificationLogs(prev => [...prev, `[${timestamp}] ${message}`]);
+  };
+
   // 提交验证
   const handleSubmit = async () => {
     if (!capturedImage) {
@@ -108,61 +115,63 @@ export default function TaskVerificationModal({
     }
 
     setIsVerifying(true);
+    setVerificationLogs([]); // 清空之前的日志
 
     try {
-      console.log('🔍 [验证界面] 开始提交验证');
-      console.log('🔍 [验证界面] 百度API配置:', {
-        hasApiKey: !!baiduApiKey,
-        hasSecretKey: !!baiduSecretKey,
-      });
-
-      // 如果配置了百度API，使用百度图像识别
-      if (baiduApiKey && baiduSecretKey) {
-        console.log('✅ [验证界面] 使用百度图像识别');
-        const result = await baiduImageService.verifyTaskImage(
-          capturedImage,
-          taskTitle,
-          requirement,
-          baiduApiKey,
-          baiduSecretKey
-        );
-
-        console.log('🔍 [验证界面] 百度API返回结果:', result);
-
-        setVerificationResult({
-          success: result.success,
-          isValid: result.isValid,
-          reason: result.reason,
-          matchedObjects: result.matchedObjects,
-          recognizedObjects: result.recognizedObjects,
-          suggestions: result.suggestions,
-          debugInfo: result.debugInfo,
-        });
-
-        // 🔧 修复：无论成功还是失败，都先显示结果界面，不立即关闭
-        if (result.isValid) {
-          console.log('✅ [验证界面] 验证通过，显示成功界面');
-        } else {
-          console.log('❌ [验证界面] 验证失败');
-          console.log('❌ [验证界面] 失败原因:', result.reason);
-          console.log('❌ [验证界面] 调试信息:', result.debugInfo);
-        }
-      } else {
-        // 没有配置百度API
-        console.warn('⚠️ [验证界面] 未配置百度API');
+      addLog('🚀 开始验证流程...');
+      
+      // 检查API配置
+      addLog('🔍 检查百度API配置...');
+      if (!baiduApiKey || !baiduSecretKey) {
+        addLog('❌ 未配置百度API密钥');
         setVerificationResult({
           success: false,
           isValid: false,
           reason: '❌ 未配置百度API\n\n请在设置中填入百度API Key和Secret Key',
           debugInfo: '错误原因：未配置百度API密钥\n\n解决方法：\n1. 访问 https://ai.baidu.com/\n2. 注册/登录账号\n3. 创建应用并获取API Key和Secret Key\n4. 在系统设置中填入密钥',
         });
+        return;
       }
+      
+      addLog(`✅ API配置正常 (Key: ${baiduApiKey.substring(0, 8)}...)`);
+      addLog('📸 准备上传图片...');
+      addLog(`📦 图片大小: ${Math.round(capturedImage.length / 1024)}KB`);
+      
+      addLog('🌐 正在调用百度图像识别API...');
+      const result = await baiduImageService.verifyTaskImage(
+        capturedImage,
+        taskTitle,
+        requirement,
+        baiduApiKey,
+        baiduSecretKey
+      );
+
+      if (result.isValid) {
+        addLog('✅ 验证成功！');
+        addLog(`🎯 匹配到: ${result.matchedObjects?.join('、') || '无'}`);
+      } else {
+        addLog('❌ 验证失败');
+        addLog(`📝 识别到: ${result.recognizedObjects?.join('、') || '无'}`);
+      }
+
+      setVerificationResult({
+        success: result.success,
+        isValid: result.isValid,
+        reason: result.reason,
+        matchedObjects: result.matchedObjects,
+        recognizedObjects: result.recognizedObjects,
+        suggestions: result.suggestions,
+        debugInfo: result.debugInfo,
+      });
+
     } catch (error) {
-      console.error('❌ [验证界面] 验证异常:', error);
+      const errorMsg = error instanceof Error ? error.message : '未知错误';
+      addLog(`❌ 验证异常: ${errorMsg}`);
+      
       setVerificationResult({
         success: false,
         isValid: false,
-        reason: `❌ 验证失败：${error instanceof Error ? error.message : '未知错误'}`,
+        reason: `❌ 验证失败：${errorMsg}`,
         debugInfo: `错误详情：\n${error instanceof Error ? error.stack : '未知错误'}\n\n请检查：\n1. 网络连接是否正常\n2. 百度API配置是否正确\n3. 照片格式是否支持`,
       });
     } finally {
@@ -174,6 +183,7 @@ export default function TaskVerificationModal({
   const handleRetake = () => {
     setCapturedImage(null);
     setVerificationResult(null);
+    setVerificationLogs([]); // 清空日志
   };
 
   // 确认失败结果
@@ -264,10 +274,26 @@ export default function TaskVerificationModal({
                 />
               </div>
 
+              {/* 🆕 实时日志显示 */}
+              {isVerifying && verificationLogs.length > 0 && (
+                <div className="p-4 bg-gray-900 rounded-lg text-white font-mono text-xs space-y-1 max-h-48 overflow-y-auto">
+                  <div className="flex items-center space-x-2 mb-2 pb-2 border-b border-gray-700">
+                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                    <span className="font-semibold text-green-400">验证中...</span>
+                  </div>
+                  {verificationLogs.map((log, index) => (
+                    <div key={index} className="text-gray-300 leading-relaxed">
+                      {log}
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="flex space-x-3">
                 <button
                   onClick={handleRetake}
-                  className="flex-1 py-3 px-4 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                  disabled={isVerifying}
+                  className="flex-1 py-3 px-4 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   重新拍照
                 </button>

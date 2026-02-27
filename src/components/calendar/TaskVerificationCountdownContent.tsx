@@ -737,23 +737,23 @@ export default function TaskVerificationCountdownContent({
         notificationService.notifyVerificationSuccess(taskTitle, 'start');
         
         // 🔧 立即进入任务倒计时（移除2秒延迟）
-        const newState = {
-          ...state,
-          status: 'task_countdown' as CountdownStatus,
-          taskDeadline: new Date(now.getTime() + taskSeconds * 1000).toISOString(),
-          actualStartTime: now.toISOString(),
-        };
-        setState(newState);
-        saveState(newState);
-        setIsUploading(false);
-        setPreviewImage(null);
-        setPreviewType(null);
-        clearLogs();
-        
-        if (onStart) {
-          const calculatedEndTime = new Date(now.getTime() + duration * 60000);
-          onStart(now, calculatedEndTime);
-        }
+          const newState = {
+            ...state,
+            status: 'task_countdown' as CountdownStatus,
+            taskDeadline: new Date(now.getTime() + taskSeconds * 1000).toISOString(),
+            actualStartTime: now.toISOString(),
+          };
+          setState(newState);
+          saveState(newState);
+          setIsUploading(false);
+          setPreviewImage(null);
+          setPreviewType(null);
+          clearLogs();
+          
+          if (onStart) {
+            const calculatedEndTime = new Date(now.getTime() + duration * 60000);
+            onStart(now, calculatedEndTime);
+          }
       } else {
         // 完成验证成功
         const scheduledEndTime = new Date(scheduledEnd);
@@ -785,22 +785,22 @@ export default function TaskVerificationCountdownContent({
         notificationService.notifyVerificationSuccess(taskTitle, 'completion');
         
         // 🔧 立即完成任务（移除2秒延迟）
-        const newState = {
-          ...state,
-          status: 'completed' as CountdownStatus,
-        };
-        setState(newState);
-        saveState(newState);
-        setIsUploading(false);
-        setPreviewImage(null);
-        setPreviewType(null);
-        clearLogs();
-        
-        if (onComplete) {
-          onComplete(now);
-        }
-        
-        localStorage.removeItem(storageKey);
+          const newState = {
+            ...state,
+            status: 'completed' as CountdownStatus,
+          };
+          setState(newState);
+          saveState(newState);
+          setIsUploading(false);
+          setPreviewImage(null);
+          setPreviewType(null);
+          clearLogs();
+          
+          if (onComplete) {
+            onComplete(now);
+          }
+          
+          localStorage.removeItem(storageKey);
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : '未知错误';
