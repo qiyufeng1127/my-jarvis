@@ -461,6 +461,10 @@ export default function TaskVerificationCountdownContent({
     }
   }, [state.status, taskCountdownLeft, taskTitle, hasVerification, taskId, triggeredReminders]);
 
+  // 🔧 新增：预览图片状态
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewType, setPreviewType] = useState<'start' | 'complete' | null>(null);
+
   // 启动任务（无验证直接启动，有验证需上传照片）
   const handleStartTask = useCallback(async (useCamera: boolean = false) => {
     if (!hasVerification) {
@@ -502,14 +506,7 @@ export default function TaskVerificationCountdownContent({
       return;
     }
     
-    // 有验证：上传照片并验证
-    const newState = { ...state, status: 'uploading_start' as CountdownStatus };
-    setState(newState);
-    saveState(newState);
-    setIsUploading(true);
-    setVerificationMessage('');
-    setVerificationSuccess(null);
-    
+    // 有验证：拍摄/上传照片
     // 创建文件选择器
     const input = document.createElement('input');
     input.type = 'file';
@@ -520,115 +517,121 @@ export default function TaskVerificationCountdownContent({
     
     // 处理用户点击叉叉取消上传
     input.oncancel = () => {
-      console.log('❌ 用户取消上传，返回启动倒计时');
-      const cancelState = state.status === 'waiting_start' 
-        ? { ...state, status: 'waiting_start' as CountdownStatus }
-        : { ...state, status: 'start_countdown' as CountdownStatus };
-      setState(cancelState);
-      saveState(cancelState);
-      setIsUploading(false);
-      setVerificationMessage('');
-      setVerificationSuccess(null);
+      console.log('❌ 用户取消拍摄/上传');
     };
     
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) {
-        console.log('❌ 未选择文件，返回启动倒计时');
-        const cancelState = state.status === 'waiting_start' 
-          ? { ...state, status: 'waiting_start' as CountdownStatus }
-          : { ...state, status: 'start_countdown' as CountdownStatus };
-        setState(cancelState);
-        saveState(cancelState);
-        setIsUploading(false);
-        setVerificationMessage('');
-        setVerificationSuccess(null);
+        console.log('❌ 未选择文件');
         return;
       }
       
-      try {
-        clearLogs();
-        addLog('📷 开始验证流程');
+      // 🔧 将图片转换为 base64 并显示预览
+      const reader = new FileReader();
+      reader.onload = () => {
+        const imageBase64 = reader.result as string;
+        setPreviewImage(imageBase64);
+        setPreviewType('start');
+        console.log('📷 照片已拍摄，等待用户确认提交');
+      };
+      reader.readAsDataURL(file);
+    };
+    
+    input.click();
+  }, [hasVerification, scheduledStart, scheduledEnd, goldReward, addGold, taskId, taskTitle, onStart, state]);
+
+  // 🔧 新增：确认提交照片（复用上传照片的验证逻辑）
+  const handleConfirmSubmit = useCallback(async () => {
+    if (!previewImage || !previewType) return;
+    
+    const isStartVerification = previewType === 'start';
+    const keywords = isStartVerification ? startKeywords : completeKeywords;
+    
+    // 进入验证状态
+    const newState = { 
+      ...state, 
+      status: (isStartVerification ? 'uploading_start' : 'uploading_complete') as CountdownStatus 
+    };
+    setState(newState);
+    saveState(newState);
+    setIsUploading(true);
+    setVerificationMessage('');
+    setVerificationSuccess(null);
+    
+    try {
+      clearLogs();
+      addLog('📷 开始验证流程');
+      
+      // 检查百度API配置
+      const apiKey = localStorage.getItem('baidu_api_key');
+      const secretKey = localStorage.getItem('baidu_secret_key');
+      
+      if (!apiKey || !secretKey) {
+        throw new Error('百度API未配置');
+      }
+      
+      addLog('✅ API配置检查通过');
+      addLog('📋 目标关键词: ' + keywords.join('、'));
+      
+      // 调用 Vercel Serverless API 验证
+      addLog('🔗 正在连接百度AI服务器...');
+      
+      const requestBody = {
+        image: previewImage,
+        keywords: keywords,
+        apiKey: apiKey,
+        secretKey: secretKey,
+      };
+      
+      addLog('📡 正在发送验证请求...');
+      const startTime = Date.now();
+      
+      const response = await fetch('/api/baidu-image-recognition', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+      
+      const endTime = Date.now();
+      addLog(`⏱️ 请求耗时: ${endTime - startTime}ms`);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        addLog(`❌ API请求失败: ${response.status}`);
+        throw new Error(`API请求失败: ${response.status} - ${errorText}`);
+      }
+      
+      const verifyResult = await response.json();
+      addLog('✅ 收到API响应');
+      
+      // 显示识别结果
+      if (verifyResult.recognizedObjects && verifyResult.recognizedObjects.length > 0) {
+        addLog('🔍 已识别: ' + verifyResult.recognizedObjects.join('、'));
+      } else {
+        addLog('⚠️ 未识别到任何内容');
+      }
+      
+      // 显示匹配结果
+      if (verifyResult.matchedKeywords && verifyResult.matchedKeywords.length > 0) {
+        addLog('✅ 匹配到: ' + verifyResult.matchedKeywords.join('、'));
+      } else {
+        addLog('❌ 未匹配到关键词');
+      }
+      
+      // 判断验证结果
+      if (!verifyResult.success) {
+        // 验证失败
+        addLog('❌ 验证失败: ' + (verifyResult.message || '未匹配到关键词'));
         
-        // 检查百度API配置
-        const apiKey = localStorage.getItem('baidu_api_key');
-        const secretKey = localStorage.getItem('baidu_secret_key');
+        const penaltyAmount = Math.floor(goldReward * 0.2);
+        penaltyGold(penaltyAmount, `${isStartVerification ? '启动' : '完成'}验证失败`, taskId, taskTitle);
+        addLog(`💸 扣除${penaltyAmount}金币`);
         
-        if (!apiKey || !secretKey) {
-          throw new Error('百度API未配置');
-        }
-        
-        addLog('✅ API配置检查通过');
-        addLog('📋 目标关键词: ' + startKeywords.join('、'));
-        
-        // 🔧 步骤1：将图片转换为 base64（跳过旋转修正，避免超时）
-        addLog('📤 正在转换图片...');
-        const reader = new FileReader();
-        const imageBase64 = await new Promise<string>((resolve, reject) => {
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-        
-        addLog('✅ 图片转换完成');
-        
-        // 🔧 步骤2：调用 Vercel Serverless API 验证
-        addLog('🔗 正在连接百度AI服务器...');
-        
-        const requestBody = {
-          image: imageBase64,
-          keywords: startKeywords,
-          apiKey: apiKey,
-          secretKey: secretKey,
-        };
-        
-        addLog('📡 正在发送验证请求...');
-        const startTime = Date.now();
-        
-        const response = await fetch('/api/baidu-image-recognition', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(requestBody),
-        });
-        
-        const endTime = Date.now();
-        addLog(`⏱️ 请求耗时: ${endTime - startTime}ms`);
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          addLog(`❌ API请求失败: ${response.status}`);
-          throw new Error(`API请求失败: ${response.status} - ${errorText}`);
-        }
-        
-        const verifyResult = await response.json();
-        addLog('✅ 收到API响应');
-        
-        // 🔧 步骤3：显示识别结果
-        if (verifyResult.recognizedObjects && verifyResult.recognizedObjects.length > 0) {
-          addLog('🔍 已识别: ' + verifyResult.recognizedObjects.join('、'));
-        } else {
-          addLog('⚠️ 未识别到任何内容');
-        }
-        
-        // 🔧 步骤4：显示匹配结果
-        if (verifyResult.matchedKeywords && verifyResult.matchedKeywords.length > 0) {
-          addLog('✅ 匹配到: ' + verifyResult.matchedKeywords.join('、'));
-        } else {
-          addLog('❌ 未匹配到关键词');
-        }
-        
-        // 判断验证结果
-        if (!verifyResult.success) {
-          // 验证失败
-          addLog('❌ 验证失败: ' + (verifyResult.message || '未匹配到关键词'));
-          
-          const penaltyAmount = Math.floor(goldReward * 0.2);
-          penaltyGold(penaltyAmount, `启动验证失败`, taskId, taskTitle);
-          addLog(`💸 扣除${penaltyAmount}金币`);
-          
-          // 返回启动倒计时
+        // 返回倒计时
+        if (isStartVerification) {
           const newDeadline = new Date(Date.now() + 2 * 60 * 1000);
           const newState = {
             ...state,
@@ -638,16 +641,33 @@ export default function TaskVerificationCountdownContent({
           };
           setState(newState);
           saveState(newState);
-          setIsUploading(false);
-          
-          // 5秒后清除日志
-          setTimeout(() => clearLogs(), 5000);
-          return;
+        } else {
+          const newDeadline = new Date(Date.now() + 10 * 60 * 1000);
+          const newState = {
+            ...state,
+            status: 'task_countdown' as CountdownStatus,
+            taskDeadline: newDeadline.toISOString(),
+            completeTimeoutCount: state.completeTimeoutCount + 1,
+          };
+          setState(newState);
+          saveState(newState);
         }
         
-        // 验证成功
-        addLog('🎉 验证成功！');
-        const now = new Date();
+        setIsUploading(false);
+        setPreviewImage(null);
+        setPreviewType(null);
+        
+        // 5秒后清除日志
+        setTimeout(() => clearLogs(), 5000);
+        return;
+      }
+      
+      // 验证成功
+      addLog('🎉 验证成功！');
+      const now = new Date();
+      
+      if (isStartVerification) {
+        // 启动验证成功
         const duration = Math.floor((new Date(scheduledEnd).getTime() - new Date(scheduledStart).getTime()) / 60000);
         const taskSeconds = duration * 60;
         
@@ -670,6 +690,8 @@ export default function TaskVerificationCountdownContent({
           setState(newState);
           saveState(newState);
           setIsUploading(false);
+          setPreviewImage(null);
+          setPreviewType(null);
           clearLogs();
           
           if (onStart) {
@@ -677,16 +699,67 @@ export default function TaskVerificationCountdownContent({
             onStart(now, calculatedEndTime);
           }
         }, 2000);
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : '未知错误';
-        addLog('❌ 验证异常: ' + errorMsg);
+      } else {
+        // 完成验证成功
+        const scheduledEndTime = new Date(scheduledEnd);
+        const isEarly = now < scheduledEndTime;
         
-        // 扣除金币
-        const penaltyAmount = Math.floor(goldReward * 0.2);
-        penaltyGold(penaltyAmount, `启动验证异常`, taskId, taskTitle);
-        addLog(`💸 扣除${penaltyAmount}金币`);
+        if (isEarly) {
+          const bonusGold = Math.floor(goldReward * 0.5);
+          addGold(bonusGold, `提前完成任务`, taskId, taskTitle);
+          addLog(`💰 提前完成，获得${bonusGold}金币`);
+          
+          // 显示庆祝特效
+          setCelebrationGold(bonusGold);
+          setShowCelebration(true);
+          
+          // 触发金币获得通知
+          notificationService.notifyGoldEarned(taskTitle, bonusGold);
+        }
         
-        // 返回启动倒计时
+        // 扣除超时惩罚金
+        const totalPenalty = Math.floor(goldReward * 0.2) * state.completeTimeoutCount;
+        if (totalPenalty > 0) {
+          addLog(`⚠️ 累计扣除${totalPenalty}金币（${state.completeTimeoutCount}次超时）`);
+        }
+        
+        // 触发通知
+        notificationService.notifyVerificationSuccess(taskTitle, 'completion');
+        
+        // 完成任务
+        setTimeout(() => {
+          const newState = {
+            ...state,
+            status: 'completed' as CountdownStatus,
+          };
+          setState(newState);
+          saveState(newState);
+          setIsUploading(false);
+          setPreviewImage(null);
+          setPreviewType(null);
+          clearLogs();
+          
+          // 关闭庆祝特效
+          setShowCelebration(false);
+          
+          if (onComplete) {
+            onComplete(now);
+          }
+          
+          localStorage.removeItem(storageKey);
+        }, 2000);
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : '未知错误';
+      addLog('❌ 验证异常: ' + errorMsg);
+      
+      // 扣除金币
+      const penaltyAmount = Math.floor(goldReward * 0.2);
+      penaltyGold(penaltyAmount, `${isStartVerification ? '启动' : '完成'}验证异常`, taskId, taskTitle);
+      addLog(`💸 扣除${penaltyAmount}金币`);
+      
+      // 返回倒计时
+      if (isStartVerification) {
         const newDeadline = new Date(Date.now() + 2 * 60 * 1000);
         const newState = {
           ...state,
@@ -696,15 +769,33 @@ export default function TaskVerificationCountdownContent({
         };
         setState(newState);
         saveState(newState);
-        setIsUploading(false);
-        
-        // 5秒后清除日志
-        setTimeout(() => clearLogs(), 5000);
+      } else {
+        const newDeadline = new Date(Date.now() + 10 * 60 * 1000);
+        const newState = {
+          ...state,
+          status: 'task_countdown' as CountdownStatus,
+          taskDeadline: newDeadline.toISOString(),
+          completeTimeoutCount: state.completeTimeoutCount + 1,
+        };
+        setState(newState);
+        saveState(newState);
       }
-    };
-    
-    input.click();
-  }, [hasVerification, startKeywords, scheduledStart, scheduledEnd, goldReward, addGold, taskId, taskTitle, onStart]);
+      
+      setIsUploading(false);
+      setPreviewImage(null);
+      setPreviewType(null);
+      
+      // 5秒后清除日志
+      setTimeout(() => clearLogs(), 5000);
+    }
+  }, [previewImage, previewType, startKeywords, completeKeywords, state, goldReward, taskId, taskTitle, scheduledEnd, onStart, onComplete, storageKey]);
+
+  // 🔧 新增：取消预览
+  const handleCancelPreview = useCallback(() => {
+    setPreviewImage(null);
+    setPreviewType(null);
+    console.log('❌ 用户取消提交照片');
+  }, []);
 
   // 完成任务（无验证直接完成，有验证需上传照片）
   const handleCompleteTask = useCallback(async (useCamera: boolean = false) => {
@@ -775,14 +866,7 @@ export default function TaskVerificationCountdownContent({
       return;
     }
     
-    // 有验证：上传照片并验证
-    const newState = { ...state, status: 'uploading_complete' as CountdownStatus };
-    setState(newState);
-    saveState(newState);
-    setIsUploading(true);
-    setVerificationMessage('');
-    setVerificationSuccess(null);
-    
+    // 有验证：拍摄/上传照片
     // 创建文件选择器
     const input = document.createElement('input');
     input.type = 'file';
@@ -793,205 +877,29 @@ export default function TaskVerificationCountdownContent({
     
     // 处理用户点击叉叉取消上传
     input.oncancel = () => {
-      console.log('❌ 用户取消上传，返回任务倒计时');
-      const newState = { ...state, status: 'task_countdown' as CountdownStatus };
-      setState(newState);
-      saveState(newState);
-      setIsUploading(false);
-      setVerificationMessage('');
-      setVerificationSuccess(null);
+      console.log('❌ 用户取消拍摄/上传');
     };
     
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) {
-        console.log('❌ 未选择文件，返回任务倒计时');
-        const newState = { ...state, status: 'task_countdown' as CountdownStatus };
-        setState(newState);
-        saveState(newState);
-        setIsUploading(false);
-        setVerificationMessage('');
-        setVerificationSuccess(null);
+        console.log('❌ 未选择文件');
         return;
       }
       
-      try {
-        clearLogs();
-        addLog('📷 开始完成验证流程');
-        
-        // 检查百度API配置
-        const apiKey = localStorage.getItem('baidu_api_key');
-        const secretKey = localStorage.getItem('baidu_secret_key');
-        
-        if (!apiKey || !secretKey) {
-          throw new Error('百度API未配置');
-        }
-        
-        addLog('✅ API配置检查通过');
-        addLog('📋 目标关键词: ' + completeKeywords.join('、'));
-        
-        // 🔧 步骤1：将图片转换为 base64（跳过旋转修正，避免超时）
-        addLog('📤 正在转换图片...');
-        const reader = new FileReader();
-        const imageBase64 = await new Promise<string>((resolve, reject) => {
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-        
-        addLog('✅ 图片转换完成');
-        
-        // 🔧 步骤2：调用 Vercel Serverless API 验证
-        addLog('🔗 正在连接百度AI服务器...');
-        
-        const requestBody = {
-          image: imageBase64,
-          keywords: completeKeywords,
-          apiKey: apiKey,
-          secretKey: secretKey,
-        };
-        
-        addLog('📡 正在发送验证请求...');
-        const startTime = Date.now();
-        
-        const response = await fetch('/api/baidu-image-recognition', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(requestBody),
-        });
-        
-        const endTime = Date.now();
-        addLog(`⏱️ 请求耗时: ${endTime - startTime}ms`);
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          addLog(`❌ API请求失败: ${response.status}`);
-          throw new Error(`API请求失败: ${response.status} - ${errorText}`);
-        }
-        
-        const verifyResult = await response.json();
-        addLog('✅ 收到API响应');
-        
-        // 🔧 步骤3：显示识别结果
-        if (verifyResult.recognizedObjects && verifyResult.recognizedObjects.length > 0) {
-          addLog('🔍 已识别: ' + verifyResult.recognizedObjects.join('、'));
-        } else {
-          addLog('⚠️ 未识别到任何内容');
-        }
-        
-        // 🔧 步骤4：显示匹配结果
-        if (verifyResult.matchedKeywords && verifyResult.matchedKeywords.length > 0) {
-          addLog('✅ 匹配到: ' + verifyResult.matchedKeywords.join('、'));
-        } else {
-          addLog('❌ 未匹配到关键词');
-        }
-        
-        // 判断验证结果
-        if (!verifyResult.success) {
-          // 验证失败
-          addLog('❌ 验证失败: ' + (verifyResult.message || '未匹配到关键词'));
-          
-          const penaltyAmount = Math.floor(goldReward * 0.2);
-          penaltyGold(penaltyAmount, `完成验证失败`, taskId, taskTitle);
-          addLog(`💸 扣除${penaltyAmount}金币`);
-          
-          // 返回任务倒计时
-          const newDeadline = new Date(Date.now() + 10 * 60 * 1000);
-          const newState = {
-            ...state,
-            status: 'task_countdown' as CountdownStatus,
-            taskDeadline: newDeadline.toISOString(),
-            completeTimeoutCount: state.completeTimeoutCount + 1,
-          };
-          setState(newState);
-          saveState(newState);
-          setIsUploading(false);
-          
-          // 5秒后清除日志
-          setTimeout(() => clearLogs(), 5000);
-          return;
-        }
-        
-        // 验证成功
-        addLog('🎉 验证成功！');
-        const now = new Date();
-        
-        // 动态更新完成时间
-        const scheduledEndTime = new Date(scheduledEnd);
-        const isEarly = now < scheduledEndTime;
-        
-        if (isEarly) {
-          const bonusGold = Math.floor(goldReward * 0.5);
-          addGold(bonusGold, `提前完成任务`, taskId, taskTitle);
-          addLog(`💰 提前完成，获得${bonusGold}金币`);
-          
-          // 显示庆祝特效
-          setCelebrationGold(bonusGold);
-          setShowCelebration(true);
-          
-          // 触发金币获得通知
-          notificationService.notifyGoldEarned(taskTitle, bonusGold);
-        }
-        
-        // 扣除超时惩罚金
-        const totalPenalty = Math.floor(goldReward * 0.2) * state.completeTimeoutCount;
-        if (totalPenalty > 0) {
-          addLog(`⚠️ 累计扣除${totalPenalty}金币（${state.completeTimeoutCount}次超时）`);
-        }
-        
-        // 触发通知
-        notificationService.notifyVerificationSuccess(taskTitle, 'completion');
-        
-        // 完成任务
-        setTimeout(() => {
-          const newState = {
-            ...state,
-            status: 'completed' as CountdownStatus,
-          };
-          setState(newState);
-          saveState(newState);
-          setIsUploading(false);
-          clearLogs();
-          
-          // 🔧 关闭庆祝特效（重要！）
-          setShowCelebration(false);
-          
-          if (onComplete) {
-            onComplete(now);
-          }
-          
-          localStorage.removeItem(storageKey);
-        }, 2000);
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : '未知错误';
-        addLog('❌ 验证异常: ' + errorMsg);
-        
-        // 扣除金币
-        const penaltyAmount = Math.floor(goldReward * 0.2);
-        penaltyGold(penaltyAmount, `完成验证异常`, taskId, taskTitle);
-        addLog(`💸 扣除${penaltyAmount}金币`);
-        
-        // 返回任务倒计时
-        const newDeadline = new Date(Date.now() + 10 * 60 * 1000);
-        const newState = {
-          ...state,
-          status: 'task_countdown' as CountdownStatus,
-          taskDeadline: newDeadline.toISOString(),
-          completeTimeoutCount: state.completeTimeoutCount + 1,
-        };
-        setState(newState);
-        saveState(newState);
-        setIsUploading(false);
-        
-        // 5秒后清除日志
-        setTimeout(() => clearLogs(), 5000);
-      }
+      // 🔧 将图片转换为 base64 并显示预览
+      const reader = new FileReader();
+      reader.onload = () => {
+        const imageBase64 = reader.result as string;
+        setPreviewImage(imageBase64);
+        setPreviewType('complete');
+        console.log('📷 照片已拍摄，等待用户确认提交');
+      };
+      reader.readAsDataURL(file);
     };
     
     input.click();
-  }, [hasVerification, completeKeywords, scheduledEnd, goldReward, addGold, state.completeTimeoutCount, taskId, taskTitle, onComplete, storageKey]);
+  }, [hasVerification, scheduledEnd, goldReward, addGold, state.completeTimeoutCount, taskId, taskTitle, onComplete, storageKey, state]);
 
   // 格式化倒计时显示
   const formatTime = (seconds: number) => {
@@ -999,6 +907,63 @@ export default function TaskVerificationCountdownContent({
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  // 🔧 照片预览界面
+  if (previewImage && previewType) {
+    return (
+      <div className="w-full flex flex-col items-center py-2 bg-transparent">
+        {/* 预览图片 */}
+        <div className="w-full mb-3 rounded-lg overflow-hidden shadow-lg">
+          <img 
+            src={previewImage} 
+            alt="预览" 
+            className="w-full h-auto"
+          />
+        </div>
+        
+        {/* 提示文字 */}
+        <div className="text-xs font-medium mb-2 text-gray-600">
+          📷 照片已拍摄，请确认后提交验证
+        </div>
+        
+        {/* 按钮组 */}
+        <div className="flex items-center gap-2 w-full">
+          <button 
+            onClick={handleCancelPreview}
+            className="flex-1 px-4 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-1.5"
+            style={{
+              backgroundColor: '#6B7280',
+              color: '#ffffff',
+            }}
+          >
+            <span>❌</span>
+            <span>取消</span>
+          </button>
+          <button 
+            onClick={handleConfirmSubmit}
+            disabled={isUploading}
+            className="flex-1 px-4 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+            style={{
+              backgroundColor: '#10B981',
+              color: '#ffffff',
+            }}
+          >
+            {isUploading ? (
+              <>
+                <span className="animate-spin">⏳</span>
+                <span>验证中...</span>
+              </>
+            ) : (
+              <>
+                <span>✅</span>
+                <span>确认提交</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // 等待启动状态：显示提前启动按钮
   if (state.status === 'waiting_start') {
