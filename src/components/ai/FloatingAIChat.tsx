@@ -539,6 +539,9 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
           }
         }
         
+        // 🔧 修复：构建验证关键词（使用标签或任务标题）
+        const verificationKeywords = taskTags.length > 0 ? taskTags.join('、') : taskData.title;
+        
         const task = await createTask({
           title: taskData.title,
           description: taskData.description || '',
@@ -554,6 +557,21 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
           longTermGoals: goalMatches,
           tags: taskTags, // 使用AI返回的中文标签
           color: taskColor, // 使用标签文件夹的颜色
+          // 🔧 修复：添加完整的验证配置对象
+          verificationStart: {
+            type: 'photo',
+            requirement: verificationKeywords, // 使用标签或任务标题作为验证关键词
+            timeout: 120, // 2分钟超时
+          },
+          verificationComplete: {
+            type: 'photo',
+            requirement: verificationKeywords, // 使用标签或任务标题作为验证关键词
+            timeout: 120, // 2分钟超时
+          },
+          // 同时保留这些字段以兼容其他代码
+          verificationEnabled: true,
+          startKeywords: taskTags.length > 0 ? taskTags : [taskData.title],
+          completeKeywords: taskTags.length > 0 ? taskTags : [taskData.title],
         });
         createdTasks.push(task);
       }
