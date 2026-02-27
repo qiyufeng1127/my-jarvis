@@ -10,6 +10,7 @@ import Dashboard from '@/pages/Dashboard';
 import Welcome from '@/pages/Welcome';
 import BaiduAITest from '@/pages/BaiduAITest';
 import DesignSystemDemo from '@/pages/DesignSystemDemo';
+import SOPLibrary from '@/components/sop/SOPLibrary';
 
 // 通知系统
 import NotificationToast from '@/components/notifications/NotificationToast';
@@ -20,6 +21,9 @@ import { GameSystemPanel } from '@/components/game/GameSystemPanel';
 
 // 紧急任务系统
 import EmergencyTaskTrigger from '@/components/emergency/EmergencyTaskTrigger';
+
+// 移动端底部导航
+import MobileBottomNav from '@/components/navigation/MobileBottomNav';
 
 function App() {
   const { initializeUser } = useUserStore();
@@ -141,7 +145,7 @@ function App() {
 
   return (
     <Router>
-      <div className="min-h-screen bg-white dark:bg-black transition-colors">
+      <div className="min-h-screen bg-white dark:bg-black transition-colors pb-16 md:pb-0">
         {/* 全局通知系统 */}
         <NotificationToast />
         
@@ -158,6 +162,9 @@ function App() {
           {/* 主控面板 */}
           <Route path="/" element={<Dashboard />} />
           
+          {/* SOP 任务库 */}
+          <Route path="/sop" element={<SOPLibrary />} />
+          
           {/* 欢迎页 */}
           <Route path="/welcome" element={<Welcome />} />
           
@@ -170,6 +177,9 @@ function App() {
           {/* 其他路由 */}
           <Route path="*" element={<Dashboard />} />
         </Routes>
+        
+        {/* 移动端底部导航栏 */}
+        <MobileBottomNav />
       </div>
     </Router>
   );

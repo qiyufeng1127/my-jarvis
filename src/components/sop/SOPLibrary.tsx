@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus, Folder, ChevronRight, ChevronDown, Edit2, Trash2, GripVertical } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Plus, Folder, ChevronRight, ChevronDown, Edit2, Trash2, GripVertical, Search, X } from 'lucide-react';
 import { useSOPStore } from '@/stores/sopStore';
 import SOPTaskEditor from './SOPTaskEditor';
 import SOPFolderEditor from './SOPFolderEditor';
@@ -12,6 +12,53 @@ export default function SOPLibrary() {
   const [editingFolder, setEditingFolder] = useState<string | null>(null);
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [creatingTaskInFolder, setCreatingTaskInFolder] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // 🔍 实时搜索过滤
+  const filteredFoldersAndTasks = useMemo(() => {
+    if (!searchQuery.trim()) {
+      // 没有搜索词，返回所有文件夹和任务
+      return folders.map(folder => ({
+        folder,
+        tasks: getTasksByFolder(folder.id),
+      }));
+    }
+    
+    const query = searchQuery.toLowerCase().trim();
+    
+    // 搜索匹配的任务
+    const matchedTasks = tasks.filter(task => 
+      task.title.toLowerCase().includes(query) ||
+      task.description?.toLowerCase().includes(query) ||
+      task.tags?.some(tag => tag.toLowerCase().includes(query)) ||
+      task.location?.toLowerCase().includes(query)
+    );
+    
+    // 按文件夹分组匹配的任务
+    const folderTaskMap = new Map<string, typeof tasks>();
+    matchedTasks.forEach(task => {
+      if (!folderTaskMap.has(task.folderId)) {
+        folderTaskMap.set(task.folderId, []);
+      }
+      folderTaskMap.get(task.folderId)!.push(task);
+    });
+    
+    // 只返回有匹配任务的文件夹
+    return folders
+      .filter(folder => folderTaskMap.has(folder.id))
+      .map(folder => ({
+        folder,
+        tasks: folderTaskMap.get(folder.id) || [],
+      }));
+  }, [folders, tasks, searchQuery, getTasksByFolder]);
+  
+  // 🔍 搜索时自动展开所有文件夹
+  useState(() => {
+    if (searchQuery.trim()) {
+      const allFolderIds = new Set(filteredFoldersAndTasks.map(item => item.folder.id));
+      setExpandedFolders(allFolderIds);
+    }
+  });
   
   const toggleFolder = (folderId: string) => {
     const newExpanded = new Set(expandedFolders);
@@ -29,47 +76,104 @@ export default function SOPLibrary() {
     alert('✅ 任务已推送到时间轴！');
   };
   
+  // 🔍 高亮搜索关键词
+  const highlightText = (text: string, query: string) => {
+    if (!query.trim()) return text;
+    
+    const parts = text.split(new RegExp(`(${query})`, 'gi'));
+    return parts.map((part, index) => 
+      part.toLowerCase() === query.toLowerCase() 
+        ? <mark key={index} className="bg-yellow-200 dark:bg-yellow-600 text-gray-900 dark:text-white">{part}</mark>
+        : part
+    );
+  };
+  
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
       <div className="max-w-6xl mx-auto">
         {/* 头部 */}
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-              📋 SOP 任务库
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              管理重复性任务模板，一键推送到时间轴
-            </p>
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                📋 SOP 任务库
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400">
+                管理重复性任务模板，一键推送到时间轴
+              </p>
+            </div>
+            
+            <button
+              onClick={() => setCreatingFolder(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+            >
+              <Plus size={20} />
+              <span>新建文件夹</span>
+            </button>
           </div>
           
-          <button
-            onClick={() => setCreatingFolder(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
-          >
-            <Plus size={20} />
-            <span>新建文件夹</span>
-          </button>
+          {/* 🔍 搜索框 */}
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="搜索任务模板... (支持标题、描述、标签、位置)"
+              className="w-full pl-12 pr-12 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+              >
+                <X size={16} className="text-gray-400" />
+              </button>
+            )}
+          </div>
+          
+          {/* 搜索结果提示 */}
+          {searchQuery && (
+            <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              找到 {filteredFoldersAndTasks.reduce((sum, item) => sum + item.tasks.length, 0)} 个匹配的任务模板
+            </div>
+          )}
         </div>
         
         {/* 文件夹列表 */}
         <div className="space-y-4">
-          {folders.length === 0 ? (
+          {filteredFoldersAndTasks.length === 0 ? (
             <div className="text-center py-20">
-              <div className="text-6xl mb-4">📁</div>
-              <p className="text-gray-500 dark:text-gray-400 mb-4">
-                还没有文件夹，创建一个开始吧
-              </p>
-              <button
-                onClick={() => setCreatingFolder(true)}
-                className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
-              >
-                创建第一个文件夹
-              </button>
+              {searchQuery ? (
+                <>
+                  <div className="text-6xl mb-4">🔍</div>
+                  <p className="text-gray-500 dark:text-gray-400 mb-4">
+                    没有找到匹配"{searchQuery}"的任务模板
+                  </p>
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                  >
+                    清除搜索
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="text-6xl mb-4">📁</div>
+                  <p className="text-gray-500 dark:text-gray-400 mb-4">
+                    还没有文件夹，创建一个开始吧
+                  </p>
+                  <button
+                    onClick={() => setCreatingFolder(true)}
+                    className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                  >
+                    创建第一个文件夹
+                  </button>
+                </>
+              )}
             </div>
           ) : (
-            folders.map(folder => {
-              const folderTasks = getTasksByFolder(folder.id);
+            filteredFoldersAndTasks.map(({ folder, tasks: folderTasks }) => {
               const isExpanded = expandedFolders.has(folder.id);
               
               return (
@@ -154,11 +258,11 @@ export default function SOPLibrary() {
                             <div className="flex items-start justify-between mb-3">
                               <div className="flex-1">
                                 <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-1">
-                                  {task.title}
+                                  {highlightText(task.title, searchQuery)}
                                 </h4>
                                 {task.description && (
                                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                                    {task.description}
+                                    {highlightText(task.description, searchQuery)}
                                   </p>
                                 )}
                                 
