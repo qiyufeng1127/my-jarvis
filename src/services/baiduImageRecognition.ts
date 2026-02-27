@@ -283,11 +283,13 @@ class BaiduImageRecognitionService {
         const data: BaiduImageResult = result.data;
 
         if (data.result && data.result.length > 0) {
+          // 🎯 返回前15个结果，不过滤置信度（让用户在设置中调整）
           const keywords = data.result
-            .filter(item => item.score > 0.01)
+            .slice(0, 15)  // 取前15个
             .map(item => item.keyword);
           
           console.log('🔍 [recognizeGeneral] 百度AI识别结果 (共' + keywords.length + '个):', keywords);
+          console.log('📊 返回前15个识别结果（置信度过滤由用户设置控制）');
           
           return keywords;
         }
@@ -306,7 +308,7 @@ class BaiduImageRecognitionService {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: `image=${encodeURIComponent(base64Image)}&baike_num=5`,
+        body: `image=${encodeURIComponent(base64Image)}&baike_num=15`,
       });
 
       if (!response.ok) {
@@ -316,12 +318,14 @@ class BaiduImageRecognitionService {
       const data: BaiduImageResult = await response.json();
 
       if (data.result && data.result.length > 0) {
+        // 🎯 返回前15个结果，不过滤置信度（让用户在设置中调整）
         const keywords = data.result
-          .filter(item => item.score > 0.01)
+          .slice(0, 15)  // 取前15个
           .map(item => item.keyword);
         
         console.log('🔍 百度AI识别结果 (共' + keywords.length + '个):', keywords);
-        console.log('🔍 完整识别数据 (前20个):', data.result.slice(0, 20).map(r => ({
+        console.log('📊 返回前15个识别结果（置信度过滤由用户设置控制）');
+        console.log('🔍 完整识别数据 (前15个):', data.result.slice(0, 15).map(r => ({
           关键词: r.keyword,
           置信度: (r.score * 100).toFixed(1) + '%',
           分类: r.root
@@ -690,7 +694,7 @@ class BaiduImageRecognitionService {
         '桌子': ['拍摄桌面', '拍摄书桌', '拍摄工作台'],
       };
       
-      // 🤖 智能语义匹配函数（不依赖固定词库）
+      // 🤖 智能语义匹配函数（超级宽松版 - 字符级匹配）
       const isSemanticMatch = (required: string, recognized: string): { matched: boolean; reason: string } => {
         const reqLower = required.toLowerCase().trim();
         const recLower = recognized.toLowerCase().trim();
@@ -700,7 +704,24 @@ class BaiduImageRecognitionService {
           return { matched: true, reason: '直接包含匹配' };
         }
         
-        // 2. 提取关键词（去掉修饰词）
+        // 🆕 2. 字符级匹配：只要有2个连续字符相同就算匹配
+        for (let i = 0; i < reqLower.length - 1; i++) {
+          const twoChars = reqLower.substring(i, i + 2);
+          if (recLower.includes(twoChars)) {
+            return { matched: true, reason: `字符匹配: 包含"${twoChars}"` };
+          }
+        }
+        
+        // 🆕 3. 单字符匹配：如果关键词很短（1-2个字），单字符匹配也算
+        if (reqLower.length <= 2) {
+          for (const char of reqLower) {
+            if (recLower.includes(char)) {
+              return { matched: true, reason: `单字符匹配: "${char}"` };
+            }
+          }
+        }
+        
+        // 4. 提取关键词（去掉修饰词）
         const extractKeywords = (text: string): string[] => {
           // 去掉常见的修饰词
           const modifiers = ['干净的', '清爽的', '整齐的', '关掉的', '打开的', '漂亮的', '好看的', '新的', '旧的'];
@@ -715,16 +736,25 @@ class BaiduImageRecognitionService {
         const reqKeywords = extractKeywords(reqLower);
         const recKeywords = extractKeywords(recLower);
         
-        // 3. 检查是否有共同的关键字
+        // 5. 检查是否有共同的关键字
         for (const reqWord of reqKeywords) {
           for (const recWord of recKeywords) {
             if (reqWord.includes(recWord) || recWord.includes(reqWord)) {
               return { matched: true, reason: `关键词匹配: "${reqWord}" ↔ "${recWord}"` };
             }
+            // 🆕 关键词的字符级匹配
+            if (reqWord.length >= 2 && recWord.length >= 2) {
+              for (let i = 0; i < reqWord.length - 1; i++) {
+                const twoChars = reqWord.substring(i, i + 2);
+                if (recWord.includes(twoChars)) {
+                  return { matched: true, reason: `关键词字符匹配: "${twoChars}"` };
+                }
+              }
+            }
           }
         }
         
-        // 4. 智能语义关联（基于常识和AI理解）
+        // 6. 智能语义关联（基于常识和AI理解）
         // 提取核心概念 - 更智能、更宽泛
         const getConcept = (text: string): string[] => {
           const concepts: string[] = [];
@@ -788,12 +818,21 @@ class BaiduImageRecognitionService {
           }
         }
         
-        // 5. 使用同义词库作为兜底（但不强制依赖）
+        // 7. 使用同义词库作为兜底（但不强制依赖）
         const syns = synonyms[required] || synonyms[reqLower] || [];
         for (const syn of syns) {
           const synLower = syn.toLowerCase();
           if (recLower.includes(synLower) || synLower.includes(recLower)) {
             return { matched: true, reason: `同义词匹配: "${syn}"` };
+          }
+          // 🆕 同义词的字符级匹配
+          if (synLower.length >= 2) {
+            for (let i = 0; i < synLower.length - 1; i++) {
+              const twoChars = synLower.substring(i, i + 2);
+              if (recLower.includes(twoChars)) {
+                return { matched: true, reason: `同义词字符匹配: "${syn}"中的"${twoChars}"` };
+              }
+            }
           }
         }
         
