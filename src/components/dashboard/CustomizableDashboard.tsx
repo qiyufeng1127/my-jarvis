@@ -29,6 +29,7 @@ import JournalModule from '@/components/journal/JournalModule';
 import PanoramaMemory from '@/components/memory/PanoramaMemory';
 import TaskInbox from '@/components/inbox/TaskInbox';
 import { TagManagerV2 } from '@/components/tags';
+import SOPLibrary from '@/components/sop/SOPLibrary';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
 import { useGoldStore } from '@/stores/goldStore';
 import GitHubCommitBadge from '@/components/ui/GitHubCommitBadge';
@@ -170,6 +171,14 @@ const availableModules: ModuleDefinition[] = [
     icon: <span className="text-2xl">📥</span>,
     defaultColor: '#06B6D4',
     component: TaskInbox,
+  },
+  {
+    id: 'sop',
+    type: 'sop',
+    title: 'SOP任务库',
+    icon: <span className="text-2xl">📋</span>,
+    defaultColor: '#8B5CF6',
+    component: SOPLibrary,
   },
   {
     id: 'tags',
