@@ -35,8 +35,9 @@ import { PetShop } from '@/components/pet/PetShop';
 import { FocusTimer } from '@/components/focus/FocusTimer';
 import { FocusStatsPanel } from '@/components/focus/FocusStatsPanel';
 import { LeaderboardPanel } from '@/components/leaderboard/LeaderboardPanel';
+import SOPLibrary from '@/components/sop/SOPLibrary';
 
-type TabType = 'timeline' | 'goals' | 'journal' | 'memory' | 'gold' | 'habits' | 'reports' | 'settings' | 'inbox' | 'ai' | 'more' | 'money' | 'tags' | 'home' | 'pet' | 'focus' | 'leaderboard';
+type TabType = 'timeline' | 'goals' | 'journal' | 'memory' | 'gold' | 'habits' | 'reports' | 'settings' | 'inbox' | 'ai' | 'more' | 'money' | 'tags' | 'home' | 'pet' | 'focus' | 'leaderboard' | 'sop';
 
 interface MobileLayoutProps {
   onModuleChange?: (module: string) => void;
@@ -55,6 +56,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { id: 'goals', label: '目标', icon: '🎯', color: 'yellow', component: GoalsModule },
   { id: 'money', label: '副业', icon: '💰', color: 'yellow', component: MoneyModule },
   { id: 'inbox', label: '收集箱', icon: '📥', color: 'blue', component: TaskInbox },
+  { id: 'sop', label: 'SOP', icon: '📋', color: 'blue', component: SOPLibrary },
   { id: 'tags', label: '标签', icon: '🏷️', color: 'purple' }, // 标签管理（特殊处理，不是模块）
   { id: 'ai', label: 'AI助手', icon: '✨', color: 'pink' }, // AI助手（特殊处理，打开输入框）
   { id: 'journal', label: '日记', icon: '📔', color: 'brown', component: JournalModule },
@@ -485,7 +487,7 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
 
       {/* 编辑导航栏弹窗 */}
       {showEditModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col">
             {/* 头部 */}
             <div className="flex items-center justify-between p-4 border-b border-neutral-200">
