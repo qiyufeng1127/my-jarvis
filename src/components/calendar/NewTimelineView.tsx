@@ -88,6 +88,7 @@ export default function NewTimelineView({
     plannedImageCount: number;
     actualImageCount: number;
     actualEndTime: Date;
+    goldReward?: number; // 🔧 新增：金币奖励数量
   } | null>(null);
   
 
@@ -2309,12 +2310,18 @@ export default function NewTimelineView({
                        const plannedImageCount = verification?.plannedImageCount || 0;
                        const actualImageCount = taskImages[block.id]?.length || 0;
                        
+                       // 馃敡 璁＄畻閲戝竵濂栧姳锛堟彁鍓嶅畬鎴愬鍔?0%锛塦r
+                       const scheduledEndTime = new Date(block.endTime);
+                       const isEarly = actualEndTime < scheduledEndTime;
+                       const goldReward = isEarly ? Math.floor((block.goldReward || 0) * 0.5) : 0;
+                       
                        setEfficiencyModalTask({
                          id: block.id,
                          title: block.title,
                          plannedImageCount,
                          actualImageCount,
                          actualEndTime,
+                         goldReward,
                        });
                        setEfficiencyModalOpen(true);
                      }}
@@ -3373,6 +3380,7 @@ export default function NewTimelineView({
           actualImageCount={efficiencyModalTask.actualImageCount}
           isDark={isDark}
           accentColor={accentColor}
+          goldReward={efficiencyModalTask.goldReward || 0} // 🔧 新增：传递金币奖励数量
         />
       )}
       

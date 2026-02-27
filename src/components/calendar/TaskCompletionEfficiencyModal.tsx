@@ -10,6 +10,7 @@ interface TaskCompletionEfficiencyModalProps {
   actualImageCount: number;
   isDark: boolean;
   accentColor: string;
+  goldReward?: number; // 🔧 新增：金币奖励数量
 }
 
 export default function TaskCompletionEfficiencyModal({
@@ -21,6 +22,7 @@ export default function TaskCompletionEfficiencyModal({
   actualImageCount,
   isDark,
   accentColor,
+  goldReward = 0, // 🔧 新增：金币奖励数量
 }: TaskCompletionEfficiencyModalProps) {
   const [efficiency, setEfficiency] = useState(100);
   const [isDragging, setIsDragging] = useState(false);
@@ -64,6 +66,24 @@ export default function TaskCompletionEfficiencyModal({
         >
           <X className="w-5 h-5" />
         </button>
+
+        {/* 🔧 金币奖励展示（放在最顶部，大字号+emoji） */}
+        {goldReward > 0 && (
+          <div className="mb-6 p-6 rounded-2xl bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600 shadow-xl">
+            <div className="flex items-center justify-center gap-3">
+              <span className="text-5xl animate-bounce">💰</span>
+              <div className="text-center">
+                <div className="text-4xl font-black text-white animate-pulse">
+                  +{goldReward} 金币
+                </div>
+                <div className="text-sm text-yellow-100 mt-1">
+                  🎉 恭喜获得奖励！
+                </div>
+              </div>
+              <span className="text-5xl animate-bounce" style={{ animationDelay: '0.1s' }}>🎉</span>
+            </div>
+          </div>
+        )}
 
         {/* 标题 */}
         <div className="mb-6">

@@ -143,6 +143,21 @@ export default function TaskVerificationCountdownContent({
     ? Math.max(0, Math.floor((new Date(state.taskDeadline).getTime() - currentTime) / 1000))
     : 0;
 
+  // 🔧 监听任务时间变化，清除过期的提醒记录
+  useEffect(() => {
+    // 当任务的开始或结束时间发生变化时，清空已触发的提醒记录
+    setTriggeredReminders(new Set());
+    console.log(`🔄 任务时间已更新，清空提醒记录: ${taskTitle}`);
+  }, [scheduledStart, scheduledEnd, taskTitle]);
+
+  // 🔧 组件卸载时清理（任务被删除或完成）
+  useEffect(() => {
+    return () => {
+      console.log(`🧹 任务组件卸载，清理提醒记录: ${taskTitle}`);
+      setTriggeredReminders(new Set());
+    };
+  }, [taskTitle]);
+
   // 检查是否到达预设开始时间，自动触发启动倒计时
   useEffect(() => {
     const now = new Date();
@@ -277,11 +292,15 @@ export default function TaskVerificationCountdownContent({
       const reminderMinutes = settings.taskEndBeforeMinutes || 5;
       
       // 🔧 只在用户设置的时间点提醒（转换为秒），并且只触发一次
-      if (taskCountdownLeft === reminderMinutes * 60) {
+      // 🔧 使用范围匹配（±2秒），避免因为时间更新延迟错过提醒
+      const targetSeconds = reminderMinutes * 60;
+      const isInRange = taskCountdownLeft >= targetSeconds - 2 && taskCountdownLeft <= targetSeconds + 2;
+      
+      if (isInRange) {
         const reminderKey = `task-end-before-${taskId}-${reminderMinutes}`;
         if (!triggeredReminders.has(reminderKey)) {
           console.log(`⏰ [useEffect] 任务即将结束（${reminderMinutes}分钟）- 遵循用户设置: ${taskTitle}`);
-          console.log(`⏰ [useEffect] 当前倒计时: ${taskCountdownLeft}秒，目标: ${reminderMinutes * 60}秒`);
+          console.log(`⏰ [useEffect] 当前倒计时: ${taskCountdownLeft}秒，目标: ${targetSeconds}秒`);
           notificationService.notifyTaskEnding(taskTitle, reminderMinutes, hasVerification);
           setTriggeredReminders(prev => new Set(prev).add(reminderKey));
         }
@@ -291,7 +310,7 @@ export default function TaskVerificationCountdownContent({
     }
   }, [state.status, taskCountdownLeft, taskTitle, hasVerification, taskId, triggeredReminders]);
 
-  // 🔧 新增：任务开始前提醒
+  // 🔧 新增：任务开始前提醒（使用定时器精确触发）
   useEffect(() => {
     if (state.status !== 'waiting_start') {
       return;
@@ -312,13 +331,30 @@ export default function TaskVerificationCountdownContent({
       const reminderMinutes = settings.taskStartBeforeMinutes || 2;
       const now = new Date();
       const start = new Date(scheduledStart);
-      const minutesUntilStart = Math.floor((start.getTime() - now.getTime()) / 60000);
+      const msUntilStart = start.getTime() - now.getTime();
+      const msUntilReminder = msUntilStart - (reminderMinutes * 60 * 1000);
 
-      // 在设置的时间点提醒（例如：提前2分钟）
-      if (minutesUntilStart === reminderMinutes) {
+      // 如果提醒时间还没到，设置定时器
+      if (msUntilReminder > 0 && msUntilReminder < 24 * 60 * 60 * 1000) { // 24小时内
+        const reminderKey = `task-start-before-${taskId}-${reminderMinutes}`;
+        
+        if (!triggeredReminders.has(reminderKey)) {
+          console.log(`⏰ 设置任务开始前提醒定时器: ${taskTitle}, 将在${Math.round(msUntilReminder / 1000)}秒后触发`);
+          
+          const timerId = setTimeout(() => {
+            console.log(`⏰ 任务开始前提醒（${reminderMinutes}分钟）: ${taskTitle}`);
+            notificationService.notifyTaskStartBefore(taskTitle, reminderMinutes, hasVerification);
+            setTriggeredReminders(prev => new Set(prev).add(reminderKey));
+          }, msUntilReminder);
+
+          return () => clearTimeout(timerId);
+        }
+      }
+      // 如果已经过了提醒时间但还没到开始时间，立即提醒一次
+      else if (msUntilReminder <= 0 && msUntilStart > 0) {
         const reminderKey = `task-start-before-${taskId}-${reminderMinutes}`;
         if (!triggeredReminders.has(reminderKey)) {
-          console.log(`⏰ 任务开始前提醒（${reminderMinutes}分钟）: ${taskTitle}`);
+          console.log(`⏰ 任务开始前提醒（立即触发）: ${taskTitle}`);
           notificationService.notifyTaskStartBefore(taskTitle, reminderMinutes, hasVerification);
           setTriggeredReminders(prev => new Set(prev).add(reminderKey));
         }
@@ -328,7 +364,7 @@ export default function TaskVerificationCountdownContent({
     }
   }, [state.status, scheduledStart, taskTitle, hasVerification, taskId, triggeredReminders]);
 
-  // 🔧 新增：任务进行中提醒
+  // 🔧 新增：任务进行中提醒（使用定时器精确触发）
   useEffect(() => {
     if (state.status !== 'task_countdown' || !state.actualStartTime) {
       return;
@@ -349,14 +385,35 @@ export default function TaskVerificationCountdownContent({
       const intervalMinutes = settings.taskDuringMinutes || 10;
       const startTime = new Date(state.actualStartTime);
       const now = new Date();
-      const elapsedMinutes = Math.floor((now.getTime() - startTime.getTime()) / 60000);
+      const elapsedMs = now.getTime() - startTime.getTime();
+      const elapsedMinutes = Math.floor(elapsedMs / 60000);
+      
+      // 计算下一次提醒的时间
+      const nextReminderMinutes = Math.ceil(elapsedMinutes / intervalMinutes) * intervalMinutes;
+      const msUntilNextReminder = (nextReminderMinutes * 60 * 1000) - elapsedMs;
 
-      // 每隔设置的时间提醒一次（例如：每10分钟）
-      if (elapsedMinutes > 0 && elapsedMinutes % intervalMinutes === 0) {
-        const reminderKey = `task-during-${taskId}-${elapsedMinutes}`;
+      // 如果下一次提醒时间在合理范围内（1秒到1小时之间）
+      if (msUntilNextReminder > 1000 && msUntilNextReminder < 60 * 60 * 1000) {
+        const reminderKey = `task-during-${taskId}-${nextReminderMinutes}`;
+        
         if (!triggeredReminders.has(reminderKey)) {
-          console.log(`⏰ 任务进行中提醒（已进行${elapsedMinutes}分钟）: ${taskTitle}`);
-          notificationService.notifyTaskDuring(taskTitle, elapsedMinutes);
+          console.log(`⏰ 设置任务进行中提醒定时器: ${taskTitle}, 将在${Math.round(msUntilNextReminder / 1000)}秒后触发（已进行${nextReminderMinutes}分钟）`);
+          
+          const timerId = setTimeout(() => {
+            console.log(`⏰ 任务进行中提醒（已进行${nextReminderMinutes}分钟）: ${taskTitle}`);
+            notificationService.notifyTaskDuring(taskTitle, nextReminderMinutes);
+            setTriggeredReminders(prev => new Set(prev).add(reminderKey));
+          }, msUntilNextReminder);
+
+          return () => clearTimeout(timerId);
+        }
+      }
+      // 如果刚好到达提醒时间点（误差在5秒内），立即提醒
+      else if (msUntilNextReminder <= 1000 && msUntilNextReminder >= -5000) {
+        const reminderKey = `task-during-${taskId}-${nextReminderMinutes}`;
+        if (!triggeredReminders.has(reminderKey)) {
+          console.log(`⏰ 任务进行中提醒（立即触发，已进行${nextReminderMinutes}分钟）: ${taskTitle}`);
+          notificationService.notifyTaskDuring(taskTitle, nextReminderMinutes);
           setTriggeredReminders(prev => new Set(prev).add(reminderKey));
         }
       }
@@ -383,8 +440,8 @@ export default function TaskVerificationCountdownContent({
         return;
       }
 
-      // 最后10秒提醒
-      if (startCountdownLeft === 10) {
+      // 最后10秒提醒（使用范围匹配，避免错过）
+      if (startCountdownLeft >= 9 && startCountdownLeft <= 11) {
         const reminderKey = `verification-urgent-start-${taskId}`;
         if (!triggeredReminders.has(reminderKey)) {
           console.log(`🚨 紧急验证提醒（启动，还有10秒）: ${taskTitle}`);
@@ -415,8 +472,8 @@ export default function TaskVerificationCountdownContent({
         return;
       }
 
-      // 最后10秒提醒
-      if (taskCountdownLeft === 10) {
+      // 最后10秒提醒（使用范围匹配，避免错过）
+      if (taskCountdownLeft >= 9 && taskCountdownLeft <= 11) {
         const reminderKey = `verification-urgent-complete-${taskId}`;
         if (!triggeredReminders.has(reminderKey)) {
           console.log(`🚨 紧急验证提醒（完成，还有10秒）: ${taskTitle}`);
@@ -447,8 +504,8 @@ export default function TaskVerificationCountdownContent({
         return;
       }
 
-      // 倒计时到0时提醒
-      if (taskCountdownLeft === 0) {
+      // 倒计时到0时提醒（使用范围匹配，避免错过）
+      if (taskCountdownLeft >= 0 && taskCountdownLeft <= 2) {
         const reminderKey = `task-end-${taskId}`;
         if (!triggeredReminders.has(reminderKey)) {
           console.log(`⏰ 任务结束时提醒: ${taskTitle}`);
@@ -679,42 +736,43 @@ export default function TaskVerificationCountdownContent({
         // 触发通知
         notificationService.notifyVerificationSuccess(taskTitle, 'start');
         
-        // 进入任务倒计时
-        setTimeout(() => {
-          const newState = {
-            ...state,
-            status: 'task_countdown' as CountdownStatus,
-            taskDeadline: new Date(now.getTime() + taskSeconds * 1000).toISOString(),
-            actualStartTime: now.toISOString(),
-          };
-          setState(newState);
-          saveState(newState);
-          setIsUploading(false);
-          setPreviewImage(null);
-          setPreviewType(null);
-          clearLogs();
-          
-          if (onStart) {
-            const calculatedEndTime = new Date(now.getTime() + duration * 60000);
-            onStart(now, calculatedEndTime);
-          }
-        }, 2000);
+        // 🔧 立即进入任务倒计时（移除2秒延迟）
+        const newState = {
+          ...state,
+          status: 'task_countdown' as CountdownStatus,
+          taskDeadline: new Date(now.getTime() + taskSeconds * 1000).toISOString(),
+          actualStartTime: now.toISOString(),
+        };
+        setState(newState);
+        saveState(newState);
+        setIsUploading(false);
+        setPreviewImage(null);
+        setPreviewType(null);
+        clearLogs();
+        
+        if (onStart) {
+          const calculatedEndTime = new Date(now.getTime() + duration * 60000);
+          onStart(now, calculatedEndTime);
+        }
       } else {
         // 完成验证成功
         const scheduledEndTime = new Date(scheduledEnd);
         const isEarly = now < scheduledEndTime;
         
+        let bonusGold = 0;
         if (isEarly) {
-          const bonusGold = Math.floor(goldReward * 0.5);
+          bonusGold = Math.floor(goldReward * 0.5);
           addGold(bonusGold, `提前完成任务`, taskId, taskTitle);
           addLog(`💰 提前完成，获得${bonusGold}金币`);
           
-          // 显示庆祝特效
-          setCelebrationGold(bonusGold);
-          setShowCelebration(true);
-          
           // 触发金币获得通知
           notificationService.notifyGoldEarned(taskTitle, bonusGold);
+        }
+        
+        // 🔧 立即显示庆祝特效和播放音效（移除延迟）
+        if (bonusGold > 0) {
+          setCelebrationGold(bonusGold);
+          setShowCelebration(true);
         }
         
         // 扣除超时惩罚金
@@ -726,28 +784,23 @@ export default function TaskVerificationCountdownContent({
         // 触发通知
         notificationService.notifyVerificationSuccess(taskTitle, 'completion');
         
-        // 完成任务
-        setTimeout(() => {
-          const newState = {
-            ...state,
-            status: 'completed' as CountdownStatus,
-          };
-          setState(newState);
-          saveState(newState);
-          setIsUploading(false);
-          setPreviewImage(null);
-          setPreviewType(null);
-          clearLogs();
-          
-          // 关闭庆祝特效
-          setShowCelebration(false);
-          
-          if (onComplete) {
-            onComplete(now);
-          }
-          
-          localStorage.removeItem(storageKey);
-        }, 2000);
+        // 🔧 立即完成任务（移除2秒延迟）
+        const newState = {
+          ...state,
+          status: 'completed' as CountdownStatus,
+        };
+        setState(newState);
+        saveState(newState);
+        setIsUploading(false);
+        setPreviewImage(null);
+        setPreviewType(null);
+        clearLogs();
+        
+        if (onComplete) {
+          onComplete(now);
+        }
+        
+        localStorage.removeItem(storageKey);
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : '未知错误';
@@ -812,32 +865,12 @@ export default function TaskVerificationCountdownContent({
         addGold(bonusGold, `提前完成任务（奖励50%）`, taskId, taskTitle);
         console.log(`✅ 提前完成任务，获得${bonusGold}金币奖励`);
         
-        // 显示庆祝特效
+        // 🔧 立即显示庆祝特效和播放音效（移除延迟）
         setCelebrationGold(bonusGold);
         setShowCelebration(true);
         
         // 触发金币获得通知
         notificationService.notifyGoldEarned(taskTitle, bonusGold);
-        
-        // 🔧 2秒后完成任务（庆祝特效会自己消失）
-        setTimeout(() => {
-          const newState = {
-            ...state,
-            status: 'completed' as CountdownStatus,
-          };
-          setState(newState);
-          saveState(newState);
-          
-          if (onComplete) {
-            onComplete(now);
-            console.log(`📅 任务完成时间已更新: ${now.toLocaleString('zh-CN')}`);
-          }
-          
-          localStorage.removeItem(storageKey);
-          console.log(`✅ 完成任务: ${taskTitle}`);
-        }, 2000);
-        
-        return;
       }
       
       // 扣除超时惩罚金
@@ -846,7 +879,7 @@ export default function TaskVerificationCountdownContent({
         console.log(`⚠️ 累计扣除${totalPenalty}金币（${state.completeTimeoutCount}次超时）`);
       }
       
-      // 没有提前完成，直接完成任务（无庆祝特效）
+      // 🔧 没有提前完成，立即完成任务（无庆祝特效，无延迟）
       const newState = {
         ...state,
         status: 'completed' as CountdownStatus,
@@ -863,7 +896,6 @@ export default function TaskVerificationCountdownContent({
       // 清除持久化状态
       localStorage.removeItem(storageKey);
       console.log(`✅ 完成任务: ${taskTitle}`);
-      return;
     }
     
     // 有验证：拍摄/上传照片
