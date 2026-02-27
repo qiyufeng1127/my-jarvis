@@ -42,3 +42,5 @@ for i, line in enumerate(lines):
 else:
     print("❌ 未找到 setEfficiencyModalOpen(true)")
 
+
+

@@ -1381,20 +1381,29 @@ export default function NewTimelineView({
     
     // 🔧 验证开关判断：如果任务没有设置验证，直接完成
     if (task.status === 'in_progress' && (!verification || !verification.enabled)) {
+      // 计算实际完成时长
+      const actualStartTime = task.startTime ? new Date(task.startTime) : new Date(task.scheduledStart!);
+      const now = new Date();
+      const actualDuration = Math.floor((now.getTime() - actualStartTime.getTime()) / 60000);
+      
       const goldReward = task.goldReward || Math.floor((task.durationMinutes || 60) * 0.8);
       addGold(goldReward, `完成任务：${task.title}`, taskId, task.title);
       setCelebrationGold(goldReward);
       setShowCelebration(true);
       SoundEffects.playSuccessSound();
       SoundEffects.playCoinSound();
-      onTaskUpdate(taskId, { status: 'completed' });
       
-      // 记录标签使用时长
+      // 更新任务状态，记录实际结束时间
+      onTaskUpdate(taskId, { 
+        status: 'completed',
+        endTime: now.toISOString()
+      });
+      
+      // 记录标签使用时长 - 使用实际时长
       if (task.tags && task.tags.length > 0) {
-        const duration = task.durationMinutes || 60;
         task.tags.forEach(tagName => {
-          recordTagUsage(tagName, taskId, task.title, duration);
-          console.log(`📊 记录标签使用: ${tagName} - ${duration}分钟`);
+          recordTagUsage(tagName, taskId, task.title, actualDuration);
+          console.log(`📊 记录标签使用: ${tagName} - ${actualDuration}分钟（实际时长）`);
         });
       }
       return;
@@ -1500,6 +1509,11 @@ export default function NewTimelineView({
       });
     } else {
       // 无需验证，直接完成
+      // 计算实际完成时长
+      const actualStartTime = task.startTime ? new Date(task.startTime) : new Date(task.scheduledStart!);
+      const now = new Date();
+      const actualDuration = Math.floor((now.getTime() - actualStartTime.getTime()) / 60000);
+      
       const goldReward = task.goldReward || Math.floor((task.durationMinutes || 60) * 0.8);
       
       // 添加金币
@@ -1513,14 +1527,17 @@ export default function NewTimelineView({
       SoundEffects.playSuccessSound();
       SoundEffects.playCoinSound();
             
-      onTaskUpdate(taskId, { status: 'completed' });
+      // 更新任务状态，记录实际结束时间
+      onTaskUpdate(taskId, { 
+        status: 'completed',
+        endTime: now.toISOString()
+      });
       
-      // 记录标签使用时长
+      // 记录标签使用时长 - 使用实际时长
       if (task.tags && task.tags.length > 0) {
-        const duration = task.durationMinutes || 60;
         task.tags.forEach(tagName => {
-          recordTagUsage(tagName, taskId, task.title, duration);
-          console.log(`📊 记录标签使用: ${tagName} - ${duration}分钟`);
+          recordTagUsage(tagName, taskId, task.title, actualDuration);
+          console.log(`📊 记录标签使用: ${tagName} - ${actualDuration}分钟（实际时长）`);
         });
       }
     }
@@ -2305,6 +2322,12 @@ export default function NewTimelineView({
                        console.log(`  预设结束: ${new Date(block.endTime).toLocaleTimeString()}`);
                        console.log(`  实际结束: ${actualEndTime.toLocaleTimeString()}`);
                        
+                       // 🎯 更新任务的实际结束时间
+                       onTaskUpdate(block.id, {
+                         endTime: actualEndTime.toISOString(),
+                         status: 'completed'
+                       });
+                       
                        // 🎯 所有任务完成时都显示效率评估模态框
                        const verification = taskVerifications[block.id];
                        const plannedImageCount = verification?.plannedImageCount || 0;
@@ -2388,7 +2411,13 @@ export default function NewTimelineView({
                       
                       <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
                         <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-bold`} style={{ color: '#ff69b4' }}>
-                          *{block.duration} min
+                          *{(() => {
+                            // 计算实际时长：从实际开始时间到实际结束时间
+                            const startTime = new Date(block.startTime);
+                            const endTime = new Date(block.endTime);
+                            const actualDuration = Math.round((endTime.getTime() - startTime.getTime()) / 60000);
+                            return actualDuration;
+                          })()} min
                         </div>
                         
                         {/* 编辑按钮 */}
