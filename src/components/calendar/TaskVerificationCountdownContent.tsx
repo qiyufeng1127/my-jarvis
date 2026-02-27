@@ -736,7 +736,8 @@ export default function TaskVerificationCountdownContent({
         // 触发通知
         notificationService.notifyVerificationSuccess(taskTitle, 'start');
         
-        // 🔧 立即进入任务倒计时（移除2秒延迟）
+        // 进入任务倒计时
+        setTimeout(() => {
           const newState = {
             ...state,
             status: 'task_countdown' as CountdownStatus,
@@ -754,25 +755,23 @@ export default function TaskVerificationCountdownContent({
             const calculatedEndTime = new Date(now.getTime() + duration * 60000);
             onStart(now, calculatedEndTime);
           }
+        }, 2000);
       } else {
         // 完成验证成功
         const scheduledEndTime = new Date(scheduledEnd);
         const isEarly = now < scheduledEndTime;
         
-        let bonusGold = 0;
         if (isEarly) {
-          bonusGold = Math.floor(goldReward * 0.5);
+          const bonusGold = Math.floor(goldReward * 0.5);
           addGold(bonusGold, `提前完成任务`, taskId, taskTitle);
           addLog(`💰 提前完成，获得${bonusGold}金币`);
           
-          // 触发金币获得通知
-          notificationService.notifyGoldEarned(taskTitle, bonusGold);
-        }
-        
-        // 🔧 立即显示庆祝特效和播放音效（移除延迟）
-        if (bonusGold > 0) {
+          // 显示庆祝特效
           setCelebrationGold(bonusGold);
           setShowCelebration(true);
+          
+          // 触发金币获得通知
+          notificationService.notifyGoldEarned(taskTitle, bonusGold);
         }
         
         // 扣除超时惩罚金
@@ -784,7 +783,8 @@ export default function TaskVerificationCountdownContent({
         // 触发通知
         notificationService.notifyVerificationSuccess(taskTitle, 'completion');
         
-        // 🔧 立即完成任务（移除2秒延迟）
+        // 完成任务
+        setTimeout(() => {
           const newState = {
             ...state,
             status: 'completed' as CountdownStatus,
@@ -796,11 +796,15 @@ export default function TaskVerificationCountdownContent({
           setPreviewType(null);
           clearLogs();
           
+          // 关闭庆祝特效
+          setShowCelebration(false);
+          
           if (onComplete) {
             onComplete(now);
           }
           
           localStorage.removeItem(storageKey);
+        }, 2000);
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : '未知错误';
@@ -865,12 +869,32 @@ export default function TaskVerificationCountdownContent({
         addGold(bonusGold, `提前完成任务（奖励50%）`, taskId, taskTitle);
         console.log(`✅ 提前完成任务，获得${bonusGold}金币奖励`);
         
-        // 🔧 立即显示庆祝特效和播放音效（移除延迟）
+        // 显示庆祝特效
         setCelebrationGold(bonusGold);
         setShowCelebration(true);
         
         // 触发金币获得通知
         notificationService.notifyGoldEarned(taskTitle, bonusGold);
+        
+        // 🔧 2秒后完成任务（庆祝特效会自己消失）
+        setTimeout(() => {
+          const newState = {
+            ...state,
+            status: 'completed' as CountdownStatus,
+          };
+          setState(newState);
+          saveState(newState);
+          
+          if (onComplete) {
+            onComplete(now);
+            console.log(`📅 任务完成时间已更新: ${now.toLocaleString('zh-CN')}`);
+          }
+          
+          localStorage.removeItem(storageKey);
+          console.log(`✅ 完成任务: ${taskTitle}`);
+        }, 2000);
+        
+        return;
       }
       
       // 扣除超时惩罚金
@@ -879,7 +903,7 @@ export default function TaskVerificationCountdownContent({
         console.log(`⚠️ 累计扣除${totalPenalty}金币（${state.completeTimeoutCount}次超时）`);
       }
       
-      // 🔧 没有提前完成，立即完成任务（无庆祝特效，无延迟）
+      // 没有提前完成，直接完成任务（无庆祝特效）
       const newState = {
         ...state,
         status: 'completed' as CountdownStatus,
@@ -896,6 +920,7 @@ export default function TaskVerificationCountdownContent({
       // 清除持久化状态
       localStorage.removeItem(storageKey);
       console.log(`✅ 完成任务: ${taskTitle}`);
+      return;
     }
     
     // 有验证：拍摄/上传照片
