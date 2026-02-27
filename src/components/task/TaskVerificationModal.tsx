@@ -139,16 +139,10 @@ export default function TaskVerificationModal({
           debugInfo: result.debugInfo,
         });
 
+        // 🔧 修复：无论成功还是失败，都先显示结果界面，不立即关闭
         if (result.isValid) {
-          // 验证通过
-          console.log('✅ [验证界面] 验证通过');
-          onVerify({
-            success: true,
-            evidence: capturedImage,
-            reason: result.reason,
-          });
+          console.log('✅ [验证界面] 验证通过，显示成功界面');
         } else {
-          // 验证失败，显示详细信息
           console.log('❌ [验证界面] 验证失败');
           console.log('❌ [验证界面] 失败原因:', result.reason);
           console.log('❌ [验证界面] 调试信息:', result.debugInfo);
@@ -345,6 +339,20 @@ export default function TaskVerificationModal({
                       </pre>
                     </details>
                   )}
+
+                  {/* 🔧 新增：确认按钮 */}
+                  <button
+                    onClick={() => {
+                      onVerify({
+                        success: true,
+                        evidence: capturedImage || undefined,
+                        reason: verificationResult.reason,
+                      });
+                    }}
+                    className="w-full mt-4 py-3 px-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg font-semibold hover:from-green-600 hover:to-emerald-700 transition-colors shadow-lg"
+                  >
+                    ✅ 确认完成
+                  </button>
                 </div>
               ) : (
                 <div className="p-6 bg-red-50 rounded-lg border border-red-200">
