@@ -106,6 +106,11 @@ self.addEventListener('message', (event) => {
       text: event.data.text
     });
   }
+  
+  if (event.data && event.data.type === 'START_BACKGROUND_CHECK') {
+    console.log('🚀 启动后台任务检查');
+    startPeriodicCheck();
+  }
 });
 
 // 定期同步（后台同步）
@@ -117,13 +122,47 @@ self.addEventListener('sync', (event) => {
   }
 });
 
+// 定期检查任务（每30秒）
+let checkInterval = null;
+
+function startPeriodicCheck() {
+  if (checkInterval) {
+    clearInterval(checkInterval);
+  }
+  
+  // 立即执行一次
+  checkTasksAndNotify();
+  
+  // 每30秒检查一次
+  checkInterval = setInterval(() => {
+    checkTasksAndNotify();
+  }, 30000);
+  
+  console.log('⏰ Service Worker 定期检查已启动（每30秒）');
+}
+
 // 检查任务并发送通知
 async function checkTasksAndNotify() {
   try {
-    // 从 IndexedDB 或 localStorage 读取任务数据
-    // 这里需要实现具体的逻辑
-    console.log('✅ 后台任务检查完成');
+    console.log('🔍 [Service Worker] 检查任务状态...');
+    
+    // 通知所有客户端执行检查
+    const clients = await self.clients.matchAll({ includeUncontrolled: true, type: 'window' });
+    
+    if (clients.length === 0) {
+      console.log('⚠️ [Service Worker] 没有活跃的客户端，跳过检查');
+      return;
+    }
+    
+    // 向所有客户端发送检查请求
+    clients.forEach(client => {
+      client.postMessage({
+        type: 'CHECK_TASKS_REQUEST'
+      });
+    });
+    
+    console.log('✅ [Service Worker] 已通知客户端检查任务');
   } catch (error) {
-    console.error('❌ 后台任务检查失败:', error);
+    console.error('❌ [Service Worker] 后台任务检查失败:', error);
   }
 }

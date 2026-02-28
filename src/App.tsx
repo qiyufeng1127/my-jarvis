@@ -76,6 +76,11 @@ function App() {
       await backgroundNotificationService.initialize();
       console.log('🔔 后台通知服务已启动');
       
+      // 🚀 启动后台任务调度服务（真正的后台运行）
+      const { backgroundTaskScheduler } = await import('@/services/backgroundTaskScheduler');
+      await backgroundTaskScheduler.init();
+      console.log('🚀 后台任务调度服务已启动');
+      
       // 🎯 启动活动监控服务（替代每日成本检查）
       const { activityMonitorService } = await import('@/services/activityMonitorService');
       activityMonitorService.start();

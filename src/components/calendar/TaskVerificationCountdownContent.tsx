@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useGoldStore } from '@/stores/goldStore';
 import { ImageUploader } from '@/services/taskVerificationService';
 import { notificationService } from '@/services/notificationService';
+import { backgroundTaskScheduler } from '@/services/backgroundTaskScheduler';
 import VerificationFeedback, { VerificationLog } from '@/components/shared/VerificationFeedback';
 import TaskCompletionCelebration from '@/components/shared/TaskCompletionCelebration';
 import { fixImageOrientation } from '@/utils/imageOrientation';
@@ -83,9 +84,23 @@ export default function TaskVerificationCountdownContent({
   
   // 初始化状态
   const initState = useCallback((): CountdownState => {
+    // 🔧 优先从后台任务调度服务加载状态
+    const backendState = backgroundTaskScheduler.getTaskStatus(taskId);
+    if (backendState) {
+      console.log(`📦 从后台调度服务加载状态: ${taskTitle}`, backendState);
+      return {
+        status: backendState.status,
+        startDeadline: backendState.startDeadline,
+        taskDeadline: backendState.taskDeadline,
+        startTimeoutCount: backendState.startTimeoutCount,
+        completeTimeoutCount: backendState.completeTimeoutCount,
+        actualStartTime: backendState.actualStartTime,
+      };
+    }
+    
+    // 降级：从 localStorage 加载
     const saved = loadState();
     if (saved) {
-      // 直接返回保存的状态，不需要计算经过时间
       return saved;
     }
     
@@ -98,7 +113,7 @@ export default function TaskVerificationCountdownContent({
       completeTimeoutCount: 0,
       actualStartTime: null,
     };
-  }, [loadState]);
+  }, [loadState, taskId, taskTitle]);
   
   // 核心状态
   const [state, setState] = useState<CountdownState>(initState);
@@ -143,6 +158,26 @@ export default function TaskVerificationCountdownContent({
     ? Math.max(0, Math.floor((new Date(state.taskDeadline).getTime() - currentTime) / 1000))
     : 0;
 
+  // 🔧 注册任务到后台调度服务
+  useEffect(() => {
+    console.log(`📋 [组件] 注册任务到后台调度服务: ${taskTitle}`);
+    backgroundTaskScheduler.scheduleTask({
+      taskId,
+      taskTitle,
+      scheduledStart: scheduledStart.toISOString(),
+      scheduledEnd: scheduledEnd.toISOString(),
+      goldReward,
+      hasVerification,
+      startKeywords,
+      completeKeywords,
+    });
+
+    return () => {
+      // 组件卸载时不取消调度，让后台继续运行
+      console.log(`🧹 [组件] 任务组件卸载，但保持后台调度: ${taskTitle}`);
+    };
+  }, [taskId, taskTitle, scheduledStart, scheduledEnd, goldReward, hasVerification, startKeywords, completeKeywords]);
+
   // 🔧 监听任务时间变化，清除过期的提醒记录
   useEffect(() => {
     // 当任务的开始或结束时间发生变化时，清空已触发的提醒记录
@@ -150,16 +185,31 @@ export default function TaskVerificationCountdownContent({
     console.log(`🔄 任务时间已更新，清空提醒记录: ${taskTitle}`);
   }, [scheduledStart, scheduledEnd, taskTitle]);
 
-  // 🔧 组件卸载时清理（任务被删除或完成）
-  useEffect(() => {
-    return () => {
-      console.log(`🧹 任务组件卸载，清理提醒记录: ${taskTitle}`);
-      setTriggeredReminders(new Set());
-    };
-  }, [taskTitle]);
-
   // 检查是否到达预设开始时间，自动触发启动倒计时
   useEffect(() => {
+    // 🔧 从后台调度服务同步状态
+    const backendState = backgroundTaskScheduler.getTaskStatus(taskId);
+    if (backendState && backendState.status !== state.status) {
+      console.log(`🔄 [组件] 从后台同步状态: ${taskTitle}`, backendState);
+      setState({
+        status: backendState.status,
+        startDeadline: backendState.startDeadline,
+        taskDeadline: backendState.taskDeadline,
+        startTimeoutCount: backendState.startTimeoutCount,
+        completeTimeoutCount: backendState.completeTimeoutCount,
+        actualStartTime: backendState.actualStartTime,
+      });
+      saveState({
+        status: backendState.status,
+        startDeadline: backendState.startDeadline,
+        taskDeadline: backendState.taskDeadline,
+        startTimeoutCount: backendState.startTimeoutCount,
+        completeTimeoutCount: backendState.completeTimeoutCount,
+        actualStartTime: backendState.actualStartTime,
+      });
+      return;
+    }
+
     const now = new Date();
     const start = new Date(scheduledStart);
     
@@ -178,8 +228,13 @@ export default function TaskVerificationCountdownContent({
       };
       setState(newState);
       saveState(newState);
+      
+      // 🔧 同步到后台调度服务
+      backgroundTaskScheduler.updateTaskStatus(taskId, 'start_countdown', {
+        startDeadline: deadline.toISOString(),
+      });
     }
-  }, [scheduledStart, state.status, taskTitle, state, saveState, hasVerification]);
+  }, [scheduledStart, state.status, taskTitle, state, saveState, hasVerification, taskId]);
   
   // 每秒更新当前时间，用于实时计算剩余时间（使用requestAnimationFrame确保后台运行）
   useEffect(() => {
@@ -239,6 +294,12 @@ export default function TaskVerificationCountdownContent({
       };
       setState(newState);
       saveState(newState);
+      
+      // 🔧 同步到后台调度服务
+      backgroundTaskScheduler.updateTaskStatus(taskId, 'start_countdown', {
+        startDeadline: newDeadline.toISOString(),
+        startTimeoutCount: newState.startTimeoutCount,
+      });
     }
     
     // 任务倒计时超时
@@ -264,6 +325,12 @@ export default function TaskVerificationCountdownContent({
       };
       setState(newState);
       saveState(newState);
+      
+      // 🔧 同步到后台调度服务
+      backgroundTaskScheduler.updateTaskStatus(taskId, 'task_countdown', {
+        taskDeadline: newDeadline.toISOString(),
+        completeTimeoutCount: newState.completeTimeoutCount,
+      });
     }
   }, [state, startCountdownLeft, taskCountdownLeft, goldReward, penaltyGold, taskId, taskTitle, saveState]);
   
@@ -552,6 +619,12 @@ export default function TaskVerificationCountdownContent({
       setState(newState);
       saveState(newState);
       
+      // 🔧 同步到后台调度服务
+      backgroundTaskScheduler.updateTaskStatus(taskId, 'task_countdown', {
+        taskDeadline: newState.taskDeadline,
+        actualStartTime: newState.actualStartTime,
+      });
+      
       // 通知父组件更新开始时间和结束时间（从当前时间开始计算）
       if (onStart) {
         const calculatedEndTime = new Date(now.getTime() + duration * 60000);
@@ -751,6 +824,12 @@ export default function TaskVerificationCountdownContent({
           setPreviewType(null);
           clearLogs();
           
+          // 🔧 同步到后台调度服务
+          backgroundTaskScheduler.updateTaskStatus(taskId, 'task_countdown', {
+            taskDeadline: newState.taskDeadline,
+            actualStartTime: newState.actualStartTime,
+          });
+          
           if (onStart) {
             const calculatedEndTime = new Date(now.getTime() + duration * 60000);
             onStart(now, calculatedEndTime);
@@ -798,6 +877,10 @@ export default function TaskVerificationCountdownContent({
           
           // 关闭庆祝特效
           setShowCelebration(false);
+          
+          // 🔧 同步到后台调度服务并取消调度
+          backgroundTaskScheduler.updateTaskStatus(taskId, 'completed');
+          backgroundTaskScheduler.unscheduleTask(taskId);
           
           if (onComplete) {
             onComplete(now);
@@ -885,6 +968,10 @@ export default function TaskVerificationCountdownContent({
           setState(newState);
           saveState(newState);
           
+          // 🔧 同步到后台调度服务并取消调度
+          backgroundTaskScheduler.updateTaskStatus(taskId, 'completed');
+          backgroundTaskScheduler.unscheduleTask(taskId);
+          
           if (onComplete) {
             onComplete(now);
             console.log(`📅 任务完成时间已更新: ${now.toLocaleString('zh-CN')}`);
@@ -910,6 +997,10 @@ export default function TaskVerificationCountdownContent({
       };
       setState(newState);
       saveState(newState);
+      
+      // 🔧 同步到后台调度服务并取消调度
+      backgroundTaskScheduler.updateTaskStatus(taskId, 'completed');
+      backgroundTaskScheduler.unscheduleTask(taskId);
       
       // 🎯 通知父组件更新结束时间（使用当前时间，实现动态完成）
       if (onComplete) {

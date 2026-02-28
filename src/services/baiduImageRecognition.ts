@@ -698,7 +698,7 @@ class BaiduImageRecognitionService {
       const isSemanticMatch = (required: string, recognized: string): { matched: boolean; reason: string } => {
         const reqLower = required.toLowerCase().trim();
         const recLower = recognized.toLowerCase().trim();
-        
+          
         // 1. 直接包含（最基础）
         if (recLower.includes(reqLower) || reqLower.includes(recLower)) {
           return { matched: true, reason: '直接包含匹配' };
@@ -710,8 +710,8 @@ class BaiduImageRecognitionService {
           if (recLower.includes(twoChars)) {
             return { matched: true, reason: `字符匹配: 包含"${twoChars}"` };
           }
-        }
-        
+          }
+          
         // 🆕 3. 单字符匹配：如果关键词很短（1-2个字），单字符匹配也算
         if (reqLower.length <= 2) {
           for (const char of reqLower) {
@@ -778,7 +778,7 @@ class BaiduImageRecognitionService {
           // 厨房相关
           if (/厨|灶|锅|碗|盘|筷|勺|刀|菜|饭|食|餐|炒|煮|烹|冰箱|橱柜|台面|厨具|餐具/.test(text)) {
             concepts.push('厨房');
-          }
+              }
           
           // 卧室相关
           if (/床|被|枕|卧|睡|眠|休息|房间|寝室/.test(text)) {
@@ -810,7 +810,7 @@ class BaiduImageRecognitionService {
         
         const reqConcepts = getConcept(reqLower);
         const recConcepts = getConcept(recLower);
-        
+          
         // 如果有共同的概念，认为相关
         for (const reqConcept of reqConcepts) {
           if (recConcepts.includes(reqConcept)) {
@@ -820,7 +820,7 @@ class BaiduImageRecognitionService {
         
         // 7. 使用同义词库作为兜底（但不强制依赖）
         const syns = synonyms[required] || synonyms[reqLower] || [];
-        for (const syn of syns) {
+            for (const syn of syns) {
           const synLower = syn.toLowerCase();
           if (recLower.includes(synLower) || synLower.includes(recLower)) {
             return { matched: true, reason: `同义词匹配: "${syn}"` };
