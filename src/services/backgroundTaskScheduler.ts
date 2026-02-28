@@ -250,33 +250,33 @@ class BackgroundTaskScheduler {
     // 1. 检查任务开始前提醒
     this.checkTaskStartBeforeReminder(schedule, task, now, scheduledStart);
 
-    // 2. 检查是否到达任务开始时间
+    // 2. 检查是否到达任务开始时间（只发送通知，不修改状态）
     if (schedule.status === 'waiting_start' && now >= scheduledStart) {
-      console.log(`⏰ [后台任务调度] 任务到达开始时间: ${task.taskTitle}`);
-      
-      // 触发任务开始通知
-      notificationService.notifyTaskStart(task.taskTitle, task.hasVerification);
-      
-      // 进入启动倒计时状态（2分钟）
-      schedule.status = 'start_countdown';
-      schedule.startDeadline = new Date(now.getTime() + 2 * 60 * 1000).toISOString();
-      
-      console.log(`⏱️ [后台任务调度] 启动倒计时开始: ${task.taskTitle}`);
+      const reminderKey = `task-start-${schedule.taskId}`;
+      if (!schedule.remindersTriggered.includes(reminderKey)) {
+        console.log(`⏰ [后台任务调度] 任务到达开始时间: ${task.taskTitle}`);
+        
+        // 触发任务开始通知
+        notificationService.notifyTaskStart(task.taskTitle, task.hasVerification);
+        
+        schedule.remindersTriggered.push(reminderKey);
+      }
     }
 
-    // 3. 检查启动倒计时超时
+    // 3. 检查启动倒计时超时（只发送通知，不修改状态）
     if (schedule.status === 'start_countdown' && schedule.startDeadline) {
       const deadline = new Date(schedule.startDeadline);
       if (now >= deadline) {
-        console.log(`⚠️ [后台任务调度] 启动超时: ${task.taskTitle}`);
-        
-        // 触发超时通知
-        notificationService.notifyOvertime(task.taskTitle, 'start');
-        notificationService.notifyProcrastination(task.taskTitle, schedule.startTimeoutCount + 1);
-        
-        // 重置倒计时（再给2分钟）
-        schedule.startTimeoutCount++;
-        schedule.startDeadline = new Date(now.getTime() + 2 * 60 * 1000).toISOString();
+        const reminderKey = `start-timeout-${schedule.taskId}-${schedule.startTimeoutCount}`;
+        if (!schedule.remindersTriggered.includes(reminderKey)) {
+          console.log(`⚠️ [后台任务调度] 启动超时: ${task.taskTitle}`);
+          
+          // 触发超时通知
+          notificationService.notifyOvertime(task.taskTitle, 'start');
+          notificationService.notifyProcrastination(task.taskTitle, schedule.startTimeoutCount + 1);
+          
+          schedule.remindersTriggered.push(reminderKey);
+        }
       }
     }
 
@@ -290,19 +290,20 @@ class BackgroundTaskScheduler {
       this.checkTaskEndingReminder(schedule, task, now);
     }
 
-    // 6. 检查任务倒计时超时
+    // 6. 检查任务倒计时超时（只发送通知，不修改状态）
     if (schedule.status === 'task_countdown' && schedule.taskDeadline) {
       const deadline = new Date(schedule.taskDeadline);
       if (now >= deadline) {
-        console.log(`⚠️ [后台任务调度] 完成超时: ${task.taskTitle}`);
-        
-        // 触发超时通知
-        notificationService.notifyOvertime(task.taskTitle, 'completion');
-        notificationService.notifyProcrastination(task.taskTitle, schedule.completeTimeoutCount + 1);
-        
-        // 重置倒计时（再给10分钟）
-        schedule.completeTimeoutCount++;
-        schedule.taskDeadline = new Date(now.getTime() + 10 * 60 * 1000).toISOString();
+        const reminderKey = `complete-timeout-${schedule.taskId}-${schedule.completeTimeoutCount}`;
+        if (!schedule.remindersTriggered.includes(reminderKey)) {
+          console.log(`⚠️ [后台任务调度] 完成超时: ${task.taskTitle}`);
+          
+          // 触发超时通知
+          notificationService.notifyOvertime(task.taskTitle, 'completion');
+          notificationService.notifyProcrastination(task.taskTitle, schedule.completeTimeoutCount + 1);
+          
+          schedule.remindersTriggered.push(reminderKey);
+        }
       }
     }
   }

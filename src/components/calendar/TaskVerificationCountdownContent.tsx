@@ -84,23 +84,10 @@ export default function TaskVerificationCountdownContent({
   
   // 初始化状态
   const initState = useCallback((): CountdownState => {
-    // 🔧 优先从后台任务调度服务加载状态
-    const backendState = backgroundTaskScheduler.getTaskStatus(taskId);
-    if (backendState) {
-      console.log(`📦 从后台调度服务加载状态: ${taskTitle}`, backendState);
-      return {
-        status: backendState.status,
-        startDeadline: backendState.startDeadline,
-        taskDeadline: backendState.taskDeadline,
-        startTimeoutCount: backendState.startTimeoutCount,
-        completeTimeoutCount: backendState.completeTimeoutCount,
-        actualStartTime: backendState.actualStartTime,
-      };
-    }
-    
-    // 降级：从 localStorage 加载
+    // 从 localStorage 加载
     const saved = loadState();
     if (saved) {
+      console.log(`📦 从 localStorage 加载状态: ${taskTitle}`, saved);
       return saved;
     }
     
@@ -113,7 +100,7 @@ export default function TaskVerificationCountdownContent({
       completeTimeoutCount: 0,
       actualStartTime: null,
     };
-  }, [loadState, taskId, taskTitle]);
+  }, [loadState, taskTitle]);
   
   // 核心状态
   const [state, setState] = useState<CountdownState>(initState);
@@ -185,27 +172,30 @@ export default function TaskVerificationCountdownContent({
     console.log(`🔄 任务时间已更新，清空提醒记录: ${taskTitle}`);
   }, [scheduledStart, scheduledEnd, taskTitle]);
 
-  // 🔧 从后台调度服务同步状态（每秒检查一次）
+  // 检查是否到达预设开始时间，自动触发启动倒计时
   useEffect(() => {
-    const syncInterval = setInterval(() => {
-      const backendState = backgroundTaskScheduler.getTaskStatus(taskId);
-      if (backendState && backendState.status !== state.status) {
-        console.log(`🔄 [组件] 从后台同步状态: ${taskTitle}`, backendState);
-        const newState = {
-          status: backendState.status,
-          startDeadline: backendState.startDeadline,
-          taskDeadline: backendState.taskDeadline,
-          startTimeoutCount: backendState.startTimeoutCount,
-          completeTimeoutCount: backendState.completeTimeoutCount,
-          actualStartTime: backendState.actualStartTime,
-        };
-        setState(newState);
-        saveState(newState);
-      }
-    }, 1000);
-
-    return () => clearInterval(syncInterval);
-  }, [taskId, taskTitle, state.status, saveState]);
+    const now = new Date();
+    const start = new Date(scheduledStart);
+    
+    // 如果当前时间 >= 预设开始时间，且状态为等待启动，则触发启动倒计时
+    if (now >= start && state.status === 'waiting_start') {
+      console.log(`⏰ 任务到达预设时间，触发启动倒计时: ${taskTitle}`);
+      
+      const deadline = new Date(now.getTime() + 2 * 60 * 1000); // 2分钟后
+      const newState = {
+        ...state,
+        status: 'start_countdown' as CountdownStatus,
+        startDeadline: deadline.toISOString(),
+      };
+      setState(newState);
+      saveState(newState);
+      
+      // 🔧 同步到后台调度服务
+      backgroundTaskScheduler.updateTaskStatus(taskId, 'start_countdown', {
+        startDeadline: deadline.toISOString(),
+      });
+    }
+  }, [scheduledStart, state.status, taskTitle, state, saveState, taskId]);
   
   // 每秒更新当前时间，用于实时计算剩余时间（使用requestAnimationFrame确保后台运行）
   useEffect(() => {
