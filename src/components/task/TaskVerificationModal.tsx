@@ -98,7 +98,7 @@ export default function TaskVerificationModal({
     if (!file) return;
 
     console.log('📸 开始读取图片文件:', file.name, file.size, 'bytes');
-    
+
     const reader = new FileReader();
     
     reader.onload = (e) => {
@@ -143,7 +143,7 @@ export default function TaskVerificationModal({
           isValid: false,
           reason: '❌ 未配置百度API\n\n请在设置中填入百度API Key和Secret Key',
           debugInfo: '错误原因：未配置百度API密钥\n\n解决方法：\n1. 访问 https://ai.baidu.com/\n2. 注册/登录账号\n3. 创建应用并获取API Key和Secret Key\n4. 在系统设置中填入密钥',
-        });
+      });
         return;
       }
       
@@ -152,31 +152,31 @@ export default function TaskVerificationModal({
       addLog(`📦 图片大小: ${Math.round(capturedImage.length / 1024)}KB`);
       
       addLog('🌐 正在调用百度图像识别API...');
-      const result = await baiduImageService.verifyTaskImage(
+        const result = await baiduImageService.verifyTaskImage(
         capturedImage,
-        taskTitle,
-        requirement,
-        baiduApiKey,
-        baiduSecretKey
-      );
+          taskTitle,
+          requirement,
+          baiduApiKey,
+          baiduSecretKey
+        );
 
-      if (result.isValid) {
+        if (result.isValid) {
         addLog('✅ 验证成功！');
         addLog(`🎯 匹配到: ${result.matchedObjects?.join('、') || '无'}`);
-      } else {
+        } else {
         addLog('❌ 验证失败');
         addLog(`📝 识别到: ${result.recognizedObjects?.join('、') || '无'}`);
       }
 
-      setVerificationResult({
-        success: result.success,
-        isValid: result.isValid,
-        reason: result.reason,
-        matchedObjects: result.matchedObjects,
-        recognizedObjects: result.recognizedObjects,
-        suggestions: result.suggestions,
-        debugInfo: result.debugInfo,
-      });
+          setVerificationResult({
+            success: result.success,
+            isValid: result.isValid,
+            reason: result.reason,
+            matchedObjects: result.matchedObjects,
+            recognizedObjects: result.recognizedObjects,
+            suggestions: result.suggestions,
+            debugInfo: result.debugInfo,
+          });
 
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : '未知错误';

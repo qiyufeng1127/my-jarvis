@@ -220,20 +220,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // 4. 如果需要关键词匹配，则进行匹配
     if (needsKeywordMatch) {
-      console.log('🔍 [Serverless] 步骤3: 匹配关键词');
-      const matchResult = matchKeywords(recognizedObjects, keywords);
+    console.log('🔍 [Serverless] 步骤3: 匹配关键词');
+    const matchResult = matchKeywords(recognizedObjects, keywords);
 
       // 5. 返回匹配结果
       console.log('📤 [Serverless] 返回匹配结果');
-      return res.status(200).json({
-        success: matchResult.matched,
-        message: matchResult.matched 
-          ? `验证成功！识别到：${matchResult.matchedKeywords.join('、')}` 
-          : `验证失败，未识别到：${keywords.join('、')}`,
-        matchedKeywords: matchResult.matchedKeywords,
-        recognizedObjects: matchResult.recognizedObjects,
-        rawData: recognitionResult,
-      });
+    return res.status(200).json({
+      success: matchResult.matched,
+      message: matchResult.matched 
+        ? `验证成功！识别到：${matchResult.matchedKeywords.join('、')}` 
+        : `验证失败，未识别到：${keywords.join('、')}`,
+      matchedKeywords: matchResult.matchedKeywords,
+      recognizedObjects: matchResult.recognizedObjects,
+      rawData: recognitionResult,
+    });
     } else {
       // 5. 只返回识别结果（照片识别测试功能）
       console.log('📤 [Serverless] 返回识别结果（无关键词匹配）');

@@ -41,6 +41,16 @@ self.addEventListener('activate', (event) => {
 
 // 拦截请求
 self.addEventListener('fetch', (event) => {
+  // 不拦截 API 请求，让它们直接通过
+  if (event.request.url.includes('/api/')) {
+    return;
+  }
+  
+  // 不拦截 POST/PUT/DELETE 等非 GET 请求
+  if (event.request.method !== 'GET') {
+    return;
+  }
+  
   event.respondWith(
     fetch(event.request)
       .then((response) => {
