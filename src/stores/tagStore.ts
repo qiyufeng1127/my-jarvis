@@ -335,6 +335,21 @@ export const useTagStore = create<TagState>()(
         
         if (!oldTag) return;
         
+        // 如果只是更新emoji或color，不需要删除重建
+        if (oldName === newName) {
+          set({
+            tags: {
+              ...tags,
+              [oldName]: {
+                ...oldTag,
+                emoji: emoji !== undefined ? emoji : oldTag.emoji,
+                color: color !== undefined ? color : oldTag.color,
+              },
+            },
+          });
+          return;
+        }
+        
         // 删除旧标签
         const { [oldName]: removed, ...restTags } = tags;
         
@@ -345,8 +360,8 @@ export const useTagStore = create<TagState>()(
             [newName]: {
               ...oldTag,
               name: newName,
-              emoji: emoji || oldTag.emoji,
-              color: color || oldTag.color,
+              emoji: emoji !== undefined ? emoji : oldTag.emoji,
+              color: color !== undefined ? color : oldTag.color,
             },
           },
         });

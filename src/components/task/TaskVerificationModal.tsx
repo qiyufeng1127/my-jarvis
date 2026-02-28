@@ -91,13 +91,27 @@ export default function TaskVerificationModal({
   // 拍照
   const handleCapture = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+    
+    // 清空 input 的 value，确保下次选择同一文件也能触发 onChange
+    event.target.value = '';
+    
     if (!file) return;
 
+    console.log('📸 开始读取图片文件:', file.name, file.size, 'bytes');
+    
     const reader = new FileReader();
+    
     reader.onload = (e) => {
       const imageBase64 = e.target?.result as string;
+      console.log('✅ 图片读取成功，大小:', imageBase64.length, 'chars');
       setCapturedImage(imageBase64);
     };
+    
+    reader.onerror = (error) => {
+      console.error('❌ 图片读取失败:', error);
+      alert('图片读取失败，请重试');
+    };
+    
     reader.readAsDataURL(file);
   };
 
