@@ -191,13 +191,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    if (!keywords || !Array.isArray(keywords) || keywords.length === 0) {
-      console.error('❌ [Serverless] 缺少关键词');
-      return res.status(400).json({ 
-        success: false, 
-        message: '缺少关键词' 
-      });
-    }
+    // keywords 参数可选（照片识别测试功能不需要关键词）
+    const needsKeywordMatch = keywords && Array.isArray(keywords) && keywords.length > 0;
 
     if (!apiKey || !secretKey) {
       console.error('❌ [Serverless] 缺少API密钥配置');
@@ -223,21 +218,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const recognizedObjects = recognitionResult.result?.map((item: any) => item.keyword) || [];
     console.log('📝 [Serverless] 识别到的物体:', recognizedObjects);
 
-    // 4. 匹配关键词
-    console.log('🔍 [Serverless] 步骤3: 匹配关键词');
-    const matchResult = matchKeywords(recognizedObjects, keywords);
+    // 4. 如果需要关键词匹配，则进行匹配
+    if (needsKeywordMatch) {
+      console.log('🔍 [Serverless] 步骤3: 匹配关键词');
+      const matchResult = matchKeywords(recognizedObjects, keywords);
 
-    // 5. 返回结果
-    console.log('📤 [Serverless] 返回识别结果');
-    return res.status(200).json({
-      success: matchResult.matched,
-      message: matchResult.matched 
-        ? `验证成功！识别到：${matchResult.matchedKeywords.join('、')}` 
-        : `验证失败，未识别到：${keywords.join('、')}`,
-      matchedKeywords: matchResult.matchedKeywords,
-      recognizedObjects: matchResult.recognizedObjects,
-      rawData: recognitionResult,
-    });
+      // 5. 返回匹配结果
+      console.log('📤 [Serverless] 返回匹配结果');
+      return res.status(200).json({
+        success: matchResult.matched,
+        message: matchResult.matched 
+          ? `验证成功！识别到：${matchResult.matchedKeywords.join('、')}` 
+          : `验证失败，未识别到：${keywords.join('、')}`,
+        matchedKeywords: matchResult.matchedKeywords,
+        recognizedObjects: matchResult.recognizedObjects,
+        rawData: recognitionResult,
+      });
+    } else {
+      // 5. 只返回识别结果（照片识别测试功能）
+      console.log('📤 [Serverless] 返回识别结果（无关键词匹配）');
+      return res.status(200).json({
+        success: true,
+        data: recognitionResult,
+        message: '识别成功',
+      });
+    }
 
   } catch (error) {
     console.error('❌ [Serverless] 处理请求失败:', error);
