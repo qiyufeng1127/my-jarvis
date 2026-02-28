@@ -172,7 +172,7 @@ export default function TaskVerificationCountdownContent({
     console.log(`🔄 任务时间已更新，清空提醒记录: ${taskTitle}`);
   }, [scheduledStart, scheduledEnd, taskTitle]);
 
-  // 检查是否到达预设开始时间，自动触发启动倒计时
+  // 检查是否到达预设开始时间，自动触发启动倒计时（支持后台计算拖延）
   useEffect(() => {
     const now = new Date();
     const start = new Date(scheduledStart);
@@ -181,11 +181,34 @@ export default function TaskVerificationCountdownContent({
     if (now >= start && state.status === 'waiting_start') {
       console.log(`⏰ 任务到达预设时间，触发启动倒计时: ${taskTitle}`);
       
-      const deadline = new Date(now.getTime() + 2 * 60 * 1000); // 2分钟后
+      // 🔧 计算已经拖延了多少次（每2分钟算一次拖延）
+      const delayMs = now.getTime() - start.getTime();
+      const delayMinutes = Math.floor(delayMs / 60000);
+      const missedTimeouts = Math.floor(delayMinutes / 2); // 每2分钟一次超时
+      
+      if (missedTimeouts > 0) {
+        console.log(`⚠️ 检测到后台拖延：已错过 ${missedTimeouts} 次启动机会（延迟${delayMinutes}分钟）`);
+        
+        // 扣除所有错过的金币
+        const penaltyPerTimeout = Math.floor(goldReward * 0.2);
+        const totalPenalty = penaltyPerTimeout * missedTimeouts;
+        penaltyGold(totalPenalty, `启动拖延（后台累计${missedTimeouts}次）`, taskId, taskTitle);
+        
+        // 触发拖延通知
+        notificationService.notifyProcrastination(taskTitle, missedTimeouts);
+        notificationService.notifyGoldDeducted(`${taskTitle} 启动拖延`, totalPenalty);
+      }
+      
+      // 计算当前倒计时周期的剩余时间
+      const currentCycleElapsed = delayMinutes % 2; // 当前2分钟周期已过去的时间
+      const remainingSeconds = (2 - currentCycleElapsed) * 60;
+      const deadline = new Date(now.getTime() + remainingSeconds * 1000);
+      
       const newState = {
         ...state,
         status: 'start_countdown' as CountdownStatus,
         startDeadline: deadline.toISOString(),
+        startTimeoutCount: missedTimeouts, // 记录已拖延次数
       };
       setState(newState);
       saveState(newState);
@@ -193,9 +216,12 @@ export default function TaskVerificationCountdownContent({
       // 🔧 同步到后台调度服务
       backgroundTaskScheduler.updateTaskStatus(taskId, 'start_countdown', {
         startDeadline: deadline.toISOString(),
+        startTimeoutCount: missedTimeouts,
       });
+      
+      console.log(`📊 启动倒计时状态：已拖延${missedTimeouts}次，当前周期剩余${remainingSeconds}秒`);
     }
-  }, [scheduledStart, state.status, taskTitle, state, saveState, taskId]);
+  }, [scheduledStart, state.status, taskTitle, state, saveState, taskId, goldReward, penaltyGold]);
   
   // 每秒更新当前时间，用于实时计算剩余时间（使用requestAnimationFrame确保后台运行）
   useEffect(() => {
