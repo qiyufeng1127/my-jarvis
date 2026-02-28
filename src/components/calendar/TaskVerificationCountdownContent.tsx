@@ -194,9 +194,17 @@ export default function TaskVerificationCountdownContent({
         const totalPenalty = penaltyPerTimeout * missedTimeouts;
         penaltyGold(totalPenalty, `启动拖延（后台累计${missedTimeouts}次）`, taskId, taskTitle);
         
-        // 触发拖延通知
+        // 触发拖延通知和语音播报
         notificationService.notifyProcrastination(taskTitle, missedTimeouts);
         notificationService.notifyGoldDeducted(`${taskTitle} 启动拖延`, totalPenalty);
+        
+        // 🔧 额外的语音播报（确保用户听到）
+        setTimeout(() => {
+          notificationService.speak(`警告！${taskTitle}已拖延${missedTimeouts}次，扣除${totalPenalty}金币`);
+        }, 500);
+      } else {
+        // 没有拖延，播报任务开始
+        notificationService.speak(`${taskTitle}已到达开始时间，请尽快启动任务`);
       }
       
       // 计算当前倒计时周期的剩余时间
