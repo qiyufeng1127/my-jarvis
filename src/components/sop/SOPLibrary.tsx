@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
-import { Plus, Folder, ChevronRight, ChevronDown, Edit2, Trash2, GripVertical, Search, X } from 'lucide-react';
+import { Plus, Folder, ChevronRight, ChevronDown, Edit2, Trash2, GripVertical, Search, X, Camera } from 'lucide-react';
 import { useSOPStore } from '@/stores/sopStore';
 import SOPTaskEditor from './SOPTaskEditor';
 import SOPFolderEditor from './SOPFolderEditor';
+import PhotoRecognitionTest from './PhotoRecognitionTest';
 
 export default function SOPLibrary() {
   const { folders, tasks, getTasksByFolder, deleteFolder, deleteTask, pushToTimeline } = useSOPStore();
@@ -13,6 +14,7 @@ export default function SOPLibrary() {
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [creatingTaskInFolder, setCreatingTaskInFolder] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showPhotoTest, setShowPhotoTest] = useState(false);
   
   // 🔍 实时搜索过滤
   const filteredFoldersAndTasks = useMemo(() => {
@@ -103,13 +105,23 @@ export default function SOPLibrary() {
               </p>
             </div>
             
-            <button
-              onClick={() => setCreatingFolder(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
-            >
-              <Plus size={20} />
-              <span>新建文件夹</span>
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowPhotoTest(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors"
+              >
+                <Camera size={20} />
+                <span>照片识别测试</span>
+              </button>
+              
+              <button
+                onClick={() => setCreatingFolder(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+              >
+                <Plus size={20} />
+                <span>新建文件夹</span>
+              </button>
+            </div>
           </div>
           
           {/* 🔍 搜索框 */}
@@ -375,6 +387,14 @@ export default function SOPLibrary() {
             setCreatingTaskInFolder(null);
             setEditingTask(null);
           }}
+        />
+      )}
+      
+      {/* 照片识别测试 */}
+      {showPhotoTest && (
+        <PhotoRecognitionTest
+          isOpen={showPhotoTest}
+          onClose={() => setShowPhotoTest(false)}
         />
       )}
     </div>
