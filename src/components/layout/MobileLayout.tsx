@@ -234,8 +234,8 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
     return <Component {...moduleProps} />;
   };
 
-  // 显示的导航项（最多3个 + 首页按钮 + 设置按钮）
-  const visibleNavItems = navItems.slice(0, 3);
+  // 显示的导航项（最多6个 + 首页按钮 + 设置按钮 = 8个）
+  const visibleNavItems = navItems.slice(0, 6);
   const hasMore = true; // 始终显示设置按钮
 
   // 拖拽排序
@@ -512,7 +512,7 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
             {/* 说明 */}
             <div className="p-4 border-b" style={{ backgroundColor: '#E8C259', borderColor: '#d4a93d' }}>
               <p className="text-sm font-medium" style={{ color: '#000000' }}>
-                💡 拖拽调整顺序，最多显示5个在底部导航栏
+                💡 拖拽调整顺序，最多显示8个在底部导航栏
               </p>
             </div>
 
@@ -586,7 +586,7 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
                       <GripVertical className="w-5 h-5 text-gray-600" />
                       <span className="text-2xl">{item.icon}</span>
                       <span className="font-semibold text-gray-900">{item.label}</span>
-                      {index < 5 && (
+                      {index < 8 && (
                         <span className="text-xs px-2 py-0.5 bg-blue-500 text-white rounded-full font-medium">
                           显示
                         </span>
