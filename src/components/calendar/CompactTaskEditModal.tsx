@@ -293,8 +293,8 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
           </button>
         </div>
 
-        {/* 表单内容 - 紧凑布局，添加底部内边距避免被按钮遮挡 */}
-        <div className="flex-1 overflow-y-auto p-4 pb-24 space-y-3">
+        {/* 表单内容 - 紧凑布局，添加更大的底部内边距避免被按钮和导航栏遮挡 */}
+        <div className="flex-1 overflow-y-auto p-4 pb-32 space-y-3">
           {/* 任务标题 */}
           <div>
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
