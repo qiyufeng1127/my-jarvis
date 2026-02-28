@@ -406,8 +406,8 @@ export default function InboxPanel({ isDark = false, bgColor = '#ffffff' }: Inbo
           )}
         </div>
 
-        {/* 添加任务输入框 */}
-        <div className="flex gap-2">
+        {/* 添加任务输入框 - 增加底部内边距避免被导航栏遮挡 */}
+        <div className="flex gap-2 pb-20">
           <input
             type="text"
             value={newTaskTitle}
