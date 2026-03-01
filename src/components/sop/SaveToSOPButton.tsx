@@ -74,7 +74,7 @@ export default function SaveToSOPButton({ task, isDark = false, size = 'normal' 
           style={{ 
             backgroundColor: 'rgb(0, 0, 0)',
             opacity: 0.85,
-            zIndex: 9998
+            zIndex: 99998
           }}
           onClick={() => setShowFolderSelector(false)}
         />
@@ -83,7 +83,7 @@ export default function SaveToSOPButton({ task, isDark = false, size = 'normal' 
       {showFolderSelector && (
         <div 
           className="fixed inset-0 flex items-center justify-center pointer-events-none"
-          style={{ zIndex: 9999 }}
+          style={{ zIndex: 99999 }}
         >
           <div
             className="w-full max-w-md mx-4 rounded-2xl shadow-2xl overflow-hidden pointer-events-auto"
