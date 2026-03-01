@@ -179,7 +179,7 @@ export default function TaskVerificationCountdownContent({
     // 当任务的开始或结束时间发生变化时，清空已触发的提醒记录
     setTriggeredReminders(new Set());
     console.log(`🔄 任务时间已更新，清空提醒记录: ${taskTitle}`);
-  }, [scheduledStart, scheduledEnd, taskTitle]);
+  }, [scheduledStart.getTime(), scheduledEnd.getTime(), taskTitle]);
 
   // 检查是否到达预设开始时间，自动触发启动倒计时（支持后台计算拖延）
   useEffect(() => {

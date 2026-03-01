@@ -3281,18 +3281,23 @@ export default function NewTimelineView({
                 {/* 间隔按钮 */}
                 <button
                   onClick={() => {
-                    // 使用间隔开始时间作为新任务的开始时间
-                    const startTime = new Date(gap.startTime);
-                    const endTime = new Date(startTime.getTime() + gap.durationMinutes * 60000);
-                    const newTask = {
-                      title: '新任务',
-                      scheduledStart: startTime.toISOString(),
-                      scheduledEnd: endTime.toISOString(),
-                      durationMinutes: gap.durationMinutes, // 使用间隔时长
-                      taskType: 'work',
-                      status: 'pending' as const,
-                    };
-                    onTaskCreate(newTask);
+                    try {
+                      // 使用间隔开始时间作为新任务的开始时间
+                      const startTime = new Date(gap.startTime);
+                      const endTime = new Date(startTime.getTime() + gap.durationMinutes * 60000);
+                      const newTask = {
+                        title: '新任务',
+                        scheduledStart: startTime.toISOString(),
+                        scheduledEnd: endTime.toISOString(),
+                        durationMinutes: gap.durationMinutes, // 使用间隔时长
+                        taskType: 'work',
+                        status: 'pending' as const,
+                      };
+                      onTaskCreate(newTask);
+                    } catch (error) {
+                      console.error('创建间隔任务失败:', error);
+                      alert('创建任务失败: ' + (error instanceof Error ? error.message : String(error)));
+                    }
                   }}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-full transition-all hover:scale-105"
                   style={{ 
@@ -3331,18 +3336,23 @@ export default function NewTimelineView({
           {/* 今日结束按钮 */}
           <button
             onClick={() => {
-              // 使用剩余时间的开始时间作为新任务的开始时间
-              const startTime = new Date(timeUntilEnd.startTime);
-              const endTime = new Date(startTime.getTime() + timeUntilEnd.totalMinutes * 60000);
-              const newTask = {
-                title: '新任务',
-                scheduledStart: startTime.toISOString(),
-                scheduledEnd: endTime.toISOString(),
-                durationMinutes: timeUntilEnd.totalMinutes, // 使用剩余时长
-                taskType: 'work',
-                status: 'pending' as const,
-              };
-              onTaskCreate(newTask);
+              try {
+                // 使用剩余时间的开始时间作为新任务的开始时间
+                const startTime = new Date(timeUntilEnd.startTime);
+                const endTime = new Date(startTime.getTime() + timeUntilEnd.totalMinutes * 60000);
+                const newTask = {
+                  title: '新任务',
+                  scheduledStart: startTime.toISOString(),
+                  scheduledEnd: endTime.toISOString(),
+                  durationMinutes: timeUntilEnd.totalMinutes, // 使用剩余时长
+                  taskType: 'work',
+                  status: 'pending' as const,
+                };
+                onTaskCreate(newTask);
+              } catch (error) {
+                console.error('创建今日结束任务失败:', error);
+                alert('创建任务失败: ' + (error instanceof Error ? error.message : String(error)));
+              }
             }}
             className="flex items-center gap-2 px-4 py-2 rounded-full transition-all hover:scale-105"
             style={{ 
