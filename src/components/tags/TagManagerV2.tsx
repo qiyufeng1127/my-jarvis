@@ -801,28 +801,16 @@ ${tagList}
         >
       {/* 头部 */}
       <div 
-        className="flex items-center justify-between px-6 py-6 pt-14 border-b shrink-0"
+        className="flex items-center justify-end gap-3 px-6 py-6 pt-14 border-b shrink-0"
         style={{ borderColor }}
       >
-        <div className="flex items-center gap-3 flex-1">
-          <div className="text-4xl">📊</div>
-          <div>
-            <h2 className="text-2xl font-bold" style={{ color: textColor }}>
-              标签管理
-            </h2>
-            <p className="text-sm mt-1" style={{ color: secondaryColor }}>
-              {totalTags} 个标签 · {totalUsage} 次使用 · {Math.round(totalTagDuration / 60)}h
-            </p>
-          </div>
-        </div>
-        
         {/* 智能修改emoji按钮 */}
         <button
           onClick={async () => {
             // TODO: 实现智能修改emoji功能
             alert('智能修改emoji功能开发中...');
           }}
-          className="flex items-center gap-2 px-4 py-2 rounded-full font-medium transition-all shadow-md mr-2"
+          className="flex items-center gap-2 px-4 py-2 rounded-full font-medium transition-all shadow-md"
           style={{ backgroundColor: '#6D9978', color: '#ffffff' }}
           title="AI智能修改emoji"
         >
@@ -833,7 +821,7 @@ ${tagList}
         {/* 智能合并按钮 */}
         <button
           onClick={() => setShowMergeModal(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-full font-medium transition-all shadow-md mr-2"
+          className="flex items-center gap-2 px-4 py-2 rounded-full font-medium transition-all shadow-md"
           style={{ backgroundColor: '#E8C259', color: '#000000' }}
           title="AI智能标签合并"
         >
