@@ -342,8 +342,8 @@ export const useTagStore = create<TagState>()(
               ...tags,
               [oldName]: {
                 ...oldTag,
-                emoji: emoji !== undefined ? emoji : oldTag.emoji,
-                color: color !== undefined ? color : oldTag.color,
+                emoji: (emoji !== undefined && emoji !== null && emoji !== '') ? emoji : oldTag.emoji,
+                color: (color !== undefined && color !== null && color !== '') ? color : oldTag.color,
               },
             },
           });
@@ -360,8 +360,8 @@ export const useTagStore = create<TagState>()(
             [newName]: {
               ...oldTag,
               name: newName,
-              emoji: emoji !== undefined ? emoji : oldTag.emoji,
-              color: color !== undefined ? color : oldTag.color,
+              emoji: (emoji !== undefined && emoji !== null && emoji !== '') ? emoji : oldTag.emoji,
+              color: (color !== undefined && color !== null && color !== '') ? color : oldTag.color,
             },
           },
         });

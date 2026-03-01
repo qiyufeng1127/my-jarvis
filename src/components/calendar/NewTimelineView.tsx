@@ -40,6 +40,7 @@ import GoldDetailsModal from '@/components/gold/GoldDetailsModal';
 import TaskCompletionEfficiencyModal from './TaskCompletionEfficiencyModal';
 import CompactTaskEditModal from './CompactTaskEditModal';
 import { useTaskStore } from '@/stores/taskStore';
+import SaveToSOPButton from '@/components/sop/SaveToSOPButton';
 
 interface NewTimelineViewProps {
   tasks: Task[];
@@ -2675,6 +2676,15 @@ export default function NewTimelineView({
                         <span className="text-sm font-bold" style={{ color: '#ff69b4' }}>
                           *{block.duration} min
                         </span>
+                        
+                        {/* 保存到SOP按钮 */}
+                        {(block.status === 'in_progress' || block.isCompleted) && (
+                          <SaveToSOPButton 
+                            task={allTasks.find(t => t.id === block.id)!}
+                            isDark={isDark}
+                            size="small"
+                          />
+                        )}
                         
                         {/* 编辑按钮 */}
                         <button
