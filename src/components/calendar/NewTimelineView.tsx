@@ -3282,9 +3282,12 @@ export default function NewTimelineView({
                 <button
                   onClick={() => {
                     // 使用间隔开始时间作为新任务的开始时间
+                    const startTime = new Date(gap.startTime);
+                    const endTime = new Date(startTime.getTime() + gap.durationMinutes * 60000);
                     const newTask = {
                       title: '新任务',
-                      scheduledStart: gap.startTime.toISOString(),
+                      scheduledStart: startTime.toISOString(),
+                      scheduledEnd: endTime.toISOString(),
                       durationMinutes: gap.durationMinutes, // 使用间隔时长
                       taskType: 'work',
                       status: 'pending' as const,
@@ -3329,10 +3332,13 @@ export default function NewTimelineView({
           <button
             onClick={() => {
               // 使用剩余时间的开始时间作为新任务的开始时间
+              const startTime = new Date(timeUntilEnd.startTime);
+              const endTime = new Date(startTime.getTime() + timeUntilEnd.totalMinutes * 60000);
               const newTask = {
                 title: '新任务',
-                scheduledStart: timeUntilEnd.startTime.toISOString(),
-                durationMinutes: timeUntilEnd.durationMinutes, // 使用剩余时长
+                scheduledStart: startTime.toISOString(),
+                scheduledEnd: endTime.toISOString(),
+                durationMinutes: timeUntilEnd.totalMinutes, // 使用剩余时长
                 taskType: 'work',
                 status: 'pending' as const,
               };
@@ -3373,9 +3379,11 @@ export default function NewTimelineView({
             onClick={() => {
               // 使用当前时间作为开始时间
               const now = new Date();
+              const endTime = new Date(now.getTime() + 30 * 60000); // 30分钟后
               const newTask = {
                 title: '新任务',
                 scheduledStart: now.toISOString(),
+                scheduledEnd: endTime.toISOString(),
                 durationMinutes: 30, // 默认30分钟
                 taskType: 'work',
                 status: 'pending' as const,
