@@ -70,38 +70,36 @@ export default function SaveToSOPButton({ task, isDark = false, size = 'normal' 
       {/* 文件夹选择对话框 */}
       {showFolderSelector && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm"
-          style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.75)' }}
           onClick={() => setShowFolderSelector(false)}
         >
           <div
             className="w-full max-w-md mx-4 rounded-2xl shadow-2xl overflow-hidden"
             style={{ 
               backgroundColor: bgColor,
-              border: `2px solid ${borderColor}`
+              border: `2px solid ${isDark ? '#3B82F6' : '#E5E7EB'}`
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* 头部 - 带渐变背景 */}
+            {/* 头部 - 纯色背景 */}
             <div 
               className="flex items-center justify-between p-6 border-b"
               style={{ 
-                background: isDark 
-                  ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%)'
-                  : 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)',
-                borderColor: borderColor
+                backgroundColor: isDark ? '#2563EB' : '#3B82F6',
+                borderColor: 'transparent'
               }}
             >
               <div className="flex items-center gap-3">
                 <div 
                   className="w-10 h-10 rounded-xl flex items-center justify-center text-2xl"
                   style={{ 
-                    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.2)'
+                    backgroundColor: 'rgba(255, 255, 255, 0.2)'
                   }}
                 >
                   💾
                 </div>
-                <h3 className="text-lg font-bold" style={{ color: textColor }}>
+                <h3 className="text-lg font-bold text-white">
                   保存到SOP文件夹
                 </h3>
               </div>
@@ -109,10 +107,10 @@ export default function SaveToSOPButton({ task, isDark = false, size = 'normal' 
                 onClick={() => setShowFolderSelector(false)}
                 className="p-2 rounded-lg transition-all hover:scale-110"
                 style={{ 
-                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'
+                  backgroundColor: 'rgba(255, 255, 255, 0.2)'
                 }}
               >
-                <X size={20} style={{ color: textColor }} />
+                <X size={20} className="text-white" />
               </button>
             </div>
             
@@ -122,8 +120,8 @@ export default function SaveToSOPButton({ task, isDark = false, size = 'normal' 
               <div 
                 className="mb-4 p-4 rounded-xl border-2"
                 style={{ 
-                  backgroundColor: cardBg,
-                  borderColor: isDark ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.2)'
+                  backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
+                  borderColor: isDark ? '#374151' : '#E5E7EB'
                 }}
               >
                 <div className="flex items-start gap-3">
@@ -158,7 +156,8 @@ export default function SaveToSOPButton({ task, isDark = false, size = 'normal' 
                     className="text-center py-12 rounded-xl border-2 border-dashed"
                     style={{ 
                       color: secondaryColor,
-                      borderColor: borderColor
+                      borderColor: isDark ? '#374151' : '#E5E7EB',
+                      backgroundColor: isDark ? '#111827' : '#F9FAFB'
                     }}
                   >
                     <div className="text-4xl mb-3">📁</div>
@@ -172,8 +171,8 @@ export default function SaveToSOPButton({ task, isDark = false, size = 'normal' 
                       onClick={() => handleSaveToFolder(folder.id)}
                       className="w-full flex items-center gap-3 p-4 rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] shadow-sm hover:shadow-md"
                       style={{ 
-                        backgroundColor: `${folder.color}15`,
-                        border: `2px solid ${folder.color}40`
+                        backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
+                        border: `2px solid ${folder.color}`
                       }}
                     >
                       <div
@@ -202,15 +201,15 @@ export default function SaveToSOPButton({ task, isDark = false, size = 'normal' 
             <div 
               className="p-4 border-t"
               style={{ 
-                backgroundColor: isDark ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.02)',
-                borderColor: borderColor
+                backgroundColor: isDark ? '#111827' : '#F9FAFB',
+                borderColor: isDark ? '#374151' : '#E5E7EB'
               }}
             >
               <button
                 onClick={() => setShowFolderSelector(false)}
                 className="w-full py-3 rounded-xl font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
                 style={{ 
-                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+                  backgroundColor: isDark ? '#374151' : '#E5E7EB',
                   color: textColor
                 }}
               >
