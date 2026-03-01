@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 
 interface NowTimelineProps {
   timeBlocks: Array<{
@@ -16,6 +16,16 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
   const [topPosition, setTopPosition] = useState<number | null>(null);
   const nowLineRef = useRef<HTMLDivElement>(null);
   // 已禁用自动滚动功能，用户可以手动滚动到任意位置
+  
+  // 🔧 使用useMemo稳定timeBlocks的引用，避免无限循环
+  const stableTimeBlocks = useMemo(() => {
+    return timeBlocks.map(block => ({
+      id: block.id,
+      startTime: block.startTime.getTime(),
+      endTime: block.endTime.getTime(),
+      title: block.title,
+    }));
+  }, [timeBlocks.length, timeBlocks[0]?.id, timeBlocks[timeBlocks.length - 1]?.id]);
 
   // 每秒更新当前时间
   useEffect(() => {
@@ -29,30 +39,28 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
   // 查找当前正在进行的任务
   useEffect(() => {
     const now = currentTime.getTime();
-    const activeTask = timeBlocks.find(block => {
-      const start = block.startTime.getTime();
-      const end = block.endTime.getTime();
-      return now >= start && now <= end;
+    const activeTask = stableTimeBlocks.find(block => {
+      return now >= block.startTime && now <= block.endTime;
     });
 
     setCurrentTask(activeTask ? activeTask.title : null);
-  }, [currentTime, timeBlocks]);
+  }, [currentTime, stableTimeBlocks]);
 
   // 计算NOW线的精确位置（像素值）
   useEffect(() => {
     const now = currentTime.getTime();
     
     // 如果没有任务，不显示
-    if (timeBlocks.length === 0) {
+    if (stableTimeBlocks.length === 0) {
       setTopPosition(null);
       return;
     }
 
-    const firstTask = timeBlocks[0];
-    const lastTask = timeBlocks[timeBlocks.length - 1];
+    const firstTask = stableTimeBlocks[0];
+    const lastTask = stableTimeBlocks[stableTimeBlocks.length - 1];
     
-    const dayStart = firstTask.startTime.getTime();
-    const dayEnd = lastTask.endTime.getTime();
+    const dayStart = firstTask.startTime;
+    const dayEnd = lastTask.endTime;
 
     console.log('🔍 NOW线计算:', {
       now: new Date(now).toLocaleString('zh-CN'),
@@ -75,8 +83,8 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
       
       // 计算所有任务的总高度
       let totalHeight = 0;
-      for (let i = 0; i < timeBlocks.length; i++) {
-        const block = timeBlocks[i];
+      for (let i = 0; i < stableTimeBlocks.length; i++) {
+        const block = stableTimeBlocks[i];
         const taskContainer = document.querySelector(`[data-task-id="${block.id}"]`)?.parentElement;
         const containerHeight = taskContainer ? taskContainer.getBoundingClientRect().height : 120;
         totalHeight += containerHeight;
@@ -89,10 +97,10 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
     // 遍历所有任务，找到当前时间所在的位置
     let accumulatedTop = 0;
     
-    for (let i = 0; i < timeBlocks.length; i++) {
-      const block = timeBlocks[i];
-      const blockStart = block.startTime.getTime();
-      const blockEnd = block.endTime.getTime();
+    for (let i = 0; i < stableTimeBlocks.length; i++) {
+      const block = stableTimeBlocks[i];
+      const blockStart = block.startTime;
+      const blockEnd = block.endTime;
       
       console.log(`  任务${i}: ${block.title}`, {
         start: new Date(blockStart).toLocaleString('zh-CN'),
@@ -142,9 +150,9 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
       accumulatedTop += containerHeight;
       
       // 如果在间隔中，显示在下一个任务的顶部
-      if (i < timeBlocks.length - 1) {
-        const nextBlock = timeBlocks[i + 1];
-        const gapEnd = nextBlock.startTime.getTime();
+      if (i < stableTimeBlocks.length - 1) {
+        const nextBlock = stableTimeBlocks[i + 1];
+        const gapEnd = nextBlock.startTime;
         
         if (now > blockEnd && now < gapEnd) {
           // 在间隔中，显示在下一个任务的顶部
@@ -158,7 +166,7 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
     // 默认不显示
     console.log('❌ NOW线：未找到合适位置，不显示');
     setTopPosition(null);
-  }, [currentTime, timeBlocks]);
+  }, [currentTime, stableTimeBlocks]);
 
   // 始终显示 NOW 线
   if (topPosition === null) {
