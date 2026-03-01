@@ -117,6 +117,12 @@ export default function TaskVerificationCountdownContent({
   // 🔧 记录是否已经触发过后台拖延扣币（避免重复扣币）
   const [hasTriggeredBackgroundPenalty, setHasTriggeredBackgroundPenalty] = useState(false);
   
+  // 🔧 记录当前超时周期是否已扣币（避免同一周期重复扣币）
+  const [currentTimeoutPenaltyTriggered, setCurrentTimeoutPenaltyTriggered] = useState<{
+    startDeadline: string | null;
+    taskDeadline: string | null;
+  }>({ startDeadline: null, taskDeadline: null });
+  
   // 🔧 分步日志显示（直接在界面上显示）
   const [verifyLog, setVerifyLog] = useState<string>('正在验证中，请稍后...');
   const [showDetailedLog, setShowDetailedLog] = useState(false);
@@ -274,9 +280,20 @@ export default function TaskVerificationCountdownContent({
     
     // 启动倒计时超时
     if (state.status === 'start_countdown' && startCountdownLeft === 0 && state.startDeadline) {
+      // 🔧 检查是否已经为这个deadline扣过币了
+      if (currentTimeoutPenaltyTriggered.startDeadline === state.startDeadline) {
+        return; // 已经扣过了，不再重复扣
+      }
+      
       const penaltyAmount = Math.floor(goldReward * 0.2);
       penaltyGold(penaltyAmount, `启动超时（第${state.startTimeoutCount + 1}次）`, taskId, taskTitle);
       console.log(`⚠️ 启动超时！扣除${penaltyAmount}金币（${state.startTimeoutCount + 1}次）`);
+      
+      // 🔧 标记这个deadline已经扣过币了
+      setCurrentTimeoutPenaltyTriggered(prev => ({
+        ...prev,
+        startDeadline: state.startDeadline
+      }));
       
       // 触发超时提醒
       notificationService.notifyOvertime(taskTitle, 'start');
@@ -305,9 +322,20 @@ export default function TaskVerificationCountdownContent({
     
     // 任务倒计时超时
     if (state.status === 'task_countdown' && taskCountdownLeft === 0 && state.taskDeadline) {
+      // 🔧 检查是否已经为这个deadline扣过币了
+      if (currentTimeoutPenaltyTriggered.taskDeadline === state.taskDeadline) {
+        return; // 已经扣过了，不再重复扣
+      }
+      
       const penaltyAmount = Math.floor(goldReward * 0.2);
       penaltyGold(penaltyAmount, `完成超时（第${state.completeTimeoutCount + 1}次）`, taskId, taskTitle);
       console.log(`⚠️ 完成超时！扣除${penaltyAmount}金币（${state.completeTimeoutCount + 1}次）`);
+      
+      // 🔧 标记这个deadline已经扣过币了
+      setCurrentTimeoutPenaltyTriggered(prev => ({
+        ...prev,
+        taskDeadline: state.taskDeadline
+      }));
       
       // 触发超时提醒
       notificationService.notifyOvertime(taskTitle, 'completion');
@@ -333,7 +361,7 @@ export default function TaskVerificationCountdownContent({
         completeTimeoutCount: newState.completeTimeoutCount,
       });
     }
-  }, [state, startCountdownLeft, taskCountdownLeft, goldReward, penaltyGold, taskId, taskTitle, saveState]);
+  }, [state, startCountdownLeft, taskCountdownLeft, goldReward, penaltyGold, taskId, taskTitle, saveState, currentTimeoutPenaltyTriggered]);
   
   // 任务即将结束提醒（完全遵循用户设置）
   useEffect(() => {
