@@ -808,13 +808,27 @@ ${tagList}
           <div className="text-4xl">📊</div>
           <div>
             <h2 className="text-2xl font-bold" style={{ color: textColor }}>
-              Statistics
+              标签管理
             </h2>
             <p className="text-sm mt-1" style={{ color: secondaryColor }}>
               {totalTags} 个标签 · {totalUsage} 次使用 · {Math.round(totalTagDuration / 60)}h
             </p>
           </div>
         </div>
+        
+        {/* 智能修改emoji按钮 */}
+        <button
+          onClick={async () => {
+            // TODO: 实现智能修改emoji功能
+            alert('智能修改emoji功能开发中...');
+          }}
+          className="flex items-center gap-2 px-4 py-2 rounded-full font-medium transition-all shadow-md mr-2"
+          style={{ backgroundColor: '#6D9978', color: '#ffffff' }}
+          title="AI智能修改emoji"
+        >
+          <Sparkles size={20} />
+          <span>智能修改emoji</span>
+        </button>
         
         {/* 智能合并按钮 */}
         <button

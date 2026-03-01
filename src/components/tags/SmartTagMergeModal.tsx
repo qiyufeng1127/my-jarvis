@@ -15,6 +15,7 @@ interface MergeSuggestion {
   tags: string[];
   suggestedName: string;
   reason: string;
+  excludedTags?: Set<string>; // 被排除的标签
 }
 
 export default function SmartTagMergeModal({ isOpen, onClose, tags, isDark = false }: SmartTagMergeModalProps) {
@@ -22,6 +23,7 @@ export default function SmartTagMergeModal({ isOpen, onClose, tags, isDark = fal
   const [suggestions, setSuggestions] = useState<MergeSuggestion[]>([]);
   const [selectedSuggestions, setSelectedSuggestions] = useState<Set<number>>(new Set());
   const [customNames, setCustomNames] = useState<Record<number, string>>({});
+  const [excludedTags, setExcludedTags] = useState<Record<number, Set<string>>>({});
   const [isMerging, setIsMerging] = useState(false);
   
   const { mergeTags } = useTagStore();
@@ -93,6 +95,23 @@ ${JSON.stringify(tagList, null, 2)}
     }
   };
   
+  // 移除标签
+  const handleRemoveTag = (suggestionIndex: number, tagToRemove: string) => {
+    const newExcluded = { ...excludedTags };
+    if (!newExcluded[suggestionIndex]) {
+      newExcluded[suggestionIndex] = new Set();
+    }
+    newExcluded[suggestionIndex].add(tagToRemove);
+    setExcludedTags(newExcluded);
+  };
+  
+  // 获取有效的标签列表（排除被删除的）
+  const getValidTags = (suggestionIndex: number) => {
+    const suggestion = suggestions[suggestionIndex];
+    const excluded = excludedTags[suggestionIndex] || new Set();
+    return suggestion.tags.filter(tag => !excluded.has(tag));
+  };
+  
   // 执行合并
   const handleMerge = async () => {
     if (selectedSuggestions.size === 0) {
@@ -105,21 +124,26 @@ ${JSON.stringify(tagList, null, 2)}
     try {
       // 遍历所有选中的合并建议
       for (const index of Array.from(selectedSuggestions)) {
-        const suggestion = suggestions[index];
-        const newName = customNames[index] || suggestion.suggestedName;
-        const oldTags = suggestion.tags;
+        const validTags = getValidTags(index);
+        
+        // 如果有效标签少于2个，跳过
+        if (validTags.length < 2) {
+          continue;
+        }
+        
+        const newName = customNames[index] || suggestions[index].suggestedName;
         
         // 1. 合并标签数据
-        mergeTags(oldTags, newName);
+        mergeTags(validTags, newName);
         
         // 2. 更新所有相关任务的标签
         const relatedTasks = tasks.filter(task => 
-          task.tags?.some(tag => oldTags.includes(tag))
+          task.tags?.some(tag => validTags.includes(tag))
         );
         
         for (const task of relatedTasks) {
           const updatedTags = task.tags?.map(tag => 
-            oldTags.includes(tag) ? newName : tag
+            validTags.includes(tag) ? newName : tag
           ) || [];
           
           // 去重
@@ -227,53 +251,80 @@ ${JSON.stringify(tagList, null, 2)}
               
               {suggestions.map((suggestion, index) => {
                 const isSelected = selectedSuggestions.has(index);
+                const validTags = getValidTags(index);
+                const excluded = excludedTags[index] || new Set();
                 
                 return (
                   <div
                     key={index}
-                    className="p-4 rounded-2xl border-2 transition-all cursor-pointer"
+                    className="p-4 rounded-2xl border-2 transition-all"
                     style={{
                       backgroundColor: isSelected ? `${cardBg}` : 'transparent',
                       borderColor: isSelected ? '#FFD60A' : borderColor,
-                    }}
-                    onClick={() => {
-                      const newSelected = new Set(selectedSuggestions);
-                      if (isSelected) {
-                        newSelected.delete(index);
-                      } else {
-                        newSelected.add(index);
-                      }
-                      setSelectedSuggestions(newSelected);
                     }}
                   >
                     <div className="flex items-start gap-3">
                       <input
                         type="checkbox"
                         checked={isSelected}
-                        onChange={() => {}}
+                        onChange={() => {
+                          const newSelected = new Set(selectedSuggestions);
+                          if (isSelected) {
+                            newSelected.delete(index);
+                          } else {
+                            newSelected.add(index);
+                          }
+                          setSelectedSuggestions(newSelected);
+                        }}
                         className="mt-1 w-5 h-5 rounded cursor-pointer"
                         style={{ accentColor: '#FFD60A' }}
                       />
                       
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
                           <span className="text-sm font-semibold" style={{ color: secondaryColor }}>
                             合并：
                           </span>
-                          {suggestion.tags.map((tag, i) => (
-                            <span key={i}>
-                              <span 
-                                className="px-2 py-1 rounded-lg text-sm font-medium"
-                                style={{ backgroundColor: cardBg, color: textColor }}
-                              >
-                                {tag}
+                          {suggestion.tags.map((tag, i) => {
+                            const isExcluded = excluded.has(tag);
+                            return (
+                              <span key={i} className="flex items-center gap-1">
+                                <span 
+                                  className="px-2 py-1 rounded-lg text-sm font-medium flex items-center gap-1"
+                                  style={{ 
+                                    backgroundColor: isExcluded ? '#FEE2E2' : cardBg, 
+                                    color: isExcluded ? '#DC2626' : textColor,
+                                    textDecoration: isExcluded ? 'line-through' : 'none',
+                                    opacity: isExcluded ? 0.5 : 1
+                                  }}
+                                >
+                                  {tag}
+                                  {!isExcluded && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleRemoveTag(index, tag);
+                                      }}
+                                      className="ml-1 hover:scale-110 transition-transform"
+                                      title="不合并此标签"
+                                    >
+                                      <X size={14} style={{ color: '#DC2626' }} />
+                                    </button>
+                                  )}
+                                </span>
+                                {i < suggestion.tags.length - 1 && (
+                                  <span className="mx-1" style={{ color: secondaryColor }}>+</span>
+                                )}
                               </span>
-                              {i < suggestion.tags.length - 1 && (
-                                <span className="mx-1" style={{ color: secondaryColor }}>+</span>
-                              )}
-                            </span>
-                          ))}
+                            );
+                          })}
                         </div>
+                        
+                        {validTags.length < 2 && (
+                          <div className="mb-2 text-xs px-2 py-1 rounded" style={{ backgroundColor: '#FEE2E2', color: '#DC2626' }}>
+                            ⚠️ 至少需要2个标签才能合并
+                          </div>
+                        )}
                         
                         <div className="flex items-center gap-2 mb-2">
                           <span className="text-sm font-semibold" style={{ color: secondaryColor }}>
@@ -341,10 +392,10 @@ ${JSON.stringify(tagList, null, 2)}
                 {isMerging ? (
                   <span className="flex items-center gap-2">
                     <span className="animate-spin">⚙️</span>
-                    合并中...
+                    保存中...
                   </span>
                 ) : (
-                  `合并 ${selectedSuggestions.size} 组标签`
+                  `保存修改 (${selectedSuggestions.size})`
                 )}
               </button>
             </div>
