@@ -57,7 +57,7 @@ interface LeaderboardState {
   // Actions
   updateLeaderboard: (type: LeaderboardType, rankings: UserRank[]) => void;
   setCurrentUser: (userId: string, username: string, avatar?: string) => void;
-  checkAchievements: () => void;
+  checkAchievements: () => Promise<void>;
   unlockAchievement: (achievementId: string) => void;
   
   // Getters
@@ -143,14 +143,14 @@ export const useLeaderboardStore = create<LeaderboardState>()(
       },
       
       // 检查成就
-      checkAchievements: () => {
+      checkAchievements: async () => {
         const { achievements } = get();
         
-        // 获取各项统计数据
-        const { useGoldStore } = require('@/stores/goldStore');
-        const { useFocusStore } = require('@/stores/focusStore');
-        const { usePetStore } = require('@/stores/petStore');
-        const { useTaskStore } = require('@/stores/taskStore');
+        // 获取各项统计数据 - 使用动态import代替require
+        const { useGoldStore } = await import('@/stores/goldStore');
+        const { useFocusStore } = await import('@/stores/focusStore');
+        const { usePetStore } = await import('@/stores/petStore');
+        const { useTaskStore } = await import('@/stores/taskStore');
         
         const goldStore = useGoldStore.getState();
         const focusStore = useFocusStore.getState();
