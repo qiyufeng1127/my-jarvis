@@ -25,7 +25,7 @@ export default function SaveToSOPButton({ task, isDark = false, size = 'normal' 
   const borderColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)';
   
   const handleSaveToFolder = (folderId: string) => {
-    // 保存任务到SOP
+    // 保存任务到SOP，包含所有验证规则
     createTask(folderId, {
       title: task.title,
       description: task.description || '',
@@ -37,10 +37,16 @@ export default function SaveToSOPButton({ task, isDark = false, size = 'normal' 
       verificationStart: task.verificationStart,
       verificationComplete: task.verificationComplete,
       subtasks: task.subtasks || [],
+      hasVerification: task.hasVerification || false,
+      startKeywords: task.startKeywords || [],
+      completeKeywords: task.completeKeywords || [],
     });
     
     setShowFolderSelector(false);
-    alert(`✅ 已保存到SOP文件夹`);
+    
+    // 显示成功提示
+    const folderName = folders.find(f => f.id === folderId)?.name || 'SOP文件夹';
+    alert(`✅ 已保存到 ${folderName}`);
   };
   
   const buttonSize = size === 'small' ? 'w-6 h-6' : 'w-7 h-7';
@@ -64,83 +70,153 @@ export default function SaveToSOPButton({ task, isDark = false, size = 'normal' 
       {/* 文件夹选择对话框 */}
       {showFolderSelector && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
           onClick={() => setShowFolderSelector(false)}
         >
           <div
-            className="w-full max-w-md mx-4 rounded-2xl shadow-2xl p-6"
-            style={{ backgroundColor: bgColor }}
+            className="w-full max-w-md mx-4 rounded-2xl shadow-2xl overflow-hidden"
+            style={{ 
+              backgroundColor: bgColor,
+              border: `2px solid ${borderColor}`
+            }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* 头部 */}
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold" style={{ color: textColor }}>
-                保存到SOP文件夹
-              </h3>
+            {/* 头部 - 带渐变背景 */}
+            <div 
+              className="flex items-center justify-between p-6 border-b"
+              style={{ 
+                background: isDark 
+                  ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%)'
+                  : 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)',
+                borderColor: borderColor
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <div 
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-2xl"
+                  style={{ 
+                    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.2)'
+                  }}
+                >
+                  💾
+                </div>
+                <h3 className="text-lg font-bold" style={{ color: textColor }}>
+                  保存到SOP文件夹
+                </h3>
+              </div>
               <button
                 onClick={() => setShowFolderSelector(false)}
-                className="p-1 rounded hover:bg-black hover:bg-opacity-10"
+                className="p-2 rounded-lg transition-all hover:scale-110"
+                style={{ 
+                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'
+                }}
               >
                 <X size={20} style={{ color: textColor }} />
               </button>
             </div>
             
-            {/* 任务信息预览 */}
-            <div className="mb-4 p-3 rounded-lg" style={{ backgroundColor: cardBg }}>
-              <div className="font-semibold mb-1" style={{ color: textColor }}>
-                {task.title}
-              </div>
-              <div className="text-xs" style={{ color: secondaryColor }}>
-                时长：{task.durationMinutes}分钟
-                {task.tags && task.tags.length > 0 && ` · 标签：${task.tags.join('、')}`}
-              </div>
-            </div>
-            
-            {/* 文件夹列表 */}
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {folders.length === 0 ? (
-                <div className="text-center py-8" style={{ color: secondaryColor }}>
-                  <p className="text-sm">暂无SOP文件夹</p>
-                  <p className="text-xs mt-2">请先在SOP页面创建文件夹</p>
+            {/* 内容区域 */}
+            <div className="p-6">
+              {/* 任务信息预览 */}
+              <div 
+                className="mb-4 p-4 rounded-xl border-2"
+                style={{ 
+                  backgroundColor: cardBg,
+                  borderColor: isDark ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.2)'
+                }}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="text-2xl">📋</div>
+                  <div className="flex-1">
+                    <div className="font-bold mb-2" style={{ color: textColor }}>
+                      {task.title}
+                    </div>
+                    <div className="space-y-1 text-xs" style={{ color: secondaryColor }}>
+                      <div>⏱️ 时长：{task.durationMinutes}分钟</div>
+                      {task.tags && task.tags.length > 0 && (
+                        <div>🏷️ 标签：{task.tags.join('、')}</div>
+                      )}
+                      {task.goldReward && (
+                        <div>💰 金币：{task.goldReward}</div>
+                      )}
+                      {(task.startKeywords && task.startKeywords.length > 0) && (
+                        <div>✅ 启动验证：{task.startKeywords.join('、')}</div>
+                      )}
+                      {(task.completeKeywords && task.completeKeywords.length > 0) && (
+                        <div>🎯 完成验证：{task.completeKeywords.join('、')}</div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              ) : (
-                folders.map(folder => (
-                  <button
-                    key={folder.id}
-                    onClick={() => handleSaveToFolder(folder.id)}
-                    className="w-full flex items-center gap-3 p-3 rounded-lg hover:opacity-80 transition-opacity"
+              </div>
+              
+              {/* 文件夹列表 */}
+              <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
+                {folders.length === 0 ? (
+                  <div 
+                    className="text-center py-12 rounded-xl border-2 border-dashed"
                     style={{ 
-                      backgroundColor: `${folder.color}20`,
-                      border: `2px solid ${folder.color}`
+                      color: secondaryColor,
+                      borderColor: borderColor
                     }}
                   >
-                    <div
-                      className="w-10 h-10 rounded-lg flex items-center justify-center text-2xl flex-shrink-0"
-                      style={{ backgroundColor: folder.color }}
+                    <div className="text-4xl mb-3">📁</div>
+                    <p className="text-sm font-medium">暂无SOP文件夹</p>
+                    <p className="text-xs mt-2">请先在SOP页面创建文件夹</p>
+                  </div>
+                ) : (
+                  folders.map(folder => (
+                    <button
+                      key={folder.id}
+                      onClick={() => handleSaveToFolder(folder.id)}
+                      className="w-full flex items-center gap-3 p-4 rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] shadow-sm hover:shadow-md"
+                      style={{ 
+                        backgroundColor: `${folder.color}15`,
+                        border: `2px solid ${folder.color}40`
+                      }}
                     >
-                      {folder.emoji}
-                    </div>
-                    <div className="flex-1 text-left">
-                      <div className="font-semibold" style={{ color: textColor }}>
-                        {folder.name}
+                      <div
+                        className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0 shadow-md"
+                        style={{ backgroundColor: folder.color }}
+                      >
+                        {folder.emoji}
                       </div>
-                      <div className="text-xs" style={{ color: secondaryColor }}>
-                        点击保存到此文件夹
+                      <div className="flex-1 text-left">
+                        <div className="font-bold text-base mb-1" style={{ color: textColor }}>
+                          {folder.name}
+                        </div>
+                        <div className="text-xs flex items-center gap-1" style={{ color: secondaryColor }}>
+                          <span>💾</span>
+                          <span>点击保存到此文件夹</span>
+                        </div>
                       </div>
-                    </div>
-                  </button>
-                ))
-              )}
+                      <div className="text-2xl opacity-50">→</div>
+                    </button>
+                  ))
+                )}
+              </div>
             </div>
             
-            {/* 取消按钮 */}
-            <button
-              onClick={() => setShowFolderSelector(false)}
-              className="w-full mt-4 py-2 rounded-lg font-medium transition-all"
-              style={{ backgroundColor: cardBg, color: textColor }}
+            {/* 底部按钮 */}
+            <div 
+              className="p-4 border-t"
+              style={{ 
+                backgroundColor: isDark ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.02)',
+                borderColor: borderColor
+              }}
             >
-              取消
-            </button>
+              <button
+                onClick={() => setShowFolderSelector(false)}
+                className="w-full py-3 rounded-xl font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
+                style={{ 
+                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+                  color: textColor
+                }}
+              >
+                取消
+              </button>
+            </div>
           </div>
         </div>
       )}
