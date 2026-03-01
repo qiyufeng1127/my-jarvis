@@ -114,6 +114,9 @@ export default function TaskVerificationCountdownContent({
   // 🔧 记录已触发的提醒，避免重复触发
   const [triggeredReminders, setTriggeredReminders] = useState<Set<string>>(new Set());
   
+  // 🔧 记录是否已经触发过后台拖延扣币（避免重复扣币）
+  const [hasTriggeredBackgroundPenalty, setHasTriggeredBackgroundPenalty] = useState(false);
+  
   // 🔧 分步日志显示（直接在界面上显示）
   const [verifyLog, setVerifyLog] = useState<string>('正在验证中，请稍后...');
   const [showDetailedLog, setShowDetailedLog] = useState(false);
@@ -172,14 +175,20 @@ export default function TaskVerificationCountdownContent({
     console.log(`🔄 任务时间已更新，清空提醒记录: ${taskTitle}`);
   }, [scheduledStart, scheduledEnd, taskTitle]);
 
+  // 🔧 记录是否已经触发过后台拖延扣币（避免重复扣币）
+  const [hasTriggeredBackgroundPenalty, setHasTriggeredBackgroundPenalty] = useState(false);
+
   // 检查是否到达预设开始时间，自动触发启动倒计时（支持后台计算拖延）
   useEffect(() => {
     const now = new Date();
     const start = new Date(scheduledStart);
     
     // 如果当前时间 >= 预设开始时间，且状态为等待启动，则触发启动倒计时
-    if (now >= start && state.status === 'waiting_start') {
+    if (now >= start && state.status === 'waiting_start' && !hasTriggeredBackgroundPenalty) {
       console.log(`⏰ 任务到达预设时间，触发启动倒计时: ${taskTitle}`);
+      
+      // 🔧 标记已触发，避免重复扣币
+      setHasTriggeredBackgroundPenalty(true);
       
       // 🔧 计算已经拖延了多少次（每2分钟算一次拖延）
       const delayMs = now.getTime() - start.getTime();
@@ -229,7 +238,7 @@ export default function TaskVerificationCountdownContent({
       
       console.log(`📊 启动倒计时状态：已拖延${missedTimeouts}次，当前周期剩余${remainingSeconds}秒`);
     }
-  }, [scheduledStart, state.status, taskTitle, state, saveState, taskId, goldReward, penaltyGold]);
+  }, [scheduledStart, state.status, taskTitle, hasTriggeredBackgroundPenalty, goldReward, penaltyGold, taskId, state, saveState]);
   
   // 每秒更新当前时间，用于实时计算剩余时间（使用requestAnimationFrame确保后台运行）
   useEffect(() => {
