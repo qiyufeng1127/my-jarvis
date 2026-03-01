@@ -51,11 +51,14 @@ export default function SaveToSOPButton({ task, isDark = false, size = 'normal' 
       {/* 保存到SOP按钮 */}
       <button
         onClick={() => setShowFolderSelector(true)}
-        className={`${buttonSize} rounded-full flex items-center justify-center transition-all hover:scale-110`}
-        style={{ backgroundColor: 'rgba(59, 130, 246, 0.3)' }}
+        className="px-2 py-0.5 rounded-full text-xs font-bold transition-all hover:scale-105"
+        style={{ 
+          backgroundColor: 'rgba(59, 130, 246, 0.3)',
+          color: '#ffffff'
+        }}
         title="保存到SOP"
       >
-        <Save size={iconSize} style={{ color: '#ffffff' }} />
+        SOP
       </button>
       
       {/* 文件夹选择对话框 */}

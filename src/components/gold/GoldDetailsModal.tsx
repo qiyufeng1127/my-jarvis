@@ -4,8 +4,9 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { X, TrendingUp, TrendingDown, ShoppingBag, Plus, Edit2, Trash2 } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, ShoppingBag, Plus, Edit2, Trash2, Wrench } from 'lucide-react';
 import { useGoldStore } from '@/stores/goldStore';
+import { detectDuplicateTransactions, fixDuplicateTransactions, generateFixReport } from '@/utils/goldHistoryFixer';
 
 interface GoldDetailsModalProps {
   isOpen: boolean;
@@ -27,6 +28,28 @@ export default function GoldDetailsModal({ isOpen, onClose, isDark }: GoldDetail
   const [shopItems, setShopItems] = useState<ShopItem[]>([]);
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [editingItem, setEditingItem] = useState<ShopItem | null>(null);
+  const [showFixReport, setShowFixReport] = useState(false);
+  const [fixReport, setFixReport] = useState('');
+
+  // 检测并修复重复记录
+  const handleFixDuplicates = () => {
+    const duplicates = detectDuplicateTransactions();
+    
+    if (duplicates.length === 0) {
+      alert('✅ 未发现重复扣币记录');
+      return;
+    }
+    
+    const report = generateFixReport(duplicates);
+    setFixReport(report);
+    setShowFixReport(true);
+  };
+  
+  const confirmFix = () => {
+    const result = fixDuplicateTransactions();
+    setShowFixReport(false);
+    alert(`✅ 修复完成！\n\n删除了 ${result.removedCount} 条重复记录\n补偿了 ${result.compensatedGold} 金币`);
+  };
 
   // 从 localStorage 加载自定义奖励
   useEffect(() => {
@@ -217,6 +240,20 @@ export default function GoldDetailsModal({ isOpen, onClose, isDark }: GoldDetail
         <div className="overflow-y-auto" style={{ maxHeight: 'calc(80vh - 180px)' }}>
           {activeTab === 'history' ? (
             <div className="p-4 space-y-2">
+              {/* 修复重复记录按钮 */}
+              <button
+                onClick={handleFixDuplicates}
+                className="w-full flex items-center justify-center gap-2 p-3 rounded-lg transition-all hover:scale-[1.02] active:scale-[0.98]"
+                style={{ 
+                  backgroundColor: isDark ? '#374151' : '#f0f9ff',
+                  color: isDark ? '#60a5fa' : '#3b82f6',
+                  border: `2px solid ${isDark ? '#4b5563' : '#bfdbfe'}`
+                }}
+              >
+                <Wrench className="w-4 h-4" />
+                <span className="font-bold text-sm">检测并修复重复扣币</span>
+              </button>
+              
               {history.length === 0 ? (
                 <div className="text-center py-8">
                   <p className="text-sm" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>
@@ -434,6 +471,63 @@ export default function GoldDetailsModal({ isOpen, onClose, isDark }: GoldDetail
           )}
         </div>
       </div>
+      
+      {/* 修复报告对话框 */}
+      {showFixReport && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-black/70"
+            onClick={() => setShowFixReport(false)}
+          />
+          <div 
+            className="relative w-full max-w-lg rounded-2xl shadow-2xl p-6"
+            style={{ backgroundColor: isDark ? '#1f2937' : '#ffffff' }}
+          >
+            <h3 
+              className="text-lg font-bold mb-4 flex items-center gap-2"
+              style={{ color: isDark ? '#ffffff' : '#000000' }}
+            >
+              <Wrench className="w-5 h-5" style={{ color: '#f59e0b' }} />
+              修复报告
+            </h3>
+            
+            <div 
+              className="p-4 rounded-lg mb-4 whitespace-pre-wrap text-sm font-mono"
+              style={{ 
+                backgroundColor: isDark ? '#374151' : '#f9fafb',
+                color: isDark ? '#d1d5db' : '#374151',
+                maxHeight: '400px',
+                overflowY: 'auto'
+              }}
+            >
+              {fixReport}
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowFixReport(false)}
+                className="flex-1 py-2 rounded-lg font-semibold transition-all"
+                style={{ 
+                  backgroundColor: isDark ? '#374151' : '#e5e7eb',
+                  color: isDark ? '#ffffff' : '#000000'
+                }}
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmFix}
+                className="flex-1 py-2 rounded-lg font-semibold transition-all"
+                style={{ 
+                  backgroundColor: '#10B981',
+                  color: '#ffffff'
+                }}
+              >
+                确认修复
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

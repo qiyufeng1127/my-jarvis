@@ -2606,15 +2606,22 @@ export default function NewTimelineView({
                         )}
                         
                         {block.status === 'in_progress' && (
-                          <div 
-                            className={`${isMobile ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-0.5 text-xs'} rounded-full font-bold`}
-                            style={{ 
-                              backgroundColor: 'rgba(34,197,94,0.3)',
-                              color: 'rgba(255,255,255,0.95)',
-                            }}
-                          >
-                            进行中
-                          </div>
+                          <>
+                            <div 
+                              className={`${isMobile ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-0.5 text-xs'} rounded-full font-bold`}
+                              style={{ 
+                                backgroundColor: 'rgba(34,197,94,0.3)',
+                                color: 'rgba(255,255,255,0.95)',
+                              }}
+                            >
+                              进行中
+                            </div>
+                            <SaveToSOPButton task={block} isDark={isDark} size="small" />
+                          </>
+                        )}
+                        
+                        {block.isCompleted && (
+                          <SaveToSOPButton task={block} isDark={isDark} size="small" />
                         )}
 
                         <button
