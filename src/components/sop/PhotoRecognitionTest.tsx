@@ -3,7 +3,7 @@
  * 用于测试百度AI能识别出什么关键词
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Camera, Upload, X, Copy, Check, ChevronDown, ChevronRight, Trash2, FolderPlus } from 'lucide-react';
 import { baiduImageRecognition } from '@/services/baiduImageRecognition';
 import { usePhotoLibraryStore } from '@/stores/photoLibraryStore';
@@ -30,7 +30,14 @@ export default function PhotoRecognitionTest({ isOpen, onClose, isDark = false }
   const [newFolderEmoji, setNewFolderEmoji] = useState('📁');
   const [selectedFolderId, setSelectedFolderId] = useState('default');
   
-  const { folders, photos, addPhoto, deletePhoto, createFolder, deleteFolder, getPhotosByFolder } = usePhotoLibraryStore();
+  const { folders, photos, addPhoto, deletePhoto, createFolder, deleteFolder, getPhotosByFolder, loadPhotos, isLoaded } = usePhotoLibraryStore();
+
+  // 组件加载时从IndexedDB加载照片
+  useEffect(() => {
+    if (isOpen && !isLoaded) {
+      loadPhotos();
+    }
+  }, [isOpen, isLoaded, loadPhotos]);
 
   const bgColor = isDark ? '#1a1a1a' : '#ffffff';
   const textColor = isDark ? '#ffffff' : '#1D1D1F';
@@ -123,7 +130,7 @@ export default function PhotoRecognitionTest({ isOpen, onClose, isDark = false }
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto pb-20 px-6 py-4">
+        <div className="flex-1 overflow-y-auto pb-32 px-6 py-4">
           <div className="p-4 rounded-xl mb-4" style={{ backgroundColor: cardBg }}>
             <h3 className="font-semibold mb-2" style={{ color: textColor }}>💡 使用说明</h3>
             <ul className="text-sm space-y-1" style={{ color: secondaryColor }}>

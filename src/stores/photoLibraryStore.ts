@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { photoStorage } from '@/utils/photoStorage';
 
 export interface Photo {
   id: string;
@@ -19,15 +20,19 @@ export interface PhotoFolder {
 interface PhotoLibraryState {
   folders: PhotoFolder[];
   photos: Photo[];
+  isLoaded: boolean;
+  
+  // 初始化
+  loadPhotos: () => Promise<void>;
   
   // 文件夹操作
   createFolder: (name: string, emoji: string) => string;
-  deleteFolder: (folderId: string) => void;
+  deleteFolder: (folderId: string) => Promise<void>;
   updateFolder: (folderId: string, name: string, emoji: string) => void;
   
   // 照片操作
-  addPhoto: (imageUrl: string, keywords: string[], folderId: string) => void;
-  deletePhoto: (photoId: string) => void;
+  addPhoto: (imageUrl: string, keywords: string[], folderId: string) => Promise<void>;
+  deletePhoto: (photoId: string) => Promise<void>;
   getPhotosByFolder: (folderId: string) => Photo[];
 }
 
@@ -43,6 +48,17 @@ export const usePhotoLibraryStore = create<PhotoLibraryState>()(
         },
       ],
       photos: [],
+      isLoaded: false,
+      
+      loadPhotos: async () => {
+        try {
+          const photos = await photoStorage.getAllPhotos();
+          set({ photos, isLoaded: true });
+        } catch (error) {
+          console.error('加载照片失败:', error);
+          set({ isLoaded: true });
+        }
+      },
       
       createFolder: (name: string, emoji: string) => {
         const newFolder: PhotoFolder = {
@@ -57,15 +73,25 @@ export const usePhotoLibraryStore = create<PhotoLibraryState>()(
         return newFolder.id;
       },
       
-      deleteFolder: (folderId: string) => {
+      deleteFolder: async (folderId: string) => {
         if (folderId === 'default') {
           alert('默认文件夹不能删除');
           return;
         }
-        set((state) => ({
-          folders: state.folders.filter((f) => f.id !== folderId),
-          photos: state.photos.filter((p) => p.folderId !== folderId),
-        }));
+        
+        try {
+          // 删除IndexedDB中的照片
+          await photoStorage.deletePhotosByFolder(folderId);
+          
+          // 更新状态
+          set((state) => ({
+            folders: state.folders.filter((f) => f.id !== folderId),
+            photos: state.photos.filter((p) => p.folderId !== folderId),
+          }));
+        } catch (error) {
+          console.error('删除文件夹失败:', error);
+          alert('删除文件夹失败');
+        }
       },
       
       updateFolder: (folderId: string, name: string, emoji: string) => {
@@ -76,23 +102,42 @@ export const usePhotoLibraryStore = create<PhotoLibraryState>()(
         }));
       },
       
-      addPhoto: (imageUrl: string, keywords: string[], folderId: string) => {
+      addPhoto: async (imageUrl: string, keywords: string[], folderId: string) => {
         const newPhoto: Photo = {
-          id: `photo_${Date.now()}`,
+          id: `photo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           imageUrl,
           keywords,
           timestamp: Date.now(),
           folderId,
         };
-        set((state) => ({
-          photos: [...state.photos, newPhoto],
-        }));
+        
+        try {
+          // 保存到IndexedDB
+          await photoStorage.savePhoto(newPhoto);
+          
+          // 更新状态
+          set((state) => ({
+            photos: [...state.photos, newPhoto],
+          }));
+        } catch (error) {
+          console.error('保存照片失败:', error);
+          alert('保存照片失败，可能是存储空间不足');
+        }
       },
       
-      deletePhoto: (photoId: string) => {
-        set((state) => ({
-          photos: state.photos.filter((p) => p.id !== photoId),
-        }));
+      deletePhoto: async (photoId: string) => {
+        try {
+          // 从IndexedDB删除
+          await photoStorage.deletePhoto(photoId);
+          
+          // 更新状态
+          set((state) => ({
+            photos: state.photos.filter((p) => p.id !== photoId),
+          }));
+        } catch (error) {
+          console.error('删除照片失败:', error);
+          alert('删除照片失败');
+        }
       },
       
       getPhotosByFolder: (folderId: string) => {
@@ -101,6 +146,12 @@ export const usePhotoLibraryStore = create<PhotoLibraryState>()(
     }),
     {
       name: 'photo-library-storage',
+      // 只持久化文件夹信息，照片存在IndexedDB中
+      partialize: (state) => ({ 
+        folders: state.folders,
+        photos: [], // 不在localStorage中存储照片
+        isLoaded: false,
+      }),
     }
   )
 );
