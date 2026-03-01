@@ -67,31 +67,31 @@ export default function SaveToSOPButton({ task, isDark = false, size = 'normal' 
         SOP
       </button>
       
-      {/* 文件夹选择对话框 */}
+      {/* 文件夹选择对话框 - 背景遮罩 */}
       {showFolderSelector && (
         <div 
-          className="fixed inset-0 flex items-center justify-center"
+          className="fixed inset-0"
           style={{ 
-            backgroundColor: 'rgb(0, 0, 0)',
-            opacity: 0.85,
-            zIndex: 99998
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            zIndex: 999998
           }}
           onClick={() => setShowFolderSelector(false)}
         />
       )}
       
+      {/* 文件夹选择对话框 - 内容 */}
       {showFolderSelector && (
         <div 
-          className="fixed inset-0 flex items-center justify-center pointer-events-none"
-          style={{ zIndex: 99999 }}
+          className="fixed inset-0 flex items-center justify-center"
+          style={{ zIndex: 999999 }}
+          onClick={() => setShowFolderSelector(false)}
         >
           <div
-            className="w-full max-w-md mx-4 rounded-2xl shadow-2xl overflow-hidden pointer-events-auto"
+            className="w-full max-w-md mx-4 rounded-2xl shadow-2xl overflow-hidden"
             style={{ 
               backgroundColor: isDark ? '#1a1a1a' : '#ffffff',
               border: `2px solid ${isDark ? '#3B82F6' : '#E5E7EB'}`,
-              maxHeight: '85vh',
-              opacity: 1
+              maxHeight: '85vh'
             }}
             onClick={(e) => e.stopPropagation()}
           >
