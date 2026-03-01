@@ -241,7 +241,7 @@ export default function TaskVerificationCountdownContent({
       
       console.log(`📊 启动倒计时状态：已拖延${missedTimeouts}次，当前周期剩余${remainingSeconds}秒`);
     }
-  }, [scheduledStart, state.status, taskTitle, hasTriggeredBackgroundPenalty, goldReward, penaltyGold, taskId, state, saveState]);
+  }, [scheduledStart.getTime(), state.status, taskTitle, hasTriggeredBackgroundPenalty, goldReward, penaltyGold, taskId]);
   
   // 每秒更新当前时间，用于实时计算剩余时间（使用requestAnimationFrame确保后台运行）
   useEffect(() => {

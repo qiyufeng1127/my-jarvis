@@ -268,14 +268,14 @@ ${JSON.stringify(tagList, null, 2)}
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => {
-                          const newSelected = new Set(selectedSuggestions);
-                          if (isSelected) {
-                            newSelected.delete(index);
-                          } else {
-                            newSelected.add(index);
-                          }
-                          setSelectedSuggestions(newSelected);
-                        }}
+                      const newSelected = new Set(selectedSuggestions);
+                      if (isSelected) {
+                        newSelected.delete(index);
+                      } else {
+                        newSelected.add(index);
+                      }
+                      setSelectedSuggestions(newSelected);
+                    }}
                         className="mt-1 w-5 h-5 rounded cursor-pointer"
                         style={{ accentColor: '#FFD60A' }}
                       />
@@ -289,7 +289,7 @@ ${JSON.stringify(tagList, null, 2)}
                             const isExcluded = excluded.has(tag);
                             return (
                               <span key={i} className="flex items-center gap-1">
-                                <span 
+                              <span 
                                   className="px-2 py-1 rounded-lg text-sm font-medium flex items-center gap-1"
                                   style={{ 
                                     backgroundColor: isExcluded ? '#FEE2E2' : cardBg, 
@@ -297,8 +297,8 @@ ${JSON.stringify(tagList, null, 2)}
                                     textDecoration: isExcluded ? 'line-through' : 'none',
                                     opacity: isExcluded ? 0.5 : 1
                                   }}
-                                >
-                                  {tag}
+                              >
+                                {tag}
                                   {!isExcluded && (
                                     <button
                                       onClick={(e) => {
@@ -311,11 +311,11 @@ ${JSON.stringify(tagList, null, 2)}
                                       <X size={14} style={{ color: '#DC2626' }} />
                                     </button>
                                   )}
-                                </span>
-                                {i < suggestion.tags.length - 1 && (
-                                  <span className="mx-1" style={{ color: secondaryColor }}>+</span>
-                                )}
                               </span>
+                              {i < suggestion.tags.length - 1 && (
+                                <span className="mx-1" style={{ color: secondaryColor }}>+</span>
+                              )}
+                            </span>
                             );
                           })}
                         </div>
