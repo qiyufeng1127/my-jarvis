@@ -45,22 +45,29 @@ export function useTaskVerificationManager() {
     }
   };
 
-  // 显示全屏提醒
+  // 显示全屏提醒（暂时使用alert，后续可以实现完整的模态框）
   const showFullScreenReminder = (task: Task, type: 'start' | 'complete') => {
-    const event = new CustomEvent('show-verification-modal', {
-      detail: {
-        taskId: task.id,
-        taskTitle: task.title,
-        verificationType: type,
-        requirement: type === 'start' 
-          ? task.verificationStart?.requirement 
-          : task.verificationComplete?.requirement,
-        timeout: type === 'start'
-          ? task.verificationStart?.timeout || 120
-          : task.verificationComplete?.timeout || 120,
-      },
-    });
-    window.dispatchEvent(event);
+    const message = type === 'start' 
+      ? `任务"${task.title}"需要启动验证，请拍摄照片`
+      : `任务"${task.title}"需要完成验证，请拍摄照片`;
+    
+    alert(message);
+    
+    // TODO: 实现完整的验证模态框
+    // const event = new CustomEvent('show-verification-modal', {
+    //   detail: {
+    //     taskId: task.id,
+    //     taskTitle: task.title,
+    //     verificationType: type,
+    //     requirement: type === 'start' 
+    //       ? task.verificationStart?.requirement 
+    //       : task.verificationComplete?.requirement,
+    //     timeout: type === 'start'
+    //       ? task.verificationStart?.timeout || 120
+    //       : task.verificationComplete?.timeout || 120,
+    //   },
+    // });
+    // window.dispatchEvent(event);
   };
 
   // 处理启动验证
@@ -283,7 +290,7 @@ export function useTaskVerificationManager() {
         clearInterval(checkIntervalRef.current);
       }
     };
-  }, [tasks]);
+  }, [tasks, getState]);
 
   // 监听验证结果事件
   useEffect(() => {
