@@ -175,9 +175,6 @@ export default function TaskVerificationCountdownContent({
     console.log(`🔄 任务时间已更新，清空提醒记录: ${taskTitle}`);
   }, [scheduledStart, scheduledEnd, taskTitle]);
 
-  // 🔧 记录是否已经触发过后台拖延扣币（避免重复扣币）
-  const [hasTriggeredBackgroundPenalty, setHasTriggeredBackgroundPenalty] = useState(false);
-
   // 检查是否到达预设开始时间，自动触发启动倒计时（支持后台计算拖延）
   useEffect(() => {
     const now = new Date();
