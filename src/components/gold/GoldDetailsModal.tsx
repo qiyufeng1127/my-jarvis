@@ -23,7 +23,7 @@ interface ShopItem {
 
 export default function GoldDetailsModal({ isOpen, onClose, isDark }: GoldDetailsModalProps) {
   const { balance, transactions } = useGoldStore();
-  const [activeTab, setActiveTab] = useState<'history' | 'shop'>('history');
+  const [activeTab, setActiveTab] = useState<'history' | 'shop'>('shop'); // 默认显示奖励商店
   const [shopItems, setShopItems] = useState<ShopItem[]>([]);
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [editingItem, setEditingItem] = useState<ShopItem | null>(null);
@@ -186,19 +186,6 @@ export default function GoldDetailsModal({ isOpen, onClose, isDark }: GoldDetail
           style={{ borderColor: isDark ? '#374151' : '#e5e7eb' }}
         >
           <button
-            onClick={() => setActiveTab('history')}
-            className="flex-1 py-3 text-sm font-semibold transition-colors"
-            style={{
-              color: activeTab === 'history' 
-                ? (isDark ? '#60a5fa' : '#3b82f6')
-                : (isDark ? '#9ca3af' : '#6b7280'),
-              borderBottom: activeTab === 'history' ? '2px solid' : 'none',
-              borderColor: activeTab === 'history' ? (isDark ? '#60a5fa' : '#3b82f6') : 'transparent'
-            }}
-          >
-            📊 历史记录
-          </button>
-          <button
             onClick={() => setActiveTab('shop')}
             className="flex-1 py-3 text-sm font-semibold transition-colors"
             style={{
@@ -210,6 +197,19 @@ export default function GoldDetailsModal({ isOpen, onClose, isDark }: GoldDetail
             }}
           >
             🛍️ 奖励商店
+          </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className="flex-1 py-3 text-sm font-semibold transition-colors"
+            style={{
+              color: activeTab === 'history' 
+                ? (isDark ? '#60a5fa' : '#3b82f6')
+                : (isDark ? '#9ca3af' : '#6b7280'),
+              borderBottom: activeTab === 'history' ? '2px solid' : 'none',
+              borderColor: activeTab === 'history' ? (isDark ? '#60a5fa' : '#3b82f6') : 'transparent'
+            }}
+          >
+            📊 历史记录
           </button>
         </div>
 

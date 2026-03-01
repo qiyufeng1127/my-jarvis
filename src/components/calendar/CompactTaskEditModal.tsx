@@ -199,7 +199,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
     }
   };
 
-  // AI智能分配 - 使用与AI助手相同的逻辑
+  // AI智能分配 - 从SOP模板中选择匹配的任务
   const handleAIAssign = async () => {
     if (!title.trim()) {
       alert('请先输入任务标题');
@@ -209,70 +209,113 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
     setIsAIAssigning(true);
 
     try {
-      // 导入AI智能处理服务（与AI助手使用相同的服务）
-      const { AISmartProcessor } = await import('@/services/aiSmartService');
-      const { useTaskHistoryStore } = await import('@/stores/taskHistoryStore');
+      // 导入SOP store
+      const { useSOPStore } = await import('@/stores/sopStore');
+      const sopStore = useSOPStore.getState();
+      const sopTasks = sopStore.tasks;
       
-      console.log('🤖 开始AI智能分析任务:', title);
-      
-      // 调用AI智能分析（与AI助手分解任务使用相同的方法）
-      const aiAnalysis = await AISmartProcessor.analyzeTaskWithAI(
-        title,
-        duration || undefined,
-        description || undefined
-      );
-      
-      console.log('✅ AI智能分析完成:', aiAnalysis);
-      
-      // 应用AI分配的结果
-      setGold(aiAnalysis.duration ? AISmartProcessor.calculateGold({
-        estimated_duration: aiAnalysis.duration,
-        task_type: aiAnalysis.taskType,
-        title: title,
-        tags: aiAnalysis.tags,
-      }) : gold);
-      
-      setTags(aiAnalysis.tags || []);
-      setLocation(aiAnalysis.location || '');
-      
-      // 如果AI优化了标题，询问是否使用
-      if (aiAnalysis.optimizedTitle && aiAnalysis.optimizedTitle !== title) {
-        if (confirm(`AI建议优化标题为：\n\n"${aiAnalysis.optimizedTitle}"\n\n是否采用？`)) {
-          setTitle(aiAnalysis.optimizedTitle);
-        }
+      if (sopTasks.length === 0) {
+        alert('SOP任务库为空，请先在SOP中添加任务模板');
+        setIsAIAssigning(false);
+        return;
       }
       
-      // 尝试从历史记录中获取平均时长
+      console.log('🔍 从SOP模板中匹配任务:', title);
+      console.log('📚 可用SOP模板数量:', sopTasks.length);
+      
+      // 使用AI匹配最相似的SOP任务
+      const { aiService } = await import('@/services/aiService');
+      
+      const prompt = `你是一个任务匹配助手。用户输入了任务标题"${title}"，请从以下SOP任务模板中找出最匹配的1-2个：
+
+${sopTasks.map((t, i) => `${i + 1}. ${t.title}${t.description ? ` - ${t.description}` : ''}`).join('\n')}
+
+请返回JSON格式：
+{
+  "matches": [
+    {
+      "index": 任务序号（从1开始）,
+      "similarity": 相似度（0-100）,
+      "reason": "匹配原因"
+    }
+  ]
+}
+
+只返回相似度大于30的任务，按相似度从高到低排序，最多返回2个。如果没有匹配的任务，返回空数组。`;
+
+      const response = await aiService.chat([{ role: 'user', content: prompt }]);
+      
+      if (!response.success || !response.content) {
+        throw new Error('AI匹配失败');
+      }
+      
+      // 解析AI返回的匹配结果
+      let matchResult: { matches: Array<{ index: number; similarity: number; reason: string }> };
       try {
-        const historyStore = useTaskHistoryStore.getState();
-        const avgDuration = historyStore.getAverageDuration(title);
-        if (avgDuration && avgDuration !== duration) {
-          if (confirm(`根据历史记录，"${title}"平均需要 ${avgDuration} 分钟\n\n是否采用？`)) {
-            setDuration(avgDuration);
+        let jsonStr = response.content.trim();
+        const jsonMatch = jsonStr.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+        if (jsonMatch) {
+          jsonStr = jsonMatch[1];
+        }
+        matchResult = JSON.parse(jsonStr);
+      } catch (e) {
+        console.error('解析AI返回失败:', e);
+        throw new Error('AI返回格式错误');
+      }
+      
+      if (!matchResult.matches || matchResult.matches.length === 0) {
+        alert('未找到匹配的SOP模板\n\n建议：\n1. 在SOP中添加类似的任务模板\n2. 或手动填写任务信息');
+        setIsAIAssigning(false);
+        return;
+      }
+      
+      // 如果只有一个匹配，直接应用
+      if (matchResult.matches.length === 1) {
+        const match = matchResult.matches[0];
+        const sopTask = sopTasks[match.index - 1];
+        
+        if (confirm(`找到匹配的SOP模板：\n\n"${sopTask.title}"\n\n相似度：${match.similarity}%\n原因：${match.reason}\n\n是否应用此模板？`)) {
+          applySOPTemplate(sopTask);
+        }
+      } else {
+        // 多个匹配，让用户选择
+        const options = matchResult.matches.map((m, i) => {
+          const sopTask = sopTasks[m.index - 1];
+          return `${i + 1}. ${sopTask.title} (相似度${m.similarity}%)`;
+        }).join('\n');
+        
+        const choice = prompt(`找到${matchResult.matches.length}个匹配的SOP模板：\n\n${options}\n\n请输入序号选择（1-${matchResult.matches.length}），或输入0取消：`);
+        
+        if (choice && choice !== '0') {
+          const index = parseInt(choice) - 1;
+          if (index >= 0 && index < matchResult.matches.length) {
+            const match = matchResult.matches[index];
+            const sopTask = sopTasks[match.index - 1];
+            applySOPTemplate(sopTask);
           }
         }
-      } catch (e) {
-        console.warn('无法获取历史记录');
       }
-      
-      // 尝试匹配关联目标
-      const goalName = AISmartProcessor.identifyGoal(title);
-      if (goalName) {
-        const matchedGoal = goals.find(g => g.name.includes(goalName) || goalName.includes(g.name));
-        if (matchedGoal) {
-          setSelectedGoalId(matchedGoal.id);
-          console.log('🎯 自动关联目标:', matchedGoal.name);
-        }
-      }
-      
-      alert('✅ AI智能分配完成！\n\n已根据你的历史习惯和任务内容智能分配了时长、金币、标签和位置。');
       
     } catch (error) {
-      console.error('AI智能分配失败:', error);
-      alert(`AI智能分配失败：${error instanceof Error ? error.message : '未知错误'}\n\n请检查AI配置是否正确。`);
+      console.error('智能匹配失败:', error);
+      alert(`智能匹配失败：${error instanceof Error ? error.message : '未知错误'}\n\n请检查AI配置是否正确。`);
     } finally {
       setIsAIAssigning(false);
     }
+  };
+  
+  // 应用SOP模板
+  const applySOPTemplate = (sopTask: any) => {
+    setDuration(sopTask.durationMinutes || 30);
+    setDescription(sopTask.description || '');
+    setTags(sopTask.tags || []);
+    setLocation(sopTask.location || '');
+    
+    // 计算金币（基于时长）
+    const calculatedGold = Math.floor(sopTask.durationMinutes * 0.8);
+    setGold(calculatedGold);
+    
+    alert(`✅ 已应用SOP模板！\n\n时长：${sopTask.durationMinutes}分钟\n金币：${calculatedGold}\n标签：${(sopTask.tags || []).join('、') || '无'}\n位置：${sopTask.location || '无'}`);
   };
 
   return (
