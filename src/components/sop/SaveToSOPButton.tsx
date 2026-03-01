@@ -73,7 +73,7 @@ export default function SaveToSOPButton({ task, isDark = false, size = 'normal' 
           className="fixed inset-0"
           style={{ 
             backgroundColor: 'rgba(0, 0, 0, 0.9)',
-            zIndex: 999998
+            zIndex: 2147483647
           }}
           onClick={() => setShowFolderSelector(false)}
         />
@@ -83,7 +83,7 @@ export default function SaveToSOPButton({ task, isDark = false, size = 'normal' 
       {showFolderSelector && (
         <div 
           className="fixed inset-0 flex items-center justify-center"
-          style={{ zIndex: 999999 }}
+          style={{ zIndex: 2147483647 }}
           onClick={() => setShowFolderSelector(false)}
         >
           <div
@@ -91,7 +91,9 @@ export default function SaveToSOPButton({ task, isDark = false, size = 'normal' 
             style={{ 
               backgroundColor: isDark ? '#1a1a1a' : '#ffffff',
               border: `2px solid ${isDark ? '#3B82F6' : '#E5E7EB'}`,
-              maxHeight: '85vh'
+              maxHeight: '85vh',
+              position: 'relative',
+              zIndex: 2147483647
             }}
             onClick={(e) => e.stopPropagation()}
           >
