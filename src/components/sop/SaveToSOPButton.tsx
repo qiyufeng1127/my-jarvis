@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Save, X } from 'lucide-react';
 import { useSOPStore } from '@/stores/sopStore';
 import type { Task } from '@/types';
@@ -67,36 +68,36 @@ export default function SaveToSOPButton({ task, isDark = false, size = 'normal' 
         SOP
       </button>
       
-      {/* 文件夹选择对话框 - 背景遮罩 */}
-      {showFolderSelector && (
-        <div 
-          className="fixed inset-0"
-          style={{ 
-            backgroundColor: 'rgba(0, 0, 0, 0.9)',
-            zIndex: 2147483647
-          }}
-          onClick={() => setShowFolderSelector(false)}
-        />
-      )}
-      
-      {/* 文件夹选择对话框 - 内容 */}
-      {showFolderSelector && (
-        <div 
-          className="fixed inset-0 flex items-center justify-center"
-          style={{ zIndex: 2147483647 }}
-          onClick={() => setShowFolderSelector(false)}
-        >
-          <div
-            className="w-full max-w-md mx-4 rounded-2xl shadow-2xl overflow-hidden"
+      {/* 使用Portal渲染对话框到body */}
+      {showFolderSelector && createPortal(
+        <>
+          {/* 文件夹选择对话框 - 背景遮罩 */}
+          <div 
+            className="fixed inset-0"
             style={{ 
-              backgroundColor: isDark ? '#1a1a1a' : '#ffffff',
-              border: `2px solid ${isDark ? '#3B82F6' : '#E5E7EB'}`,
-              maxHeight: '85vh',
-              position: 'relative',
+              backgroundColor: 'rgba(0, 0, 0, 0.9)',
               zIndex: 2147483647
             }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={() => setShowFolderSelector(false)}
+          />
+          
+          {/* 文件夹选择对话框 - 内容 */}
+          <div 
+            className="fixed inset-0 flex items-center justify-center"
+            style={{ zIndex: 2147483647 }}
+            onClick={() => setShowFolderSelector(false)}
           >
+            <div
+              className="w-full max-w-md mx-4 rounded-2xl shadow-2xl overflow-hidden"
+              style={{ 
+                backgroundColor: isDark ? '#1a1a1a' : '#ffffff',
+                border: `2px solid ${isDark ? '#3B82F6' : '#E5E7EB'}`,
+                maxHeight: '85vh',
+                position: 'relative',
+                zIndex: 2147483647
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
             {/* 头部 - 纯色背景 */}
             <div 
               className="flex items-center justify-between p-6 border-b"
@@ -232,7 +233,8 @@ export default function SaveToSOPButton({ task, isDark = false, size = 'normal' 
               </button>
             </div>
           </div>
-        </div>
+        </>,
+        document.body
       )}
     </>
   );
