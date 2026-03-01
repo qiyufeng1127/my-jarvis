@@ -72,17 +72,26 @@ export default function SaveToSOPButton({ task, isDark = false, size = 'normal' 
         <div 
           className="fixed inset-0 flex items-center justify-center"
           style={{ 
-            backgroundColor: 'rgba(0, 0, 0, 0.85)',
-            zIndex: 9999
+            backgroundColor: 'rgb(0, 0, 0)',
+            opacity: 0.85,
+            zIndex: 9998
           }}
           onClick={() => setShowFolderSelector(false)}
+        />
+      )}
+      
+      {showFolderSelector && (
+        <div 
+          className="fixed inset-0 flex items-center justify-center pointer-events-none"
+          style={{ zIndex: 9999 }}
         >
           <div
-            className="w-full max-w-md mx-4 rounded-2xl shadow-2xl overflow-hidden"
+            className="w-full max-w-md mx-4 rounded-2xl shadow-2xl overflow-hidden pointer-events-auto"
             style={{ 
-              backgroundColor: bgColor,
+              backgroundColor: isDark ? '#1a1a1a' : '#ffffff',
               border: `2px solid ${isDark ? '#3B82F6' : '#E5E7EB'}`,
-              maxHeight: '85vh'
+              maxHeight: '85vh',
+              opacity: 1
             }}
             onClick={(e) => e.stopPropagation()}
           >
