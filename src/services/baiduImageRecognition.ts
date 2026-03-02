@@ -192,18 +192,119 @@ class BaiduImageRecognitionService {
   }
 
   /**
-   * 将图片文件转换为Base64
+   * 压缩图片到指定大小
+   * @param file 原始图片文件
+   * @param maxSizeMB 最大大小（MB），默认3MB
+   * @param maxWidth 最大宽度，默认1920px
+   * @param maxHeight 最大高度，默认1920px
    */
-  private async fileToBase64(file: File): Promise<string> {
+  private async compressImage(
+    file: File, 
+    maxSizeMB: number = 3, 
+    maxWidth: number = 1920, 
+    maxHeight: number = 1920
+  ): Promise<Blob> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => {
-        const base64 = (reader.result as string).split(',')[1];
-        resolve(base64);
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          // 计算压缩后的尺寸
+          let width = img.width;
+          let height = img.height;
+          
+          if (width > maxWidth || height > maxHeight) {
+            const ratio = Math.min(maxWidth / width, maxHeight / height);
+            width = Math.floor(width * ratio);
+            height = Math.floor(height * ratio);
+          }
+          
+          // 创建canvas进行压缩
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('无法创建canvas上下文'));
+            return;
+          }
+          
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // 尝试不同的质量级别，直到文件大小满足要求
+          let quality = 0.9;
+          const tryCompress = () => {
+            canvas.toBlob(
+              (blob) => {
+                if (!blob) {
+                  reject(new Error('图片压缩失败'));
+                  return;
+                }
+                
+                const sizeMB = blob.size / 1024 / 1024;
+                console.log(`📸 压缩尝试: 质量=${quality.toFixed(2)}, 大小=${sizeMB.toFixed(2)}MB`);
+                
+                if (sizeMB <= maxSizeMB || quality <= 0.1) {
+                  console.log(`✅ 压缩完成: ${sizeMB.toFixed(2)}MB (质量=${quality.toFixed(2)})`);
+                  resolve(blob);
+                } else {
+                  // 继续降低质量
+                  quality -= 0.1;
+                  tryCompress();
+                }
+              },
+              'image/jpeg',
+              quality
+            );
+          };
+          
+          tryCompress();
+        };
+        
+        img.onerror = () => reject(new Error('图片加载失败'));
+        img.src = e.target?.result as string;
       };
-      reader.onerror = reject;
+      
+      reader.onerror = () => reject(new Error('文件读取失败'));
       reader.readAsDataURL(file);
     });
+  }
+
+  /**
+   * 将图片文件转换为Base64（带压缩）
+   */
+  private async fileToBase64(file: File): Promise<string> {
+    try {
+      // 检查文件大小
+      const fileSizeMB = file.size / 1024 / 1024;
+      console.log(`📸 原始图片大小: ${fileSizeMB.toFixed(2)}MB`);
+      
+      let processedFile: Blob = file;
+      
+      // 如果文件大于2MB，进行压缩
+      if (fileSizeMB > 2) {
+        console.log('🔧 图片过大，开始压缩...');
+        processedFile = await this.compressImage(file, 3, 1920, 1920);
+        const compressedSizeMB = processedFile.size / 1024 / 1024;
+        console.log(`✅ 压缩完成: ${fileSizeMB.toFixed(2)}MB → ${compressedSizeMB.toFixed(2)}MB`);
+      }
+      
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = (reader.result as string).split(',')[1];
+          const base64SizeMB = (base64.length * 0.75) / 1024 / 1024; // Base64大小约为原始的1.33倍
+          console.log(`📦 Base64大小: ${base64SizeMB.toFixed(2)}MB`);
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(processedFile);
+      });
+    } catch (error) {
+      console.error('❌ 图片处理失败:', error);
+      throw error;
+    }
   }
 
   /**
