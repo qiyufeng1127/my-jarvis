@@ -26,7 +26,7 @@ export default function SaveToSOPButton({ task, isDark = false, size = 'normal' 
   const borderColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)';
   
   const handleSaveToFolder = (folderId: string) => {
-    // 保存任务到SOP，包含所有验证规则
+    // 保存任务到SOP，包含所有验证规则和子任务
     createTask(folderId, {
       title: task.title,
       description: task.description || '',
@@ -35,19 +35,30 @@ export default function SaveToSOPButton({ task, isDark = false, size = 'normal' 
       location: task.location,
       goldReward: task.goldReward,
       longTermGoals: task.longTermGoals || {},
-      verificationStart: task.verificationStart,
-      verificationComplete: task.verificationComplete,
-      subtasks: task.subtasks || [],
-      hasVerification: task.hasVerification || false,
+      // 保存验证配置
+      verificationEnabled: task.verificationEnabled || false,
       startKeywords: task.startKeywords || [],
       completeKeywords: task.completeKeywords || [],
+      // 保存子任务
+      subtasks: task.subtasks || [],
     });
     
     setShowFolderSelector(false);
     
     // 显示成功提示
     const folderName = folders.find(f => f.id === folderId)?.name || 'SOP文件夹';
-    alert(`✅ 已保存到 ${folderName}`);
+    const hasVerification = (task.startKeywords && task.startKeywords.length > 0) || (task.completeKeywords && task.completeKeywords.length > 0);
+    const hasSubtasks = task.subtasks && task.subtasks.length > 0;
+    
+    let message = `✅ 已保存到 ${folderName}`;
+    if (hasVerification) {
+      message += `\n📸 已保存验证关键词`;
+    }
+    if (hasSubtasks) {
+      message += `\n✅ 已保存 ${task.subtasks?.length} 个子任务`;
+    }
+    
+    alert(message);
   };
   
   const buttonSize = size === 'small' ? 'w-6 h-6' : 'w-7 h-7';
@@ -159,6 +170,9 @@ export default function SaveToSOPButton({ task, isDark = false, size = 'normal' 
                       )}
                       {(task.completeKeywords && task.completeKeywords.length > 0) && (
                         <div>🎯 完成验证：{task.completeKeywords.join('、')}</div>
+                      )}
+                      {(task.subtasks && task.subtasks.length > 0) && (
+                        <div>📋 子任务：{task.subtasks.length}个</div>
                       )}
                     </div>
                   </div>
