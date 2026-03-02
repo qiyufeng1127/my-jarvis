@@ -243,6 +243,9 @@ export default function NewTimelineView({
   // 编辑任务的状态
   const [editedTaskData, setEditedTaskData] = useState<Task | null>(null);
   
+  // 任务重复设置状态
+  const [recurrenceDialogTask, setRecurrenceDialogTask] = useState<Task | null>(null);
+  
   // 使用 AI Store 获取 API 配置
   const { config, isConfigured } = useAIStore();
   
@@ -1558,6 +1561,41 @@ export default function NewTimelineView({
     return `${mins}min`;
   };
 
+  // 处理保存重复规则
+  const handleSaveRecurrenceRule = (rule: RecurrenceRule | null) => {
+    if (!recurrenceDialogTask) return;
+    
+    onTaskUpdate(recurrenceDialogTask.id, {
+      recurrenceRule: rule || undefined,
+      isRecurring: !!rule,
+    });
+    
+    console.log('✅ 重复规则已保存:', rule);
+  };
+
+  // 处理移动任务到明天
+  const handleMoveToTomorrow = () => {
+    if (!recurrenceDialogTask) return;
+    
+    const tomorrow = new Date(selectedDate);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const currentStart = new Date(recurrenceDialogTask.scheduledStart!);
+    const newStart = new Date(tomorrow);
+    newStart.setHours(currentStart.getHours(), currentStart.getMinutes(), 0, 0);
+    
+    const newEnd = new Date(newStart);
+    newEnd.setMinutes(newEnd.getMinutes() + recurrenceDialogTask.durationMinutes);
+    
+    onTaskUpdate(recurrenceDialogTask.id, {
+      scheduledStart: newStart,
+      scheduledEnd: newEnd,
+    });
+    
+    console.log('✅ 任务已移动到明天:', newStart);
+    alert('✅ 任务已移动到明天！');
+  };
+
   // 计算距离今日结束的剩余时间
   const calculateTimeUntilEndOfDay = () => {
     if (timeBlocks.length === 0) return null;
@@ -2624,11 +2662,39 @@ export default function NewTimelineView({
                               进行中
                             </div>
                             <SaveToSOPButton task={block} isDark={isDark} size="small" />
+                            
+                            {/* 任务重复按钮 */}
+                            <button
+                              onClick={() => setRecurrenceDialogTask(allTasks.find(t => t.id === block.id) || null)}
+                              className="px-2 py-0.5 rounded-full text-xs font-bold transition-all hover:scale-105"
+                              style={{ 
+                                backgroundColor: block.isRecurring ? 'rgba(16, 185, 129, 0.3)' : 'rgba(139, 92, 246, 0.3)',
+                                color: '#ffffff'
+                              }}
+                              title={block.isRecurring ? '已设置重复' : '设置任务重复'}
+                            >
+                              {block.isRecurring ? '🔄' : '⏰'}
+                            </button>
                           </>
                         )}
                         
                         {block.isCompleted && (
-                          <SaveToSOPButton task={block} isDark={isDark} size="small" />
+                          <>
+                            <SaveToSOPButton task={block} isDark={isDark} size="small" />
+                            
+                            {/* 任务重复按钮 */}
+                            <button
+                              onClick={() => setRecurrenceDialogTask(allTasks.find(t => t.id === block.id) || null)}
+                              className="px-2 py-0.5 rounded-full text-xs font-bold transition-all hover:scale-105"
+                              style={{ 
+                                backgroundColor: block.isRecurring ? 'rgba(16, 185, 129, 0.3)' : 'rgba(139, 92, 246, 0.3)',
+                                color: '#ffffff'
+                              }}
+                              title={block.isRecurring ? '已设置重复' : '设置任务重复'}
+                            >
+                              {block.isRecurring ? '🔄' : '⏰'}
+                            </button>
+                          </>
                         )}
 
                         <button
@@ -3477,6 +3543,18 @@ export default function NewTimelineView({
           />
         );
       })()}
+      
+      {/* 任务重复设置对话框 */}
+      {recurrenceDialogTask && (
+        <TaskRecurrenceDialog
+          taskTitle={recurrenceDialogTask.title}
+          currentRule={recurrenceDialogTask.recurrenceRule}
+          onSave={handleSaveRecurrenceRule}
+          onMoveToTomorrow={handleMoveToTomorrow}
+          onClose={() => setRecurrenceDialogTask(null)}
+          isDark={isDark}
+        />
+      )}
     </div>
   );
 }
