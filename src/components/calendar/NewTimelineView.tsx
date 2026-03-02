@@ -1563,17 +1563,23 @@ export default function NewTimelineView({
     
     const lastBlock = timeBlocks[timeBlocks.length - 1];
     const lastEndTime = lastBlock.endTime;
+    const now = new Date();
     const endOfDay = new Date(selectedDate);
     endOfDay.setHours(23, 59, 59, 999);
     
-    const remainingMinutes = Math.floor((endOfDay.getTime() - lastEndTime.getTime()) / 60000);
+    // 🔧 智能选择开始时间：
+    // 1. 如果最后一个任务结束时间 < 当前时间：从当前时间开始
+    // 2. 如果最后一个任务结束时间 >= 当前时间：从最后任务结束时间开始
+    const startTime = lastEndTime < now ? now : lastEndTime;
+    
+    const remainingMinutes = Math.floor((endOfDay.getTime() - startTime.getTime()) / 60000);
     
     if (remainingMinutes <= 0) return null;
     
     const hours = Math.floor(remainingMinutes / 60);
     const mins = remainingMinutes % 60;
     
-    return { hours, mins, totalMinutes: remainingMinutes, startTime: lastEndTime };
+    return { hours, mins, totalMinutes: remainingMinutes, startTime };
   };
   
   // 计算今日已过去的时间
