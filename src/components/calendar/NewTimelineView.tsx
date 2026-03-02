@@ -3343,14 +3343,14 @@ export default function NewTimelineView({
           <button
             onClick={() => {
               try {
-                // 使用剩余时间的开始时间作为新任务的开始时间
+                // 固定添加30分钟的任务
                 const startTime = new Date(timeUntilEnd.startTime);
-                const endTime = new Date(startTime.getTime() + timeUntilEnd.totalMinutes * 60000);
+                const endTime = new Date(startTime.getTime() + 30 * 60000);
                 const newTask = {
                   title: '新任务',
                   scheduledStart: startTime.toISOString(),
                   scheduledEnd: endTime.toISOString(),
-                  durationMinutes: timeUntilEnd.totalMinutes, // 使用剩余时长
+                  durationMinutes: 30, // 固定30分钟
                   taskType: 'work',
                   status: 'pending' as const,
                 };
