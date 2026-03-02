@@ -194,13 +194,13 @@ class BaiduImageRecognitionService {
   /**
    * 压缩图片到指定大小
    * @param file 原始图片文件
-   * @param maxSizeMB 最大大小（MB），默认3MB
+   * @param maxSizeMB 最大大小（MB），默认1MB
    * @param maxWidth 最大宽度，默认1920px
    * @param maxHeight 最大高度，默认1920px
    */
   private async compressImage(
     file: File, 
-    maxSizeMB: number = 3, 
+    maxSizeMB: number = 1, 
     maxWidth: number = 1920, 
     maxHeight: number = 1920
   ): Promise<Blob> {
@@ -282,10 +282,10 @@ class BaiduImageRecognitionService {
       
       let processedFile: Blob = file;
       
-      // 如果文件大于2MB，进行压缩
-      if (fileSizeMB > 2) {
+      // 如果文件大于1MB，进行压缩
+      if (fileSizeMB > 1) {
         console.log('🔧 图片过大，开始压缩...');
-        processedFile = await this.compressImage(file, 3, 1920, 1920);
+        processedFile = await this.compressImage(file, 1, 1920, 1920);
         const compressedSizeMB = processedFile.size / 1024 / 1024;
         console.log(`✅ 压缩完成: ${fileSizeMB.toFixed(2)}MB → ${compressedSizeMB.toFixed(2)}MB`);
       }
