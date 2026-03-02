@@ -2666,14 +2666,13 @@ export default function NewTimelineView({
                             {/* 任务重复按钮 */}
                             <button
                               onClick={() => setRecurrenceDialogTask(allTasks.find(t => t.id === block.id) || null)}
-                              className="px-2 py-0.5 rounded-full text-xs font-bold transition-all hover:scale-105"
+                              className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110"
                               style={{ 
                                 backgroundColor: block.isRecurring ? 'rgba(16, 185, 129, 0.3)' : 'rgba(139, 92, 246, 0.3)',
-                                color: '#ffffff'
                               }}
                               title={block.isRecurring ? '已设置重复' : '设置任务重复'}
                             >
-                              {block.isRecurring ? '🔄' : '⏰'}
+                              <span className="text-sm">🔄</span>
                             </button>
                           </>
                         )}
@@ -2685,14 +2684,13 @@ export default function NewTimelineView({
                             {/* 任务重复按钮 */}
                             <button
                               onClick={() => setRecurrenceDialogTask(allTasks.find(t => t.id === block.id) || null)}
-                              className="px-2 py-0.5 rounded-full text-xs font-bold transition-all hover:scale-105"
+                              className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110"
                               style={{ 
                                 backgroundColor: block.isRecurring ? 'rgba(16, 185, 129, 0.3)' : 'rgba(139, 92, 246, 0.3)',
-                                color: '#ffffff'
                               }}
                               title={block.isRecurring ? '已设置重复' : '设置任务重复'}
                             >
-                              {block.isRecurring ? '🔄' : '⏰'}
+                              <span className="text-sm">🔄</span>
                             </button>
                           </>
                         )}
