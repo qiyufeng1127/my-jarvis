@@ -135,8 +135,23 @@ export interface Task {
   efficiencyLevel?: 'excellent' | 'good' | 'average' | 'poor'; // 效率等级
   completionNotes?: string; // 完成笔记/反思
   
+  // 任务重复规则
+  recurrenceRule?: RecurrenceRule; // 重复规则
+  isRecurring?: boolean; // 是否为重复任务
+  parentTaskId?: string; // 父任务ID（用于标识由哪个重复规则生成）
+  
   createdAt: Date;
   updatedAt: Date;
+}
+
+// 任务重复规则
+export type RecurrenceType = 'once' | 'daily' | 'weekly' | 'monthly';
+
+export interface RecurrenceRule {
+  type: RecurrenceType;
+  time: string; // HH:mm 格式
+  weekdays?: number[]; // 0-6 (周日到周六)，用于每周重复
+  endDate?: string; // YYYY-MM-DD 格式，重复结束日期
 }
 
 export interface TaskImage {

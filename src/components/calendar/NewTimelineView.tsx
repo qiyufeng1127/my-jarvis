@@ -41,6 +41,7 @@ import TaskCompletionEfficiencyModal from './TaskCompletionEfficiencyModal';
 import CompactTaskEditModal from './CompactTaskEditModal';
 import { useTaskStore } from '@/stores/taskStore';
 import SaveToSOPButton from '@/components/sop/SaveToSOPButton';
+import TaskRecurrenceDialog, { RecurrenceRule } from './TaskRecurrenceDialog';
 
 interface NewTimelineViewProps {
   tasks: Task[];
