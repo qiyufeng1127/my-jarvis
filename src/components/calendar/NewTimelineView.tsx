@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Plus, Camera, Check, ChevronDown, ChevronUp, Edit2, Trash2, GripVertical, Star, Clock, FileText, Upload, X } from 'lucide-react';
 import type { Task } from '@/types';
 import { 
@@ -819,20 +819,6 @@ export default function NewTimelineView({
   // 启用任务验证（点击立即生成关键词）
   const handleEnableVerification = async (taskId: string, taskTitle: string, taskType: string) => {
     try {
-      // 使用 AI Store 的配置
-      if (!isConfigured()) {
-        alert('请先在 AI 智能输入中配置 API Key');
-        return;
-      }
-      
-      // 立即生成启动和完成验证关键词
-      const { startKeywords, completionKeywords } = await generateVerificationKeywords(
-        taskTitle, 
-        taskType, 
-        config.apiKey, 
-        config.apiEndpoint
-      );
-      
       // 获取任务的开始和结束时间
       const task = allTasks.find(t => t.id === taskId);
       if (!task || !task.scheduledStart) {
@@ -845,10 +831,11 @@ export default function NewTimelineView({
         ? new Date(task.scheduledEnd) 
         : new Date(scheduledStart.getTime() + (task.durationMinutes || 30) * 60 * 1000);
       
+      // 直接创建空的验证配置，不调用AI（用户可以从预设组选择）
       const verification: TaskVerification = {
         enabled: true,
-        startKeywords,
-        completionKeywords,
+        startKeywords: [], // 空数组，用户从预设组选择或手动输入
+        completionKeywords: [], // 空数组，用户从预设组选择或手动输入
         startDeadline: new Date(scheduledStart.getTime() + 2 * 60 * 1000),
         completionDeadline: scheduledEnd,
         
@@ -2690,8 +2677,7 @@ export default function NewTimelineView({
                           title={block.isRecurring ? '已设置重复' : '设置任务重复'}
                         >
                           <span className="text-sm">🔄</span>
-                        </button>
-
+                        </button 
                         <button
                           onClick={() => toggleExpand(block.id)}
                           className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} rounded-full flex items-center justify-center transition-all hover:scale-110`}
