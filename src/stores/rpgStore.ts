@@ -13,6 +13,10 @@ export interface RPGCharacter {
   improvements: Array<{ label: string; description: string; progress: number }>; // 待改进行为
   title: string; // 人生称号
   avatarLevel: number; // 头像等级
+  
+  // 雷达图数据
+  positiveStats: Array<{ label: string; value: number }>; // 正向能力：健康、学习力、赚钱能力、执行力等8个维度
+  negativeStats: Array<{ label: string; value: number }>; // 负向行为：拖延、焦虑等
 }
 
 // 每日任务
@@ -138,6 +142,30 @@ export const useRPGStore = create<RPGState>()(
         ],
         title: '萌芽新手',
         avatarLevel: 1,
+        
+        // 正向能力雷达图（8个维度）
+        positiveStats: [
+          { label: '健康', value: 70 },
+          { label: '学习力', value: 65 },
+          { label: '赚钱能力', value: 50 },
+          { label: '执行力', value: 75 },
+          { label: '专注力', value: 60 },
+          { label: '创造力', value: 55 },
+          { label: '社交力', value: 45 },
+          { label: '情绪管理', value: 68 },
+        ],
+        
+        // 负向行为雷达图（8个维度）
+        negativeStats: [
+          { label: '拖延', value: 45 },
+          { label: '焦虑', value: 35 },
+          { label: '分心', value: 40 },
+          { label: '完美主义', value: 30 },
+          { label: '自我怀疑', value: 25 },
+          { label: '逃避', value: 20 },
+          { label: '冲动', value: 15 },
+          { label: '消极', value: 18 },
+        ],
       },
       
       dailyTasks: [],

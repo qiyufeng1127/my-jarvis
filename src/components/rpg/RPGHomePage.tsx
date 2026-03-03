@@ -10,6 +10,7 @@ import AchievementWall from './AchievementWall';
 import GrowthTree from './GrowthTree';
 import SeasonPass from './SeasonPass';
 import AvatarCollectionManager from './AvatarCollectionManager';
+import RadarChart from './RadarChart';
 import { 
   TaskCompleteAnimation, 
   LevelUpAnimation, 
@@ -485,6 +486,43 @@ export default function RPGHomePage() {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* 能力雷达图 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        {/* 正向能力雷达图 */}
+        <div 
+          className="rounded-2xl p-6 shadow-sm"
+          style={{ backgroundColor: '#fff' }}
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <Star className="w-5 h-5" style={{ color: VINTAGE_COLORS.sage }} />
+            <h3 className="font-bold text-lg" style={{ color: VINTAGE_COLORS.burgundy }}>
+              ✨ 正向能力
+            </h3>
+          </div>
+          <RadarChart type="positive" data={character.positiveStats} />
+          <p className="text-xs text-center mt-4 opacity-70" style={{ color: VINTAGE_COLORS.burgundy }}>
+            基于你的任务完成情况和行为数据实时更新
+          </p>
+        </div>
+
+        {/* 负向行为雷达图 */}
+        <div 
+          className="rounded-2xl p-6 shadow-sm"
+          style={{ backgroundColor: '#fff' }}
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <AlertTriangle className="w-5 h-5" style={{ color: VINTAGE_COLORS.terracotta }} />
+            <h3 className="font-bold text-lg" style={{ color: VINTAGE_COLORS.burgundy }}>
+              ⚠️ 待改进行为
+            </h3>
+          </div>
+          <RadarChart type="negative" data={character.negativeStats} />
+          <p className="text-xs text-center mt-4 opacity-70" style={{ color: VINTAGE_COLORS.burgundy }}>
+            数值越低越好，持续改进可降低负面行为
+          </p>
         </div>
       </div>
 
