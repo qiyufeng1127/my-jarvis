@@ -487,367 +487,69 @@ export default function RPGHomePage() {
         </div>
       </div>
 
-      {/* 能力雷达图 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        {/* 正向能力雷达图 */}
-        <div 
-          className="rounded-2xl p-6 shadow-sm"
-          style={{ backgroundColor: '#fff' }}
-        >
-          <div className="flex items-center gap-2 mb-4">
-            <Star className="w-5 h-5" style={{ color: VINTAGE_COLORS.sage }} />
-            <h3 className="font-bold text-lg" style={{ color: VINTAGE_COLORS.burgundy }}>
-              ✨ 正向能力
-            </h3>
-          </div>
-          <RadarChart type="positive" data={character.positiveStats || []} />
-          <p className="text-xs text-center mt-4 opacity-70" style={{ color: VINTAGE_COLORS.burgundy }}>
-            基于你的任务完成情况和行为数据实时更新
-          </p>
-        </div>
-
-        {/* 负向行为雷达图 */}
-        <div 
-          className="rounded-2xl p-6 shadow-sm"
-          style={{ backgroundColor: '#fff' }}
-        >
-          <div className="flex items-center gap-2 mb-4">
-            <AlertTriangle className="w-5 h-5" style={{ color: VINTAGE_COLORS.terracotta }} />
-            <h3 className="font-bold text-lg" style={{ color: VINTAGE_COLORS.burgundy }}>
-              ⚠️ 待改进行为
-            </h3>
-          </div>
-          <RadarChart type="negative" data={character.negativeStats || []} />
-          <p className="text-xs text-center mt-4 opacity-70" style={{ color: VINTAGE_COLORS.burgundy }}>
-            数值越低越好，持续改进可降低负面行为
-          </p>
-        </div>
-      </div>
-
-      {/* 头像收集展示区域 */}
-      {useAvatarStore.getState().collections.length > 0 && (
-        <div className="mb-4 space-y-3">
-          {useAvatarStore.getState().collections.map((collection) => {
-            const unlockedCount = collection.avatars.filter(a => a.unlocked).length;
-            const totalCount = collection.avatars.length;
-            
-            return (
-              <div 
-                key={collection.id}
-                className="rounded-2xl overflow-hidden shadow-sm"
-                style={{ backgroundColor: VINTAGE_COLORS.beige }}
-              >
-                {/* 集合头部 - 可点击折叠/展开 */}
-                <button
-                  onClick={() => useAvatarStore.getState().toggleCollapse(collection.id)}
-                  className="w-full p-4 flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{collection.emoji}</span>
-                    <div className="text-left">
-                      <div className="font-bold" style={{ color: VINTAGE_COLORS.burgundy }}>
-                        已收集 {collection.title}
-                      </div>
-                      <div className="text-xs opacity-70" style={{ color: VINTAGE_COLORS.burgundy }}>
-                        {unlockedCount}/{totalCount} 已解锁
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <ChevronRight 
-                    className={`w-5 h-5 transition-transform ${collection.collapsed ? '' : 'rotate-90'}`}
-                    style={{ color: VINTAGE_COLORS.burgundy }}
-                  />
-                </button>
-                
-                {/* 头像网格 - 展开时显示 */}
-                {!collection.collapsed && (
-                  <div className="px-4 pb-4">
-                    <div className="grid grid-cols-5 gap-2">
-                      {collection.avatars.map((avatar) => (
-                        <button
-                          key={avatar.id}
-                          onClick={() => {
-                            if (avatar.unlocked) {
-                              useAvatarStore.getState().setCurrentAvatar(avatar.imageUrl);
-                            }
-                          }}
-                          className="aspect-square rounded-xl overflow-hidden relative transition-all"
-                          style={{
-                            backgroundColor: VINTAGE_COLORS.khaki,
-                            opacity: avatar.unlocked ? 1 : 0.5,
-                            border: currentAvatarUrl === avatar.imageUrl ? `3px solid ${VINTAGE_COLORS.sage}` : 'none',
-                          }}
-                        >
-                          <img 
-                            src={avatar.imageUrl} 
-                            alt="Avatar" 
-                            className="w-full h-full object-cover"
-                          />
-                          
-                          {/* 未解锁遮罩 */}
-                          {!avatar.unlocked && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60">
-                              <div className="text-white text-xs font-bold mb-1">🔒</div>
-                              <div className="text-white text-xs font-semibold">
-                                {avatar.requiredExp}
-                              </div>
-                              <div className="text-white text-[10px]">EXP</div>
-                            </div>
-                          )}
-                          
-                          {/* 已选中标记 */}
-                          {currentAvatarUrl === avatar.imageUrl && (
-                            <div 
-                              className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center"
-                              style={{ backgroundColor: VINTAGE_COLORS.sage }}
-                            >
-                              <span className="text-xs text-white">✓</span>
-                            </div>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* 目标系统 */}
-      <div 
-        className="rounded-2xl p-4 mb-4 shadow-sm"
-        style={{ backgroundColor: VINTAGE_COLORS.dustyBlue }}
-      >
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Target className="w-5 h-5" style={{ color: VINTAGE_COLORS.burgundy }} />
-            <span className="font-bold" style={{ color: VINTAGE_COLORS.burgundy }}>
-              🎯 人生目标
-            </span>
-          </div>
-          <button 
-            onClick={() => setShowGoals(true)}
-            className="text-xs px-3 py-1 rounded-full"
-            style={{ 
-              backgroundColor: VINTAGE_COLORS.beige,
-              color: VINTAGE_COLORS.burgundy
-            }}
-          >
-            查看全部
-          </button>
-        </div>
-        
-        {goals.slice(0, 2).map((goal) => (
-          <div key={goal.id} className="mb-3 last:mb-0">
-            <div className="flex justify-between text-sm mb-1" style={{ color: VINTAGE_COLORS.burgundy }}>
-              <span className="font-semibold">{goal.title}</span>
-              <span>{goal.progress}/{goal.maxProgress}</span>
-            </div>
-            <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: VINTAGE_COLORS.khaki }}>
-              <div 
-                className="h-full rounded-full"
-                style={{ 
-                  width: `${(goal.progress / goal.maxProgress) * 100}%`,
-                  backgroundColor: VINTAGE_COLORS.mustard
-                }}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* 财富系统 */}
-      <div 
-        className="rounded-2xl p-4 mb-4 shadow-sm"
-        style={{ backgroundColor: VINTAGE_COLORS.mustard }}
-      >
-        <div className="flex items-center gap-2 mb-3">
-          <Coins className="w-5 h-5 text-white" />
-          <span className="font-bold text-white">💰 财富状况</span>
-        </div>
-        
-        <div className="grid grid-cols-2 gap-3">
-          <div className="p-3 rounded-xl" style={{ backgroundColor: 'rgba(255,255,255,0.3)' }}>
-            <div className="text-xs text-white opacity-80 mb-1">当前余额</div>
-            <div className="text-xl font-bold text-white">{wealth.balance}</div>
-          </div>
-          
-          <div className="p-3 rounded-xl" style={{ backgroundColor: 'rgba(255,255,255,0.3)' }}>
-            <div className="text-xs text-white opacity-80 mb-1">今日收入</div>
-            <div className="text-xl font-bold text-white">+{wealth.todayEarned}</div>
-          </div>
-        </div>
-        
-        {wealth.todaySpent > wealth.budget && (
-          <div className="mt-3 p-2 rounded-lg text-xs" style={{ backgroundColor: VINTAGE_COLORS.terracotta, color: '#fff' }}>
-            ⚠️ 今日支出超预算 {wealth.todaySpent - wealth.budget} 元
-          </div>
-        )}
-      </div>
-
-      {/* 每日任务系统 */}
-      <div 
-        className="rounded-2xl p-4 mb-4 shadow-sm"
-        style={{ backgroundColor: '#fff' }}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Gift className="w-5 h-5" style={{ color: VINTAGE_COLORS.burgundy }} />
-            <span className="font-bold" style={{ color: VINTAGE_COLORS.burgundy }}>
-              📝 每日任务宝箱
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <button 
-              onClick={handleRegenerateTasks}
-              disabled={isGenerating}
-              className="text-xs px-3 py-1.5 rounded-full font-semibold flex items-center gap-1"
-              style={{ 
-                backgroundColor: VINTAGE_COLORS.dustyBlue,
-                color: VINTAGE_COLORS.burgundy,
-                opacity: isGenerating ? 0.5 : 1
-              }}
-            >
-              <RefreshCw className={`w-3 h-3 ${isGenerating ? 'animate-spin' : ''}`} />
-              {isGenerating ? '生成中' : '重新生成'}
-            </button>
-            <button 
-              onClick={handleClaimAllTasks}
-              disabled={isSyncing}
-              className="text-xs px-3 py-1.5 rounded-full font-semibold"
-              style={{ 
-                backgroundColor: VINTAGE_COLORS.sage,
-                color: '#fff',
-                opacity: isSyncing ? 0.5 : 1
-              }}
-            >
-              {isSyncing ? '同步中...' : '一键领取'}
-            </button>
-          </div>
-        </div>
-        
-        <div className="space-y-2">
-          {dailyTasks.map((task) => (
-            <div 
-              key={task.id}
-              className="p-3 rounded-xl border-2 transition-all"
-              style={{ 
-                backgroundColor: task.completed ? VINTAGE_COLORS.sage : '#fff',
-                borderColor: task.isImprovement ? VINTAGE_COLORS.terracotta : VINTAGE_COLORS.khaki,
-                opacity: task.completed ? 0.6 : 1
-              }}
-            >
-              <div className="flex items-start gap-3">
-                <button
-                  onClick={() => !task.completed && handleCompleteTask(task.id)}
-                  className="mt-0.5 w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
-                  style={{ 
-                    backgroundColor: task.completed ? VINTAGE_COLORS.sage : VINTAGE_COLORS.khaki,
-                    color: '#fff'
-                  }}
-                  disabled={task.completed}
-                >
-                  {task.completed && '✓'}
-                </button>
-                
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    {task.isImprovement && (
-                      <span className="text-xs px-1.5 py-0.5 rounded" style={{ 
-                        backgroundColor: VINTAGE_COLORS.terracotta,
-                        color: '#fff'
-                      }}>
-                        ⚠️ 改进
-                      </span>
-                    )}
-                    {task.type === 'surprise' && (
-                      <span className="text-xs px-1.5 py-0.5 rounded" style={{ 
-                        backgroundColor: VINTAGE_COLORS.mauve,
-                        color: '#fff'
-                      }}>
-                        🎁 惊喜
-                      </span>
-                    )}
-                  </div>
-                  
-                  <div className="font-semibold text-sm mb-1" style={{ 
-                    color: VINTAGE_COLORS.burgundy,
-                    textDecoration: task.completed ? 'line-through' : 'none'
-                  }}>
-                    {task.title}
-                  </div>
-                  
-                  <div className="text-xs opacity-70 mb-2" style={{ color: VINTAGE_COLORS.burgundy }}>
-                    {task.description}
-                  </div>
-                  
-                  <div className="flex items-center gap-3 text-xs">
-                    <span style={{ color: VINTAGE_COLORS.sage }}>
-                      ⭐ +{task.expReward} 经验
-                    </span>
-                    <span style={{ color: VINTAGE_COLORS.mustard }}>
-                      💰 +{task.goldReward} 金币
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-        
-        {/* 任务完成进度 */}
-        <div className="mt-4 pt-4 border-t" style={{ borderColor: VINTAGE_COLORS.khaki }}>
-          <div className="flex justify-between text-xs mb-2" style={{ color: VINTAGE_COLORS.burgundy }}>
-            <span>今日完成度</span>
-            <span>{dailyTasks.filter(t => t.completed).length}/{dailyTasks.length}</span>
-          </div>
-          <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: VINTAGE_COLORS.khaki }}>
-            <div 
-              className="h-full rounded-full"
-              style={{ 
-                width: `${(dailyTasks.filter(t => t.completed).length / dailyTasks.length) * 100}%`,
-                backgroundColor: VINTAGE_COLORS.sage
-              }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* 成就墙预览 */}
-      <div 
-        className="rounded-2xl p-4 mb-4 shadow-sm cursor-pointer"
-        style={{ backgroundColor: VINTAGE_COLORS.mauve }}
-        onClick={() => setShowAchievements(true)}
-      >
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Award className="w-5 h-5 text-white" />
-            <span className="font-bold text-white">🏅 成就勋章</span>
-          </div>
-          <ChevronRight className="w-5 h-5 text-white" />
-        </div>
-        
-        <div className="flex gap-2 overflow-x-auto pb-2">
-          {achievements.slice(0, 5).map((achievement) => (
-            <div 
-              key={achievement.id}
-              className="flex-shrink-0 w-16 h-16 rounded-xl flex items-center justify-center text-2xl"
-              style={{ 
-                backgroundColor: achievement.unlocked ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.1)',
-                opacity: achievement.unlocked ? 1 : 0.4
-              }}
-            >
-              {achievement.icon}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* 成长树和赛季通行证 */}
+      {/* 快捷功能卡片区 */}
       <div className="grid grid-cols-2 gap-3 mb-4">
+        {/* 能力雷达 */}
+        <button
+          onClick={() => setShowGoals(true)}
+          className="rounded-2xl p-4 shadow-sm text-left"
+          style={{ backgroundColor: VINTAGE_COLORS.sage }}
+        >
+          <Star className="w-6 h-6 mb-2" style={{ color: VINTAGE_COLORS.burgundy }} />
+          <div className="font-bold text-sm mb-1" style={{ color: VINTAGE_COLORS.burgundy }}>
+            📊 能力雷达
+          </div>
+          <div className="text-xs opacity-70" style={{ color: VINTAGE_COLORS.burgundy }}>
+            查看详细数据
+          </div>
+        </button>
+        
+        {/* 目标系统 */}
+        <button
+          onClick={() => setShowGoals(true)}
+          className="rounded-2xl p-4 shadow-sm text-left"
+          style={{ backgroundColor: VINTAGE_COLORS.dustyBlue }}
+        >
+          <Target className="w-6 h-6 mb-2" style={{ color: VINTAGE_COLORS.burgundy }} />
+          <div className="font-bold text-sm mb-1" style={{ color: VINTAGE_COLORS.burgundy }}>
+            🎯 人生目标
+          </div>
+          <div className="text-xs opacity-70" style={{ color: VINTAGE_COLORS.burgundy }}>
+            {goals.length} 个进行中
+          </div>
+        </button>
+        
+        {/* 每日任务 */}
+        <button
+          onClick={() => setShowGoals(true)}
+          className="rounded-2xl p-4 shadow-sm text-left"
+          style={{ backgroundColor: VINTAGE_COLORS.mustard }}
+        >
+          <Gift className="w-6 h-6 mb-2 text-white" />
+          <div className="font-bold text-sm mb-1 text-white">
+            📝 每日任务
+          </div>
+          <div className="text-xs opacity-80 text-white">
+            {dailyTasks.filter(t => t.completed).length}/{dailyTasks.length} 已完成
+          </div>
+        </button>
+        
+        {/* 成就墙 */}
+        <button
+          onClick={() => setShowAchievements(true)}
+          className="rounded-2xl p-4 shadow-sm text-left"
+          style={{ backgroundColor: VINTAGE_COLORS.mauve }}
+        >
+          <Award className="w-6 h-6 mb-2 text-white" />
+          <div className="font-bold text-sm mb-1 text-white">
+            🏅 成就勋章
+          </div>
+          <div className="text-xs opacity-80 text-white">
+            {achievements.filter(a => a.unlocked).length} 个已解锁
+          </div>
+        </button>
+        
+        {/* 成长树 */}
         <button
           onClick={() => setShowGrowthTree(true)}
           className="rounded-2xl p-4 shadow-sm text-left"
@@ -855,50 +557,30 @@ export default function RPGHomePage() {
         >
           <TreeDeciduous className="w-6 h-6 mb-2" style={{ color: VINTAGE_COLORS.burgundy }} />
           <div className="font-bold text-sm mb-1" style={{ color: VINTAGE_COLORS.burgundy }}>
-            成长之树
+            🌳 成长之树
           </div>
           <div className="text-xs opacity-70" style={{ color: VINTAGE_COLORS.burgundy }}>
-            {character.level} 级
+            Lv.{character.level}
           </div>
         </button>
         
+        {/* 赛季通行证 */}
         <button
           onClick={() => setShowSeasonPass(true)}
           className="rounded-2xl p-4 shadow-sm text-left"
-          style={{ backgroundColor: VINTAGE_COLORS.mauve }}
+          style={{ backgroundColor: VINTAGE_COLORS.softPink }}
         >
-          <Gift className="w-6 h-6 mb-2 text-white" />
-          <div className="font-bold text-sm mb-1 text-white">
-            赛季通行证
+          <Sparkles className="w-6 h-6 mb-2" style={{ color: VINTAGE_COLORS.burgundy }} />
+          <div className="font-bold text-sm mb-1" style={{ color: VINTAGE_COLORS.burgundy }}>
+            🎁 赛季通行证
           </div>
-          <div className="text-xs opacity-80 text-white">
+          <div className="text-xs opacity-70" style={{ color: VINTAGE_COLORS.burgundy }}>
             第1赛季
           </div>
         </button>
       </div>
 
-      {/* 成长数据面板 */}
-      <div 
-        className="rounded-2xl p-4 shadow-sm"
-        style={{ backgroundColor: VINTAGE_COLORS.sage }}
-      >
-        <div className="flex items-center gap-2 mb-3">
-          <TrendingUp className="w-5 h-5" style={{ color: VINTAGE_COLORS.burgundy }} />
-          <span className="font-bold" style={{ color: VINTAGE_COLORS.burgundy }}>
-            📊 今日数据
-          </span>
-        </div>
-        
-        <div className="text-sm mb-2" style={{ color: VINTAGE_COLORS.burgundy }}>
-          <span className="font-semibold">👍 今天超棒！</span>
-          专注时长比昨天多30分钟
-        </div>
-        
-        <div className="text-sm" style={{ color: VINTAGE_COLORS.burgundy }}>
-          <span className="font-semibold">⚠️ 需要注意：</span>
-          拖延次数增加1次，明天优化拖延，就能解锁额外奖励～
-        </div>
-      </div>
+
     </div>
   );
 }
