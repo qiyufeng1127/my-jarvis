@@ -73,33 +73,53 @@ export default function Dashboard() {
   }, [tasks]);
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-black">
+    <div 
+      className="min-h-screen"
+      style={{ 
+        backgroundColor: '#fefaf0',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
+      }}
+    >
       {/* 通知容器 */}
       <NotificationContainer />
 
-      {/* 语音激活提示条 */}
+      {/* 语音激活提示条 - iOS 风格 */}
       {showVoiceActivation && (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg">
+        <div 
+          className="fixed top-0 left-0 right-0 z-50 shadow-lg"
+          style={{
+            backgroundColor: 'rgba(0, 122, 255, 0.95)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+          }}
+        >
           <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Volume2 className="w-6 h-6 animate-pulse" />
+              <Volume2 className="w-6 h-6 animate-pulse" style={{ color: '#ffffff' }} />
               <div>
-                <p className="font-bold">🔊 激活语音播报</p>
-                <p className="text-sm opacity-90">点击激活后，您将听到任务开始、结束、超时等语音提醒</p>
+                <p className="font-bold" style={{ color: '#ffffff' }}>🔊 激活语音播报</p>
+                <p className="text-sm" style={{ color: 'rgba(255, 255, 255, 0.9)' }}>点击激活后，您将听到任务开始、结束、超时等语音提醒</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={handleActivateVoice}
-                className="px-6 py-2 bg-white text-blue-600 font-bold rounded-lg hover:bg-blue-50 transition-all shadow-lg"
+                className="px-6 py-2 rounded-xl font-bold transition-all shadow-lg active:scale-95"
+                style={{
+                  backgroundColor: '#ffffff',
+                  color: '#007AFF',
+                }}
               >
                 立即激活
               </button>
               <button
                 onClick={() => setShowVoiceActivation(false)}
-                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                className="p-2 rounded-lg transition-colors active:scale-95"
+                style={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                }}
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5" style={{ color: '#ffffff' }} />
               </button>
             </div>
           </div>
@@ -112,18 +132,46 @@ export default function Dashboard() {
         onModuleChange={(module) => setCurrentModule(module)}
       />
 
-      {/* 日历时间轴 */}
+      {/* 日历时间轴 - iOS 风格 */}
       {isCalendarOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg w-full max-w-7xl h-[90vh] flex flex-col">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
+          }}
+        >
+          <div 
+            className="w-full max-w-7xl h-[90vh] flex flex-col rounded-2xl overflow-hidden"
+            style={{
+              backgroundColor: 'rgba(254, 250, 240, 0.95)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              boxShadow: '0 8px 32px rgba(84, 41, 22, 0.2)',
+            }}
+          >
             {/* 头部 */}
-            <div className="flex items-center justify-between p-4 border-b border-neutral-200">
-              <h2 className="text-xl font-bold">📅 日历与时间轴</h2>
+            <div 
+              className="flex items-center justify-between p-6"
+              style={{
+                borderBottom: '1px solid rgba(84, 41, 22, 0.1)',
+              }}
+            >
+              <h2 
+                className="text-xl font-bold"
+                style={{ color: '#542916' }}
+              >
+                📅 日历与时间轴
+              </h2>
               <button
                 onClick={() => setIsCalendarOpen(false)}
-                className="p-2 hover:bg-neutral-100 rounded-lg transition-colors"
+                className="p-2 rounded-xl transition-all active:scale-95"
+                style={{
+                  backgroundColor: 'rgba(84, 41, 22, 0.1)',
+                }}
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5" style={{ color: '#542916' }} />
               </button>
             </div>
             

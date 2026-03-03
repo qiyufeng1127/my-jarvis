@@ -76,6 +76,14 @@ export default function DiarySystem({ isDark = false, bgColor = '#ffffff' }: Dia
         fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
       }}
     >
+      <style>{`
+        .diary-button-selected {
+          color: #ffffff !important;
+        }
+        .diary-button-selected * {
+          color: #ffffff !important;
+        }
+      `}</style>
       {/* 头部 - iOS风格视图切换 */}
       <div
         className="sticky top-0 z-10 rounded-2xl p-3"
@@ -98,10 +106,10 @@ export default function DiarySystem({ isDark = false, bgColor = '#ffffff' }: Dia
                   setViewMode('calendar');
                   setSelectedDate(null);
                 }}
-                className="flex-1 px-4 py-2 rounded-lg transition-transform active:scale-95"
+                className={`flex-1 px-4 py-2 rounded-lg transition-transform active:scale-95 ${isSelected ? 'diary-button-selected' : ''}`}
                 style={{
                   backgroundColor: isSelected ? DIARY_COLORS.espresso : 'transparent',
-                  color: isSelected ? DIARY_COLORS.nuageDeLait : DIARY_COLORS.eauTrouble,
+                  color: isSelected ? '#ffffff' : DIARY_COLORS.eauTrouble,
                   fontSize: '14px',
                   fontWeight: 500,
                   minHeight: '44px',

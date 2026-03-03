@@ -319,7 +319,9 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
   // 从 Supabase 加载模块配置
   useEffect(() => {
     const loadModules = async () => {
-      if (!isSupabaseConfigured()) {
+      // 检查 Supabase 是否配置
+      const isConfigured = !!(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
+      if (!isConfigured) {
         console.error('❌ Supabase 未配置！');
         console.error('请检查以下配置：');
         console.error('1. .env 文件是否存在');
@@ -802,7 +804,10 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
   return (
     <div
       className="flex h-screen"
-      style={{ backgroundColor: '#e2d9bc' }}
+      style={{ 
+        backgroundColor: '#fefaf0',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
+      }}
       onMouseMove={draggingModule ? handleDrag : resizingModule ? handleResize : undefined}
       onMouseUp={draggingModule ? handleDragEnd : resizingModule ? handleResizeEnd : undefined}
       onClick={() => {
@@ -810,9 +815,17 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
         setContextMenuModule(null);
       }}
     >
-      {/* 左侧功能模块栏 */}
-      <div className="w-24 flex flex-col items-center py-8 space-y-4" style={{ backgroundColor: '#e2d9bc' }}>
-        {/* 头像上传 */}
+      {/* 左侧功能模块栏 - iOS 风格 */}
+      <div 
+        className="w-24 flex flex-col items-center py-8 space-y-4"
+        style={{ 
+          backgroundColor: 'rgba(254, 250, 240, 0.8)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          borderRight: '1px solid rgba(84, 41, 22, 0.1)',
+        }}
+      >
+        {/* 头像上传 - iOS 风格 */}
         <div className="relative mb-6">
           <input
             type="file"
@@ -823,8 +836,12 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
           />
           <label
             htmlFor="profile-upload"
-            className="block w-20 h-20 rounded-xl overflow-hidden cursor-pointer hover:opacity-80 transition-opacity border-2 border-neutral-300 shadow-lg"
-            style={{ backgroundColor: '#D1CBBA' }}
+            className="block w-20 h-20 rounded-2xl overflow-hidden cursor-pointer transition-all active:scale-95"
+            style={{ 
+              backgroundColor: 'rgba(254, 250, 240, 0.9)',
+              boxShadow: '0 2px 8px rgba(84, 41, 22, 0.15)',
+              border: '2px solid rgba(84, 41, 22, 0.1)',
+            }}
           >
             {profileImage ? (
               <img
@@ -865,15 +882,18 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                 onMouseUp={handleLongPressEnd}
                 onMouseLeave={handleLongPressEnd}
                 className={`
-                  w-12 h-12 rounded-lg flex items-center justify-center transition-all overflow-hidden
+                  w-12 h-12 rounded-xl flex items-center justify-center transition-all overflow-hidden active:scale-95
                   ${
                     isActive
-                      ? 'shadow-lg scale-110'
-                      : 'hover:scale-105'
+                      ? 'scale-110'
+                      : ''
                   }
                 `}
                 style={{
                   backgroundColor: iconBgColor,
+                  boxShadow: isActive 
+                    ? '0 4px 12px rgba(84, 41, 22, 0.25)' 
+                    : '0 2px 6px rgba(84, 41, 22, 0.1)',
                 }}
                 title={moduleDef.title}
               >
@@ -903,12 +923,14 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
           handleResizeEnd();
         }}
       >
-        {/* 顶部状态栏 - 透明背景，与主页一致 */}
+        {/* 顶部状态栏 - iOS 风格毛玻璃效果 */}
         <div 
           className="relative z-10 px-8 py-4"
           style={{
-            backgroundColor: 'transparent', // 透明背景
-            borderBottom: '1px solid rgba(0,0,0,0.05)',
+            backgroundColor: 'rgba(254, 250, 240, 0.8)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            borderBottom: '1px solid rgba(84, 41, 22, 0.1)',
             height: '80px',
           }}
           onMouseMove={handleTopBarDrag}
@@ -931,7 +953,14 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                   >
                     <button
                       onClick={() => setShowHistoryModal('identity')}
-                      className="flex items-center space-x-3 px-4 py-2 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100/50 shadow-sm hover:scale-105 transition-transform"
+                      className="flex items-center space-x-3 px-4 py-2 rounded-2xl transition-all active:scale-95"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(255, 241, 181, 0.9), rgba(255, 228, 181, 0.9))',
+                        backdropFilter: 'blur(10px)',
+                        WebkitBackdropFilter: 'blur(10px)',
+                        border: '1px solid rgba(234, 179, 8, 0.2)',
+                        boxShadow: '0 2px 8px rgba(84, 41, 22, 0.1)',
+                      }}
                     >
                       <div className="text-2xl">👑</div>
                       <div>
@@ -957,7 +986,14 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                   >
                     <button
                       onClick={() => setShowHistoryModal('growth')}
-                      className="flex items-center space-x-3 px-4 py-2 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100/50 shadow-sm hover:scale-105 transition-transform"
+                      className="flex items-center space-x-3 px-4 py-2 rounded-2xl transition-all active:scale-95"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(219, 234, 254, 0.9), rgba(191, 219, 254, 0.9))',
+                        backdropFilter: 'blur(10px)',
+                        WebkitBackdropFilter: 'blur(10px)',
+                        border: '1px solid rgba(59, 130, 246, 0.2)',
+                        boxShadow: '0 2px 8px rgba(84, 41, 22, 0.1)',
+                      }}
                     >
                       <div className="text-2xl">📊</div>
                       <div>
@@ -988,10 +1024,13 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                     onMouseDown={(e) => handleTopBarDragStart(item.id, e)}
                   >
                     <button
-                      className="flex items-center space-x-3 px-4 py-2 rounded-2xl border shadow-sm hover:scale-105 transition-transform"
+                      className="flex items-center space-x-3 px-4 py-2 rounded-2xl transition-all active:scale-95"
                       style={{
-                        backgroundColor: isNegative ? '#8B0000' : '#D4EDDA',
-                        borderColor: isNegative ? '#660000' : '#C3E6CB',
+                        backgroundColor: isNegative ? 'rgba(139, 0, 0, 0.9)' : 'rgba(212, 237, 218, 0.9)',
+                        backdropFilter: 'blur(10px)',
+                        WebkitBackdropFilter: 'blur(10px)',
+                        border: isNegative ? '1px solid rgba(102, 0, 0, 0.3)' : '1px solid rgba(195, 230, 203, 0.5)',
+                        boxShadow: '0 2px 8px rgba(84, 41, 22, 0.1)',
                         color: isNegative ? '#ffffff' : '#000000',
                       }}
                     >
@@ -1029,7 +1068,14 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                   >
                     <button
                       onClick={() => setShowHistoryModal('habits')}
-                      className="flex items-center space-x-2 px-3 py-2 rounded-xl bg-yellow-50 border border-yellow-100/50 hover:scale-105 transition-transform"
+                      className="flex items-center space-x-2 px-3 py-2 rounded-xl transition-all active:scale-95"
+                      style={{
+                        backgroundColor: 'rgba(254, 249, 195, 0.9)',
+                        backdropFilter: 'blur(10px)',
+                        WebkitBackdropFilter: 'blur(10px)',
+                        border: '1px solid rgba(254, 240, 138, 0.5)',
+                        boxShadow: '0 2px 8px rgba(84, 41, 22, 0.1)',
+                      }}
                     >
                       <div className="relative">
                         <div className="text-lg">⚠️</div>
@@ -1054,7 +1100,14 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                   >
                     <button
                       onClick={() => setShowHistoryModal('gold')}
-                      className="flex items-center space-x-3 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-100/50 shadow-sm hover:scale-105 transition-transform"
+                      className="flex items-center space-x-3 px-5 py-2.5 rounded-2xl transition-all active:scale-95"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(254, 249, 195, 0.9), rgba(252, 211, 77, 0.9))',
+                        backdropFilter: 'blur(10px)',
+                        WebkitBackdropFilter: 'blur(10px)',
+                        border: '1px solid rgba(245, 158, 11, 0.2)',
+                        boxShadow: '0 2px 8px rgba(84, 41, 22, 0.1)',
+                      }}
                     >
                       <div className="text-2xl">💰</div>
                       <div>
@@ -1080,7 +1133,14 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                   >
                     <button
                       onClick={() => setShowUserProfile(true)}
-                      className="flex items-center space-x-2 px-4 py-2 rounded-2xl bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100/50 shadow-sm hover:scale-105 transition-all hover:shadow-md group"
+                      className="flex items-center space-x-2 px-4 py-2 rounded-2xl transition-all active:scale-95 group"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(243, 232, 255, 0.9), rgba(251, 207, 232, 0.9))',
+                        backdropFilter: 'blur(10px)',
+                        WebkitBackdropFilter: 'blur(10px)',
+                        border: '1px solid rgba(192, 132, 252, 0.2)',
+                        boxShadow: '0 2px 8px rgba(84, 41, 22, 0.1)',
+                      }}
                     >
                       <div className="text-2xl">💕</div>
                       <div>
@@ -1106,7 +1166,14 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                   >
                     <button
                       onClick={() => setShowDailyReview(true)}
-                      className="flex items-center space-x-2 px-4 py-2 rounded-2xl bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-100/50 shadow-sm hover:scale-105 transition-all hover:shadow-md group"
+                      className="flex items-center space-x-2 px-4 py-2 rounded-2xl transition-all active:scale-95 group"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(237, 233, 254, 0.9), rgba(224, 231, 255, 0.9))',
+                        backdropFilter: 'blur(10px)',
+                        WebkitBackdropFilter: 'blur(10px)',
+                        border: '1px solid rgba(139, 92, 246, 0.2)',
+                        boxShadow: '0 2px 8px rgba(84, 41, 22, 0.1)',
+                      }}
                     >
                       <div className="text-2xl">📊</div>
                       <div>
@@ -1132,7 +1199,14 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                   >
                     <button
                       onClick={() => setShowDailyReceipt(true)}
-                      className="flex items-center space-x-2 px-4 py-2 rounded-2xl bg-gradient-to-r from-pink-50 to-rose-50 border border-pink-100/50 shadow-sm hover:scale-105 transition-all hover:shadow-md group"
+                      className="flex items-center space-x-2 px-4 py-2 rounded-2xl transition-all active:scale-95 group"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(252, 231, 243, 0.9), rgba(254, 226, 226, 0.9))',
+                        backdropFilter: 'blur(10px)',
+                        WebkitBackdropFilter: 'blur(10px)',
+                        border: '1px solid rgba(236, 72, 153, 0.2)',
+                        boxShadow: '0 2px 8px rgba(84, 41, 22, 0.1)',
+                      }}
                     >
                       <div className="text-2xl animate-bounce">🧾</div>
                       <div>
@@ -1213,7 +1287,12 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                     ) : (
                       <label 
                         htmlFor={`topbar-image-upload-${item.id}`}
-                        className="w-full h-full flex items-center justify-center bg-neutral-100 rounded-lg cursor-pointer hover:bg-neutral-200 transition-colors border border-neutral-200"
+                        className="w-full h-full flex items-center justify-center rounded-xl cursor-pointer transition-all active:scale-95"
+                        style={{
+                          backgroundColor: 'rgba(254, 250, 240, 0.9)',
+                          border: '1px solid rgba(84, 41, 22, 0.1)',
+                          boxShadow: '0 2px 6px rgba(84, 41, 22, 0.1)',
+                        }}
                       >
                         <div className="text-center">
                           <div className="text-2xl">🖼️</div>
@@ -1253,7 +1332,7 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
               return (
                 <div
                   key={module.id}
-                  className="absolute rounded-xl shadow-lg overflow-hidden"
+                  className="absolute rounded-2xl shadow-lg overflow-hidden"
                   style={{
                     left: module.position.x,
                     top: module.position.y,
@@ -1261,6 +1340,7 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                     height: currentSize.height,
                     cursor: draggingModule === module.id ? 'grabbing' : 'grab',
                     zIndex: draggingModule === module.id ? 1000 : 1,
+                    boxShadow: '0 4px 16px rgba(84, 41, 22, 0.15)',
                   }}
                   onMouseDown={(e) => handleDragStart(module.id, e)}
                   onTouchStart={() => handleLongPressStart(module.id)}
@@ -1275,11 +1355,15 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                   ) : (
                     <label 
                       htmlFor={`image-upload-${module.id}`}
-                      className="w-full h-full flex items-center justify-center bg-neutral-100 cursor-pointer hover:bg-neutral-200 transition-colors"
+                      className="w-full h-full flex items-center justify-center cursor-pointer transition-all active:scale-95"
+                      style={{
+                        backgroundColor: 'rgba(254, 250, 240, 0.9)',
+                        border: '1px solid rgba(84, 41, 22, 0.1)',
+                      }}
                     >
                       <div className="text-center">
                         <div className="text-4xl mb-2">🖼️</div>
-                        <div className="text-sm text-neutral-600">点击上传图片</div>
+                        <div className="text-sm" style={{ color: '#542916' }}>点击上传图片</div>
                       </div>
                       <input
                         id={`image-upload-${module.id}`}
@@ -1556,18 +1640,35 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
         </div>
       </div>
 
-        {/* 历史记录弹窗 */}
+        {/* 历史记录弹窗 - iOS 风格 */}
         {showHistoryModal && (
           <div 
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+            style={{
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
+            }}
             onClick={() => setShowHistoryModal(null)}
           >
             <div 
-              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden"
+              className="max-w-2xl w-full max-h-[80vh] overflow-hidden rounded-2xl"
+              style={{
+                backgroundColor: 'rgba(254, 250, 240, 0.95)',
+                backdropFilter: 'blur(20px)',
+                WebkitBackdropFilter: 'blur(20px)',
+                boxShadow: '0 8px 32px rgba(84, 41, 22, 0.2)',
+              }}
               onClick={(e) => e.stopPropagation()}
             >
               {/* 头部 */}
-              <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
+              <div 
+                className="p-6"
+                style={{
+                  background: 'linear-gradient(135deg, #007AFF, #5856D6)',
+                  color: '#ffffff',
+                }}
+              >
                 <div className="flex items-center justify-between">
                   <h2 className="text-2xl font-bold">
                     {showHistoryModal === 'gold' && '💰 金币历史记录'}
@@ -1577,7 +1678,10 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                   </h2>
                   <button
                     onClick={() => setShowHistoryModal(null)}
-                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                    className="p-2 rounded-xl transition-all active:scale-95"
+                    style={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    }}
                   >
                     <X className="w-6 h-6" />
                   </button>
@@ -1588,7 +1692,7 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
               <div className="p-6 overflow-y-auto max-h-[calc(80vh-120px)]">
                 {showHistoryModal === 'gold' && (
                   <div className="space-y-3">
-                    <div className="text-center text-neutral-500 py-8">
+                    <div className="text-center py-8" style={{ color: '#b79858' }}>
                       <div className="text-4xl mb-2">💰</div>
                       <p>暂无金币交易记录</p>
                       <p className="text-sm mt-2">完成任务即可获得金币奖励</p>
@@ -1598,7 +1702,7 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
 
                 {showHistoryModal === 'growth' && (
                   <div className="space-y-3">
-                    <div className="text-center text-neutral-500 py-8">
+                    <div className="text-center py-8" style={{ color: '#b79858' }}>
                       <div className="text-4xl mb-2">📊</div>
                       <p>暂无成长值记录</p>
                       <p className="text-sm mt-2">完成任务和目标即可获得成长值</p>
@@ -1608,7 +1712,7 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
 
                 {showHistoryModal === 'identity' && (
                   <div className="space-y-3">
-                    <div className="text-center text-neutral-500 py-8">
+                    <div className="text-center py-8" style={{ color: '#b79858' }}>
                       <div className="text-4xl mb-2">👑</div>
                       <p>暂无升级记录</p>
                       <p className="text-sm mt-2">当前等级：萌芽新手 Lv.1</p>
@@ -1619,7 +1723,7 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
 
                 {showHistoryModal === 'habits' && (
                   <div className="space-y-3">
-                    <div className="text-center text-neutral-500 py-8">
+                    <div className="text-center py-8" style={{ color: '#b79858' }}>
                       <div className="text-4xl mb-2">⚠️</div>
                       <p>暂无坏习惯记录</p>
                       <p className="text-sm mt-2">当前坏习惯分数：{habitScore}%</p>
@@ -1632,7 +1736,7 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
           </div>
         )}
 
-        {/* 右键菜单 - 上传自定义图标 */}
+        {/* 右键菜单 - iOS 风格 */}
         {contextMenuModule && (
           <>
             <div 
@@ -1643,22 +1747,30 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
               }}
             />
             <div
-              className="fixed z-[100] bg-white rounded-lg shadow-xl border border-neutral-200 py-2 min-w-[180px]"
+              className="fixed z-[100] rounded-2xl py-2 min-w-[180px]"
               style={{
                 left: contextMenuPosition.x,
                 top: contextMenuPosition.y,
+                backgroundColor: 'rgba(254, 250, 240, 0.95)',
+                backdropFilter: 'blur(20px)',
+                WebkitBackdropFilter: 'blur(20px)',
+                boxShadow: '0 4px 16px rgba(84, 41, 22, 0.2)',
+                border: '1px solid rgba(84, 41, 22, 0.1)',
               }}
               onClick={(e) => e.stopPropagation()}
             >
               <label
                 htmlFor={`icon-upload-${contextMenuModule}`}
-                className="flex items-center space-x-3 px-4 py-2 hover:bg-neutral-100 cursor-pointer transition-colors block"
+                className="flex items-center space-x-3 px-4 py-2 cursor-pointer transition-all active:scale-95 block rounded-xl"
+                style={{
+                  backgroundColor: 'transparent',
+                }}
                 onClick={(e) => {
                   e.stopPropagation();
                 }}
               >
                 <span className="text-lg">📷</span>
-                <span className="text-sm font-medium text-neutral-700">上传自定义图标</span>
+                <span className="text-sm font-medium" style={{ color: '#542916' }}>上传自定义图标</span>
               </label>
               <input
                 id={`icon-upload-${contextMenuModule}`}
@@ -1686,35 +1798,53 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                     setContextMenuModule(null);
                   }
                 }}
-                className="flex items-center space-x-3 px-4 py-2 hover:bg-neutral-100 cursor-pointer transition-colors w-full text-left"
+                className="flex items-center space-x-3 px-4 py-2 cursor-pointer transition-all active:scale-95 w-full text-left rounded-xl"
+                style={{
+                  backgroundColor: 'transparent',
+                }}
               >
                 <span className="text-lg">🔄</span>
-                <span className="text-sm font-medium text-neutral-700">恢复默认图标</span>
+                <span className="text-sm font-medium" style={{ color: '#542916' }}>恢复默认图标</span>
               </button>
             </div>
           </>
         )}
 
-        {/* 长按删除确认弹窗 */}
+        {/* 长按删除确认弹窗 - iOS 风格 */}
         {longPressModule && (
           <div 
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+            style={{
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
+            }}
             onClick={() => setLongPressModule(null)}
           >
             <div 
-              className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full"
+              className="p-6 max-w-sm w-full rounded-2xl"
+              style={{
+                backgroundColor: 'rgba(254, 250, 240, 0.95)',
+                backdropFilter: 'blur(20px)',
+                WebkitBackdropFilter: 'blur(20px)',
+                boxShadow: '0 8px 32px rgba(84, 41, 22, 0.2)',
+              }}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="text-center mb-6">
                 <div className="text-4xl mb-3">🗑️</div>
-                <h3 className="text-xl font-bold text-neutral-900 mb-2">删除图片</h3>
-                <p className="text-neutral-600">确定要删除这张图片吗？</p>
+                <h3 className="text-xl font-bold mb-2" style={{ color: '#542916' }}>删除图片</h3>
+                <p style={{ color: '#b79858' }}>确定要删除这张图片吗？</p>
               </div>
               
               <div className="flex space-x-3">
                 <button
                   onClick={() => setLongPressModule(null)}
-                  className="flex-1 px-4 py-2 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-medium transition-colors"
+                  className="flex-1 px-4 py-2 rounded-xl font-medium transition-all active:scale-95"
+                  style={{
+                    backgroundColor: 'rgba(84, 41, 22, 0.1)',
+                    color: '#542916',
+                  }}
                 >
                   取消
                 </button>
@@ -1725,7 +1855,11 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
                       setLongPressModule(null);
                     }
                   }}
-                  className="flex-1 px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-medium transition-colors"
+                  className="flex-1 px-4 py-2 rounded-xl font-medium transition-all active:scale-95"
+                  style={{
+                    backgroundColor: '#FF3B30',
+                    color: '#ffffff',
+                  }}
                 >
                   删除
                 </button>
@@ -1763,10 +1897,15 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
           onClose={() => setShowDailyReview(false)}
         />
         
-        {/* 宠物商店弹窗 */}
+        {/* 宠物商店弹窗 - iOS 风格 */}
         {showPetShop && (
           <div 
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+            style={{
+              backgroundColor: 'rgba(0, 0, 0, 0.7)',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
+            }}
             onClick={() => setShowPetShop(false)}
           >
             <div 
@@ -1776,9 +1915,13 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
               <div className="relative">
                 <button
                   onClick={() => setShowPetShop(false)}
-                  className="absolute top-4 right-4 z-10 w-10 h-10 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow-lg transition-all"
+                  className="absolute top-4 right-4 z-10 w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-95"
+                  style={{
+                    backgroundColor: 'rgba(254, 250, 240, 0.9)',
+                    boxShadow: '0 2px 8px rgba(84, 41, 22, 0.2)',
+                  }}
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-6 h-6" style={{ color: '#542916' }} />
                 </button>
                 <PetShop />
               </div>

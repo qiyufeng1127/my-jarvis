@@ -33,16 +33,19 @@ export default function HabitPage() {
   ];
   
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-black dark:to-purple-900 pb-20">
+    <div className="min-h-screen pb-20" style={{ backgroundColor: '#FFFFFF' }}>
       {/* 顶部标题栏 */}
-      <div className="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800">
+      <div className="sticky top-0 z-10 backdrop-blur-lg border-b" style={{
+        backgroundColor: 'rgba(255, 255, 255, 0.8)',
+        borderColor: 'rgba(0, 0, 0, 0.06)'
+      }}>
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              <h1 className="text-2xl font-bold" style={{ color: '#1D1D1F' }}>
                 习惯追踪
               </h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm mt-1" style={{ color: 'rgba(0, 0, 0, 0.5)' }}>
                 {filteredHabits.length} 个习惯
               </p>
             </div>
@@ -50,14 +53,22 @@ export default function HabitPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowRuleSettings(true)}
-                className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                className="p-2 rounded-xl transition-all active:scale-95"
+                style={{
+                  backgroundColor: '#F5F5F7',
+                  color: 'rgba(60, 60, 67, 0.6)'
+                }}
               >
                 <Settings className="w-5 h-5" />
               </button>
               
               <button
                 onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 text-white font-medium hover:shadow-lg transition-all"
+                className="flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm shadow-lg transition-all active:scale-95"
+                style={{
+                  backgroundColor: '#6D9978',
+                  color: '#FFFFFF'
+                }}
               >
                 <Plus className="w-5 h-5" />
                 <span>添加习惯</span>
@@ -71,11 +82,12 @@ export default function HabitPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full whitespace-nowrap transition-all ${
-                  activeTab === tab.id
-                    ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg scale-105'
-                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-                }`}
+                className="flex items-center gap-2 px-4 py-2 rounded-full whitespace-nowrap transition-all active:scale-95"
+                style={{
+                  backgroundColor: activeTab === tab.id ? '#DD617C' : '#F5F5F7',
+                  color: activeTab === tab.id ? '#FFFFFF' : '#8E8E93',
+                  fontWeight: activeTab === tab.id ? 600 : 500
+                }}
               >
                 <span className="text-lg">{tab.emoji}</span>
                 <span className="font-medium">{tab.label}</span>
@@ -92,13 +104,18 @@ export default function HabitPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <div className="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 rounded-2xl p-4 border border-yellow-200 dark:border-yellow-800">
+            <div className="rounded-2xl p-4" style={{
+              backgroundColor: '#FFF5E5'
+            }}>
               <div className="flex items-center gap-2 mb-3">
-                <TrendingUp className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
-                <h2 className="font-semibold text-gray-900 dark:text-white">
+                <TrendingUp className="w-5 h-5" style={{ color: '#AC0327' }} />
+                <h2 className="font-semibold" style={{ color: '#1D1D1F' }}>
                   AI 发现的习惯候选
                 </h2>
-                <span className="px-2 py-0.5 rounded-full bg-yellow-500 text-white text-xs font-medium">
+                <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{
+                  backgroundColor: '#E8C259',
+                  color: '#000000'
+                }}>
                   {candidates.length}
                 </span>
               </div>
@@ -120,15 +137,19 @@ export default function HabitPage() {
             className="text-center py-20"
           >
             <div className="text-6xl mb-4">🌱</div>
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            <h3 className="text-xl font-semibold mb-2" style={{ color: '#1D1D1F' }}>
               还没有习惯
             </h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-6">
+            <p className="mb-6" style={{ color: 'rgba(0, 0, 0, 0.5)' }}>
               开始添加你的第一个习惯吧
             </p>
             <button
               onClick={() => setShowAddModal(true)}
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 text-white font-medium hover:shadow-lg transition-all"
+              className="px-6 py-3 rounded-full font-semibold text-sm shadow-lg transition-all active:scale-95"
+              style={{
+                backgroundColor: '#6D9978',
+                color: '#FFFFFF'
+              }}
             >
               添加习惯
             </button>

@@ -23,20 +23,32 @@ import {
   ComboAnimation
 } from './RPGAnimations';
 
-// iOS复古风格颜色 - 根据参考图片更新
+// 现代简洁配色 - 参考标签组件
+const MODERN_COLORS = {
+  background: '#ffffff',           // 纯白背景
+  cardBg: '#f8f9fa',              // 浅灰卡片背景
+  textPrimary: 'rgb(29, 29, 31)', // 主文字（深灰黑）
+  textSecondary: 'rgba(0, 0, 0, 0.5)', // 次要文字（半透明黑）
+  primary: 'rgb(109, 153, 120)',  // 主色（绿色）
+  warning: 'rgb(255, 245, 229)',  // 警告背景（浅橙）
+  warningText: 'rgb(172, 3, 39)', // 警告文字（深红）
+  success: 'rgb(109, 153, 120)',  // 成功色（改为主绿色）
+  personality: 'rgb(109, 153, 120)', // 性格特质色（改为主绿色）
+  achievement: 'rgb(255, 193, 7)', // 成就色（金黄色）
+  border: 'rgba(0, 0, 0, 0.1)',   // 边框色
+};
+
+// 复古糖果色配色
 const VINTAGE_COLORS = {
-  cream: '#FFF4E6',        // 奶油白
-  softPink: '#F5D5CB',     // 柔粉
-  dustyRose: '#E8B4B8',    // 灰玫瑰
-  mauve: '#C8A2C8',        // 淡紫
-  deepPurple: '#6B4C6B',   // 深紫
-  beige: '#E8DCC4',        // 米色
-  khaki: '#D4C5A0',        // 卡其
-  sage: '#B8C5A8',         // 鼠尾草绿
-  dustyBlue: '#A8B8C8',    // 灰蓝
-  terracotta: '#C97064',   // 陶土红
-  mustard: '#D4A574',      // 芥末黄
-  burgundy: '#43302E',     // 深褐
+  cream: '#FFF8E7',
+  dustyBlue: '#A8DADC',
+  sage: '#B8D4C8',
+  terracotta: '#E07A5F',
+  mustard: '#F4A261',
+  mauve: '#C9ADA7',
+  softPink: '#FFD6D6',
+  burgundy: '#6B4E71',
+  khaki: '#E9DCC9',
 };
 
 export default function RPGHomePage() {
@@ -318,7 +330,7 @@ export default function RPGHomePage() {
   };
 
   return (
-    <div className="min-h-screen p-4 pb-20" style={{ backgroundColor: VINTAGE_COLORS.cream }}>
+    <div className="min-h-screen p-4 pb-20" style={{ backgroundColor: MODERN_COLORS.background }}>
       {/* 动画层 */}
       <TaskCompleteAnimation 
         show={showTaskCompleteAnim} 
@@ -350,8 +362,8 @@ export default function RPGHomePage() {
       {/* 头像管理按钮 - 右上角 */}
       <button
         onClick={() => setShowAvatarManager(true)}
-        className="fixed top-4 right-4 z-10 w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
-        style={{ backgroundColor: VINTAGE_COLORS.mauve }}
+        className="fixed top-4 right-4 z-10 w-12 h-12 rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+        style={{ backgroundColor: MODERN_COLORS.primary }}
       >
         <FolderOpen className="w-6 h-6 text-white" />
       </button>
@@ -359,9 +371,9 @@ export default function RPGHomePage() {
       {/* 头像预览收集区 */}
       <div 
         className="rounded-2xl p-4 mb-4 shadow-sm"
-        style={{ backgroundColor: '#fff' }}
+        style={{ backgroundColor: MODERN_COLORS.cardBg }}
       >
-        <div className="text-xs font-semibold mb-3" style={{ color: VINTAGE_COLORS.burgundy }}>
+        <div className="text-xs font-semibold mb-3" style={{ color: MODERN_COLORS.textPrimary }}>
           🎨 已收集头像
         </div>
         <div className="flex gap-2 overflow-x-auto">
@@ -370,7 +382,7 @@ export default function RPGHomePage() {
             <button
               onClick={() => setShowAvatarManager(true)}
               className="w-20 h-20 rounded-xl flex items-center justify-center text-4xl shadow-sm overflow-hidden relative"
-              style={{ backgroundColor: VINTAGE_COLORS.dustyBlue }}
+              style={{ backgroundColor: MODERN_COLORS.cardBg }}
             >
               {currentAvatarUrl ? (
                 <img src={currentAvatarUrl} alt="Avatar" className="w-full h-full object-cover" />
@@ -396,21 +408,21 @@ export default function RPGHomePage() {
                   onClick={() => setShowAvatarManager(true)}
                   className="w-20 h-20 rounded-xl flex flex-col items-center justify-center shadow-sm overflow-hidden relative"
                   style={{ 
-                    backgroundColor: isUnlocked ? VINTAGE_COLORS.sage : VINTAGE_COLORS.khaki,
+                    backgroundColor: isUnlocked ? MODERN_COLORS.success : MODERN_COLORS.cardBg,
                     opacity: isUnlocked ? 1 : 0.6
                   }}
                 >
                   {isUnlocked ? (
                     <>
                       <span className="text-2xl">✓</span>
-                      <div className="text-[10px] mt-1" style={{ color: VINTAGE_COLORS.burgundy }}>
+                      <div className="text-[10px] mt-1" style={{ color: MODERN_COLORS.textPrimary }}>
                         已解锁
                       </div>
                     </>
                   ) : (
                     <>
                       <span className="text-2xl">🔒</span>
-                      <div className="text-[10px] mt-1" style={{ color: VINTAGE_COLORS.burgundy }}>
+                      <div className="text-[10px] mt-1" style={{ color: MODERN_COLORS.textSecondary }}>
                         Lv.{level + 1}
                       </div>
                     </>
@@ -425,7 +437,7 @@ export default function RPGHomePage() {
       {/* 角色信息面板 */}
       <div 
         className="rounded-2xl p-6 mb-4 shadow-sm"
-        style={{ backgroundColor: VINTAGE_COLORS.beige }}
+        style={{ backgroundColor: MODERN_COLORS.cardBg }}
       >
         {/* 头像和基本信息 */}
         <div className="flex items-start gap-4 mb-4">
@@ -433,7 +445,7 @@ export default function RPGHomePage() {
           <button
             onClick={() => setShowAvatarManager(true)}
             className="w-20 h-20 rounded-xl flex items-center justify-center text-4xl shadow-sm overflow-hidden flex-shrink-0"
-            style={{ backgroundColor: VINTAGE_COLORS.dustyBlue }}
+            style={{ backgroundColor: '#ffffff' }}
           >
             {currentAvatarUrl ? (
               <img src={currentAvatarUrl} alt="Avatar" className="w-full h-full object-cover" />
@@ -445,11 +457,11 @@ export default function RPGHomePage() {
           {/* 等级和称号 */}
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-2xl font-bold" style={{ color: VINTAGE_COLORS.burgundy }}>
+              <span className="text-2xl font-bold" style={{ color: MODERN_COLORS.textPrimary }}>
                 Lv.{character.level}
               </span>
               <span className="text-sm px-2 py-0.5 rounded" style={{ 
-                backgroundColor: VINTAGE_COLORS.mustard,
+                backgroundColor: MODERN_COLORS.primary,
                 color: '#fff'
               }}>
                 {character.title}
@@ -458,16 +470,16 @@ export default function RPGHomePage() {
             
             {/* 经验条 */}
             <div className="mb-2">
-              <div className="flex justify-between text-xs mb-1" style={{ color: VINTAGE_COLORS.burgundy }}>
+              <div className="flex justify-between text-xs mb-1" style={{ color: MODERN_COLORS.textSecondary }}>
                 <span>经验值</span>
                 <span>{character.exp}/{character.maxExp}</span>
               </div>
-              <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: VINTAGE_COLORS.khaki }}>
+              <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: MODERN_COLORS.border }}>
                 <div 
                   className="h-full rounded-full transition-all"
                   style={{ 
                     width: `${(character.exp / character.maxExp) * 100}%`,
-                    backgroundColor: VINTAGE_COLORS.sage
+                    backgroundColor: MODERN_COLORS.primary
                   }}
                 />
               </div>
@@ -476,32 +488,32 @@ export default function RPGHomePage() {
             {/* 精力值和心情值 */}
             <div className="flex gap-3">
               <div className="flex-1">
-                <div className="flex items-center gap-1 text-xs mb-1" style={{ color: VINTAGE_COLORS.burgundy }}>
+                <div className="flex items-center gap-1 text-xs mb-1" style={{ color: MODERN_COLORS.textSecondary }}>
                   <span>⚡</span>
                   <span>精力 {character.energy}/100</span>
                 </div>
-                <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: VINTAGE_COLORS.khaki }}>
+                <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: MODERN_COLORS.border }}>
                   <div 
                     className="h-full rounded-full"
                     style={{ 
                       width: `${character.energy}%`,
-                      backgroundColor: VINTAGE_COLORS.dustyBlue
+                      backgroundColor: MODERN_COLORS.achievement
                     }}
                   />
                 </div>
               </div>
               
               <div className="flex-1">
-                <div className="flex items-center gap-1 text-xs mb-1" style={{ color: VINTAGE_COLORS.burgundy }}>
+                <div className="flex items-center gap-1 text-xs mb-1" style={{ color: MODERN_COLORS.textSecondary }}>
                   <span>😊</span>
                   <span>心情 {character.mood}/100</span>
                 </div>
-                <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: VINTAGE_COLORS.khaki }}>
+                <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: MODERN_COLORS.border }}>
                   <div 
                     className="h-full rounded-full"
                     style={{ 
                       width: `${character.mood}%`,
-                      backgroundColor: VINTAGE_COLORS.softPink
+                      backgroundColor: MODERN_COLORS.success
                     }}
                   />
                 </div>
@@ -512,7 +524,7 @@ export default function RPGHomePage() {
         
         {/* 今日状态标签 */}
         <div className="mb-4">
-          <div className="text-xs font-semibold mb-2" style={{ color: VINTAGE_COLORS.burgundy }}>
+          <div className="text-xs font-semibold mb-2" style={{ color: MODERN_COLORS.textPrimary }}>
             📊 今日状态
           </div>
           <div className="flex flex-wrap gap-2">
@@ -521,8 +533,9 @@ export default function RPGHomePage() {
                 key={index}
                 className="text-xs px-3 py-1 rounded-full"
                 style={{ 
-                  backgroundColor: VINTAGE_COLORS.dustyBlue,
-                  color: VINTAGE_COLORS.burgundy
+                  backgroundColor: MODERN_COLORS.cardBg,
+                  color: MODERN_COLORS.textPrimary,
+                  border: `1px solid ${MODERN_COLORS.border}`
                 }}
               >
                 {status}
@@ -535,7 +548,7 @@ export default function RPGHomePage() {
         <div className="space-y-3">
           {/* 性格 */}
           <div>
-            <div className="text-xs font-semibold mb-1.5" style={{ color: VINTAGE_COLORS.burgundy }}>
+            <div className="text-xs font-semibold mb-1.5" style={{ color: MODERN_COLORS.textPrimary }}>
               💭 性格特质
             </div>
             <div className="flex flex-wrap gap-2">
@@ -544,7 +557,7 @@ export default function RPGHomePage() {
                   key={index}
                   className="text-xs px-2 py-1 rounded"
                   style={{ 
-                    backgroundColor: VINTAGE_COLORS.mauve,
+                    backgroundColor: MODERN_COLORS.personality,
                     color: '#fff'
                   }}
                 >
@@ -556,19 +569,22 @@ export default function RPGHomePage() {
           
           {/* 优势 */}
           <div>
-            <div className="text-xs font-semibold mb-1.5" style={{ color: VINTAGE_COLORS.burgundy }}>
+            <div className="text-xs font-semibold mb-1.5" style={{ color: MODERN_COLORS.textPrimary }}>
               ✅ 优势能力
             </div>
             {character.strengths.map((strength, index) => (
               <div 
                 key={index}
                 className="text-xs p-2 rounded mb-1.5"
-                style={{ backgroundColor: VINTAGE_COLORS.sage }}
+                style={{ 
+                  backgroundColor: '#ffffff',
+                  border: `1px solid ${MODERN_COLORS.border}`
+                }}
               >
-                <div className="font-semibold mb-0.5" style={{ color: VINTAGE_COLORS.burgundy }}>
+                <div className="font-semibold mb-0.5" style={{ color: MODERN_COLORS.textPrimary }}>
                   {strength.label}
                 </div>
-                <div className="text-xs opacity-80" style={{ color: VINTAGE_COLORS.burgundy }}>
+                <div className="text-xs opacity-80" style={{ color: MODERN_COLORS.textSecondary }}>
                   {strength.description}
                 </div>
               </div>
@@ -577,32 +593,32 @@ export default function RPGHomePage() {
           
           {/* 待改进行为 */}
           <div>
-            <div className="text-xs font-semibold mb-1.5" style={{ color: VINTAGE_COLORS.burgundy }}>
+            <div className="text-xs font-semibold mb-1.5" style={{ color: MODERN_COLORS.textPrimary }}>
               ⚠️ 待改进行为
             </div>
             {character.improvements.map((improvement, index) => (
               <div 
                 key={index}
                 className="p-2 rounded mb-1.5"
-                style={{ backgroundColor: VINTAGE_COLORS.softPink }}
+                style={{ backgroundColor: MODERN_COLORS.warning }}
               >
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-semibold" style={{ color: VINTAGE_COLORS.burgundy }}>
+                  <span className="text-xs font-semibold" style={{ color: MODERN_COLORS.warningText }}>
                     {improvement.label}
                   </span>
-                  <span className="text-xs" style={{ color: VINTAGE_COLORS.burgundy }}>
+                  <span className="text-xs" style={{ color: MODERN_COLORS.warningText }}>
                     {improvement.progress}%
                   </span>
                 </div>
-                <div className="text-xs mb-1.5 opacity-80" style={{ color: VINTAGE_COLORS.burgundy }}>
+                <div className="text-xs mb-1.5 opacity-80" style={{ color: MODERN_COLORS.warningText }}>
                   {improvement.description}
                 </div>
-                <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: VINTAGE_COLORS.khaki }}>
+                <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(172, 3, 39, 0.2)' }}>
                   <div 
                     className="h-full rounded-full"
                     style={{ 
                       width: `${improvement.progress}%`,
-                      backgroundColor: VINTAGE_COLORS.terracotta
+                      backgroundColor: MODERN_COLORS.warningText
                     }}
                   />
                 </div>
@@ -617,14 +633,17 @@ export default function RPGHomePage() {
         {/* 能力雷达 */}
         <button
           onClick={() => setShowRadarChart(true)}
-          className="rounded-2xl p-4 shadow-sm text-left"
-          style={{ backgroundColor: VINTAGE_COLORS.sage }}
+          className="rounded-2xl p-4 shadow-sm text-left active:scale-95 transition-transform"
+          style={{ 
+            backgroundColor: MODERN_COLORS.cardBg,
+            border: `1px solid ${MODERN_COLORS.border}`
+          }}
         >
-          <Star className="w-6 h-6 mb-2" style={{ color: VINTAGE_COLORS.burgundy }} />
-          <div className="font-bold text-sm mb-1" style={{ color: VINTAGE_COLORS.burgundy }}>
+          <Star className="w-6 h-6 mb-2" style={{ color: MODERN_COLORS.primary }} />
+          <div className="font-bold text-sm mb-1" style={{ color: MODERN_COLORS.textPrimary }}>
             📊 能力雷达
           </div>
-          <div className="text-xs opacity-70" style={{ color: VINTAGE_COLORS.burgundy }}>
+          <div className="text-xs opacity-70" style={{ color: MODERN_COLORS.textSecondary }}>
             查看详细数据
           </div>
         </button>
@@ -632,14 +651,17 @@ export default function RPGHomePage() {
         {/* 目标系统 */}
         <button
           onClick={() => setShowGoals(true)}
-          className="rounded-2xl p-4 shadow-sm text-left"
-          style={{ backgroundColor: VINTAGE_COLORS.dustyBlue }}
+          className="rounded-2xl p-4 shadow-sm text-left active:scale-95 transition-transform"
+          style={{ 
+            backgroundColor: MODERN_COLORS.cardBg,
+            border: `1px solid ${MODERN_COLORS.border}`
+          }}
         >
-          <Target className="w-6 h-6 mb-2" style={{ color: VINTAGE_COLORS.burgundy }} />
-          <div className="font-bold text-sm mb-1" style={{ color: VINTAGE_COLORS.burgundy }}>
+          <Target className="w-6 h-6 mb-2" style={{ color: MODERN_COLORS.primary }} />
+          <div className="font-bold text-sm mb-1" style={{ color: MODERN_COLORS.textPrimary }}>
             🎯 人生目标
           </div>
-          <div className="text-xs opacity-70" style={{ color: VINTAGE_COLORS.burgundy }}>
+          <div className="text-xs opacity-70" style={{ color: MODERN_COLORS.textSecondary }}>
             {goals.length} 个进行中
           </div>
         </button>
@@ -647,8 +669,10 @@ export default function RPGHomePage() {
         {/* 每日任务 */}
         <button
           onClick={() => setShowDailyTasks(true)}
-          className="rounded-2xl p-4 shadow-sm text-left"
-          style={{ backgroundColor: VINTAGE_COLORS.mustard }}
+          className="rounded-2xl p-4 shadow-sm text-left active:scale-95 transition-transform"
+          style={{ 
+            backgroundColor: MODERN_COLORS.primary,
+          }}
         >
           <Gift className="w-6 h-6 mb-2 text-white" />
           <div className="font-bold text-sm mb-1 text-white">
@@ -662,8 +686,10 @@ export default function RPGHomePage() {
         {/* 成就墙 */}
         <button
           onClick={() => setShowAchievements(true)}
-          className="rounded-2xl p-4 shadow-sm text-left"
-          style={{ backgroundColor: VINTAGE_COLORS.mauve }}
+          className="rounded-2xl p-4 shadow-sm text-left active:scale-95 transition-transform"
+          style={{ 
+            backgroundColor: MODERN_COLORS.achievement,
+          }}
         >
           <Award className="w-6 h-6 mb-2 text-white" />
           <div className="font-bold text-sm mb-1 text-white">
@@ -677,14 +703,17 @@ export default function RPGHomePage() {
         {/* 成长树 */}
         <button
           onClick={() => setShowGrowthTree(true)}
-          className="rounded-2xl p-4 shadow-sm text-left"
-          style={{ backgroundColor: VINTAGE_COLORS.sage }}
+          className="rounded-2xl p-4 shadow-sm text-left active:scale-95 transition-transform"
+          style={{ 
+            backgroundColor: MODERN_COLORS.cardBg,
+            border: `1px solid ${MODERN_COLORS.border}`
+          }}
         >
-          <TreeDeciduous className="w-6 h-6 mb-2" style={{ color: VINTAGE_COLORS.burgundy }} />
-          <div className="font-bold text-sm mb-1" style={{ color: VINTAGE_COLORS.burgundy }}>
+          <TreeDeciduous className="w-6 h-6 mb-2" style={{ color: MODERN_COLORS.success }} />
+          <div className="font-bold text-sm mb-1" style={{ color: MODERN_COLORS.textPrimary }}>
             🌳 成长之树
           </div>
-          <div className="text-xs opacity-70" style={{ color: VINTAGE_COLORS.burgundy }}>
+          <div className="text-xs opacity-70" style={{ color: MODERN_COLORS.textSecondary }}>
             Lv.{character.level}
           </div>
         </button>
@@ -692,14 +721,17 @@ export default function RPGHomePage() {
         {/* 赛季通行证 */}
         <button
           onClick={() => setShowSeasonPass(true)}
-          className="rounded-2xl p-4 shadow-sm text-left"
-          style={{ backgroundColor: VINTAGE_COLORS.softPink }}
+          className="rounded-2xl p-4 shadow-sm text-left active:scale-95 transition-transform"
+          style={{ 
+            backgroundColor: MODERN_COLORS.cardBg,
+            border: `1px solid ${MODERN_COLORS.border}`
+          }}
         >
-          <Sparkles className="w-6 h-6 mb-2" style={{ color: VINTAGE_COLORS.burgundy }} />
-          <div className="font-bold text-sm mb-1" style={{ color: VINTAGE_COLORS.burgundy }}>
+          <Sparkles className="w-6 h-6 mb-2" style={{ color: MODERN_COLORS.primary }} />
+          <div className="font-bold text-sm mb-1" style={{ color: MODERN_COLORS.textPrimary }}>
             🎁 赛季通行证
           </div>
-          <div className="text-xs opacity-70" style={{ color: VINTAGE_COLORS.burgundy }}>
+          <div className="text-xs opacity-70" style={{ color: MODERN_COLORS.textSecondary }}>
             第1赛季
           </div>
         </button>
@@ -713,17 +745,17 @@ export default function RPGHomePage() {
         >
           <div 
             className="rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
-            style={{ backgroundColor: VINTAGE_COLORS.cream }}
+            style={{ backgroundColor: MODERN_COLORS.background }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold" style={{ color: VINTAGE_COLORS.burgundy }}>
+              <h2 className="text-2xl font-bold" style={{ color: MODERN_COLORS.textPrimary }}>
                 📊 能力雷达图
               </h2>
               <button
                 onClick={() => setShowRadarChart(false)}
-                className="w-8 h-8 rounded-full flex items-center justify-center"
-                style={{ backgroundColor: VINTAGE_COLORS.khaki }}
+                className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-transform"
+                style={{ backgroundColor: MODERN_COLORS.cardBg }}
               >
                 ✕
               </button>
@@ -733,16 +765,19 @@ export default function RPGHomePage() {
               {/* 正向能力雷达图 */}
               <div 
                 className="rounded-2xl p-6 shadow-sm"
-                style={{ backgroundColor: '#fff' }}
+                style={{ 
+                  backgroundColor: MODERN_COLORS.cardBg,
+                  border: `1px solid ${MODERN_COLORS.border}`
+                }}
               >
                 <div className="flex items-center gap-2 mb-4">
-                  <Star className="w-5 h-5" style={{ color: VINTAGE_COLORS.sage }} />
-                  <h3 className="font-bold text-lg" style={{ color: VINTAGE_COLORS.burgundy }}>
+                  <Star className="w-5 h-5" style={{ color: MODERN_COLORS.primary }} />
+                  <h3 className="font-bold text-lg" style={{ color: MODERN_COLORS.textPrimary }}>
                     ✨ 正向能力
                   </h3>
                 </div>
                 <RadarChart type="positive" data={character.positiveStats || []} />
-                <p className="text-xs text-center mt-4 opacity-70" style={{ color: VINTAGE_COLORS.burgundy }}>
+                <p className="text-xs text-center mt-4 opacity-70" style={{ color: MODERN_COLORS.textSecondary }}>
                   基于你的任务完成情况和行为数据实时更新
                 </p>
               </div>
@@ -750,16 +785,19 @@ export default function RPGHomePage() {
               {/* 负向行为雷达图 */}
               <div 
                 className="rounded-2xl p-6 shadow-sm"
-                style={{ backgroundColor: '#fff' }}
+                style={{ 
+                  backgroundColor: MODERN_COLORS.cardBg,
+                  border: `1px solid ${MODERN_COLORS.border}`
+                }}
               >
                 <div className="flex items-center gap-2 mb-4">
-                  <AlertTriangle className="w-5 h-5" style={{ color: VINTAGE_COLORS.terracotta }} />
-                  <h3 className="font-bold text-lg" style={{ color: VINTAGE_COLORS.burgundy }}>
+                  <AlertTriangle className="w-5 h-5" style={{ color: MODERN_COLORS.warningText }} />
+                  <h3 className="font-bold text-lg" style={{ color: MODERN_COLORS.textPrimary }}>
                     ⚠️ 待改进行为
                   </h3>
                 </div>
                 <RadarChart type="negative" data={character.negativeStats || []} />
-                <p className="text-xs text-center mt-4 opacity-70" style={{ color: VINTAGE_COLORS.burgundy }}>
+                <p className="text-xs text-center mt-4 opacity-70" style={{ color: MODERN_COLORS.textSecondary }}>
                   数值越低越好，持续改进可降低负面行为
                 </p>
               </div>
@@ -776,17 +814,17 @@ export default function RPGHomePage() {
         >
           <div 
             className="rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
-            style={{ backgroundColor: VINTAGE_COLORS.cream }}
+            style={{ backgroundColor: MODERN_COLORS.background }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold" style={{ color: VINTAGE_COLORS.burgundy }}>
+              <h2 className="text-2xl font-bold" style={{ color: MODERN_COLORS.textPrimary }}>
                 📝 每日任务宝箱
               </h2>
               <button
                 onClick={() => setShowDailyTasks(false)}
-                className="w-8 h-8 rounded-full flex items-center justify-center"
-                style={{ backgroundColor: VINTAGE_COLORS.khaki }}
+                className="w-8 h-8 rounded-full flex items-center justify-center active:scale-95 transition-transform"
+                style={{ backgroundColor: MODERN_COLORS.cardBg }}
               >
                 ✕
               </button>
@@ -796,11 +834,12 @@ export default function RPGHomePage() {
               <button 
                 onClick={handleRegenerateTasks}
                 disabled={isGenerating}
-                className="text-sm px-4 py-2 rounded-full font-semibold flex items-center gap-2"
+                className="text-sm px-4 py-2 rounded-full font-semibold flex items-center gap-2 active:scale-95 transition-transform"
                 style={{ 
-                  backgroundColor: VINTAGE_COLORS.dustyBlue,
-                  color: VINTAGE_COLORS.burgundy,
-                  opacity: isGenerating ? 0.5 : 1
+                  backgroundColor: MODERN_COLORS.cardBg,
+                  color: MODERN_COLORS.textPrimary,
+                  opacity: isGenerating ? 0.5 : 1,
+                  border: `1px solid ${MODERN_COLORS.border}`
                 }}
               >
                 <RefreshCw className={`w-4 h-4 ${isGenerating ? 'animate-spin' : ''}`} />
@@ -809,9 +848,9 @@ export default function RPGHomePage() {
               <button 
                 onClick={handleClaimAllTasks}
                 disabled={isSyncing}
-                className="text-sm px-4 py-2 rounded-full font-semibold"
+                className="text-sm px-4 py-2 rounded-full font-semibold active:scale-95 transition-transform"
                 style={{ 
-                  backgroundColor: VINTAGE_COLORS.sage,
+                  backgroundColor: MODERN_COLORS.primary,
                   color: '#fff',
                   opacity: isSyncing ? 0.5 : 1
                 }}
@@ -824,10 +863,10 @@ export default function RPGHomePage() {
               {dailyTasks.map((task) => (
                 <div 
                   key={task.id}
-                  className="p-4 rounded-xl border-2 transition-all"
+                  className="p-4 rounded-xl transition-all"
                   style={{ 
-                    backgroundColor: task.completed ? VINTAGE_COLORS.sage : '#fff',
-                    borderColor: task.isImprovement ? VINTAGE_COLORS.terracotta : VINTAGE_COLORS.khaki,
+                    backgroundColor: task.completed ? MODERN_COLORS.cardBg : '#ffffff',
+                    border: `2px solid ${task.isImprovement ? MODERN_COLORS.warningText : MODERN_COLORS.border}`,
                     opacity: task.completed ? 0.6 : 1
                   }}
                 >
@@ -836,7 +875,7 @@ export default function RPGHomePage() {
                       onClick={() => !task.completed && handleCompleteTask(task.id)}
                       className="mt-0.5 w-6 h-6 rounded flex items-center justify-center flex-shrink-0"
                       style={{ 
-                        backgroundColor: task.completed ? VINTAGE_COLORS.sage : VINTAGE_COLORS.khaki,
+                        backgroundColor: task.completed ? MODERN_COLORS.success : MODERN_COLORS.cardBg,
                         color: '#fff'
                       }}
                       disabled={task.completed}
@@ -848,15 +887,15 @@ export default function RPGHomePage() {
                       <div className="flex items-center gap-2 mb-1">
                         {task.isImprovement && (
                           <span className="text-xs px-2 py-0.5 rounded" style={{ 
-                            backgroundColor: VINTAGE_COLORS.terracotta,
-                            color: '#fff'
+                            backgroundColor: MODERN_COLORS.warning,
+                            color: MODERN_COLORS.warningText
                           }}>
                             ⚠️ 改进
                           </span>
                         )}
                         {task.type === 'surprise' && (
                           <span className="text-xs px-2 py-0.5 rounded" style={{ 
-                            backgroundColor: VINTAGE_COLORS.mauve,
+                            backgroundColor: MODERN_COLORS.achievement,
                             color: '#fff'
                           }}>
                             🎁 惊喜
@@ -865,21 +904,21 @@ export default function RPGHomePage() {
                       </div>
                       
                       <div className="font-semibold mb-1" style={{ 
-                        color: VINTAGE_COLORS.burgundy,
+                        color: MODERN_COLORS.textPrimary,
                         textDecoration: task.completed ? 'line-through' : 'none'
                       }}>
                         {task.title}
                       </div>
                       
-                      <div className="text-sm opacity-70 mb-2" style={{ color: VINTAGE_COLORS.burgundy }}>
+                      <div className="text-sm opacity-70 mb-2" style={{ color: MODERN_COLORS.textSecondary }}>
                         {task.description}
                       </div>
                       
                       <div className="flex items-center gap-3 text-sm">
-                        <span style={{ color: VINTAGE_COLORS.sage }}>
+                        <span style={{ color: MODERN_COLORS.primary }}>
                           ⭐ +{task.expReward} 经验
                         </span>
-                        <span style={{ color: VINTAGE_COLORS.mustard }}>
+                        <span style={{ color: MODERN_COLORS.success }}>
                           💰 +{task.goldReward} 金币
                         </span>
                       </div>
@@ -890,17 +929,17 @@ export default function RPGHomePage() {
             </div>
             
             {/* 任务完成进度 */}
-            <div className="mt-6 pt-4 border-t" style={{ borderColor: VINTAGE_COLORS.khaki }}>
-              <div className="flex justify-between text-sm mb-2" style={{ color: VINTAGE_COLORS.burgundy }}>
+            <div className="mt-6 pt-4" style={{ borderTop: `1px solid ${MODERN_COLORS.border}` }}>
+              <div className="flex justify-between text-sm mb-2" style={{ color: MODERN_COLORS.textPrimary }}>
                 <span>今日完成度</span>
                 <span>{dailyTasks.filter(t => t.completed).length}/{dailyTasks.length}</span>
               </div>
-              <div className="h-3 rounded-full overflow-hidden" style={{ backgroundColor: VINTAGE_COLORS.khaki }}>
+              <div className="h-3 rounded-full overflow-hidden" style={{ backgroundColor: MODERN_COLORS.border }}>
                 <div 
                   className="h-full rounded-full"
                   style={{ 
                     width: `${(dailyTasks.filter(t => t.completed).length / dailyTasks.length) * 100}%`,
-                    backgroundColor: VINTAGE_COLORS.sage
+                    backgroundColor: MODERN_COLORS.primary
                   }}
                 />
               </div>

@@ -28,12 +28,12 @@ export default function WeekView({
     >
       {/* 标题 */}
       <div className="flex items-center space-x-2">
-        <BarChart3 size={20} style={{ color: HABIT_CAN_COLORS.terreCuite }} />
+        <BarChart3 size={20} style={{ color: '#007AFF' }} />
         <h3
           className="font-semibold"
           style={{
             fontSize: '18px',
-            color: HABIT_CAN_COLORS.espresso,
+            color: isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(60, 60, 67, 0.9)',
             fontWeight: 600,
           }}
         >
@@ -155,12 +155,12 @@ export default function WeekView({
                   <div className="absolute top-2 right-2 flex items-center space-x-1">
                     {day.change > 0 ? (
                       <>
-                        <TrendingUp size={14} style={{ color: HABIT_CAN_COLORS.terreCuite }} />
+                        <TrendingUp size={14} style={{ color: '#FF3B30' }} />
                         <span
                           className="font-bold"
                           style={{
                             fontSize: '11px',
-                            color: HABIT_CAN_COLORS.terreCuite,
+                            color: '#FF3B30',
                           }}
                         >
                           +{day.change}
@@ -168,12 +168,12 @@ export default function WeekView({
                       </>
                     ) : (
                       <>
-                        <TrendingDown size={14} style={{ color: HABIT_CAN_COLORS.bleuPorcelaine }} />
+                        <TrendingDown size={14} style={{ color: '#34C759' }} />
                         <span
                           className="font-bold"
                           style={{
                             fontSize: '11px',
-                            color: HABIT_CAN_COLORS.bleuPorcelaine,
+                            color: '#34C759',
                           }}
                         >
                           {day.change}
@@ -187,19 +187,19 @@ export default function WeekView({
               {/* 毛玻璃 Tooltip */}
               {day.totalCount > 0 && (
                 <div
-                  className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 whitespace-nowrap"
+                  className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 whitespace-nowrap"
                   style={{
-                    backgroundColor: HABIT_CAN_COLORS.glassmorphism.light,
+                    backgroundColor: isDark ? 'rgba(28, 28, 30, 0.95)' : 'rgba(242, 242, 247, 0.95)',
                     backdropFilter: 'blur(20px)',
                     WebkitBackdropFilter: 'blur(20px)',
-                    boxShadow: HABIT_CAN_COLORS.shadows.elevated,
+                    boxShadow: isDark ? '0 4px 12px rgba(0, 0, 0, 0.4)' : '0 4px 12px rgba(0, 0, 0, 0.1)',
                   }}
                 >
                   <div
                     className="font-semibold mb-1"
                     style={{
                       fontSize: '12px',
-                      color: HABIT_CAN_COLORS.espresso,
+                      color: isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(60, 60, 67, 0.9)',
                     }}
                   >
                     {day.date} 共 {day.totalCount} 次
@@ -211,7 +211,7 @@ export default function WeekView({
                         className="flex items-center space-x-1"
                         style={{
                           fontSize: '11px',
-                          color: HABIT_CAN_COLORS.espresso,
+                          color: isDark ? 'rgba(255, 255, 255, 0.8)' : 'rgba(60, 60, 67, 0.8)',
                         }}
                       >
                         <span>{habit.emoji}</span>
@@ -232,8 +232,8 @@ export default function WeekView({
         className="text-center"
         style={{
           fontSize: '12px',
-          color: HABIT_CAN_COLORS.eauTrouble,
-          fontWeight: 300,
+          color: isDark ? 'rgba(255, 255, 255, 0.6)' : 'rgba(60, 60, 67, 0.6)',
+          fontWeight: 400,
         }}
       >
         罐头颜色表示当日坏习惯次数，绿色↓表示减少，红色↑表示增加

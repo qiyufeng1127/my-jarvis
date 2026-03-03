@@ -171,26 +171,31 @@ export default function AddHabitModal({ open, onClose }: AddHabitModalProps) {
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: '100%', opacity: 0 }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="bg-white dark:bg-gray-900 rounded-t-3xl md:rounded-3xl w-full md:max-w-2xl max-h-[90vh] overflow-y-auto"
+              className="rounded-t-3xl md:rounded-3xl w-full md:max-w-2xl max-h-[90vh] overflow-y-auto"
+              style={{ backgroundColor: '#FFFFFF' }}
               onClick={(e) => e.stopPropagation()}
             >
               {/* 标题栏 */}
-              <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-6 py-4 flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+              <div className="sticky top-0 border-b px-6 py-4 flex items-center justify-between" style={{
+                backgroundColor: '#FFFFFF',
+                borderColor: 'rgba(0, 0, 0, 0.06)'
+              }}>
+                <h2 className="text-xl font-bold" style={{ color: '#1D1D1F' }}>
                   新增习惯
                 </h2>
                 <button
                   onClick={onClose}
-                  className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  className="p-2 rounded-xl transition-colors active:scale-95"
+                  style={{ backgroundColor: '#F5F5F7' }}
                 >
-                  <X className="w-5 h-5 text-gray-500" />
+                  <X className="w-5 h-5" style={{ color: 'rgba(60, 60, 67, 0.6)' }} />
                 </button>
               </div>
               
               <div className="p-6 space-y-6">
                 {/* Emoji 选择 */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                  <label className="block text-sm font-medium mb-3" style={{ color: '#1D1D1F' }}>
                     选择图标
                   </label>
                   <div className="grid grid-cols-10 gap-2">
@@ -198,11 +203,12 @@ export default function AddHabitModal({ open, onClose }: AddHabitModalProps) {
                       <button
                         key={e}
                         onClick={() => setEmoji(e)}
-                        className={`w-10 h-10 rounded-xl text-2xl flex items-center justify-center transition-all ${
-                          emoji === e
-                            ? 'bg-gradient-to-r from-blue-500 to-purple-500 scale-110 shadow-lg'
-                            : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700'
-                        }`}
+                        className="w-10 h-10 rounded-xl text-2xl flex items-center justify-center transition-all active:scale-95"
+                        style={{
+                          backgroundColor: emoji === e ? '#6D9978' : '#F5F5F7',
+                          transform: emoji === e ? 'scale(1.1)' : 'scale(1)',
+                          boxShadow: emoji === e ? '0 4px 12px rgba(109, 153, 120, 0.3)' : 'none'
+                        }}
                       >
                         {e}
                       </button>
@@ -212,7 +218,7 @@ export default function AddHabitModal({ open, onClose }: AddHabitModalProps) {
                 
                 {/* 习惯名称 */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium mb-2" style={{ color: '#1D1D1F' }}>
                     习惯名称
                   </label>
                   <div className="flex gap-2">
@@ -221,12 +227,21 @@ export default function AddHabitModal({ open, onClose }: AddHabitModalProps) {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder="例如：每天喝水"
-                      className="flex-1 px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="flex-1 px-4 py-3 rounded-xl border focus:outline-none"
+                      style={{
+                        backgroundColor: '#F5F5F7',
+                        borderColor: 'rgba(0, 0, 0, 0.06)',
+                        color: '#1D1D1F'
+                      }}
                     />
                     <button
                       onClick={handleAISuggest}
                       disabled={!name.trim() || isAILoading}
-                      className="px-4 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
+                      className="px-4 py-3 rounded-full font-semibold text-sm shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
+                      style={{
+                        backgroundColor: '#E8C259',
+                        color: '#000000'
+                      }}
                     >
                       {isAILoading ? (
                         <>
@@ -246,14 +261,14 @@ export default function AddHabitModal({ open, onClose }: AddHabitModalProps) {
                       )}
                     </button>
                   </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-xs mt-1" style={{ color: 'rgba(0, 0, 0, 0.5)' }}>
                     💡 输入习惯名称后，点击"智能填写"自动配置
                   </p>
                 </div>
                 
                 {/* 类型选择 */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                  <label className="block text-sm font-medium mb-3" style={{ color: '#1D1D1F' }}>
                     类型
                   </label>
                   <div className="grid grid-cols-3 gap-3">
@@ -265,14 +280,14 @@ export default function AddHabitModal({ open, onClose }: AddHabitModalProps) {
                       <button
                         key={t.value}
                         onClick={() => setType(t.value)}
-                        className={`p-4 rounded-xl border-2 transition-all ${
-                          type === t.value
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-                        }`}
+                        className="p-4 rounded-xl border-2 transition-all active:scale-95"
+                        style={{
+                          borderColor: type === t.value ? '#6D9978' : 'rgba(0, 0, 0, 0.06)',
+                          backgroundColor: type === t.value ? 'rgba(109, 153, 120, 0.1)' : '#FFFFFF'
+                        }}
                       >
                         <div className="text-2xl mb-1">{t.emoji}</div>
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                        <div className="text-sm font-medium" style={{ color: '#1D1D1F' }}>
                           {t.label}
                         </div>
                       </button>
@@ -324,7 +339,7 @@ export default function AddHabitModal({ open, onClose }: AddHabitModalProps) {
                 
                 {/* 频率选择 */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                  <label className="block text-sm font-medium mb-3" style={{ color: '#1D1D1F' }}>
                     频率
                   </label>
                   <div className="grid grid-cols-4 gap-3">
@@ -337,14 +352,14 @@ export default function AddHabitModal({ open, onClose }: AddHabitModalProps) {
                       <button
                         key={f.value}
                         onClick={() => setFrequency(f.value)}
-                        className={`p-3 rounded-xl border-2 transition-all ${
-                          frequency === f.value
-                            ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-                        }`}
+                        className="p-3 rounded-xl border-2 transition-all active:scale-95"
+                        style={{
+                          borderColor: frequency === f.value ? '#DD617C' : 'rgba(0, 0, 0, 0.06)',
+                          backgroundColor: frequency === f.value ? 'rgba(221, 97, 124, 0.1)' : '#FFFFFF'
+                        }}
                       >
                         <div className="text-xl mb-1">{f.emoji}</div>
-                        <div className="text-xs font-medium text-gray-900 dark:text-white">
+                        <div className="text-xs font-medium" style={{ color: '#1D1D1F' }}>
                           {f.label}
                         </div>
                       </button>
@@ -603,7 +618,11 @@ export default function AddHabitModal({ open, onClose }: AddHabitModalProps) {
                 <button
                   onClick={handleSubmit}
                   disabled={!name.trim()}
-                  className="w-full py-4 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full py-4 rounded-full font-semibold text-sm shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{
+                    backgroundColor: '#6D9978',
+                    color: '#FFFFFF'
+                  }}
                 >
                   创建习惯
                 </button>

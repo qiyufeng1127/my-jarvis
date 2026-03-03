@@ -41,8 +41,11 @@ export default function TrendView({
   return (
     <div className="space-y-4">
       <div className="flex items-center space-x-2 mb-4">
-        <TrendingUp size={20} style={{ color: accentColor }} />
-        <h3 className="text-lg font-semibold" style={{ color: textColor }}>
+        <TrendingUp size={20} style={{ color: '#007AFF' }} />
+        <h3 className="text-lg font-semibold" style={{ 
+          color: isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(60, 60, 67, 0.9)',
+          fontWeight: 600 
+        }}>
           近30天坏习惯趋势
         </h3>
       </div>
@@ -55,7 +58,10 @@ export default function TrendView({
               className="w-3 h-3 rounded-full"
               style={{ backgroundColor: habit.color }}
             />
-            <span className="text-sm" style={{ color: textColor }}>
+            <span className="text-sm" style={{ 
+              color: isDark ? 'rgba(255, 255, 255, 0.8)' : 'rgba(60, 60, 67, 0.8)',
+              fontWeight: 400 
+            }}>
               {habit.emoji} {habit.name}
             </span>
           </div>
@@ -63,9 +69,16 @@ export default function TrendView({
       </div>
 
       {/* 折线图区域 */}
-      <div className="relative h-64 rounded-lg p-4" style={{ backgroundColor: cardBg }}>
+      <div className="relative h-64 rounded-xl p-4" style={{ 
+        backgroundColor: isDark ? 'rgba(28, 28, 30, 0.8)' : 'rgba(242, 242, 247, 0.8)',
+        backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)',
+      }}>
         {/* Y轴刻度 */}
-        <div className="absolute left-0 top-0 bottom-0 w-8 flex flex-col justify-between text-xs" style={{ color: textColor, opacity: 0.6 }}>
+        <div className="absolute left-0 top-0 bottom-0 w-8 flex flex-col justify-between text-xs" style={{ 
+          color: isDark ? 'rgba(255, 255, 255, 0.6)' : 'rgba(60, 60, 67, 0.6)',
+          fontWeight: 400 
+        }}>
           <span>{maxCount}</span>
           <span>{Math.floor(maxCount * 0.75)}</span>
           <span>{Math.floor(maxCount * 0.5)}</span>
@@ -126,24 +139,33 @@ export default function TrendView({
                 }}
               >
                 {/* 悬停显示详情 */}
-                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 whitespace-nowrap"
+                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 rounded-xl shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 whitespace-nowrap"
                   style={{
-                    backgroundColor: isDark ? 'rgba(0,0,0,0.9)' : 'rgba(255,255,255,0.95)',
-                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}`,
+                    backgroundColor: isDark ? 'rgba(28, 28, 30, 0.95)' : 'rgba(242, 242, 247, 0.95)',
+                    backdropFilter: 'blur(20px)',
+                    WebkitBackdropFilter: 'blur(20px)',
+                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}`,
                   }}
                 >
-                  <div className="text-xs font-semibold mb-1" style={{ color: textColor }}>
+                  <div className="text-xs font-semibold mb-1" style={{ 
+                    color: isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(60, 60, 67, 0.9)' 
+                  }}>
                     {day.date}
                   </div>
                   <div className="space-y-0.5">
                     {day.habitCounts.map((habit) => (
-                      <div key={habit.habitId} className="text-xs flex items-center space-x-1" style={{ color: textColor }}>
+                      <div key={habit.habitId} className="text-xs flex items-center space-x-1" style={{ 
+                        color: isDark ? 'rgba(255, 255, 255, 0.8)' : 'rgba(60, 60, 67, 0.8)' 
+                      }}>
                         <div className="w-2 h-2 rounded-full" style={{ backgroundColor: habit.color }} />
                         <span>{habit.emoji} {habit.habitName}</span>
                         <span className="font-semibold">×{habit.count}</span>
                       </div>
                     ))}
-                    <div className="text-xs font-semibold pt-1 border-t" style={{ color: textColor, borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)' }}>
+                    <div className="text-xs font-semibold pt-1 border-t" style={{ 
+                      color: isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(60, 60, 67, 0.9)',
+                      borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' 
+                    }}>
                       总计: {day.totalCount}
                     </div>
                   </div>
@@ -154,7 +176,10 @@ export default function TrendView({
         </div>
 
         {/* X轴日期标签（每5天显示一次） */}
-        <div className="ml-10 mt-2 flex justify-between text-xs" style={{ color: textColor, opacity: 0.6 }}>
+        <div className="ml-10 mt-2 flex justify-between text-xs" style={{ 
+          color: isDark ? 'rgba(255, 255, 255, 0.6)' : 'rgba(60, 60, 67, 0.6)',
+          fontWeight: 400 
+        }}>
           {trendData.filter((_, index) => index % 5 === 0).map((day) => (
             <span key={day.date}>
               {new Date(day.date).getDate()}日
@@ -164,7 +189,10 @@ export default function TrendView({
       </div>
 
       {/* 说明 */}
-      <div className="text-xs text-center" style={{ color: textColor, opacity: 0.6 }}>
+      <div className="text-xs text-center" style={{ 
+        color: isDark ? 'rgba(255, 255, 255, 0.6)' : 'rgba(60, 60, 67, 0.6)',
+        fontWeight: 400 
+      }}>
         不同颜色的折线代表不同坏习惯，鼠标悬停查看详细数据
       </div>
     </div>

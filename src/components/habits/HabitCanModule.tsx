@@ -49,68 +49,82 @@ export default function HabitCanModule({
 
   return (
     <div
-      className="space-y-6"
+      className="space-y-4"
       style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif' }}
     >
-      {/* iOS 风格视图切换 - 一排显示，无图标 */}
+      {/* iOS 风格视图切换 - 现代浅灰风格 */}
       <div
-        className="sticky top-0 z-10 rounded-2xl p-3"
+        className="sticky top-0 z-10 rounded-2xl p-2"
         style={{
-          backgroundColor: HABIT_CAN_COLORS.glassmorphism.light,
+          backgroundColor: isDark ? 'rgba(28, 28, 30, 0.8)' : 'rgba(242, 242, 247, 0.8)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
-          boxShadow: HABIT_CAN_COLORS.shadows.card,
+          boxShadow: isDark 
+            ? '0 2px 8px rgba(0, 0, 0, 0.3)' 
+            : '0 2px 8px rgba(0, 0, 0, 0.08)',
         }}
       >
         <div className="flex items-center justify-between space-x-2">
           <button
             onClick={() => setViewMode('month')}
-            className="flex-1 px-4 py-2 rounded-lg transition-transform active:scale-95"
+            className="flex-1 px-4 py-2.5 rounded-xl transition-all active:scale-95"
             style={{
-              backgroundColor: viewMode === 'month' ? HABIT_CAN_COLORS.espresso : 'transparent',
-              color: viewMode === 'month' ? HABIT_CAN_COLORS.nuageDeLait : HABIT_CAN_COLORS.eauTrouble,
+              backgroundColor: viewMode === 'month' 
+                ? '#007AFF' 
+                : isDark ? 'rgba(58, 58, 60, 0.5)' : 'rgba(255, 255, 255, 0.6)',
+              color: viewMode === 'month' 
+                ? '#FFFFFF' 
+                : isDark ? 'rgba(255, 255, 255, 0.7)' : 'rgba(60, 60, 67, 0.7)',
               fontSize: '14px',
               fontWeight: 500,
-              minHeight: '44px',
+              minHeight: '40px',
             }}
           >
             月视图
           </button>
           <button
             onClick={() => setViewMode('week')}
-            className="flex-1 px-4 py-2 rounded-lg transition-transform active:scale-95"
+            className="flex-1 px-4 py-2.5 rounded-xl transition-all active:scale-95"
             style={{
-              backgroundColor: viewMode === 'week' ? HABIT_CAN_COLORS.espresso : 'transparent',
-              color: viewMode === 'week' ? HABIT_CAN_COLORS.nuageDeLait : HABIT_CAN_COLORS.eauTrouble,
+              backgroundColor: viewMode === 'week' 
+                ? '#007AFF' 
+                : isDark ? 'rgba(58, 58, 60, 0.5)' : 'rgba(255, 255, 255, 0.6)',
+              color: viewMode === 'week' 
+                ? '#FFFFFF' 
+                : isDark ? 'rgba(255, 255, 255, 0.7)' : 'rgba(60, 60, 67, 0.7)',
               fontSize: '14px',
               fontWeight: 500,
-              minHeight: '44px',
+              minHeight: '40px',
             }}
           >
             周视图
           </button>
           <button
             onClick={() => setViewMode('trend')}
-            className="flex-1 px-4 py-2 rounded-lg transition-transform active:scale-95"
+            className="flex-1 px-4 py-2.5 rounded-xl transition-all active:scale-95"
             style={{
-              backgroundColor: viewMode === 'trend' ? HABIT_CAN_COLORS.espresso : 'transparent',
-              color: viewMode === 'trend' ? HABIT_CAN_COLORS.nuageDeLait : HABIT_CAN_COLORS.eauTrouble,
+              backgroundColor: viewMode === 'trend' 
+                ? '#007AFF' 
+                : isDark ? 'rgba(58, 58, 60, 0.5)' : 'rgba(255, 255, 255, 0.6)',
+              color: viewMode === 'trend' 
+                ? '#FFFFFF' 
+                : isDark ? 'rgba(255, 255, 255, 0.7)' : 'rgba(60, 60, 67, 0.7)',
               fontSize: '14px',
               fontWeight: 500,
-              minHeight: '44px',
+              minHeight: '40px',
             }}
           >
             30天趋势
           </button>
           <button
             onClick={() => setShowMonthlyReport(true)}
-            className="flex-1 px-4 py-2 rounded-lg transition-transform active:scale-95"
+            className="flex-1 px-4 py-2.5 rounded-xl transition-all active:scale-95"
             style={{
-              backgroundColor: HABIT_CAN_COLORS.terreCuite,
-              color: HABIT_CAN_COLORS.nuageDeLait,
+              backgroundColor: '#007AFF',
+              color: '#FFFFFF',
               fontSize: '14px',
-              fontWeight: 500,
-              minHeight: '44px',
+              fontWeight: 600,
+              minHeight: '40px',
             }}
           >
             查看月报

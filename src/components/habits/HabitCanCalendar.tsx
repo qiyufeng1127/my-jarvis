@@ -66,14 +66,14 @@ export default function HabitCanCalendar({
 
   return (
     <div className="space-y-4" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif' }}>
-      {/* 顶部毛玻璃导航栏 */}
+      {/* 顶部导航栏 - 现代iOS风格 */}
       <div
         className="sticky top-0 z-10 rounded-2xl p-4"
         style={{
-          backgroundColor: HABIT_CAN_COLORS.glassmorphism.light,
+          backgroundColor: isDark ? 'rgba(28, 28, 30, 0.8)' : 'rgba(242, 242, 247, 0.8)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
-          boxShadow: HABIT_CAN_COLORS.shadows.card,
+          boxShadow: isDark ? '0 2px 8px rgba(0, 0, 0, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.08)',
         }}
       >
         {/* 月份切换 */}
@@ -81,25 +81,35 @@ export default function HabitCanCalendar({
           <div className="flex items-center space-x-2">
             <button
               onClick={() => changeMonth(-1)}
-              className="p-2 rounded-lg transition-transform active:scale-95"
-              style={{ backgroundColor: HABIT_CAN_COLORS.nuageDeLait }}
+              className="p-2 rounded-xl transition-all active:scale-95"
+              style={{ 
+                backgroundColor: isDark ? 'rgba(58, 58, 60, 0.5)' : 'rgba(255, 255, 255, 0.8)',
+                color: isDark ? 'rgba(255, 255, 255, 0.8)' : 'rgba(60, 60, 67, 0.8)'
+              }}
             >
-              <ChevronLeft size={20} style={{ color: HABIT_CAN_COLORS.espresso }} />
+              <ChevronLeft size={20} />
             </button>
             
             <div
               className="text-xl font-bold px-4"
-              style={{ color: HABIT_CAN_COLORS.espresso, fontSize: '20px', fontWeight: 600 }}
+              style={{ 
+                color: isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(60, 60, 67, 0.9)', 
+                fontSize: '20px', 
+                fontWeight: 600 
+              }}
             >
               {year}年{month}月
             </div>
             
             <button
               onClick={() => changeMonth(1)}
-              className="p-2 rounded-lg transition-transform active:scale-95"
-              style={{ backgroundColor: HABIT_CAN_COLORS.nuageDeLait }}
+              className="p-2 rounded-xl transition-all active:scale-95"
+              style={{ 
+                backgroundColor: isDark ? 'rgba(58, 58, 60, 0.5)' : 'rgba(255, 255, 255, 0.8)',
+                color: isDark ? 'rgba(255, 255, 255, 0.8)' : 'rgba(60, 60, 67, 0.8)'
+              }}
             >
-              <ChevronRight size={20} style={{ color: HABIT_CAN_COLORS.espresso }} />
+              <ChevronRight size={20} />
             </button>
           </div>
 
@@ -107,13 +117,13 @@ export default function HabitCanCalendar({
           <div className="flex items-center space-x-2">
             <button
               onClick={onOpenCustomize}
-              className="flex items-center space-x-2 px-4 py-2 rounded-lg transition-transform active:scale-98"
+              className="flex items-center space-x-2 px-4 py-2.5 rounded-xl transition-all active:scale-95"
               style={{
-                backgroundColor: HABIT_CAN_COLORS.espresso,
-                color: HABIT_CAN_COLORS.nuageDeLait,
+                backgroundColor: '#007AFF',
+                color: '#FFFFFF',
                 fontSize: '14px',
                 fontWeight: 500,
-                minHeight: '44px',
+                minHeight: '40px',
               }}
             >
               <Plus size={16} />
@@ -122,14 +132,15 @@ export default function HabitCanCalendar({
             
             <button
               onClick={onOpenSettings}
-              className="p-2 rounded-lg transition-transform active:scale-98"
+              className="p-2.5 rounded-xl transition-all active:scale-95"
               style={{
-                backgroundColor: HABIT_CAN_COLORS.nuageDeLait,
-                minWidth: '44px',
-                minHeight: '44px',
+                backgroundColor: isDark ? 'rgba(58, 58, 60, 0.5)' : 'rgba(255, 255, 255, 0.8)',
+                color: isDark ? 'rgba(255, 255, 255, 0.8)' : 'rgba(60, 60, 67, 0.8)',
+                minWidth: '40px',
+                minHeight: '40px',
               }}
             >
-              <Settings size={18} style={{ color: HABIT_CAN_COLORS.espresso }} />
+              <Settings size={18} />
             </button>
           </div>
         </div>
@@ -138,7 +149,7 @@ export default function HabitCanCalendar({
         <div
           className="rounded-xl p-4"
           style={{
-            backgroundColor: HABIT_CAN_COLORS.glassmorphism.accent,
+            backgroundColor: isDark ? 'rgba(58, 58, 60, 0.3)' : 'rgba(255, 255, 255, 0.5)',
             backdropFilter: 'blur(10px)',
             WebkitBackdropFilter: 'blur(10px)',
           }}
@@ -147,12 +158,19 @@ export default function HabitCanCalendar({
             <div className="text-center">
               <div
                 className="font-bold mb-1"
-                style={{ fontSize: '20px', color: HABIT_CAN_COLORS.espresso }}
+                style={{ 
+                  fontSize: '24px', 
+                  color: '#007AFF'
+                }}
               >
                 {monthStats.totalCount}
               </div>
               <div
-                style={{ fontSize: '14px', color: HABIT_CAN_COLORS.espresso, fontWeight: 300 }}
+                style={{ 
+                  fontSize: '13px', 
+                  color: isDark ? 'rgba(255, 255, 255, 0.6)' : 'rgba(60, 60, 67, 0.6)',
+                  fontWeight: 400 
+                }}
               >
                 本月坏习惯
               </div>
@@ -160,16 +178,20 @@ export default function HabitCanCalendar({
             {monthStats.mostFrequent && (
               <div className="text-center">
                 <div className="flex items-center justify-center space-x-2 mb-1">
-                  <span style={{ fontSize: '20px' }}>{monthStats.mostFrequent.habit.emoji}</span>
+                  <span style={{ fontSize: '24px' }}>{monthStats.mostFrequent.habit.emoji}</span>
                   <span
                     className="font-bold"
-                    style={{ fontSize: '20px', color: HABIT_CAN_COLORS.espresso }}
+                    style={{ fontSize: '24px', color: '#007AFF' }}
                   >
                     ×{monthStats.mostFrequent.count}
                   </span>
                 </div>
                 <div
-                  style={{ fontSize: '14px', color: HABIT_CAN_COLORS.espresso, fontWeight: 300 }}
+                  style={{ 
+                    fontSize: '13px', 
+                    color: isDark ? 'rgba(255, 255, 255, 0.6)' : 'rgba(60, 60, 67, 0.6)',
+                    fontWeight: 400 
+                  }}
                 >
                   最频发
                 </div>
@@ -182,10 +204,10 @@ export default function HabitCanCalendar({
       {/* 颜色图例 */}
       <div className="flex items-center justify-center space-x-4 py-3">
         {[
-          { color: HABIT_CAN_COLORS.canColors.clean, label: '0个' },
-          { color: HABIT_CAN_COLORS.canColors.light, label: '1-10个' },
-          { color: HABIT_CAN_COLORS.canColors.medium, label: '11-20个' },
-          { color: HABIT_CAN_COLORS.canColors.heavy, label: '20+个' },
+          { color: isDark ? 'rgba(58, 58, 60, 0.5)' : 'rgba(242, 242, 247, 1)', label: '0个' },
+          { color: 'rgba(52, 199, 89, 0.3)', label: '1-10个' },
+          { color: 'rgba(255, 149, 0, 0.4)', label: '11-20个' },
+          { color: 'rgba(255, 59, 48, 0.5)', label: '20+个' },
         ].map((item, index) => (
           <div key={index} className="flex items-center space-x-2">
             <div
@@ -198,9 +220,9 @@ export default function HabitCanCalendar({
             />
             <span
               style={{
-                fontSize: '10px',
-                color: HABIT_CAN_COLORS.eauTrouble,
-                fontWeight: 300,
+                fontSize: '11px',
+                color: isDark ? 'rgba(255, 255, 255, 0.6)' : 'rgba(60, 60, 67, 0.6)',
+                fontWeight: 400,
               }}
             >
               {item.label}
@@ -216,10 +238,9 @@ export default function HabitCanCalendar({
             key={index}
             className="text-center py-2"
             style={{
-              fontSize: '14px',
-              fontWeight: 500,
-              color: HABIT_CAN_COLORS.espresso,
-              opacity: 0.6,
+              fontSize: '13px',
+              fontWeight: 600,
+              color: isDark ? 'rgba(255, 255, 255, 0.5)' : 'rgba(60, 60, 67, 0.5)',
             }}
           >
             {day}
@@ -377,29 +398,30 @@ export default function HabitCanCalendar({
       <div
         className="rounded-xl p-4"
         style={{
-          backgroundColor: HABIT_CAN_COLORS.glassmorphism.light,
+          backgroundColor: isDark ? 'rgba(28, 28, 30, 0.8)' : 'rgba(242, 242, 247, 0.8)',
           backdropFilter: 'blur(10px)',
           WebkitBackdropFilter: 'blur(10px)',
-          boxShadow: HABIT_CAN_COLORS.shadows.card,
+          boxShadow: isDark ? '0 2px 8px rgba(0, 0, 0, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.08)',
         }}
       >
         <div className="flex items-center justify-between mb-3">
           <div
             className="font-semibold"
             style={{
-              fontSize: '14px',
-              color: HABIT_CAN_COLORS.espresso,
+              fontSize: '15px',
+              color: isDark ? 'rgba(255, 255, 255, 0.9)' : 'rgba(60, 60, 67, 0.9)',
             }}
           >
             📅 今日预览
           </div>
           <button
             onClick={() => onOpenCanDetail(new Date().toISOString().split('T')[0])}
-            className="px-3 py-1 rounded-lg transition-transform active:scale-95"
+            className="px-3 py-1.5 rounded-lg transition-all active:scale-95"
             style={{
-              backgroundColor: HABIT_CAN_COLORS.nuageDeLait,
-              fontSize: '12px',
-              color: HABIT_CAN_COLORS.eauTrouble,
+              backgroundColor: '#007AFF',
+              fontSize: '13px',
+              color: '#FFFFFF',
+              fontWeight: 500,
             }}
           >
             查看详情
@@ -418,8 +440,8 @@ export default function HabitCanCalendar({
                 className="text-center py-4"
                 style={{
                   fontSize: '14px',
-                  color: HABIT_CAN_COLORS.eauTrouble,
-                  fontWeight: 300,
+                  color: isDark ? 'rgba(255, 255, 255, 0.6)' : 'rgba(60, 60, 67, 0.6)',
+                  fontWeight: 400,
                 }}
               >
                 今天还没有坏习惯记录 ✨
@@ -436,7 +458,7 @@ export default function HabitCanCalendar({
                     className="font-semibold"
                     style={{
                       fontSize: '16px',
-                      color: HABIT_CAN_COLORS.espresso,
+                      color: '#007AFF',
                     }}
                   >
                     ×{habit.count}

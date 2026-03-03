@@ -84,35 +84,8 @@ body {
    文字颜色统一规则 - 只用黑白
    ============================================ */
 
-/* 浅色背景使用黑色文字 */
-.text-on-light,
-[style*="background"][style*="#f"],
-[style*="background"][style*="rgb(2"],
-[style*="background"][style*="rgba(2"] {
-  color: #000000 !important;
-}
-
-/* 深色背景使用白色文字 */
-.text-on-dark,
-[style*="background"][style*="#0"],
-[style*="background"][style*="#1"],
-[style*="background"][style*="#2"],
-[style*="background"][style*="#3"],
-[style*="background"][style*="#4"],
-[style*="background"][style*="#5"],
-[style*="background"][style*="#6"],
-[style*="background"][style*="#7"],
-[style*="background"][style*="#8"],
-[style*="background"][style*="#9"],
-[style*="background"][style*="#a"],
-[style*="background"][style*="#b"],
-[style*="background"][style*="#c"],
-[style*="background"][style*="#d"] {
-  color: #ffffff !important;
-}
-
 /* 强制所有文字只用黑白 */
-p, span, div, h1, h2, h3, h4, h5, h6, a, button, input, textarea, label {
+p, span, div, h1, h2, h3, h4, h5, h6, a, input, textarea, label {
   color: inherit;
 }
 

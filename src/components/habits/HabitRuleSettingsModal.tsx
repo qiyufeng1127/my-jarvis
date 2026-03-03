@@ -51,40 +51,46 @@ export default function HabitRuleSettingsModal({ open, onClose }: HabitRuleSetti
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: '100%', opacity: 0 }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="bg-white dark:bg-gray-900 rounded-t-3xl md:rounded-3xl w-full md:max-w-2xl max-h-[90vh] overflow-y-auto"
+              className="rounded-t-3xl md:rounded-3xl w-full md:max-w-2xl max-h-[90vh] overflow-y-auto"
+              style={{ backgroundColor: '#FFFFFF' }}
               onClick={(e) => e.stopPropagation()}
             >
               {/* 标题栏 */}
-              <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-6 py-4 flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+              <div className="sticky top-0 border-b px-6 py-4 flex items-center justify-between" style={{
+                backgroundColor: '#FFFFFF',
+                borderColor: 'rgba(0, 0, 0, 0.06)'
+              }}>
+                <h2 className="text-xl font-bold" style={{ color: '#1D1D1F' }}>
                   AI 识别规则设置
                 </h2>
                 <button
                   onClick={onClose}
-                  className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  className="p-2 rounded-xl transition-colors active:scale-95"
+                  style={{ backgroundColor: '#F5F5F7' }}
                 >
-                  <X className="w-5 h-5 text-gray-500" />
+                  <X className="w-5 h-5" style={{ color: 'rgba(60, 60, 67, 0.6)' }} />
                 </button>
               </div>
               
               <div className="p-6 space-y-6">
                 {/* 启用开关 */}
-                <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20">
+                <div className="flex items-center justify-between p-4 rounded-xl" style={{
+                  backgroundColor: 'rgba(109, 153, 120, 0.1)'
+                }}>
                   <div>
-                    <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
+                    <h3 className="font-semibold mb-1" style={{ color: '#1D1D1F' }}>
                       启用 AI 自动识别
                     </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                    <p className="text-sm" style={{ color: 'rgba(0, 0, 0, 0.5)' }}>
                       根据时间轴上的任务自动识别潜在习惯
                     </p>
                   </div>
                   <button
                     onClick={() => setEnabled(!enabled)}
-                    className={`relative w-14 h-7 rounded-full transition-colors ${
-                      enabled
-                        ? 'bg-gradient-to-r from-blue-500 to-purple-500'
-                        : 'bg-gray-300 dark:bg-gray-700'
-                    }`}
+                    className="relative w-14 h-7 rounded-full transition-colors"
+                    style={{
+                      backgroundColor: enabled ? '#6D9978' : '#D1D1D6'
+                    }}
                   >
                     <motion.div
                       animate={{ x: enabled ? 28 : 0 }}
@@ -101,10 +107,13 @@ export default function HabitRuleSettingsModal({ open, onClose }: HabitRuleSetti
                     className="space-y-6"
                   >
                     {/* 日习惯规则 */}
-                    <div className="p-4 rounded-xl bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
+                    <div className="p-4 rounded-xl border" style={{
+                      backgroundColor: '#FFF5E5',
+                      borderColor: 'rgba(232, 194, 89, 0.3)'
+                    }}>
                       <div className="flex items-center gap-2 mb-3">
                         <span className="text-2xl">☀️</span>
-                        <h3 className="font-semibold text-gray-900 dark:text-white">
+                        <h3 className="font-semibold" style={{ color: '#1D1D1F' }}>
                           日习惯识别规则
                         </h3>
                       </div>
@@ -135,10 +144,13 @@ export default function HabitRuleSettingsModal({ open, onClose }: HabitRuleSetti
                     </div>
                     
                     {/* 周习惯规则 */}
-                    <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                    <div className="p-4 rounded-xl border" style={{
+                      backgroundColor: 'rgba(109, 153, 120, 0.1)',
+                      borderColor: 'rgba(109, 153, 120, 0.3)'
+                    }}>
                       <div className="flex items-center gap-2 mb-3">
                         <span className="text-2xl">📅</span>
-                        <h3 className="font-semibold text-gray-900 dark:text-white">
+                        <h3 className="font-semibold" style={{ color: '#1D1D1F' }}>
                           周习惯识别规则
                         </h3>
                       </div>
@@ -191,10 +203,13 @@ export default function HabitRuleSettingsModal({ open, onClose }: HabitRuleSetti
                     </div>
                     
                     {/* 月习惯规则 */}
-                    <div className="p-4 rounded-xl bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
+                    <div className="p-4 rounded-xl border" style={{
+                      backgroundColor: 'rgba(221, 97, 124, 0.1)',
+                      borderColor: 'rgba(221, 97, 124, 0.3)'
+                    }}>
                       <div className="flex items-center gap-2 mb-3">
                         <span className="text-2xl">🗓️</span>
-                        <h3 className="font-semibold text-gray-900 dark:text-white">
+                        <h3 className="font-semibold" style={{ color: '#1D1D1F' }}>
                           月习惯识别规则
                         </h3>
                       </div>
@@ -251,7 +266,11 @@ export default function HabitRuleSettingsModal({ open, onClose }: HabitRuleSetti
                 {/* 保存按钮 */}
                 <button
                   onClick={handleSave}
-                  className="w-full flex items-center justify-center gap-2 py-4 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold hover:shadow-lg transition-all"
+                  className="w-full flex items-center justify-center gap-2 py-4 rounded-full font-semibold text-sm shadow-lg transition-all active:scale-95"
+                  style={{
+                    backgroundColor: '#6D9978',
+                    color: '#FFFFFF'
+                  }}
                 >
                   <Save className="w-5 h-5" />
                   <span>保存设置</span>

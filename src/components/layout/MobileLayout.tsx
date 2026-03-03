@@ -237,7 +237,14 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
 
   return (
     <>
-    <div className="h-screen flex flex-col bg-white dark:bg-black" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div 
+      className="h-screen flex flex-col" 
+      style={{ 
+        paddingTop: 'env(safe-area-inset-top)',
+        backgroundColor: '#fefaf0',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
+      }}
+    >
       {/* 通知容器 */}
       <NotificationContainer />
 
@@ -305,10 +312,15 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         onClose={() => setShowLevelCustomize(false)}
       />
       
-      {/* 宠物商店弹窗 */}
+      {/* 宠物商店弹窗 - iOS 风格 */}
       {showPetShop && (
         <div 
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          style={{
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
+          }}
           onClick={() => setShowPetShop(false)}
         >
           <div 
@@ -318,9 +330,13 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
             <div className="relative">
               <button
                 onClick={() => setShowPetShop(false)}
-                className="absolute top-4 right-4 z-10 w-10 h-10 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow-lg transition-all"
+                className="absolute top-4 right-4 z-10 w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-95"
+                style={{
+                  backgroundColor: 'rgba(254, 250, 240, 0.9)',
+                  boxShadow: '0 2px 8px rgba(84, 41, 22, 0.2)',
+                }}
               >
-                <X className="w-6 h-6" />
+                <X className="w-6 h-6" style={{ color: '#542916' }} />
               </button>
               <PetShop />
             </div>
@@ -394,44 +410,82 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         }}
       />
 
-      {/* 编辑导航栏弹窗 */}
+      {/* 编辑导航栏弹窗 - iOS 风格 */}
       {showEditModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col">
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          style={{
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
+          }}
+        >
+          <div 
+            className="w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col rounded-2xl"
+            style={{
+              backgroundColor: 'rgba(254, 250, 240, 0.95)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              boxShadow: '0 8px 32px rgba(84, 41, 22, 0.2)',
+            }}
+          >
             {/* 头部 */}
-            <div className="flex items-center justify-between p-4 border-b border-neutral-200">
-              <h3 className="text-lg font-bold text-gray-900">编辑导航栏</h3>
+            <div 
+              className="flex items-center justify-between p-4"
+              style={{
+                borderBottom: '1px solid rgba(84, 41, 22, 0.1)',
+              }}
+            >
+              <h3 className="text-lg font-bold" style={{ color: '#542916' }}>编辑导航栏</h3>
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => setShowColorPicker(!showColorPicker)}
-                  className="p-2 rounded-lg bg-gray-100 active:bg-gray-200"
+                  className="p-2 rounded-xl transition-all active:scale-95"
+                  style={{
+                    backgroundColor: 'rgba(84, 41, 22, 0.1)',
+                  }}
                   title="自定义颜色"
                 >
                   🎨
                 </button>
                 <button
                   onClick={() => setShowEditModal(false)}
-                  className="p-2 rounded-lg bg-gray-100 active:bg-gray-200"
+                  className="p-2 rounded-xl transition-all active:scale-95"
+                  style={{
+                    backgroundColor: 'rgba(84, 41, 22, 0.1)',
+                  }}
                 >
-                  <X className="w-5 h-5 text-gray-900" />
+                  <X className="w-5 h-5" style={{ color: '#542916' }} />
                 </button>
               </div>
             </div>
 
             {/* 说明 */}
-            <div className="p-4 border-b" style={{ backgroundColor: '#E8C259', borderColor: '#d4a93d' }}>
-              <p className="text-sm font-medium" style={{ color: '#000000' }}>
+            <div 
+              className="p-4"
+              style={{ 
+                backgroundColor: 'rgba(241, 193, 102, 0.3)',
+                borderBottom: '1px solid rgba(84, 41, 22, 0.1)',
+              }}
+            >
+              <p className="text-sm font-medium" style={{ color: '#542916' }}>
                 💡 拖拽调整顺序，最多显示8个在底部导航栏
               </p>
             </div>
 
             {/* 颜色选择器 */}
             {showColorPicker && (
-              <div className="p-4 bg-gray-50 border-b border-gray-200">
-                <h4 className="text-sm font-semibold mb-3 text-gray-900">🎨 导航栏颜色</h4>
+              <div 
+                className="p-4"
+                style={{
+                  backgroundColor: 'rgba(254, 250, 240, 0.5)',
+                  borderBottom: '1px solid rgba(84, 41, 22, 0.1)',
+                }}
+              >
+                <h4 className="text-sm font-semibold mb-3" style={{ color: '#542916' }}>🎨 导航栏颜色</h4>
                 <div className="grid grid-cols-6 gap-2 mb-3">
                   {[
-                    '#D1CBBA', '#6D9978', '#E8C259', '#DD617C', '#AC0327',
+                    '#fefaf0', '#D1CBBA', '#6D9978', '#E8C259', '#DD617C', '#AC0327',
                     '#ffffff', '#f8f9fa', '#e9ecef', '#dee2e6',
                     '#fef3c7', '#fde68a', '#fcd34d', '#fbbf24',
                     '#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa',
@@ -444,10 +498,11 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
                         setNavColor(color);
                         localStorage.setItem('mobile_nav_color', color);
                       }}
-                      className="w-full aspect-square rounded-lg border-2 transition-all hover:scale-110"
+                      className="w-full aspect-square rounded-xl transition-all active:scale-95"
                       style={{
                         backgroundColor: color,
-                        borderColor: navColor === color ? '#DD617C' : '#e5e7eb',
+                        border: navColor === color ? '2px solid #542916' : '1px solid rgba(84, 41, 22, 0.2)',
+                        boxShadow: navColor === color ? '0 2px 8px rgba(84, 41, 22, 0.2)' : 'none',
                       }}
                     />
                   ))}
@@ -460,7 +515,7 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
                       setNavColor(e.target.value);
                       localStorage.setItem('mobile_nav_color', e.target.value);
                     }}
-                    className="w-12 h-12 rounded-lg cursor-pointer"
+                    className="w-12 h-12 rounded-xl cursor-pointer"
                   />
                   <div className="flex-1">
                     <input
@@ -470,8 +525,13 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
                         setNavColor(e.target.value);
                         localStorage.setItem('mobile_nav_color', e.target.value);
                       }}
-                      className="w-full px-3 py-2 rounded-lg border-2 border-gray-300 text-sm font-mono text-gray-900 bg-white"
-                      placeholder="#ffffff"
+                      className="w-full px-3 py-2 rounded-xl text-sm font-mono"
+                      style={{
+                        border: '1px solid rgba(84, 41, 22, 0.2)',
+                        color: '#542916',
+                        backgroundColor: '#ffffff',
+                      }}
+                      placeholder="#fefaf0"
                     />
                   </div>
                 </div>
@@ -480,7 +540,7 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
 
             {/* 当前导航项 */}
             <div className="flex-1 overflow-y-auto p-4">
-              <h4 className="text-sm font-semibold mb-3 text-gray-900">当前导航栏</h4>
+              <h4 className="text-sm font-semibold mb-3" style={{ color: '#542916' }}>当前导航栏</h4>
               <div className="space-y-2 mb-6">
                 {editingItems.map((item, index) => (
                   <div
@@ -489,21 +549,33 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
                     onDragStart={handleDragStart(index)}
                     onDragOver={handleDragOver(index)}
                     onDrop={handleDrop(index)}
-                    className="flex items-center justify-between p-3 bg-white rounded-lg border-2 border-gray-200 active:bg-gray-50 shadow-sm"
+                    className="flex items-center justify-between p-3 rounded-xl transition-all active:scale-95"
+                    style={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                      border: '1px solid rgba(84, 41, 22, 0.1)',
+                      boxShadow: '0 2px 6px rgba(84, 41, 22, 0.08)',
+                    }}
                   >
                     <div className="flex items-center space-x-3">
-                      <GripVertical className="w-5 h-5 text-gray-600" />
+                      <GripVertical className="w-5 h-5" style={{ color: '#b79858' }} />
                       <span className="text-2xl">{item.icon}</span>
-                      <span className="font-semibold text-gray-900">{item.label}</span>
+                      <span className="font-semibold" style={{ color: '#542916' }}>{item.label}</span>
                       {index < 8 && (
-                        <span className="text-xs px-2 py-0.5 bg-blue-500 text-white rounded-full font-medium">
+                        <span 
+                          className="text-xs px-2 py-0.5 rounded-full font-medium"
+                          style={{
+                            backgroundColor: '#007AFF',
+                            color: '#ffffff',
+                          }}
+                        >
                           显示
                         </span>
                       )}
                     </div>
                     <button
                       onClick={() => handleRemoveNavItem(item.id)}
-                      className="p-1 rounded text-red-600 active:bg-red-50"
+                      className="p-1 rounded transition-all active:scale-95"
+                      style={{ color: '#FF3B30' }}
                     >
                       <X className="w-5 h-5" />
                     </button>
@@ -514,16 +586,21 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
               {/* 可添加的项 */}
               {editingItems.length < ALL_NAV_ITEMS.length && (
                 <>
-                  <h4 className="text-sm font-semibold mb-3 text-gray-900">添加功能</h4>
+                  <h4 className="text-sm font-semibold mb-3" style={{ color: '#542916' }}>添加功能</h4>
                   <div className="grid grid-cols-2 gap-2">
                     {ALL_NAV_ITEMS.filter(item => !editingItems.find(i => i.id === item.id)).map((item) => (
                       <button
                         key={item.id}
                         onClick={() => handleAddNavItem(item)}
-                        className="flex items-center space-x-2 p-3 bg-white rounded-lg border-2 border-gray-200 active:bg-gray-50 shadow-sm"
+                        className="flex items-center space-x-2 p-3 rounded-xl transition-all active:scale-95"
+                        style={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                          border: '1px solid rgba(84, 41, 22, 0.1)',
+                          boxShadow: '0 2px 6px rgba(84, 41, 22, 0.08)',
+                        }}
                       >
                         <span className="text-2xl">{item.icon}</span>
-                        <span className="text-sm font-semibold text-gray-900">{item.label}</span>
+                        <span className="text-sm font-semibold" style={{ color: '#542916' }}>{item.label}</span>
                       </button>
                     ))}
                   </div>
@@ -532,20 +609,29 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
             </div>
 
             {/* 底部按钮 */}
-            <div className="p-4 border-t border-neutral-200 flex space-x-3">
+            <div 
+              className="p-4 flex space-x-3"
+              style={{
+                borderTop: '1px solid rgba(84, 41, 22, 0.1)',
+              }}
+            >
               <button
                 onClick={() => setShowEditModal(false)}
-                className="flex-1 py-3 rounded-lg bg-gray-200 text-gray-900 font-semibold active:bg-gray-300"
+                className="flex-1 py-3 rounded-xl font-semibold transition-all active:scale-95"
+                style={{
+                  backgroundColor: 'rgba(84, 41, 22, 0.1)',
+                  color: '#542916',
+                }}
               >
                 取消
               </button>
               <button
                 onClick={handleSaveEdit}
-                className="flex-1 py-3 rounded-lg text-white font-semibold"
-                style={{ backgroundColor: '#6D9978' }}
-                onMouseDown={(e) => e.currentTarget.style.backgroundColor = '#5a8064'}
-                onMouseUp={(e) => e.currentTarget.style.backgroundColor = '#6D9978'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#6D9978'}
+                className="flex-1 py-3 rounded-xl font-semibold transition-all active:scale-95"
+                style={{ 
+                  backgroundColor: '#6D9978',
+                  color: '#ffffff',
+                }}
               >
                 保存
               </button>
