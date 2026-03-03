@@ -6,6 +6,7 @@ import { ChevronRight, Star, TrendingUp, Target, Coins, AlertTriangle, Award, Tr
 import { RPGAIAnalyzer } from '@/services/rpgAIAnalyzer';
 import { RPGTaskSyncService } from '@/services/rpgTaskSyncService';
 import { RPGNotificationService } from '@/services/rpgNotificationService';
+import { RPGRadarUpdater } from '@/services/rpgRadarUpdater';
 import AchievementWall from './AchievementWall';
 import GrowthTree from './GrowthTree';
 import SeasonPass from './SeasonPass';
@@ -104,8 +105,12 @@ export default function RPGHomePage() {
           const profile = await RPGAIAnalyzer.updateCharacterProfile();
           updateCharacter(profile);
           
-          // 4. 添加任务到store
-          console.log('💾 步骤4: 保存任务...');
+          // 4. 重新计算雷达图（P0-5）
+          console.log('📊 步骤4: 重新计算雷达图...');
+          await RPGRadarUpdater.recalculateRadarFromHistory();
+          
+          // 5. 添加任务到store
+          console.log('💾 步骤5: 保存任务...');
           useRPGStore.setState({ 
             dailyTasks: aiTasks,
             lastTaskGenerationDate: today,
@@ -139,10 +144,12 @@ export default function RPGHomePage() {
     initTasks();
   }, []);
 
-  // 处理任务完成
+  // 处理任务完成（P0-4 & P0-5集成）
   const handleCompleteTask = (taskId: string) => {
     const task = dailyTasks.find(t => t.id === taskId);
     if (!task || task.completed) return;
+    
+    console.log('🎯 任务完成:', task.title);
     
     // 检查连击
     const now = Date.now();
@@ -158,7 +165,7 @@ export default function RPGHomePage() {
     completeTask(taskId);
     const newLevel = useRPGStore.getState().character.level;
     
-    // 显示动画
+    // P0-4: 显示即时反馈动画
     setShowTaskCompleteAnim(true);
     setShowExpGain({ show: true, amount: task.expReward });
     setShowGoldGain({ show: true, amount: task.goldReward });
@@ -166,19 +173,43 @@ export default function RPGHomePage() {
     // 显示通知
     RPGNotificationService.showTaskComplete(task.title, task.expReward, task.goldReward);
     
+    // P0-5: 更新雷达图
+    setTimeout(() => {
+      console.log('📊 更新雷达图...');
+      RPGRadarUpdater.updateRadarOnTaskComplete(task);
+      
+      // 显示能力提升提示
+      if (task.isImprovement) {
+        RPGNotificationService.show({
+          type: 'success',
+          title: '🎊 改进成功！',
+          message: '负向行为降低，正向能力提升！',
+          duration: 3000,
+        });
+      }
+    }, 1000);
+    
     // 检查是否升级
     if (newLevel > oldLevel) {
       setTimeout(() => {
         setShowLevelUpAnim(true);
         RPGNotificationService.showLevelUp(newLevel, character.title);
-      }, 1000);
+        
+        // 升级时检查头像解锁
+        checkAndUnlockAvatars(useRPGStore.getState().character.exp);
+      }, 1500);
     }
     
     // 改进任务特殊提示
     if (task.isImprovement) {
       setTimeout(() => {
         RPGNotificationService.showImprovementComplete(task.title);
-      }, 1500);
+      }, 2000);
+    }
+    
+    // iOS haptic反馈
+    if (navigator.vibrate) {
+      navigator.vibrate([10, 20, 10]);
     }
   };
 

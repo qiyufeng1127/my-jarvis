@@ -322,6 +322,38 @@ export const useTaskStore = create<TaskState>()(
     const leaderboardStore = useLeaderboardStore.getState();
     leaderboardStore.checkAchievements();
     
+    // 📊 P0-5: 更新RPG雷达图
+    try {
+      const { RPGRadarUpdater } = await import('@/services/rpgRadarUpdater');
+      
+      // 检查是否是RPG任务
+      const isRPGTask = task.metadata?.rpgTaskId;
+      
+      if (isRPGTask) {
+        console.log('📊 检测到RPG任务完成，更新雷达图');
+        
+        // 构造RPG任务数据
+        const rpgTask = {
+          id: task.metadata.rpgTaskId,
+          title: task.title,
+          description: task.description || '',
+          type: task.metadata.rpgTaskType || 'normal',
+          difficulty: task.priority === 'high' ? 'hard' : task.priority === 'low' ? 'easy' : 'medium',
+          expReward: task.metadata.expReward || 50,
+          goldReward: task.metadata.goldReward || 30,
+          completed: true,
+          isImprovement: task.tags?.includes('改进任务'),
+        };
+        
+        RPGRadarUpdater.updateRadarOnTaskComplete(rpgTask, {
+          taskType: task.taskType,
+          completionEfficiency: task.completionEfficiency,
+        });
+      }
+    } catch (error) {
+      console.warn('⚠️ 更新雷达图失败:', error);
+    }
+    
     console.log('✅ 任务完成:', taskId, goldResult.reason);
     
     // 🎯 返回金币信息，用于触发动画
