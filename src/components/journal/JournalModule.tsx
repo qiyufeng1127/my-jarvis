@@ -132,22 +132,108 @@ export default function JournalModule({ isDark = false, bgColor = '#ffffff' }: J
             </button>
           </div>
 
-          <textarea
-            value={newEntry}
-            onChange={(e) => setNewEntry(e.target.value)}
-            placeholder={
-              activeTab === 'success'
-                ? '今天我完成了什么？取得了什么进展？'
-                : '今天我感恩什么？谁或什么让我感到幸福？'
-            }
-            rows={4}
-            className="w-full px-3 py-2 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-purple-500"
-            style={{
-              backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'white',
-              color: textColor,
-              border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}`,
-            }}
-          />
+          {/* 1. 我感受到了什么 */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium block" style={{ color: textColor }}>
+              1. 我感受到了什么？
+            </label>
+            <textarea
+              placeholder="请具体描述情绪名称，如"失望"、"焦虑"、"兴奋"，而非简单的"好"或"坏""
+              rows={2}
+              className="w-full px-3 py-2 rounded-xl border-2 text-sm resize-none focus:outline-none focus:ring-2 transition-all"
+              style={{
+                backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'white',
+                color: textColor,
+                borderColor: isDark ? 'rgba(255,255,255,0.2)' : '#e5e7eb',
+                placeholderColor: isDark ? 'rgba(255,255,255,0.4)' : '#9ca3af',
+              }}
+            />
+          </div>
+
+          {/* 2. 为什么有这样的感受 */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium block" style={{ color: textColor }}>
+              2. 为什么有这样的感受？
+            </label>
+            <textarea
+              placeholder="描述引发这种感受的具体事件或原因..."
+              rows={2}
+              className="w-full px-3 py-2 rounded-xl border-2 text-sm resize-none focus:outline-none focus:ring-2 transition-all"
+              style={{
+                backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'white',
+                color: textColor,
+                borderColor: isDark ? 'rgba(255,255,255,0.2)' : '#e5e7eb',
+              }}
+            />
+          </div>
+
+          {/* 3. 身体感受 */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium block" style={{ color: textColor }}>
+              3. 身体感受：情绪在我身体上有什么表现？
+            </label>
+            <textarea
+              placeholder="如心跳加快、肩膀紧绷、胃部不适..."
+              rows={2}
+              className="w-full px-3 py-2 rounded-xl border-2 text-sm resize-none focus:outline-none focus:ring-2 transition-all"
+              style={{
+                backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'white',
+                color: textColor,
+                borderColor: isDark ? 'rgba(255,255,255,0.2)' : '#e5e7eb',
+              }}
+            />
+          </div>
+
+          {/* 4. 自动想法 */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium block" style={{ color: textColor }}>
+              4. 自动想法：当时我脑海里闪过了什么念头？
+            </label>
+            <textarea
+              placeholder="记录当时的想法和念头..."
+              rows={2}
+              className="w-full px-3 py-2 rounded-xl border-2 text-sm resize-none focus:outline-none focus:ring-2 transition-all"
+              style={{
+                backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'white',
+                color: textColor,
+                borderColor: isDark ? 'rgba(255,255,255,0.2)' : '#e5e7eb',
+              }}
+            />
+          </div>
+
+          {/* 5. 实际行为 */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium block" style={{ color: textColor }}>
+              5. 实际行为：我实际上做了什么或想做什么？
+            </label>
+            <textarea
+              placeholder="描述你的实际行为或冲动..."
+              rows={2}
+              className="w-full px-3 py-2 rounded-xl border-2 text-sm resize-none focus:outline-none focus:ring-2 transition-all"
+              style={{
+                backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'white',
+                color: textColor,
+                borderColor: isDark ? 'rgba(255,255,255,0.2)' : '#e5e7eb',
+              }}
+            />
+          </div>
+
+          {/* 6. 认知重评/反思 */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium block" style={{ color: textColor }}>
+              6. 认知重评/反思：现在回过头我对这件事有没有不同的理解？我能更有效地应对吗？
+            </label>
+            <textarea
+              placeholder="反思和重新评估这件事..."
+              rows={3}
+              className="w-full px-3 py-2 rounded-xl border-2 text-sm resize-none focus:outline-none focus:ring-2 transition-all"
+              style={{
+                backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'white',
+                color: textColor,
+                borderColor: isDark ? 'rgba(255,255,255,0.2)' : '#e5e7eb',
+              }}
+            />
+          </div>
 
           <div className="rounded-lg p-3" style={{ backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.5)' }}>
             <div className="text-xs mb-2" style={{ color: accentColor }}>记录后将获得：</div>

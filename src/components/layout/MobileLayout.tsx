@@ -38,7 +38,7 @@ import { LeaderboardPanel } from '@/components/leaderboard/LeaderboardPanel';
 import SOPLibrary from '@/components/sop/SOPLibrary';
 import RPGHomePage from '@/components/rpg/RPGHomePage';
 
-type TabType = 'timeline' | 'goals' | 'journal' | 'memory' | 'gold' | 'habits' | 'reports' | 'settings' | 'inbox' | 'ai' | 'more' | 'money' | 'tags' | 'home' | 'pet' | 'focus' | 'leaderboard' | 'sop';
+type TabType = 'timeline' | 'goals' | 'journal' | 'memory' | 'gold' | 'habits' | 'reports' | 'settings' | 'inbox' | 'ai' | 'more' | 'money' | 'tags' | 'home' | 'pet' | 'focus' | 'leaderboard';
 
 interface MobileLayoutProps {
   onModuleChange?: (module: string) => void;
@@ -57,7 +57,6 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { id: 'goals', label: '目标', icon: '🎯', color: 'yellow', component: GoalsModule },
   { id: 'money', label: '副业', icon: '💰', color: 'yellow', component: MoneyModule },
   { id: 'inbox', label: '收集箱', icon: '📥', color: 'blue', component: TaskInbox },
-  { id: 'sop', label: 'SOP', icon: '📋', color: 'blue', component: SOPLibrary },
   { id: 'tags', label: '标签', icon: '🏷️', color: 'purple' }, // 标签管理（特殊处理，不是模块）
   { id: 'ai', label: 'AI助手', icon: '✨', color: 'pink' }, // AI助手（特殊处理，打开输入框）
   { id: 'journal', label: '日记', icon: '📔', color: 'brown', component: JournalModule },

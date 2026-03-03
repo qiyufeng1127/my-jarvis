@@ -31,12 +31,6 @@ export default function MobileBottomNav() {
       emoji: '🏺',
     },
     {
-      path: '/sop',
-      icon: ListChecks,
-      label: 'SOP',
-      emoji: '📋',
-    },
-    {
       path: '/memory',
       icon: ListChecks,
       label: '记忆',

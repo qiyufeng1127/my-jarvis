@@ -7,6 +7,8 @@ import { RPGAIAnalyzer } from '@/services/rpgAIAnalyzer';
 import { RPGTaskSyncService } from '@/services/rpgTaskSyncService';
 import { RPGNotificationService } from '@/services/rpgNotificationService';
 import { RPGRadarUpdater } from '@/services/rpgRadarUpdater';
+import { RPGTaskMonitor } from '@/services/rpgTaskMonitor';
+import { RPGAchievementService } from '@/services/rpgAchievementService';
 import AchievementWall from './AchievementWall';
 import GrowthTree from './GrowthTree';
 import SeasonPass from './SeasonPass';
@@ -83,6 +85,9 @@ export default function RPGHomePage() {
   // 自动生成每日任务（P0-1 & P0-2集成）
   useEffect(() => {
     const initTasks = async () => {
+      // 初始化成就系统（P1）
+      RPGAchievementService.initializeAchievements();
+      
       // 检查是否需要生成新任务
       const today = new Date().toDateString();
       const lastGenDate = useRPGStore.getState().lastTaskGenerationDate;
@@ -109,8 +114,12 @@ export default function RPGHomePage() {
           console.log('📊 步骤4: 重新计算雷达图...');
           await RPGRadarUpdater.recalculateRadarFromHistory();
           
-          // 5. 添加任务到store
-          console.log('💾 步骤5: 保存任务...');
+          // 5. 检查成就（P1）
+          console.log('🏆 步骤5: 检查成就...');
+          await RPGAchievementService.checkAndUnlockAchievements();
+          
+          // 6. 添加任务到store
+          console.log('💾 步骤6: 保存任务...');
           useRPGStore.setState({ 
             dailyTasks: aiTasks,
             lastTaskGenerationDate: today,
@@ -143,9 +152,21 @@ export default function RPGHomePage() {
     
     initTasks();
   }, []);
+  
+  // 启动任务监控（P1）
+  useEffect(() => {
+    console.log('🔍 启动任务监控服务...');
+    RPGTaskMonitor.startMonitoring();
+    
+    // 组件卸载时停止监控
+    return () => {
+      console.log('🛑 停止任务监控服务...');
+      RPGTaskMonitor.stopMonitoring();
+    };
+  }, []);
 
-  // 处理任务完成（P0-4 & P0-5集成）
-  const handleCompleteTask = (taskId: string) => {
+  // 处理任务完成（P0-4 & P0-5 & P1集成）
+  const handleCompleteTask = async (taskId: string) => {
     const task = dailyTasks.find(t => t.id === taskId);
     if (!task || task.completed) return;
     
@@ -189,6 +210,12 @@ export default function RPGHomePage() {
       }
     }, 1000);
     
+    // P1: 检查成就
+    setTimeout(async () => {
+      console.log('🏆 检查成就...');
+      await RPGAchievementService.checkAndUnlockAchievements();
+    }, 1500);
+    
     // 检查是否升级
     if (newLevel > oldLevel) {
       setTimeout(() => {
@@ -197,14 +224,17 @@ export default function RPGHomePage() {
         
         // 升级时检查头像解锁
         checkAndUnlockAvatars(useRPGStore.getState().character.exp);
-      }, 1500);
+        
+        // 升级时再次检查成就
+        RPGAchievementService.checkAndUnlockAchievements();
+      }, 2000);
     }
     
     // 改进任务特殊提示
     if (task.isImprovement) {
       setTimeout(() => {
         RPGNotificationService.showImprovementComplete(task.title);
-      }, 2000);
+      }, 2500);
     }
     
     // iOS haptic反馈

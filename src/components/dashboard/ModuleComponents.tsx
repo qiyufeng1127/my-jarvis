@@ -10,6 +10,7 @@ import { MoneyTracker } from '@/components/money';
 import MoodWeeklyChart from '@/components/journal/MoodWeeklyChart';
 import FloatingAIChat from '@/components/ai/FloatingAIChat';
 import HabitCanModule from '@/components/habits/HabitCanModule';
+import SOPLibrary from '@/components/sop/SOPLibrary';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
 import { useGoldStore } from '@/stores/goldStore';
@@ -1035,7 +1036,7 @@ export function ReportsModule({ isDark = false }: { isDark?: boolean }) {
 
 // 设置模块
 export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: boolean; bgColor?: string }) {
-  const [activeTab, setActiveTab] = useState<'device' | 'backup' | 'appearance' | 'notification' | 'baidu' | 'emergency'>('device');
+  const [activeTab, setActiveTab] = useState<'device' | 'backup' | 'appearance' | 'notification' | 'baidu' | 'emergency' | 'sop'>('device');
   
   // 使用真正的主题 store
   const { effectiveTheme } = useThemeStore();
@@ -1066,6 +1067,7 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
     { id: 'notification', label: '通知', icon: '🔔' },
     { id: 'baidu', label: 'AI', icon: '🤖' },
     { id: 'emergency', label: '紧急', icon: '🚨' },
+    { id: 'sop', label: 'SOP', icon: '📋' },
   ];
 
   return (
@@ -1442,6 +1444,13 @@ export function SettingsModule({ isDark = false, bgColor = '#ffffff' }: { isDark
       {/* 通知与语音 */}
       {activeTab === 'notification' && (
         <NotificationSettingsPanel isDark={isDark} accentColor={accentColor} />
+      )}
+
+      {/* SOP 任务库 */}
+      {activeTab === 'sop' && (
+        <div className="bg-white dark:bg-black">
+          <SOPLibrary />
+        </div>
       )}
     </div>
   );
