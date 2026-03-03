@@ -360,6 +360,39 @@ export const useRPGStore = create<RPGState>()(
     }),
     {
       name: 'rpg-storage',
+      version: 1,
+      migrate: (persistedState: any, version: number) => {
+        // 迁移逻辑：确保旧数据有雷达图字段
+        if (persistedState && persistedState.character) {
+          if (!persistedState.character.positiveStats) {
+            persistedState.character.positiveStats = [
+              { label: '健康', value: 70 },
+              { label: '学习力', value: 65 },
+              { label: '赚钱能力', value: 50 },
+              { label: '执行力', value: 75 },
+              { label: '专注力', value: 60 },
+              { label: '创造力', value: 55 },
+              { label: '社交力', value: 45 },
+              { label: '情绪管理', value: 68 },
+            ];
+          }
+          
+          if (!persistedState.character.negativeStats) {
+            persistedState.character.negativeStats = [
+              { label: '拖延', value: 45 },
+              { label: '焦虑', value: 35 },
+              { label: '分心', value: 40 },
+              { label: '完美主义', value: 30 },
+              { label: '自我怀疑', value: 25 },
+              { label: '逃避', value: 20 },
+              { label: '冲动', value: 15 },
+              { label: '消极', value: 18 },
+            ];
+          }
+        }
+        
+        return persistedState;
+      },
     }
   )
 );

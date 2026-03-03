@@ -18,7 +18,7 @@ export default function RadarChart({ type, data }: RadarChartProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    if (!canvasRef.current) return;
+    if (!canvasRef.current || !data || data.length === 0) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
@@ -148,6 +148,15 @@ export default function RadarChart({ type, data }: RadarChartProps) {
     }
 
   }, [data, type]);
+
+  // 如果没有数据，显示占位符
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-[300px] text-gray-400">
+        <p>暂无数据</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center justify-center">

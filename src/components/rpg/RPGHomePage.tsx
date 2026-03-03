@@ -502,7 +502,7 @@ export default function RPGHomePage() {
               ✨ 正向能力
             </h3>
           </div>
-          <RadarChart type="positive" data={character.positiveStats} />
+          <RadarChart type="positive" data={character.positiveStats || []} />
           <p className="text-xs text-center mt-4 opacity-70" style={{ color: VINTAGE_COLORS.burgundy }}>
             基于你的任务完成情况和行为数据实时更新
           </p>
@@ -519,7 +519,7 @@ export default function RPGHomePage() {
               ⚠️ 待改进行为
             </h3>
           </div>
-          <RadarChart type="negative" data={character.negativeStats} />
+          <RadarChart type="negative" data={character.negativeStats || []} />
           <p className="text-xs text-center mt-4 opacity-70" style={{ color: VINTAGE_COLORS.burgundy }}>
             数值越低越好，持续改进可降低负面行为
           </p>
