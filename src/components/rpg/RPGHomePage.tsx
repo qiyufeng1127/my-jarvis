@@ -60,6 +60,8 @@ export default function RPGHomePage() {
   const [showGrowthTree, setShowGrowthTree] = useState(false);
   const [showSeasonPass, setShowSeasonPass] = useState(false);
   const [showAvatarManager, setShowAvatarManager] = useState(false);
+  const [showRadarChart, setShowRadarChart] = useState(false);
+  const [showDailyTasks, setShowDailyTasks] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   
@@ -491,7 +493,7 @@ export default function RPGHomePage() {
       <div className="grid grid-cols-2 gap-3 mb-4">
         {/* 能力雷达 */}
         <button
-          onClick={() => setShowGoals(true)}
+          onClick={() => setShowRadarChart(true)}
           className="rounded-2xl p-4 shadow-sm text-left"
           style={{ backgroundColor: VINTAGE_COLORS.sage }}
         >
@@ -521,7 +523,7 @@ export default function RPGHomePage() {
         
         {/* 每日任务 */}
         <button
-          onClick={() => setShowGoals(true)}
+          onClick={() => setShowDailyTasks(true)}
           className="rounded-2xl p-4 shadow-sm text-left"
           style={{ backgroundColor: VINTAGE_COLORS.mustard }}
         >
@@ -579,6 +581,210 @@ export default function RPGHomePage() {
           </div>
         </button>
       </div>
+      
+      {/* 能力雷达弹窗 */}
+      {showRadarChart && (
+        <div 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowRadarChart(false)}
+        >
+          <div 
+            className="rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
+            style={{ backgroundColor: VINTAGE_COLORS.cream }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold" style={{ color: VINTAGE_COLORS.burgundy }}>
+                📊 能力雷达图
+              </h2>
+              <button
+                onClick={() => setShowRadarChart(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center"
+                style={{ backgroundColor: VINTAGE_COLORS.khaki }}
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* 正向能力雷达图 */}
+              <div 
+                className="rounded-2xl p-6 shadow-sm"
+                style={{ backgroundColor: '#fff' }}
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <Star className="w-5 h-5" style={{ color: VINTAGE_COLORS.sage }} />
+                  <h3 className="font-bold text-lg" style={{ color: VINTAGE_COLORS.burgundy }}>
+                    ✨ 正向能力
+                  </h3>
+                </div>
+                <RadarChart type="positive" data={character.positiveStats || []} />
+                <p className="text-xs text-center mt-4 opacity-70" style={{ color: VINTAGE_COLORS.burgundy }}>
+                  基于你的任务完成情况和行为数据实时更新
+                </p>
+              </div>
+
+              {/* 负向行为雷达图 */}
+              <div 
+                className="rounded-2xl p-6 shadow-sm"
+                style={{ backgroundColor: '#fff' }}
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <AlertTriangle className="w-5 h-5" style={{ color: VINTAGE_COLORS.terracotta }} />
+                  <h3 className="font-bold text-lg" style={{ color: VINTAGE_COLORS.burgundy }}>
+                    ⚠️ 待改进行为
+                  </h3>
+                </div>
+                <RadarChart type="negative" data={character.negativeStats || []} />
+                <p className="text-xs text-center mt-4 opacity-70" style={{ color: VINTAGE_COLORS.burgundy }}>
+                  数值越低越好，持续改进可降低负面行为
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* 每日任务弹窗 */}
+      {showDailyTasks && (
+        <div 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowDailyTasks(false)}
+        >
+          <div 
+            className="rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
+            style={{ backgroundColor: VINTAGE_COLORS.cream }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold" style={{ color: VINTAGE_COLORS.burgundy }}>
+                📝 每日任务宝箱
+              </h2>
+              <button
+                onClick={() => setShowDailyTasks(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center"
+                style={{ backgroundColor: VINTAGE_COLORS.khaki }}
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="flex gap-2 mb-4">
+              <button 
+                onClick={handleRegenerateTasks}
+                disabled={isGenerating}
+                className="text-sm px-4 py-2 rounded-full font-semibold flex items-center gap-2"
+                style={{ 
+                  backgroundColor: VINTAGE_COLORS.dustyBlue,
+                  color: VINTAGE_COLORS.burgundy,
+                  opacity: isGenerating ? 0.5 : 1
+                }}
+              >
+                <RefreshCw className={`w-4 h-4 ${isGenerating ? 'animate-spin' : ''}`} />
+                {isGenerating ? '生成中' : '重新生成'}
+              </button>
+              <button 
+                onClick={handleClaimAllTasks}
+                disabled={isSyncing}
+                className="text-sm px-4 py-2 rounded-full font-semibold"
+                style={{ 
+                  backgroundColor: VINTAGE_COLORS.sage,
+                  color: '#fff',
+                  opacity: isSyncing ? 0.5 : 1
+                }}
+              >
+                {isSyncing ? '同步中...' : '一键领取'}
+              </button>
+            </div>
+            
+            <div className="space-y-3">
+              {dailyTasks.map((task) => (
+                <div 
+                  key={task.id}
+                  className="p-4 rounded-xl border-2 transition-all"
+                  style={{ 
+                    backgroundColor: task.completed ? VINTAGE_COLORS.sage : '#fff',
+                    borderColor: task.isImprovement ? VINTAGE_COLORS.terracotta : VINTAGE_COLORS.khaki,
+                    opacity: task.completed ? 0.6 : 1
+                  }}
+                >
+                  <div className="flex items-start gap-3">
+                    <button
+                      onClick={() => !task.completed && handleCompleteTask(task.id)}
+                      className="mt-0.5 w-6 h-6 rounded flex items-center justify-center flex-shrink-0"
+                      style={{ 
+                        backgroundColor: task.completed ? VINTAGE_COLORS.sage : VINTAGE_COLORS.khaki,
+                        color: '#fff'
+                      }}
+                      disabled={task.completed}
+                    >
+                      {task.completed && '✓'}
+                    </button>
+                    
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        {task.isImprovement && (
+                          <span className="text-xs px-2 py-0.5 rounded" style={{ 
+                            backgroundColor: VINTAGE_COLORS.terracotta,
+                            color: '#fff'
+                          }}>
+                            ⚠️ 改进
+                          </span>
+                        )}
+                        {task.type === 'surprise' && (
+                          <span className="text-xs px-2 py-0.5 rounded" style={{ 
+                            backgroundColor: VINTAGE_COLORS.mauve,
+                            color: '#fff'
+                          }}>
+                            🎁 惊喜
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="font-semibold mb-1" style={{ 
+                        color: VINTAGE_COLORS.burgundy,
+                        textDecoration: task.completed ? 'line-through' : 'none'
+                      }}>
+                        {task.title}
+                      </div>
+                      
+                      <div className="text-sm opacity-70 mb-2" style={{ color: VINTAGE_COLORS.burgundy }}>
+                        {task.description}
+                      </div>
+                      
+                      <div className="flex items-center gap-3 text-sm">
+                        <span style={{ color: VINTAGE_COLORS.sage }}>
+                          ⭐ +{task.expReward} 经验
+                        </span>
+                        <span style={{ color: VINTAGE_COLORS.mustard }}>
+                          💰 +{task.goldReward} 金币
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {/* 任务完成进度 */}
+            <div className="mt-6 pt-4 border-t" style={{ borderColor: VINTAGE_COLORS.khaki }}>
+              <div className="flex justify-between text-sm mb-2" style={{ color: VINTAGE_COLORS.burgundy }}>
+                <span>今日完成度</span>
+                <span>{dailyTasks.filter(t => t.completed).length}/{dailyTasks.length}</span>
+              </div>
+              <div className="h-3 rounded-full overflow-hidden" style={{ backgroundColor: VINTAGE_COLORS.khaki }}>
+                <div 
+                  className="h-full rounded-full"
+                  style={{ 
+                    width: `${(dailyTasks.filter(t => t.completed).length / dailyTasks.length) * 100}%`,
+                    backgroundColor: VINTAGE_COLORS.sage
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
 
     </div>
