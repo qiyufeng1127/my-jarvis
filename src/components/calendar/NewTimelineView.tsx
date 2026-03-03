@@ -927,14 +927,14 @@ export default function NewTimelineView({
       );
       
       console.log('✅ 任务验证已启用');
-      console.log('启动关键词:', startKeywords);
-      console.log('完成关键词:', completionKeywords);
+      console.log('启动关键词:', verification.startKeywords);
+      console.log('完成关键词:', verification.completionKeywords);
       
       // 💾 持久化：保存验证设置到任务对象
       onTaskUpdate(taskId, {
         verificationEnabled: true,
-        startKeywords,
-        completeKeywords: completionKeywords,
+        startKeywords: verification.startKeywords,
+        completeKeywords: verification.completionKeywords,
       });
       
       console.log('💾 验证设置已保存到任务对象');
