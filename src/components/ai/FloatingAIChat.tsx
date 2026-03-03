@@ -111,7 +111,11 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
   const { addMemory, addJournal } = useMemoryStore();
   const { isConfigured } = useAIStore();
   const { createTask, updateTask, deleteTask, tasks, getTodayTasks } = useTaskStore();
-  const { createSideHustle } = useSideHustleStore();
+  const { createSideHustle, addIncome, addExpense } = useSideHustleStore();
+  const { createGoal } = useGoalStore();
+  
+  // 上下文模式状态
+  const [contextMode, setContextMode] = useState<'normal' | 'income' | 'goal' | 'mutter'>('normal');
   
   // 使用自定义 Hooks
   const [persistedState, setPersistedState] = useLocalStorage('ai_chat_state', {
@@ -839,6 +843,292 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
     }
   };
 
+  // 处理收入相关的输入
+  const handleIncomeInput = async (message: string) => {
+    try {
+      addThinkingStep('💰 识别为收入记录...');
+      
+      // 使用 AI 或正则提取金额和描述
+      const amountMatch = message.match(/(\d+(?:\.\d+)?)\s*(?:元|块|rmb|¥)?/i);
+      const amount = amountMatch ? parseFloat(amountMatch[1]) : 0;
+      
+      addThinkingStep(`💵 提取金额: ${amount} 元`);
+      
+      // 创建收入记录
+      const now = new Date();
+      addIncome({
+        sideHustleId: 'default', // 可以后续优化为智能匹配副业
+        amount,
+        description: message,
+        date: now,
+        source: '其他',
+      });
+      
+      addThinkingStep('✅ 收入记录已保存');
+      
+      // 在时间轴上创建一个醒目的记录卡片（不是任务）
+      await createTask({
+        title: `💰💸✨ 收入 +${amount}元`,
+        description: `🎉 ${message}\n\n💵 金额: ¥${amount}\n📅 时间: ${now.toLocaleString('zh-CN')}\n🎊 恭喜收入增加！`,
+        taskType: 'life' as TaskType,
+        priority: 1, // 高优先级，更醒目
+        durationMinutes: 1, // 1分钟，只是记录
+        scheduledStart: now,
+        scheduledEnd: new Date(now.getTime() + 60000),
+        tags: ['💰收入记录', '💸副业', '🎉成功'],
+        color: '#FFB6C1', // 复古糖果粉色
+        status: 'completed', // 标记为已完成，不需要执行
+        isRecord: true, // 标记为记录类型
+      });
+      
+      addThinkingStep('📅 已在时间轴标记');
+      
+      const responseContent = `✅ **收入记录成功！**\n\n💰💸 金额: ${amount} 元\n📝 描述: ${message}\n🕐 时间: ${now.toLocaleString('zh-CN')}\n\n✨🎉 已同步到副业追踪器和时间轴！`;
+      
+      const aiMessage: Message = {
+        id: `ai-${Date.now()}`,
+        role: 'assistant',
+        content: responseContent,
+        timestamp: new Date(),
+        thinkingProcess: [...thinkingSteps],
+        isThinkingExpanded: false,
+      };
+      
+      setMessages(prev => [...prev, aiMessage]);
+      
+      // 退出目标模式
+      setContextMode('normal');
+      
+    } catch (error) {
+      console.error('处理目标设置失败:', error);
+      const errorMessage: Message = {
+        id: `ai-${Date.now()}`,
+        role: 'assistant',
+        content: '❌ 抱歉，设置目标失败了。请稍后再试。',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    }
+  };
+
+  // 处理碎碎念相关的输入
+  const handleMutterInput = async (message: string) => {
+    try {
+      addThinkingStep('💭 识别为碎碎念...');
+      
+      // 使用 AI 分析碎碎念
+      const prompt = `请分析以下碎碎念/心情记录，并以JSON格式返回分析结果：
+
+碎碎念内容：
+${message}
+
+请返回以下格式的JSON（只返回JSON，不要其他文字）：
+{
+  "mood": "情绪名称（如：开心、焦虑、平静、兴奋等）",
+  "moodEmoji": "对应的emoji（如：😊、😰、😌、🤩等）",
+  "category": "分类（如：工作、生活、学习、情感、健康等）",
+  "summary": "一句话总结（20字以内）",
+  "tags": ["标签1", "标签2", "标签3"]
+}`;
+
+
+      addThinkingStep('🤖 AI 正在分析情绪和内容...');
+      
+      const { chat } = useAIStore.getState();
+      const response = await chat([
+        {
+          role: 'system',
+          content: '你是一个善解人意的情绪分析助手，擅长理解用户的心情和想法。请用温暖、共情的方式分析用户的碎碎念。',
+        },
+        { role: 'user', content: prompt },
+      ]);
+
+      let analysis = {
+        mood: '记录',
+        moodEmoji: '📝',
+        category: '生活',
+        summary: message.slice(0, 20),
+        tags: ['碎碎念'],
+      };
+
+      if (response.success && response.content) {
+        try {
+          const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            analysis = JSON.parse(jsonMatch[0]);
+            addThinkingStep(`${analysis.moodEmoji} 检测到情绪: ${analysis.mood}`);
+            addThinkingStep(`📂 分类: ${analysis.category}`);
+          }
+        } catch (e) {
+          console.error('解析AI响应失败:', e);
+        }
+      }
+      
+      // 保存到记忆库
+      addMemory({
+        type: 'mutter',
+        content: message,
+        mood: analysis.mood,
+        tags: analysis.tags,
+        date: new Date(),
+      });
+      
+      addThinkingStep('💾 已保存到记忆库');
+      
+      // 在时间轴上创建醒目的碎碎念记录卡片
+      const now = new Date();
+      await createTask({
+        title: `💭${analysis.moodEmoji} ${analysis.summary}`,
+        description: `${message}\n\n${analysis.moodEmoji} 心情: ${analysis.mood}\n📂 分类: ${analysis.category}\n🏷️ 标签: ${analysis.tags.join('、')}`,
+        taskType: 'life' as TaskType,
+        priority: 2,
+        durationMinutes: 1,
+        scheduledStart: now,
+        scheduledEnd: new Date(now.getTime() + 60000),
+        tags: ['💭碎碎念', ...analysis.tags],
+        color: '#DDA0DD', // 复古糖果薰衣草紫
+        status: 'completed',
+        isRecord: true,
+      });
+      
+      addThinkingStep('📅 已在时间轴标记');
+      
+      const responseContent = `✅ **碎碎念已记录！**\n\n💭 内容: ${message}\n\n${analysis.moodEmoji} **心情**: ${analysis.mood}\n📂 **分类**: ${analysis.category}\n✨ **总结**: ${analysis.summary}\n🏷️ **标签**: ${analysis.tags.join('、')}\n\n💰 获得 30 金币！\n\n💡 已同步到记忆库和时间轴~`;
+      
+      const aiMessage: Message = {
+        id: `ai-${Date.now()}`,
+        role: 'assistant',
+        content: responseContent,
+        timestamp: new Date(),
+        thinkingProcess: [...thinkingSteps],
+        isThinkingExpanded: false,
+      };
+      
+      setMessages(prev => [...prev, aiMessage]);
+      
+      // 退出碎碎念模式
+      setContextMode('normal');
+      
+    } catch (error) {
+      console.error('处理碎碎念失败:', error);
+      const errorMessage: Message = {
+        id: `ai-${Date.now()}`,
+        role: 'assistant',
+        content: '❌ 抱歉，记录碎碎念失败了。请稍后再试。',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    }
+  };
+
+  // 处理目标相关的输入
+  const handleGoalInput = async (message: string) => {
+    try {
+      addThinkingStep('🎯 识别为目标设置...');
+      
+      // 使用 AI 或正则提取时间和目标
+      let deadline: Date | undefined;
+      let goalDescription = message;
+      
+      // 提取时间信息
+      const timePatterns = [
+        { pattern: /(\d+)\s*个?月/, unit: 'month' },
+        { pattern: /(\d+)\s*周/, unit: 'week' },
+        { pattern: /(\d+)\s*天/, unit: 'day' },
+        { pattern: /(\d+)\s*年/, unit: 'year' },
+      ];
+      
+      let timeText = '';
+      for (const { pattern, unit } of timePatterns) {
+        const match = message.match(pattern);
+        if (match) {
+          const value = parseInt(match[1]);
+          deadline = new Date();
+          if (unit === 'month') {
+            deadline.setMonth(deadline.getMonth() + value);
+            timeText = `${value}个月`;
+          } else if (unit === 'week') {
+            deadline.setDate(deadline.getDate() + value * 7);
+            timeText = `${value}周`;
+          } else if (unit === 'day') {
+            deadline.setDate(deadline.getDate() + value);
+            timeText = `${value}天`;
+          } else if (unit === 'year') {
+            deadline.setFullYear(deadline.getFullYear() + value);
+            timeText = `${value}年`;
+          }
+          
+          addThinkingStep(`⏰ 识别期限: ${timeText}`);
+          break;
+        }
+      }
+      
+      // 提取数值目标
+      const numberMatch = message.match(/(\d+(?:\.\d+)?)\s*(?:元|块|万|个|次)?/);
+      const targetValue = numberMatch ? parseFloat(numberMatch[1]) : undefined;
+      
+      if (targetValue) {
+        addThinkingStep(`🎯 识别目标值: ${targetValue}`);
+      }
+      
+      // 创建目标
+      const newGoal = createGoal({
+        name: goalDescription.slice(0, 50),
+        description: goalDescription,
+        goalType: targetValue ? 'numeric' : 'boolean',
+        targetValue,
+        currentValue: 0,
+        deadline,
+        relatedDimensions: [],
+        milestones: [],
+      });
+      
+      addThinkingStep('✅ 目标已创建');
+      
+      // 在时间轴上创建醒目的目标记录卡片
+      const now = new Date();
+      await createTask({
+        title: `🎯🌟✨ 新目标设定`,
+        description: `🚀 ${goalDescription}\n\n${targetValue ? `📊 目标值: ${targetValue}\n` : ''}${deadline ? `⏰ 期限: ${timeText}后 (${deadline.toLocaleDateString('zh-CN')})\n` : ''}🎉 加油，你一定可以的！`,
+        taskType: 'life' as TaskType,
+        priority: 1,
+        durationMinutes: 1,
+        scheduledStart: now,
+        scheduledEnd: new Date(now.getTime() + 60000),
+        tags: ['🎯目标记录', '🌟梦想', '🚀成长'],
+        color: '#B4E7CE', // 复古糖果薄荷绿
+        status: 'completed',
+        isRecord: true,
+      });
+      
+      const responseContent = `✅ **目标设置成功！**\n\n🎯🌟 目标: ${newGoal.name}\n${targetValue ? `📊 目标值: ${targetValue}\n` : ''}${deadline ? `⏰ 期限: ${deadline.toLocaleDateString('zh-CN')}\n` : ''}\n✨🚀 已添加到长期目标！\n\n💡 你可以在目标模块查看和管理这个目标。`;
+      
+      const aiMessage: Message = {
+        id: `ai-${Date.now()}`,
+        role: 'assistant',
+        content: responseContent,
+        timestamp: new Date(),
+        thinkingProcess: [...thinkingSteps],
+        isThinkingExpanded: false,
+      };
+      
+      setMessages(prev => [...prev, aiMessage]);
+      
+      // 退出目标模式
+      setContextMode('normal');
+      
+    } catch (error) {
+      console.error('处理目标设置失败:', error);
+      const errorMessage: Message = {
+        id: `ai-${Date.now()}`,
+        role: 'assistant',
+        content: '❌ 抱歉，设置目标失败了。请稍后再试。',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    }
+  };
+
   // 发送消息
   const handleSend = async () => {
     const message = inputValue.trim();
@@ -859,6 +1149,31 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
     setMessages(prev => [...prev, userMessage]);
     setInputValue(''); // 立即清空输入框
     setIsProcessing(true);
+    
+    // 检查上下文模式
+    if (contextMode === 'income') {
+      clearThinkingSteps();
+      await handleIncomeInput(message);
+      setIsProcessing(false);
+      clearThinkingSteps();
+      return;
+    }
+    
+    if (contextMode === 'goal') {
+      clearThinkingSteps();
+      await handleGoalInput(message);
+      setIsProcessing(false);
+      clearThinkingSteps();
+      return;
+    }
+    
+    if (contextMode === 'mutter') {
+      clearThinkingSteps();
+      await handleMutterInput(message);
+      setIsProcessing(false);
+      clearThinkingSteps();
+      return;
+    }
 
     // 添加超时保护（30秒）
     sendTimeoutRef.current = setTimeout(() => {
@@ -1664,26 +1979,53 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
             <div className="flex items-center space-x-2 overflow-x-auto">
               <span className="text-xs whitespace-nowrap text-gray-500">快速：</span>
               {[
-                { label: '帮我安排', icon: '🎯', action: 'smart_schedule' },
-                { label: '推荐任务', icon: '💡', action: 'recommend_task' },
-                { label: '优化时间', icon: '⚡', action: 'optimize_time' },
-                { label: '查看进度', icon: '📊', action: 'check_progress' },
+                { label: '帮我安排', icon: '🎯', action: 'smart_schedule', title: '学习你的习惯，智能推荐当前适合做的任务' },
+                { label: '关于收入', icon: '💰', action: 'income_mode', title: '记录副业收入，自动同步到副业追踪和时间轴' },
+                { label: '关于目标', icon: '🎯', action: 'goal_mode', title: '设置长期或短期目标，AI智能解析' },
+                { label: '碎碎念', icon: '💭', action: 'mutter_mode', title: '记录心情、想法和碎碎念，AI智能分析' },
               ].map((cmd) => (
                 <button
                   key={cmd.label}
                   onClick={() => {
                     if (cmd.action === 'smart_schedule') {
                       setInputValue('根据我的习惯和当前时间，帮我智能安排接下来要做的任务');
-                    } else if (cmd.action === 'recommend_task') {
-                      setInputValue('根据我现在的状态和时间，推荐几个适合现在做的任务');
-                    } else if (cmd.action === 'optimize_time') {
-                      setInputValue('帮我优化今天的任务安排，让时间利用更高效');
-                    } else if (cmd.action === 'check_progress') {
-                      setInputValue('查看今天的任务');
+                      handleSend();
+                    } else if (cmd.action === 'income_mode') {
+                      setContextMode('income');
+                      const modeMessage: Message = {
+                        id: `ai-${Date.now()}`,
+                        role: 'assistant',
+                        content: '💰 **收入记录模式已开启**\n\n现在你可以直接输入收入相关的信息，例如：\n\n• "今天画插画赚了2000块钱"\n• "接了个设计单，收入5000元"\n• "副业收入3000"\n\n我会自动：\n✅ 提取金额和描述\n✅ 保存到副业追踪器\n✅ 在时间轴标记收入时间点\n\n💡 输入完成后会自动退出此模式',
+                        timestamp: new Date(),
+                      };
+                      setMessages(prev => [...prev, modeMessage]);
+                    } else if (cmd.action === 'goal_mode') {
+                      setContextMode('goal');
+                      const modeMessage: Message = {
+                        id: `ai-${Date.now()}`,
+                        role: 'assistant',
+                        content: '🎯 **目标设置模式已开启**\n\n现在你可以用口语化的方式描述目标，例如：\n\n• "我希望在三个月之内赚10万块钱"\n• "一个星期之内发布新网站"\n• "今年要读完50本书"\n• "半年内减重20斤"\n\nAI会智能识别：\n✅ 目标内容\n✅ 时间期限\n✅ 数值目标\n✅ 自动分类\n\n💡 输入完成后会自动退出此模式',
+                        timestamp: new Date(),
+                      };
+                      setMessages(prev => [...prev, modeMessage]);
+                    } else if (cmd.action === 'mutter_mode') {
+                      setContextMode('mutter');
+                      const modeMessage: Message = {
+                        id: `ai-${Date.now()}`,
+                        role: 'assistant',
+                        content: '💭 **碎碎念模式已开启**\n\n现在你可以随意说说你的想法、心情或任何碎碎念，例如：\n\n• "今天好累啊，感觉什么都不想做"\n• "刚才那个会议真的让我很焦虑"\n• "突然想起小时候的事情，有点想家"\n• "今天天气真好，心情也变好了"\n\nAI会智能分析：\n✅ 你的情绪状态\n✅ 自动分类和打标签\n✅ 生成一句话总结\n✅ 保存到时间轴和记忆库\n\n💡 说完后我会帮你记录下来~',
+                        timestamp: new Date(),
+                      };
+                      setMessages(prev => [...prev, modeMessage]);
                     }
-                    handleSend();
                   }}
-                  className="px-2 py-1 rounded-full text-xs font-medium bg-neutral-100 text-gray-700 active:bg-neutral-200 whitespace-nowrap"
+                  className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap hover:scale-105 ${
+                    contextMode === 'income' && cmd.action === 'income_mode' ? 'bg-green-500 text-white' :
+                    contextMode === 'goal' && cmd.action === 'goal_mode' ? 'bg-blue-500 text-white' :
+                    contextMode === 'mutter' && cmd.action === 'mutter_mode' ? 'bg-purple-500 text-white' :
+                    'bg-neutral-100 text-gray-700 active:bg-neutral-200'
+                  }`}
+                  title={cmd.title}
                 >
                   {cmd.icon} {cmd.label}
                 </button>
@@ -2104,33 +2446,50 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
                 <div className="flex items-center space-x-2 overflow-x-auto">
                   <span className="text-xs whitespace-nowrap" style={{ color: theme.accentColor }}>快速：</span>
                   {[
-                    { label: '帮我安排', icon: '🎯', action: 'smart_schedule' },
-                    { label: '推荐任务', icon: '💡', action: 'recommend_task' },
-                    { label: '优化时间', icon: '⚡', action: 'optimize_time' },
-                    { label: '查看进度', icon: '📊', action: 'check_progress' },
+                    { label: '帮我安排', icon: '🎯', action: 'smart_schedule', title: '学习你的习惯，智能推荐当前适合做的任务' },
+                    { label: '关于收入', icon: '💰', action: 'income_mode', title: '记录副业收入，自动同步到副业追踪和时间轴' },
+                    { label: '关于目标', icon: '🎯', action: 'goal_mode', title: '设置长期或短期目标，AI智能解析' },
+                    { label: '查看进度', icon: '📊', action: 'check_progress', title: '查看今日任务进度' },
                   ].map((cmd) => (
                     <button
                       key={cmd.label}
                       onClick={() => {
                         if (cmd.action === 'smart_schedule') {
                           setInputValue('根据我的习惯和当前时间，帮我智能安排接下来要做的任务');
-                        } else if (cmd.action === 'recommend_task') {
-                          setInputValue('根据我现在的状态和时间，推荐几个适合现在做的任务');
-                        } else if (cmd.action === 'optimize_time') {
-                          setInputValue('帮我优化今天的任务安排，让时间利用更高效');
+                          handleSend();
+                        } else if (cmd.action === 'income_mode') {
+                          setContextMode('income');
+                          const modeMessage: Message = {
+                            id: `ai-${Date.now()}`,
+                            role: 'assistant',
+                            content: '💰 **收入记录模式已开启**\n\n现在你可以直接输入收入相关的信息，例如：\n\n• "今天画插画赚了2000块钱"\n• "接了个设计单，收入5000元"\n• "副业收入3000"\n\n我会自动：\n✅ 提取金额和描述\n✅ 保存到副业追踪器\n✅ 在时间轴标记收入时间点\n\n💡 输入完成后会自动退出此模式',
+                            timestamp: new Date(),
+                          };
+                          setMessages(prev => [...prev, modeMessage]);
+                        } else if (cmd.action === 'goal_mode') {
+                          setContextMode('goal');
+                          const modeMessage: Message = {
+                            id: `ai-${Date.now()}`,
+                            role: 'assistant',
+                            content: '🎯 **目标设置模式已开启**\n\n现在你可以用口语化的方式描述目标，例如：\n\n• "我希望在三个月之内赚10万块钱"\n• "一个星期之内发布新网站"\n• "今年要读完50本书"\n• "半年内减重20斤"\n\nAI会智能识别：\n✅ 目标内容\n✅ 时间期限\n✅ 数值目标\n✅ 自动分类\n\n💡 输入完成后会自动退出此模式',
+                            timestamp: new Date(),
+                          };
+                          setMessages(prev => [...prev, modeMessage]);
                         } else if (cmd.action === 'check_progress') {
                           setInputValue('查看今天的任务');
+                          handleSend();
                         }
-                        handleSend();
                       }}
-                      className="px-2 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap hover:scale-105"
-                      style={{ backgroundColor: theme.buttonBg, color: theme.textColor }}
-                      title={
-                        cmd.action === 'smart_schedule' ? '学习你的习惯，智能推荐当前适合做的任务' :
-                        cmd.action === 'recommend_task' ? '根据时间和状态推荐任务' :
-                        cmd.action === 'optimize_time' ? '优化任务安排，提高效率' :
-                        '查看今日任务进度'
-                      }
+                      className={`px-2 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap hover:scale-105`}
+                      style={{ 
+                        backgroundColor: contextMode === 'income' && cmd.action === 'income_mode' ? '#10b981' :
+                                       contextMode === 'goal' && cmd.action === 'goal_mode' ? '#3b82f6' :
+                                       theme.buttonBg, 
+                        color: contextMode === 'income' && cmd.action === 'income_mode' ? '#ffffff' :
+                               contextMode === 'goal' && cmd.action === 'goal_mode' ? '#ffffff' :
+                               theme.textColor 
+                      }}
+                      title={cmd.title}
                     >
                       {cmd.icon} {cmd.label}
                     </button>

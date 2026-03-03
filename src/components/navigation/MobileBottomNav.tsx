@@ -28,7 +28,7 @@ export default function MobileBottomNav() {
       path: '/habit',
       icon: ListChecks,
       label: '习惯',
-      emoji: '🏺',
+      emoji: '✅',
     },
     {
       path: '/memory',

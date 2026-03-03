@@ -9,6 +9,17 @@ interface AIConfig {
   maxTokens: number;
 }
 
+interface AIMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+interface AIResponse {
+  success: boolean;
+  content?: string;
+  error?: string;
+}
+
 interface AIStore {
   config: AIConfig;
   setApiKey: (apiKey: string) => void;
@@ -17,6 +28,7 @@ interface AIStore {
   setTemperature: (temperature: number) => void;
   setMaxTokens: (maxTokens: number) => void;
   isConfigured: () => boolean;
+  chat: (messages: AIMessage[]) => Promise<AIResponse>;
 }
 
 export const useAIStore = create<AIStore>()(
@@ -63,6 +75,63 @@ export const useAIStore = create<AIStore>()(
       isConfigured: () => {
         const { config } = get();
         return !!config.apiKey && !!config.apiEndpoint;
+      },
+
+      chat: async (messages) => {
+        const { config, isConfigured } = get();
+
+        if (!isConfigured()) {
+          return {
+            success: false,
+            error: '请先在设置中配置 API Key',
+          };
+        }
+
+        try {
+          const response = await fetch(config.apiEndpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${config.apiKey}`,
+            },
+            body: JSON.stringify({
+              model: config.model,
+              messages: messages,
+              temperature: config.temperature,
+              max_tokens: config.maxTokens,
+            }),
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            let errorMessage = '调用AI服务失败';
+            try {
+              const errorJson = JSON.parse(errorText);
+              errorMessage = errorJson.error?.message || errorJson.message || errorMessage;
+            } catch (e) {
+              errorMessage = errorText || errorMessage;
+            }
+            
+            return {
+              success: false,
+              error: `API错误 (${response.status}): ${errorMessage}`,
+            };
+          }
+
+          const data = await response.json();
+          const content = data.choices[0]?.message?.content || '';
+          
+          return {
+            success: true,
+            content: content,
+          };
+        } catch (error) {
+          console.error('AI调用失败:', error);
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : '网络请求失败',
+          };
+        }
       },
     }),
     {

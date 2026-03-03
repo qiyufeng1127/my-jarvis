@@ -1869,7 +1869,109 @@ export default function TaskVerificationCountdownContent({
     );
   }
 
-  // 已完成状态：不显示
+  // 已完成状态：只显示坏习惯历史按钮（如果有记录）
+  if (state.status === 'completed') {
+    return (
+      <>
+        {/* 任务完成庆祝特效 */}
+        {showCelebration && (
+          <TaskCompletionCelebration
+            taskTitle={taskTitle}
+            goldAmount={celebrationGold}
+            onComplete={() => {
+              console.log('🎉 [父组件] 收到 onComplete 回调，关闭庆祝特效');
+              setShowCelebration(false);
+            }}
+          />
+        )}
+        
+        {/* 坏习惯历史按钮 - 任务完成后也显示 */}
+        {(state.startTimeoutCount > 0 || state.completeTimeoutCount > 0) && (
+          <div className="w-full flex justify-end py-2 px-2">
+            <button
+              onClick={() => setShowBadHabitHistory(true)}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-yellow-100 border border-yellow-400 shadow-sm hover:bg-yellow-200 transition-colors"
+              title="查看坏习惯历史"
+            >
+              <span className="text-base">🐢</span>
+              <span className="text-xs font-bold text-yellow-800">
+                {state.startTimeoutCount + state.completeTimeoutCount}
+              </span>
+            </button>
+            
+            {/* 坏习惯历史弹窗 */}
+            {showBadHabitHistory && (
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowBadHabitHistory(false)}>
+                <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                      <span className="text-2xl">🐢</span>
+                      <span>坏习惯历史</span>
+                    </h3>
+                    <button
+                      onClick={() => setShowBadHabitHistory(false)}
+                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      <span className="text-xl">✕</span>
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {/* 启动拖延记录 */}
+                    {state.startTimeoutCount > 0 && (
+                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-lg">🐢</span>
+                          <span className="font-semibold text-yellow-800">启动拖延</span>
+                        </div>
+                        <div className="text-sm text-gray-700">
+                          <p>• 拖延次数：<span className="font-bold text-yellow-700">{state.startTimeoutCount} 次</span></p>
+                          <p>• 扣除金币：<span className="font-bold text-red-600">{Math.floor(goldReward * 0.2) * state.startTimeoutCount} 💰</span></p>
+                          <p className="text-xs text-gray-500 mt-1">未在2分钟内完成启动验证</p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* 完成超时记录 */}
+                    {state.completeTimeoutCount > 0 && (
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-lg">⚠️</span>
+                          <span className="font-semibold text-red-800">完成超时</span>
+                        </div>
+                        <div className="text-sm text-gray-700">
+                          <p>• 超时次数：<span className="font-bold text-red-700">{state.completeTimeoutCount} 次</span></p>
+                          <p>• 扣除金币：<span className="font-bold text-red-600">{Math.floor(goldReward * 0.2) * state.completeTimeoutCount} 💰</span></p>
+                          <p className="text-xs text-gray-500 mt-1">未在规定时间内完成任务验证</p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* 总计 */}
+                    <div className="p-3 bg-gray-100 rounded-lg border-2 border-gray-300">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-gray-800">累计扣除金币</span>
+                        <span className="text-xl font-black text-red-600">
+                          {Math.floor(goldReward * 0.2) * (state.startTimeoutCount + state.completeTimeoutCount)} 💰
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* 提示 */}
+                    <div className="text-xs text-gray-500 text-center mt-4">
+                      💡 按时完成验证可避免扣金币哦！
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </>
+    );
+  }
+  
+  // 其他未知状态：不显示
   return (
     <>
       {/* 任务完成庆祝特效 */}

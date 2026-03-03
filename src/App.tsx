@@ -10,7 +10,9 @@ import Dashboard from '@/pages/Dashboard';
 import Welcome from '@/pages/Welcome';
 import BaiduAITest from '@/pages/BaiduAITest';
 import DesignSystemDemo from '@/pages/DesignSystemDemo';
+import DiarySystemTest from '@/pages/DiarySystemTest';
 import SOPLibrary from '@/components/sop/SOPLibrary';
+import HabitPage from '@/pages/HabitPage';
 
 // 通知系统
 import NotificationToast from '@/components/notifications/NotificationToast';
@@ -106,6 +108,21 @@ function App() {
       useLeaderboardStore.getState().checkAchievements();
       console.log('🏆 成就系统已初始化');
       
+      // 🎯 初始化习惯追踪系统
+      const { useHabitStore } = await import('@/stores/habitStore');
+      useHabitStore.getState().initialize();
+      console.log('🎯 习惯追踪系统已初始化');
+      
+      // 🤖 启动习惯识别服务
+      const { habitRecognitionService } = await import('@/services/habitRecognitionService');
+      habitRecognitionService.start();
+      console.log('🤖 习惯识别服务已启动');
+      
+      // 🌙 启动反向检测服务
+      const { habitReverseDetectionService } = await import('@/services/habitReverseDetectionService');
+      habitReverseDetectionService.start();
+      console.log('🌙 反向检测服务已启动');
+      
       console.log('✅ 应用初始化完成（纯本地模式）');
     };
 
@@ -170,6 +187,9 @@ function App() {
           {/* SOP 任务库 */}
           <Route path="/sop" element={<SOPLibrary />} />
           
+          {/* 习惯追踪 */}
+          <Route path="/habit" element={<HabitPage />} />
+          
           {/* 欢迎页 */}
           <Route path="/welcome" element={<Welcome />} />
           
@@ -178,6 +198,9 @@ function App() {
           
           {/* 设计系统展示页 */}
           <Route path="/design-demo" element={<DesignSystemDemo />} />
+          
+          {/* 日记系统测试页 */}
+          <Route path="/diary-test" element={<DiarySystemTest />} />
           
           {/* 其他路由 */}
           <Route path="*" element={<Dashboard />} />

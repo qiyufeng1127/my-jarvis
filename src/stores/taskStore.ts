@@ -130,6 +130,12 @@ export const useTaskStore = create<TaskState>()(
         taskMonitorService.startMonitoring(updatedTask);
       }
       
+      // 如果任务完成，触发习惯识别
+      if (updates.status === 'completed') {
+        const { habitRecognitionService } = await import('@/services/habitRecognitionService');
+        habitRecognitionService.autoLogTaskToHabit(updatedTask);
+      }
+      
       console.log('✅ 任务已更新:', id);
     } catch (error) {
       console.error('更新任务失败:', error);

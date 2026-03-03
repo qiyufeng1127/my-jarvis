@@ -54,19 +54,10 @@ interface NavItem {
 
 const ALL_NAV_ITEMS: NavItem[] = [
   { id: 'timeline', label: '时间轴', icon: '📅', color: 'pink', component: TimelineModule },
-  { id: 'goals', label: '目标', icon: '🎯', color: 'yellow', component: GoalsModule },
-  { id: 'money', label: '副业', icon: '💰', color: 'yellow', component: MoneyModule },
-  { id: 'inbox', label: '收集箱', icon: '📥', color: 'blue', component: TaskInbox },
   { id: 'tags', label: '标签', icon: '🏷️', color: 'purple' }, // 标签管理（特殊处理，不是模块）
-  { id: 'ai', label: 'AI助手', icon: '✨', color: 'pink' }, // AI助手（特殊处理，打开输入框）
-  { id: 'journal', label: '日记', icon: '📔', color: 'brown', component: JournalModule },
+  { id: 'inbox', label: '收集箱', icon: '📥', color: 'blue', component: TaskInbox },
   { id: 'memory', label: '记忆', icon: '🧠', color: 'purple', component: PanoramaMemory },
-  { id: 'gold', label: '金币', icon: '💎', color: 'yellow', component: GoldModule },
-  { id: 'habits', label: '习惯', icon: '⚠️', color: 'green', component: HabitsModule },
-  { id: 'reports', label: '报告', icon: '📈', color: 'blue', component: ReportsModule },
-  { id: 'pet', label: '宠物', icon: '🐾', color: 'pink' }, // 宠物系统（特殊处理）
-  { id: 'focus', label: '专注', icon: '🎯', color: 'purple' }, // 专注模式（特殊处理）
-  { id: 'leaderboard', label: '排行榜', icon: '🏆', color: 'yellow' }, // 排行榜（特殊处理）
+  { id: 'habits', label: '习惯', icon: '✅', color: 'green', component: HabitsModule },
 ];
 
 export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {}) {
@@ -92,12 +83,12 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         const savedIds = JSON.parse(saved) as TabType[];
         return savedIds.map(id => ALL_NAV_ITEMS.find(item => item.id === id)!).filter(Boolean);
       } catch {
-        // 默认显示：时间轴、目标
-        return [ALL_NAV_ITEMS[0], ALL_NAV_ITEMS[1]];
+        // 默认显示：时间轴、标签、收集箱、记忆、习惯
+        return ALL_NAV_ITEMS.slice(0, 5);
       }
     }
-    // 默认显示：时间轴、目标
-    return [ALL_NAV_ITEMS[0], ALL_NAV_ITEMS[1]];
+    // 默认显示：时间轴、标签、收集箱、记忆、习惯
+    return ALL_NAV_ITEMS.slice(0, 5);
   });
   
   const [activeTab, setActiveTab] = useState<TabType>('home'); // 默认显示首页

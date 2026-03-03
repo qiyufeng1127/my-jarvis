@@ -2311,8 +2311,9 @@ export default function NewTimelineView({
                 data-task-id={block.id}
                 className={`flex-1 ${isMobile ? 'rounded-xl' : 'rounded-2xl'} shadow-lg overflow-hidden relative`}
                 style={{ 
-                  backgroundColor: block.isCompleted ? 'rgba(156, 163, 175, 0.5)' : block.color,
-                  opacity: block.isCompleted ? 0.7 : 1,
+                  backgroundColor: block.color,
+                  opacity: block.isCompleted ? 0.6 : 1,
+                  filter: block.isCompleted ? 'saturate(0.5)' : 'none',
                 }}
               >
                 
@@ -2580,16 +2581,16 @@ export default function NewTimelineView({
 
                       {/* 右侧：金币 + start + 展开 */}
                       <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
-                        <div className={`flex items-center gap-1 ${isMobile ? 'px-1.5 py-0.5' : 'px-2 py-0.5'} rounded-full`} style={{ backgroundColor: 'rgba(255,215,0,0.3)' }}>
-                          <span className={`${isMobile ? 'text-sm' : 'text-base'}`}>💰</span>
-                          <span className={`${isMobile ? 'text-xs' : 'text-sm'} font-bold`}>{block.goldReward}</span>
+                        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(255,215,0,0.3)' }}>
+                          <span className="text-sm">💰</span>
+                          <span className="text-xs font-bold">{block.goldReward}</span>
                         </div>
 
                         {!block.isCompleted && block.status !== 'in_progress' && taskVerifications[block.id]?.status !== 'started' && (
                           <button
                             onClick={() => handleStartTask(block.id)}
                             disabled={startingTask === block.id}
-                            className={`${isMobile ? 'px-2 py-0.5 text-xs' : 'px-3 py-1 text-sm'} rounded-full font-bold transition-all hover:scale-105 disabled:opacity-50`}
+                            className="px-2 py-0.5 text-xs rounded-full font-bold transition-all hover:scale-105 disabled:opacity-50"
                             style={{ 
                               backgroundColor: taskVerifications[block.id]?.status === 'started' 
                                 ? 'rgba(34,197,94,0.3)' 
