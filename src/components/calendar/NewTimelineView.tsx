@@ -2677,7 +2677,7 @@ export default function NewTimelineView({
                           title={block.isRecurring ? '已设置重复' : '设置任务重复'}
                         >
                           <span className="text-sm">🔄</span>
-                        </button 
+                        </button>
                         <button
                           onClick={() => toggleExpand(block.id)}
                           className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} rounded-full flex items-center justify-center transition-all hover:scale-110`}
