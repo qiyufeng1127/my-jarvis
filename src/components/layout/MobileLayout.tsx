@@ -36,6 +36,7 @@ import { FocusTimer } from '@/components/focus/FocusTimer';
 import { FocusStatsPanel } from '@/components/focus/FocusStatsPanel';
 import { LeaderboardPanel } from '@/components/leaderboard/LeaderboardPanel';
 import SOPLibrary from '@/components/sop/SOPLibrary';
+import RPGHomePage from '@/components/rpg/RPGHomePage';
 
 type TabType = 'timeline' | 'goals' | 'journal' | 'memory' | 'gold' | 'habits' | 'reports' | 'settings' | 'inbox' | 'ai' | 'more' | 'money' | 'tags' | 'home' | 'pet' | 'focus' | 'leaderboard' | 'sop';
 
@@ -153,55 +154,9 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
       bgColor: savedNavColor,
     };
 
-    // 首页特殊处理：只显示未在导航栏中的组件按钮
+    // 首页特殊处理：显示RPG人生系统面板
     if (activeTab === 'home') {
-      // 获取当前导航栏中的组件ID（不包括首页和设置）
-      const navItemIds = navItems.map(item => item.id);
-      
-      // 过滤出未在导航栏中的组件
-      const availableItems = ALL_NAV_ITEMS.filter(item => !navItemIds.includes(item.id));
-      
-      return (
-        <div className="p-4">
-          <h2 className="text-xl font-bold mb-4 text-gray-900">添加功能</h2>
-          {availableItems.length > 0 ? (
-            <div className="grid grid-cols-4 gap-4">
-              {availableItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    // 标签管理特殊处理：打开弹窗
-                    if (item.id === 'tags') {
-                      setShowTagManager(true);
-                    } else if (item.id === 'ai') {
-                      // AI助手特殊处理：打开AI输入框
-                      setShowAISmartInput(true);
-                    } else if (item.id === 'pet') {
-                      // 宠物系统特殊处理：打开宠物商店
-                      setShowPetShop(true);
-                    } else if (item.id === 'focus' || item.id === 'leaderboard') {
-                      // 游戏系统：切换到对应页面
-                      setActiveTab(item.id);
-                    } else {
-                      setActiveTab(item.id);
-                    }
-                  }}
-                  className="flex flex-col items-center justify-center p-4 rounded-xl transition-all shadow-sm bg-white border-2 border-gray-200 active:bg-gray-50"
-                >
-                  <span className="text-3xl mb-2">{item.icon}</span>
-                  <span className="text-xs font-semibold text-center text-gray-900">{item.label}</span>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-12">
-              <span className="text-6xl mb-4">✨</span>
-              <p className="text-lg font-medium text-gray-900">所有功能都已添加</p>
-              <p className="text-sm text-gray-500 mt-2">长按底部导航栏可以编辑</p>
-            </div>
-          )}
-        </div>
-      );
+      return <RPGHomePage />;
     }
 
     // 特殊处理设置模块
