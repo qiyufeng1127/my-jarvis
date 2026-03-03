@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { X, Edit2, Check } from 'lucide-react';
+import { X, Edit2, Check, ChevronDown, Search } from 'lucide-react';
 import type { TaskVerification } from '@/services/taskVerificationService';
+import { useKeywordPresetStore } from '@/stores/keywordPresetStore';
 
 interface TaskVerificationDialogProps {
   taskId: string;
@@ -29,6 +30,15 @@ export default function TaskVerificationDialog({
   const [completionKeywords, setCompletionKeywords] = useState(verification.completionKeywords.join(', '));
   const [enableStartVerification, setEnableStartVerification] = useState(verification.startKeywords.length > 0);
   const [enableCompletionVerification, setEnableCompletionVerification] = useState(verification.completionKeywords.length > 0);
+  
+  // 预设组选择状态
+  const [showStartPresetDropdown, setShowStartPresetDropdown] = useState(false);
+  const [showCompletePresetDropdown, setShowCompletePresetDropdown] = useState(false);
+  const [presetSearchQuery, setPresetSearchQuery] = useState('');
+  
+  // 获取预设组
+  const { searchPresets } = useKeywordPresetStore();
+  const filteredPresets = searchPresets(presetSearchQuery);
   
   // 判断颜色是否为深色
   const isColorDark = (color: string): boolean => {
@@ -98,6 +108,22 @@ export default function TaskVerificationDialog({
     }
     
     setEditingCompletion(false);
+  };
+
+  // 选择启动验证预设组
+  const handleSelectStartPreset = (keywords: string[]) => {
+    setStartKeywords(keywords.join(', '));
+    setShowStartPresetDropdown(false);
+    setPresetSearchQuery('');
+    setEditingStart(true);
+  };
+
+  // 选择完成验证预设组
+  const handleSelectCompletePreset = (keywords: string[]) => {
+    setCompletionKeywords(keywords.join(', '));
+    setShowCompletePresetDropdown(false);
+    setPresetSearchQuery('');
+    setEditingCompletion(true);
   };
 
   // 保存所有设置并关闭
@@ -181,7 +207,21 @@ export default function TaskVerificationDialog({
               />
             <label className="text-sm font-medium" style={{ color: dialogTextColor }}>启动验证关键词</label>
             </div>
-            {enableStartVerification && !editingStart ? (
+            <div className="flex items-center gap-2">
+              {enableStartVerification && (
+                <button
+                  onClick={() => setShowStartPresetDropdown(!showStartPresetDropdown)}
+                  className="px-2 py-1 rounded text-xs font-medium flex items-center gap-1"
+                  style={{ 
+                    backgroundColor: inputBgColor,
+                    color: dialogTextColor,
+                  }}
+                >
+                  <ChevronDown size={14} />
+                  选择预设
+                </button>
+              )}
+              {enableStartVerification && !editingStart ? (
               <button
                 onClick={() => setEditingStart(true)}
                 className="p-1 rounded transition-colors"
@@ -204,7 +244,75 @@ export default function TaskVerificationDialog({
                 <Check size={16} />
               </button>
             ) : null}
+            </div>
           </div>
+          
+          {/* 预设组下拉菜单 */}
+          {showStartPresetDropdown && enableStartVerification && (
+            <div className="mb-3 p-3 rounded-lg border-2" style={{ 
+              backgroundColor: inputBgColor,
+              borderColor: inputBorderColor,
+            }}>
+              {/* 搜索框 */}
+              <div className="relative mb-2">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: dialogAccentColor }} />
+                <input
+                  type="text"
+                  value={presetSearchQuery}
+                  onChange={(e) => setPresetSearchQuery(e.target.value)}
+                  placeholder="搜索预设组标题或关键词..."
+                  className="w-full pl-8 pr-3 py-1.5 rounded text-sm"
+                  style={{
+                    backgroundColor: dialogBgColor,
+                    borderColor: inputBorderColor,
+                    color: dialogTextColor,
+                  }}
+                />
+              </div>
+              
+              {/* 预设组列表 */}
+              <div className="max-h-48 overflow-y-auto space-y-2">
+                {filteredPresets.length > 0 ? (
+                  filteredPresets.map((preset) => (
+                    <button
+                      key={preset.id}
+                      onClick={() => handleSelectStartPreset(preset.keywords)}
+                      className="w-full text-left p-2 rounded hover:opacity-80 transition-opacity"
+                      style={{ backgroundColor: dialogBgColor }}
+                    >
+                      <div className="font-medium text-sm mb-1" style={{ color: dialogTextColor }}>
+                        📋 {preset.title}
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {preset.keywords.slice(0, 5).map((keyword, idx) => (
+                          <span
+                            key={idx}
+                            className="px-2 py-0.5 rounded text-xs"
+                            style={{
+                              backgroundColor: inputBgColor,
+                              color: dialogAccentColor,
+                            }}
+                          >
+                            {keyword}
+                          </span>
+                        ))}
+                        {preset.keywords.length > 5 && (
+                          <span className="text-xs" style={{ color: dialogAccentColor }}>
+                            +{preset.keywords.length - 5}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <div className="text-center py-4 text-sm" style={{ color: dialogAccentColor }}>
+                    {presetSearchQuery ? '未找到匹配的预设组' : '暂无预设组，请在SOP照片库中创建'}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
           {enableStartVerification && (
             <>
           {editingStart ? (
@@ -260,7 +368,21 @@ export default function TaskVerificationDialog({
               />
             <label className="text-sm font-medium" style={{ color: dialogTextColor }}>完成验证关键词</label>
             </div>
-            {enableCompletionVerification && !editingCompletion ? (
+            <div className="flex items-center gap-2">
+              {enableCompletionVerification && (
+                <button
+                  onClick={() => setShowCompletePresetDropdown(!showCompletePresetDropdown)}
+                  className="px-2 py-1 rounded text-xs font-medium flex items-center gap-1"
+                  style={{ 
+                    backgroundColor: inputBgColor,
+                    color: dialogTextColor,
+                  }}
+                >
+                  <ChevronDown size={14} />
+                  选择预设
+                </button>
+              )}
+              {enableCompletionVerification && !editingCompletion ? (
               <button
                 onClick={() => setEditingCompletion(true)}
                 className="p-1 rounded transition-colors"
@@ -283,7 +405,75 @@ export default function TaskVerificationDialog({
                 <Check size={16} />
               </button>
             ) : null}
+            </div>
           </div>
+          
+          {/* 预设组下拉菜单 */}
+          {showCompletePresetDropdown && enableCompletionVerification && (
+            <div className="mb-3 p-3 rounded-lg border-2" style={{ 
+              backgroundColor: inputBgColor,
+              borderColor: inputBorderColor,
+            }}>
+              {/* 搜索框 */}
+              <div className="relative mb-2">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: dialogAccentColor }} />
+                <input
+                  type="text"
+                  value={presetSearchQuery}
+                  onChange={(e) => setPresetSearchQuery(e.target.value)}
+                  placeholder="搜索预设组标题或关键词..."
+                  className="w-full pl-8 pr-3 py-1.5 rounded text-sm"
+                  style={{
+                    backgroundColor: dialogBgColor,
+                    borderColor: inputBorderColor,
+                    color: dialogTextColor,
+                  }}
+                />
+              </div>
+              
+              {/* 预设组列表 */}
+              <div className="max-h-48 overflow-y-auto space-y-2">
+                {filteredPresets.length > 0 ? (
+                  filteredPresets.map((preset) => (
+                    <button
+                      key={preset.id}
+                      onClick={() => handleSelectCompletePreset(preset.keywords)}
+                      className="w-full text-left p-2 rounded hover:opacity-80 transition-opacity"
+                      style={{ backgroundColor: dialogBgColor }}
+                    >
+                      <div className="font-medium text-sm mb-1" style={{ color: dialogTextColor }}>
+                        📋 {preset.title}
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {preset.keywords.slice(0, 5).map((keyword, idx) => (
+                          <span
+                            key={idx}
+                            className="px-2 py-0.5 rounded text-xs"
+                            style={{
+                              backgroundColor: inputBgColor,
+                              color: dialogAccentColor,
+                            }}
+                          >
+                            {keyword}
+                          </span>
+                        ))}
+                        {preset.keywords.length > 5 && (
+                          <span className="text-xs" style={{ color: dialogAccentColor }}>
+                            +{preset.keywords.length - 5}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <div className="text-center py-4 text-sm" style={{ color: dialogAccentColor }}>
+                    {presetSearchQuery ? '未找到匹配的预设组' : '暂无预设组，请在SOP照片库中创建'}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
           {enableCompletionVerification && (
             <>
           {editingCompletion ? (
