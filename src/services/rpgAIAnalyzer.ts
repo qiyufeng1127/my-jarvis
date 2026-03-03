@@ -11,10 +11,77 @@ interface AnalysisResult {
   todayStatus: string[];
 }
 
+interface UserBehaviorPattern {
+  // 时间偏好
+  timePreference: {
+    peakHours: number[]; // 高效时段（小时）
+    lowHours: number[]; // 低效时段
+    preferredStartTime: number; // 偏好开始时间
+    avgTaskDuration: number; // 平均任务时长（分钟）
+  };
+  
+  // 任务类型偏好
+  taskPreference: {
+    highCompletionTypes: string[]; // 高完成率的任务类型
+    lowCompletionTypes: string[]; // 低完成率的任务类型
+    favoriteTaskTypes: string[]; // 最常做的任务类型
+  };
+  
+  // 标签使用习惯
+  tagPreference: {
+    topTags: Array<{ name: string; count: number; completionRate: number }>;
+    unusedTags: string[];
+  };
+  
+  // 行为模式
+  behaviorPatterns: {
+    delayPattern: { count: number; avgDelayMinutes: number }; // 拖延模式
+    efficientPattern: { count: number; avgEfficiency: number }; // 高效模式
+    lowEfficiencyPattern: { count: number; reasons: string[] }; // 低效模式
+    consistencyScore: number; // 一致性评分（0-100）
+  };
+}
+
 /**
  * AI分析服务 - 基于时间轴和标签历史数据生成RPG角色信息
  */
 export class RPGAIAnalyzer {
+  /**
+   * 深度分析用户行为模式（P0-1核心功能）
+   */
+  static async analyzeUserBehavior(): Promise<UserBehaviorPattern> {
+    const taskStore = useTaskStore.getState();
+    const tagStore = useTagStore.getState();
+    
+    // 获取最近30天的任务数据
+    const recentTasks = this.getRecentTasks(taskStore.tasks, 30);
+    
+    console.log('🔍 开始深度分析用户行为，任务数量:', recentTasks.length);
+    
+    // 1. 分析时间偏好
+    const timePreference = this.analyzeDetailedTimePatterns(recentTasks);
+    
+    // 2. 分析任务类型偏好
+    const taskPreference = this.analyzeTaskTypePreference(recentTasks);
+    
+    // 3. 分析标签使用习惯
+    const tagPreference = this.analyzeDetailedTagUsage(recentTasks, tagStore.tags);
+    
+    // 4. 分析行为模式
+    const behaviorPatterns = this.analyzeBehaviorPatterns(recentTasks);
+    
+    const pattern = {
+      timePreference,
+      taskPreference,
+      tagPreference,
+      behaviorPatterns,
+    };
+    
+    console.log('✅ 用户行为分析完成:', pattern);
+    
+    return pattern;
+  }
+  
   /**
    * 分析用户的时间轴和标签数据，生成完整的角色画像和任务建议
    */
@@ -54,6 +121,226 @@ export class RPGAIAnalyzer {
       const taskDate = task.scheduledStart ? new Date(task.scheduledStart) : new Date(task.createdAt);
       return taskDate >= cutoffDate;
     });
+  }
+  
+  /**
+   * 详细分析时间偏好（P0-1新增）
+   */
+  private static analyzeDetailedTimePatterns(tasks: any[]) {
+    const hourlyProductivity: number[] = new Array(24).fill(0);
+    const hourlyTaskCount: number[] = new Array(24).fill(0);
+    let totalDuration = 0;
+    let taskCount = 0;
+    const startTimes: number[] = [];
+    
+    tasks.forEach(task => {
+      if (task.scheduledStart) {
+        const hour = new Date(task.scheduledStart).getHours();
+        hourlyTaskCount[hour]++;
+        startTimes.push(hour);
+        
+        // 如果任务完成，计入生产力
+        if (task.status === 'completed') {
+          hourlyProductivity[hour]++;
+        }
+      }
+      
+      if (task.durationMinutes) {
+        totalDuration += task.durationMinutes;
+        taskCount++;
+      }
+    });
+    
+    // 找出高效时段（完成率 > 70%）
+    const peakHours: number[] = [];
+    const lowHours: number[] = [];
+    
+    for (let hour = 0; hour < 24; hour++) {
+      if (hourlyTaskCount[hour] > 0) {
+        const completionRate = (hourlyProductivity[hour] / hourlyTaskCount[hour]) * 100;
+        if (completionRate >= 70) {
+          peakHours.push(hour);
+        } else if (completionRate < 40) {
+          lowHours.push(hour);
+        }
+      }
+    }
+    
+    // 计算偏好开始时间（众数）
+    const preferredStartTime = startTimes.length > 0 
+      ? startTimes.sort((a, b) => 
+          startTimes.filter(v => v === a).length - startTimes.filter(v => v === b).length
+        ).pop() || 9
+      : 9;
+    
+    return {
+      peakHours: peakHours.length > 0 ? peakHours : [9, 10, 14, 15], // 默认上午和下午
+      lowHours: lowHours.length > 0 ? lowHours : [12, 13, 22, 23], // 默认午休和深夜
+      preferredStartTime,
+      avgTaskDuration: taskCount > 0 ? Math.round(totalDuration / taskCount) : 30,
+    };
+  }
+  
+  /**
+   * 分析任务类型偏好（P0-1新增）
+   */
+  private static analyzeTaskTypePreference(tasks: any[]) {
+    const typeStats: Record<string, { total: number; completed: number }> = {};
+    
+    tasks.forEach(task => {
+      const type = task.taskType || 'other';
+      if (!typeStats[type]) {
+        typeStats[type] = { total: 0, completed: 0 };
+      }
+      typeStats[type].total++;
+      if (task.status === 'completed') {
+        typeStats[type].completed++;
+      }
+    });
+    
+    // 计算完成率
+    const typeCompletionRates = Object.entries(typeStats).map(([type, stats]) => ({
+      type,
+      completionRate: stats.total > 0 ? (stats.completed / stats.total) * 100 : 0,
+      count: stats.total,
+    }));
+    
+    // 高完成率类型（>= 70%）
+    const highCompletionTypes = typeCompletionRates
+      .filter(t => t.completionRate >= 70)
+      .sort((a, b) => b.completionRate - a.completionRate)
+      .map(t => t.type);
+    
+    // 低完成率类型（< 50%）
+    const lowCompletionTypes = typeCompletionRates
+      .filter(t => t.completionRate < 50 && t.count >= 3) // 至少3个任务才算
+      .map(t => t.type);
+    
+    // 最常做的任务类型
+    const favoriteTaskTypes = typeCompletionRates
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3)
+      .map(t => t.type);
+    
+    return {
+      highCompletionTypes: highCompletionTypes.length > 0 ? highCompletionTypes : ['work'],
+      lowCompletionTypes,
+      favoriteTaskTypes: favoriteTaskTypes.length > 0 ? favoriteTaskTypes : ['work', 'study'],
+    };
+  }
+  
+  /**
+   * 详细分析标签使用习惯（P0-1新增）
+   */
+  private static analyzeDetailedTagUsage(tasks: any[], tags: any[]) {
+    const tagStats: Record<string, { count: number; completed: number }> = {};
+    
+    tasks.forEach(task => {
+      if (task.tags && Array.isArray(task.tags)) {
+        task.tags.forEach((tagId: string) => {
+          if (!tagStats[tagId]) {
+            tagStats[tagId] = { count: 0, completed: 0 };
+          }
+          tagStats[tagId].count++;
+          if (task.status === 'completed') {
+            tagStats[tagId].completed++;
+          }
+        });
+      }
+    });
+    
+    // 计算每个标签的完成率
+    const topTags = Object.entries(tagStats)
+      .map(([tagId, stats]) => {
+        const tag = tags.find(t => t.id === tagId);
+        return {
+          name: tag?.name || tagId,
+          count: stats.count,
+          completionRate: stats.count > 0 ? (stats.completed / stats.count) * 100 : 0,
+        };
+      })
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+    
+    // 找出未使用的标签
+    const usedTagIds = new Set(Object.keys(tagStats));
+    const unusedTags = tags
+      .filter(tag => !usedTagIds.has(tag.id))
+      .map(tag => tag.name);
+    
+    return {
+      topTags,
+      unusedTags,
+    };
+  }
+  
+  /**
+   * 分析行为模式（P0-1新增）
+   */
+  private static analyzeBehaviorPatterns(tasks: any[]) {
+    let delayCount = 0;
+    let totalDelayMinutes = 0;
+    let efficientCount = 0;
+    let totalEfficiency = 0;
+    let lowEfficiencyCount = 0;
+    const lowEfficiencyReasons: string[] = [];
+    
+    // 计算一致性：连续完成任务的天数
+    const completionDates = new Set<string>();
+    
+    tasks.forEach(task => {
+      // 检测拖延
+      if (task.scheduledStart && task.actualStart) {
+        const scheduled = new Date(task.scheduledStart);
+        const actual = new Date(task.actualStart);
+        const delayMinutes = (actual.getTime() - scheduled.getTime()) / (1000 * 60);
+        
+        if (delayMinutes > 15) { // 超过15分钟算拖延
+          delayCount++;
+          totalDelayMinutes += delayMinutes;
+        }
+      }
+      
+      // 检测高效
+      if (task.completionEfficiency !== undefined) {
+        if (task.completionEfficiency >= 80) {
+          efficientCount++;
+          totalEfficiency += task.completionEfficiency;
+        } else if (task.completionEfficiency < 50) {
+          lowEfficiencyCount++;
+          if (task.efficiencyLevel) {
+            lowEfficiencyReasons.push(`${task.title}: ${task.completionEfficiency}%`);
+          }
+        }
+      }
+      
+      // 记录完成日期
+      if (task.status === 'completed' && task.actualEnd) {
+        const dateStr = new Date(task.actualEnd).toISOString().split('T')[0];
+        completionDates.add(dateStr);
+      }
+    });
+    
+    // 计算一致性评分（基于完成天数占比）
+    const totalDays = 30;
+    const activeDays = completionDates.size;
+    const consistencyScore = Math.round((activeDays / totalDays) * 100);
+    
+    return {
+      delayPattern: {
+        count: delayCount,
+        avgDelayMinutes: delayCount > 0 ? Math.round(totalDelayMinutes / delayCount) : 0,
+      },
+      efficientPattern: {
+        count: efficientCount,
+        avgEfficiency: efficientCount > 0 ? Math.round(totalEfficiency / efficientCount) : 0,
+      },
+      lowEfficiencyPattern: {
+        count: lowEfficiencyCount,
+        reasons: lowEfficiencyReasons.slice(0, 3), // 只保留前3个
+      },
+      consistencyScore,
+    };
   }
 
   /**
@@ -240,6 +527,218 @@ export class RPGAIAnalyzer {
   }
 
   /**
+   * 智能生成任务（P0-2核心功能）
+   * 基于用户行为模式生成个性化的正向任务和改进任务
+   */
+  static async generateSmartTasks(behaviorPattern: UserBehaviorPattern): Promise<DailyTask[]> {
+    const tasks: DailyTask[] = [];
+    
+    console.log('🎯 开始智能生成任务，基于用户行为模式');
+    
+    // 1. 生成改进任务（1-2个）
+    const improvementTasks = this.generateImprovementTasks(behaviorPattern);
+    tasks.push(...improvementTasks);
+    
+    // 2. 生成正向任务（4-5个）
+    const positiveTasks = this.generatePositiveTasks(behaviorPattern);
+    tasks.push(...positiveTasks);
+    
+    // 3. 20%概率生成惊喜任务
+    if (Math.random() < 0.2) {
+      const surpriseTask = this.generateSurpriseTask();
+      tasks.push(surpriseTask);
+    }
+    
+    console.log('✅ 任务生成完成，共', tasks.length, '个任务');
+    
+    return tasks;
+  }
+  
+  /**
+   * 生成改进任务
+   */
+  private static generateImprovementTasks(pattern: UserBehaviorPattern): DailyTask[] {
+    const tasks: DailyTask[] = [];
+    
+    // 检测拖延问题
+    if (pattern.behaviorPatterns.delayPattern.count > 5) {
+      tasks.push({
+        id: `improvement-delay-${Date.now()}`,
+        title: '⚠️ 改进拖延：立即开始第一个任务',
+        description: `你最近${pattern.behaviorPatterns.delayPattern.count}次推迟任务，平均延迟${pattern.behaviorPatterns.delayPattern.avgDelayMinutes}分钟。今天尝试在计划时间立即开始！`,
+        type: 'improvement',
+        difficulty: 'medium',
+        expReward: 100,
+        goldReward: 60,
+        completed: false,
+        isImprovement: true,
+      });
+    }
+    
+    // 检测低效问题
+    if (pattern.behaviorPatterns.lowEfficiencyPattern.count > 3) {
+      tasks.push({
+        id: `improvement-efficiency-${Date.now()}`,
+        title: '⚠️ 提升效率：专注完成一个任务',
+        description: `最近${pattern.behaviorPatterns.lowEfficiencyPattern.count}个任务效率较低。今天选择一个任务，排除干扰，专注完成！`,
+        type: 'improvement',
+        difficulty: 'medium',
+        expReward: 100,
+        goldReward: 60,
+        completed: false,
+        isImprovement: true,
+      });
+    }
+    
+    // 检测一致性问题
+    if (pattern.behaviorPatterns.consistencyScore < 50) {
+      tasks.push({
+        id: `improvement-consistency-${Date.now()}`,
+        title: '⚠️ 保持一致：连续3天完成任务',
+        description: `你的一致性评分为${pattern.behaviorPatterns.consistencyScore}%。从今天开始，连续3天至少完成1个任务！`,
+        type: 'improvement',
+        difficulty: 'easy',
+        expReward: 80,
+        goldReward: 50,
+        completed: false,
+        isImprovement: true,
+      });
+    }
+    
+    // 检测低完成率任务类型
+    if (pattern.taskPreference.lowCompletionTypes.length > 0) {
+      const lowType = pattern.taskPreference.lowCompletionTypes[0];
+      tasks.push({
+        id: `improvement-tasktype-${Date.now()}`,
+        title: `⚠️ 突破瓶颈：完成一个${lowType}任务`,
+        description: `你在${lowType}类型任务上完成率较低。今天尝试完成一个，找到适合的方法！`,
+        type: 'improvement',
+        difficulty: 'hard',
+        expReward: 120,
+        goldReward: 80,
+        completed: false,
+        isImprovement: true,
+      });
+    }
+    
+    // 最多返回2个改进任务
+    return tasks.slice(0, 2);
+  }
+  
+  /**
+   * 生成正向任务
+   */
+  private static generatePositiveTasks(pattern: UserBehaviorPattern): DailyTask[] {
+    const tasks: DailyTask[] = [];
+    
+    // 基于高完成率任务类型生成
+    const favoriteTypes = pattern.taskPreference.highCompletionTypes.length > 0
+      ? pattern.taskPreference.highCompletionTypes
+      : pattern.taskPreference.favoriteTaskTypes;
+    
+    // 基于常用标签生成
+    const topTags = pattern.tagPreference.topTags.slice(0, 3);
+    
+    // 任务模板
+    const templates = [
+      {
+        title: '晨间计划',
+        description: '花10分钟规划今天的重点任务，设定优先级',
+        exp: 40,
+        gold: 25,
+        difficulty: 'easy' as const,
+      },
+      {
+        title: `专注${favoriteTypes[0] || '工作'}`,
+        description: `完成一个${favoriteTypes[0] || '工作'}相关的重要任务`,
+        exp: 80,
+        gold: 50,
+        difficulty: 'medium' as const,
+      },
+      {
+        title: '高效时段冲刺',
+        description: `在${pattern.timePreference.peakHours[0] || 9}:00-${(pattern.timePreference.peakHours[0] || 9) + 2}:00完成2个任务`,
+        exp: 100,
+        gold: 60,
+        difficulty: 'medium' as const,
+      },
+      {
+        title: topTags[0] ? `${topTags[0].name}任务` : '学习充电',
+        description: topTags[0] ? `完成一个${topTags[0].name}相关任务` : '学习新知识或技能30分钟',
+        exp: 60,
+        gold: 40,
+        difficulty: 'medium' as const,
+      },
+      {
+        title: '每日复盘',
+        description: '回顾今天的收获和不足，记录3个关键点',
+        exp: 50,
+        gold: 30,
+        difficulty: 'easy' as const,
+      },
+    ];
+    
+    // 生成4-5个任务
+    const count = Math.floor(Math.random() * 2) + 4;
+    for (let i = 0; i < Math.min(count, templates.length); i++) {
+      const template = templates[i];
+      tasks.push({
+        id: `positive-${Date.now()}-${i}`,
+        title: template.title,
+        description: template.description,
+        type: 'normal',
+        difficulty: template.difficulty,
+        expReward: template.exp,
+        goldReward: template.gold,
+        completed: false,
+        isImprovement: false,
+      });
+    }
+    
+    return tasks;
+  }
+  
+  /**
+   * 生成惊喜任务
+   */
+  private static generateSurpriseTask(): DailyTask {
+    const surprises = [
+      {
+        title: '🎁 惊喜任务：做一件让自己开心的事',
+        description: '今天给自己一个小奖励，做一件纯粹让自己开心的事情',
+        exp: 100,
+        gold: 80,
+      },
+      {
+        title: '🎁 惊喜任务：帮助他人',
+        description: '今天帮助一个人，可以是朋友、家人或陌生人',
+        exp: 120,
+        gold: 100,
+      },
+      {
+        title: '🎁 惊喜任务：尝试新事物',
+        description: '今天尝试一件从未做过的事情，突破舒适区',
+        exp: 150,
+        gold: 120,
+      },
+    ];
+    
+    const surprise = surprises[Math.floor(Math.random() * surprises.length)];
+    
+    return {
+      id: `surprise-${Date.now()}`,
+      title: surprise.title,
+      description: surprise.description,
+      type: 'surprise',
+      difficulty: 'easy',
+      expReward: surprise.exp,
+      goldReward: surprise.gold,
+      completed: false,
+      isImprovement: false,
+    };
+  }
+  
+  /**
    * 使用规则生成分析结果（不依赖AI）
    */
   private static generateWithRules(
@@ -373,11 +872,91 @@ export class RPGAIAnalyzer {
   }
 
   /**
-   * 快速生成今日任务（不需要完整分析）
+   * 快速生成今日任务（P0-2核心功能）
+   * 基于用户行为模式智能生成
    */
   static async generateDailyTasks(): Promise<DailyTask[]> {
-    const result = await this.analyzeUserData();
-    return result.suggestedTasks;
+    console.log('🎯 开始生成今日任务...');
+    
+    try {
+      // 1. 分析用户行为模式
+      const behaviorPattern = await this.analyzeUserBehavior();
+      
+      // 2. 基于行为模式生成智能任务
+      const tasks = await this.generateSmartTasks(behaviorPattern);
+      
+      console.log('✅ 今日任务生成完成:', tasks.length, '个任务');
+      
+      return tasks;
+    } catch (error) {
+      console.error('❌ 任务生成失败，使用默认任务:', error);
+      
+      // 失败时使用默认任务
+      return this.generateDefaultTasks();
+    }
+  }
+  
+  /**
+   * 生成默认任务（兜底方案）
+   */
+  private static generateDefaultTasks(): DailyTask[] {
+    return [
+      {
+        id: `default-${Date.now()}-1`,
+        title: '晨间计划',
+        description: '花10分钟规划今天的重点任务',
+        type: 'normal',
+        difficulty: 'easy',
+        expReward: 40,
+        goldReward: 25,
+        completed: false,
+        isImprovement: false,
+      },
+      {
+        id: `default-${Date.now()}-2`,
+        title: '专注工作',
+        description: '完成一个重要工作任务',
+        type: 'normal',
+        difficulty: 'medium',
+        expReward: 80,
+        goldReward: 50,
+        completed: false,
+        isImprovement: false,
+      },
+      {
+        id: `default-${Date.now()}-3`,
+        title: '学习充电',
+        description: '学习新知识或技能30分钟',
+        type: 'normal',
+        difficulty: 'medium',
+        expReward: 60,
+        goldReward: 40,
+        completed: false,
+        isImprovement: false,
+      },
+      {
+        id: `default-${Date.now()}-4`,
+        title: '运动健身',
+        description: '进行30分钟运动',
+        type: 'normal',
+        difficulty: 'medium',
+        expReward: 50,
+        goldReward: 30,
+        completed: false,
+        isImprovement: false,
+      },
+      {
+        id: `default-${Date.now()}-5`,
+        title: '每日复盘',
+        description: '回顾今天的收获和不足',
+        type: 'normal',
+        difficulty: 'easy',
+        expReward: 40,
+        goldReward: 25,
+        completed: false,
+        isImprovement: false,
+      },
+    ];
   }
 
   /**

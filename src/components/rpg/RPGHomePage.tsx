@@ -79,24 +79,57 @@ export default function RPGHomePage() {
     checkAndUnlockAvatars(character.exp);
   }, [character.exp]);
 
-  // 自动生成每日任务（使用AI）
+  // 自动生成每日任务（P0-1 & P0-2集成）
   useEffect(() => {
     const initTasks = async () => {
-      if (dailyTasks.length === 0) {
+      // 检查是否需要生成新任务
+      const today = new Date().toDateString();
+      const lastGenDate = useRPGStore.getState().lastTaskGenerationDate;
+      
+      if (dailyTasks.length === 0 || lastGenDate !== today) {
         setIsGenerating(true);
+        console.log('🎯 开始初始化RPG系统...');
+        
         try {
-          const aiTasks = await RPGAIAnalyzer.generateDailyTasks();
-          aiTasks.forEach(task => {
-            useRPGStore.getState().addDailyTask(task);
-          });
+          // 1. 分析用户行为模式（P0-1）
+          console.log('📊 步骤1: 分析用户行为模式...');
+          const behaviorPattern = await RPGAIAnalyzer.analyzeUserBehavior();
           
-          // 同时更新角色画像
+          // 2. 生成智能任务（P0-2）
+          console.log('🎯 步骤2: 生成智能任务...');
+          const aiTasks = await RPGAIAnalyzer.generateDailyTasks();
+          
+          // 3. 更新角色画像
+          console.log('👤 步骤3: 更新角色画像...');
           const profile = await RPGAIAnalyzer.updateCharacterProfile();
           updateCharacter(profile);
+          
+          // 4. 添加任务到store
+          console.log('💾 步骤4: 保存任务...');
+          useRPGStore.setState({ 
+            dailyTasks: aiTasks,
+            lastTaskGenerationDate: today,
+          });
+          
+          console.log('✅ RPG系统初始化完成！生成', aiTasks.length, '个任务');
+          
+          // 显示欢迎提示
+          RPGNotificationService.show({
+            type: 'success',
+            title: '🎮 RPG系统已就绪',
+            message: `已为你生成${aiTasks.length}个任务，点击"一键领取"同步到时间轴`,
+            duration: 5000,
+          });
+          
         } catch (error) {
-          console.error('AI生成任务失败：', error);
+          console.error('❌ RPG系统初始化失败：', error);
           // 回退到默认生成
           generateDailyTasks();
+          
+          RPGNotificationService.showWarning(
+            '使用默认任务',
+            '无法分析历史数据，已生成默认任务'
+          );
         } finally {
           setIsGenerating(false);
         }
@@ -149,46 +182,75 @@ export default function RPGHomePage() {
     }
   };
 
-  // 一键领取所有任务（智能同步）
+  // 一键领取所有任务（P0-3智能同步）
   const handleClaimAllTasks = async () => {
     setIsSyncing(true);
+    console.log('📥 开始一键领取任务...');
+    
     try {
-      const result = await RPGTaskSyncService.smartScheduleTasks(dailyTasks.filter(t => !t.completed));
+      // 使用智能调度同步任务
+      const result = await RPGTaskSyncService.smartScheduleTasks(
+        dailyTasks.filter(t => !t.completed)
+      );
       
-      RPGNotificationService.show({
-        type: 'success',
-        title: '✅ 同步成功',
-        message: `已将 ${result.success} 个任务同步到时间轴`,
-        duration: 3000,
-      });
+      console.log('✅ 同步完成，成功:', result.success, '失败:', result.failed);
+      
+      if (result.success > 0) {
+        RPGNotificationService.show({
+          type: 'success',
+          title: '✅ 同步成功',
+          message: `已将 ${result.success} 个任务智能安排到时间轴`,
+          duration: 3000,
+        });
+      }
+      
+      if (result.failed > 0) {
+        RPGNotificationService.showWarning(
+          '部分任务同步失败',
+          `${result.failed} 个任务无法安排，请手动调整时间轴`
+        );
+      }
     } catch (error) {
-      console.error('同步失败：', error);
+      console.error('❌ 同步失败：', error);
       RPGNotificationService.showWarning('同步失败', '请稍后重试');
     } finally {
       setIsSyncing(false);
     }
   };
   
-  // 重新生成任务
+  // 重新生成任务（P0-2）
   const handleRegenerateTasks = async () => {
     setIsGenerating(true);
+    console.log('🔄 重新生成任务...');
+    
     try {
+      // 1. 重新分析用户行为
+      const behaviorPattern = await RPGAIAnalyzer.analyzeUserBehavior();
+      
+      // 2. 生成新任务
       const aiTasks = await RPGAIAnalyzer.generateDailyTasks();
-      // 清空现有任务
-      useRPGStore.setState({ dailyTasks: [] });
-      // 添加新任务
-      aiTasks.forEach(task => {
-        useRPGStore.getState().addDailyTask(task);
+      
+      // 3. 清空现有任务并添加新任务
+      useRPGStore.setState({ 
+        dailyTasks: aiTasks,
+        lastTaskGenerationDate: new Date().toDateString(),
       });
+      
+      console.log('✅ 任务重新生成完成，共', aiTasks.length, '个任务');
       
       RPGNotificationService.show({
         type: 'success',
         title: '✨ 任务已更新',
-        message: '已根据你的数据生成新任务',
+        message: `已根据你的最新数据生成${aiTasks.length}个任务`,
         duration: 3000,
       });
     } catch (error) {
-      console.error('重新生成失败：', error);
+      console.error('❌ 重新生成失败:', error);
+      
+      RPGNotificationService.showWarning(
+        '生成失败',
+        '请稍后重试'
+      );
     } finally {
       setIsGenerating(false);
     }
