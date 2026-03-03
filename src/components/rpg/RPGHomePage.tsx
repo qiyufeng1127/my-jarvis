@@ -299,6 +299,72 @@ export default function RPGHomePage() {
         </div>
       </div>
       
+      {/* 头像预览收集区 */}
+      <div 
+        className="rounded-2xl p-4 mb-4 shadow-sm"
+        style={{ backgroundColor: '#fff' }}
+      >
+        <div className="text-xs font-semibold mb-3" style={{ color: VINTAGE_COLORS.burgundy }}>
+          🎨 已收集头像
+        </div>
+        <div className="flex gap-2 overflow-x-auto">
+          {/* 当前头像 */}
+          <div className="flex-shrink-0">
+            <button
+              onClick={() => setShowAvatarManager(true)}
+              className="w-20 h-20 rounded-xl flex items-center justify-center text-4xl shadow-sm overflow-hidden relative"
+              style={{ backgroundColor: VINTAGE_COLORS.dustyBlue }}
+            >
+              {currentAvatarUrl ? (
+                <img src={currentAvatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                '🧑💼'
+              )}
+              <div 
+                className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] py-0.5 text-center"
+              >
+                当前
+              </div>
+            </button>
+          </div>
+          
+          {/* 待解锁头像框 */}
+          {[1, 2, 3, 4].map((level) => {
+            const requiredExp = level * 200; // 每级需要200经验
+            const isUnlocked = character.level > level;
+            
+            return (
+              <div key={level} className="flex-shrink-0">
+                <button
+                  onClick={() => setShowAvatarManager(true)}
+                  className="w-20 h-20 rounded-xl flex flex-col items-center justify-center shadow-sm overflow-hidden relative"
+                  style={{ 
+                    backgroundColor: isUnlocked ? VINTAGE_COLORS.sage : VINTAGE_COLORS.khaki,
+                    opacity: isUnlocked ? 1 : 0.6
+                  }}
+                >
+                  {isUnlocked ? (
+                    <>
+                      <span className="text-2xl">✓</span>
+                      <div className="text-[10px] mt-1" style={{ color: VINTAGE_COLORS.burgundy }}>
+                        已解锁
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-2xl">🔒</span>
+                      <div className="text-[10px] mt-1" style={{ color: VINTAGE_COLORS.burgundy }}>
+                        Lv.{level + 1}
+                      </div>
+                    </>
+                  )}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      
       {/* 角色信息面板 */}
       <div 
         className="rounded-2xl p-6 mb-4 shadow-sm"
