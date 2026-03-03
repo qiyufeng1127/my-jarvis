@@ -277,42 +277,6 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
 
       {/* 主内容区域 - 可滚动，底部留出导航栏空间，顶部适配刘海屏 */}
       <div className="flex-1 overflow-y-auto pb-32 relative" style={{ paddingTop: '20px' }}>
-        {/* 首页特殊处理：顶部栏和心情周报也放在滚动区域内 */}
-        {activeTab === 'home' && (
-          <>
-            <MobileTopBar
-              level={currentLevel}
-              levelName={getCurrentLevelConfig().name}
-              exp={currentExp}
-              maxExp={getCurrentLevelConfig().maxExp}
-              coins={balance}
-              githubCommits={0}
-              userAvatar={userAvatar}
-              onProfileClick={() => setShowUserProfile(true)}
-              onReviewClick={() => setShowDailyReview(true)}
-              onReceiptClick={() => setShowReceipt(true)}
-              onEditLevelName={() => setShowLevelCustomize(true)}
-              onViewBadges={() => setShowLevelCustomize(true)}
-              onAvatarUpload={(file) => {
-                // 处理头像上传 - 转换为 base64 并保存
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                  const base64String = reader.result as string;
-                  setUserAvatar(base64String);
-                  localStorage.setItem('user_avatar', base64String);
-                  console.log('✅ 头像已上传并保存');
-                };
-                reader.readAsDataURL(file);
-              }}
-            />
-            
-            {/* 心情周报卡片 - 放在萌芽新手卡片下面 */}
-            <div className="px-4 pb-4">
-              <MoodWeeklyCard />
-            </div>
-          </>
-        )}
-        
         {renderActiveModule()}
       </div>
 

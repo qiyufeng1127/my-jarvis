@@ -26,7 +26,7 @@ export default function RadarChart({ type, data }: RadarChartProps) {
 
     // 设置画布大小
     const dpr = window.devicePixelRatio || 1;
-    const size = 300;
+    const size = 280;
     canvas.width = size * dpr;
     canvas.height = size * dpr;
     canvas.style.width = `${size}px`;
@@ -38,7 +38,7 @@ export default function RadarChart({ type, data }: RadarChartProps) {
 
     const centerX = size / 2;
     const centerY = size / 2;
-    const radius = size / 2 - 60;
+    const radius = size / 2 - 65;
     const levels = 5; // 5个层级（0-20, 20-40, 40-60, 60-80, 80-100）
 
     // 绘制背景网格
@@ -127,7 +127,7 @@ export default function RadarChart({ type, data }: RadarChartProps) {
 
     for (let i = 0; i < data.length; i++) {
       const angle = (Math.PI * 2 * i) / data.length - Math.PI / 2;
-      const labelRadius = radius + 30;
+      const labelRadius = radius + 35;
       const x = centerX + labelRadius * Math.cos(angle);
       const y = centerY + labelRadius * Math.sin(angle);
       
@@ -152,7 +152,7 @@ export default function RadarChart({ type, data }: RadarChartProps) {
   // 如果没有数据，显示占位符
   if (!data || data.length === 0) {
     return (
-      <div className="flex items-center justify-center h-[300px] text-gray-400">
+      <div className="flex items-center justify-center h-[280px] text-gray-400">
         <p>暂无数据</p>
       </div>
     );
