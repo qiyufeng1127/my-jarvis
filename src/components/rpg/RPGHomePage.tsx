@@ -230,6 +230,74 @@ export default function RPGHomePage() {
         <FolderOpen className="w-6 h-6 text-white" />
       </button>
       
+      {/* 周统计卡片 - 横向进度条（来自MoodWeeklyCard，但改为任务完成度统计） */}
+      <div 
+        className="rounded-2xl p-6 mb-4 shadow-sm"
+        style={{ backgroundColor: '#fff' }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <button className="px-3 py-1 rounded-full text-sm" style={{ backgroundColor: VINTAGE_COLORS.khaki, color: VINTAGE_COLORS.burgundy }}>
+            Today
+          </button>
+          <button className="px-3 py-1 rounded-full text-sm font-bold" style={{ backgroundColor: VINTAGE_COLORS.sage, color: '#fff' }}>
+            Weekly
+          </button>
+          <button className="px-3 py-1 rounded-full text-sm" style={{ backgroundColor: VINTAGE_COLORS.khaki, color: VINTAGE_COLORS.burgundy }}>
+            Monthly
+          </button>
+          <button className="p-1">
+            <span className="text-lg">⋮</span>
+          </button>
+        </div>
+        
+        {/* 横向进度条 - 显示每天的任务完成情况 */}
+        <div className="flex items-end justify-between gap-2 h-48 mb-4">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => {
+            const heights = [60, 75, 85, 50, 90, 70, 80]; // 模拟数据，后续可以从实际数据计算
+            const colors = [VINTAGE_COLORS.beige, VINTAGE_COLORS.sage, VINTAGE_COLORS.mustard, VINTAGE_COLORS.softPink, VINTAGE_COLORS.terracotta, VINTAGE_COLORS.sage, VINTAGE_COLORS.mustard];
+            const emojis = ['😊', '😎', '😅', '😭', '😡', '🤔', '😴'];
+            
+            return (
+              <div key={day} className="flex-1 flex flex-col items-center">
+                <div className="w-full relative" style={{ height: `${heights[index]}%` }}>
+                  <div 
+                    className="w-full h-full rounded-t-2xl flex items-center justify-center transition-all hover:scale-105"
+                    style={{ backgroundColor: colors[index] }}
+                  >
+                    <span className="text-2xl">{emojis[index]}</span>
+                  </div>
+                </div>
+                <div className="text-xs mt-2 font-semibold" style={{ 
+                  color: index === 2 ? VINTAGE_COLORS.terracotta : VINTAGE_COLORS.burgundy 
+                }}>
+                  {day}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        
+        {/* 统计数据 - 显示任务相关数据而非心情 */}
+        <div className="grid grid-cols-3 gap-4">
+          <div className="text-center">
+            <div className="text-xs opacity-70 mb-1" style={{ color: VINTAGE_COLORS.burgundy }}>完成率</div>
+            <div className="text-2xl font-bold" style={{ color: VINTAGE_COLORS.burgundy }}>
+              {dailyTasks.length > 0 ? Math.round((dailyTasks.filter(t => t.completed).length / dailyTasks.length) * 100) : 0}%
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-xs opacity-70 mb-1" style={{ color: VINTAGE_COLORS.burgundy }}>已完成</div>
+            <div className="text-2xl font-bold" style={{ color: VINTAGE_COLORS.burgundy }}>
+              {dailyTasks.filter(t => t.completed).length}
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-xs opacity-70 mb-1" style={{ color: VINTAGE_COLORS.burgundy }}>连续</div>
+            <div className="text-2xl font-bold" style={{ color: VINTAGE_COLORS.burgundy }}>7天</div>
+          </div>
+        </div>
+      </div>
+      
       {/* 角色信息面板 */}
       <div 
         className="rounded-2xl p-6 mb-4 shadow-sm"
