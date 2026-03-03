@@ -1,22 +1,38 @@
 import { useEffect, useState } from 'react';
 import { useRPGStore } from '@/stores/rpgStore';
 import { useTaskStore } from '@/stores/taskStore';
-import { ChevronRight, Star, TrendingUp, Target, Coins, AlertTriangle, Award, TreeDeciduous, Gift, Calendar } from 'lucide-react';
+import { useAvatarStore } from '@/stores/avatarStore';
+import { ChevronRight, Star, TrendingUp, Target, Coins, AlertTriangle, Award, TreeDeciduous, Gift, Calendar, Sparkles, RefreshCw, FolderOpen } from 'lucide-react';
+import { RPGAIAnalyzer } from '@/services/rpgAIAnalyzer';
+import { RPGTaskSyncService } from '@/services/rpgTaskSyncService';
+import { RPGNotificationService } from '@/services/rpgNotificationService';
+import AchievementWall from './AchievementWall';
+import GrowthTree from './GrowthTree';
+import SeasonPass from './SeasonPass';
+import AvatarCollectionManager from './AvatarCollectionManager';
+import { 
+  TaskCompleteAnimation, 
+  LevelUpAnimation, 
+  ExpGainAnimation, 
+  GoldGainAnimation,
+  AchievementUnlockAnimation,
+  ComboAnimation
+} from './RPGAnimations';
 
-// iOS复古风格颜色
+// iOS复古风格颜色 - 根据参考图片更新
 const VINTAGE_COLORS = {
-  buttermilk: '#FFF1B5',
-  pastelBlue: '#C1DBE8',
-  burgundy: '#43302E',
-  tangerine: '#EAA239',
-  cream: '#FFF4A1',
-  leaves: '#8F9E25',
-  wisteria: '#C3A5C1',
-  mulberry: '#97332C',
-  khaki: '#D4C5A0',
-  softPink: '#F5D5CB',
-  paleGreen: '#C8D5B9',
-  dustyRed: '#C97064',
+  cream: '#FFF4E6',        // 奶油白
+  softPink: '#F5D5CB',     // 柔粉
+  dustyRose: '#E8B4B8',    // 灰玫瑰
+  mauve: '#C8A2C8',        // 淡紫
+  deepPurple: '#6B4C6B',   // 深紫
+  beige: '#E8DCC4',        // 米色
+  khaki: '#D4C5A0',        // 卡其
+  sage: '#B8C5A8',         // 鼠尾草绿
+  dustyBlue: '#A8B8C8',    // 灰蓝
+  terracotta: '#C97064',   // 陶土红
+  mustard: '#D4A574',      // 芥末黄
+  burgundy: '#43302E',     // 深褐
 };
 
 export default function RPGHomePage() {
@@ -31,34 +47,174 @@ export default function RPGHomePage() {
     completeTask,
     addExp,
     addGold,
+    updateCharacter,
   } = useRPGStore();
   
   const { tasks } = useTaskStore();
+  const { currentAvatarUrl, checkAndUnlockAvatars } = useAvatarStore();
   
   const [showTaskDetail, setShowTaskDetail] = useState<string | null>(null);
   const [showAchievements, setShowAchievements] = useState(false);
   const [showGoals, setShowGoals] = useState(false);
+  const [showGrowthTree, setShowGrowthTree] = useState(false);
+  const [showSeasonPass, setShowSeasonPass] = useState(false);
+  const [showAvatarManager, setShowAvatarManager] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  
+  // 动画状态
+  const [showTaskCompleteAnim, setShowTaskCompleteAnim] = useState(false);
+  const [showLevelUpAnim, setShowLevelUpAnim] = useState(false);
+  const [showExpGain, setShowExpGain] = useState<{ show: boolean; amount: number }>({ show: false, amount: 0 });
+  const [showGoldGain, setShowGoldGain] = useState<{ show: boolean; amount: number }>({ show: false, amount: 0 });
+  const [showAchievementUnlock, setShowAchievementUnlock] = useState<{ show: boolean; achievement?: any }>({ show: false });
+  const [combo, setCombo] = useState(0);
+  const [lastCompleteTime, setLastCompleteTime] = useState(0);
 
-  // 自动生成每日任务
+  // 检查并解锁头像
   useEffect(() => {
-    generateDailyTasks();
+    checkAndUnlockAvatars(character.exp);
+  }, [character.exp]);
+
+  // 自动生成每日任务（使用AI）
+  useEffect(() => {
+    const initTasks = async () => {
+      if (dailyTasks.length === 0) {
+        setIsGenerating(true);
+        try {
+          const aiTasks = await RPGAIAnalyzer.generateDailyTasks();
+          aiTasks.forEach(task => {
+            useRPGStore.getState().addDailyTask(task);
+          });
+          
+          // 同时更新角色画像
+          const profile = await RPGAIAnalyzer.updateCharacterProfile();
+          updateCharacter(profile);
+        } catch (error) {
+          console.error('AI生成任务失败：', error);
+          // 回退到默认生成
+          generateDailyTasks();
+        } finally {
+          setIsGenerating(false);
+        }
+      }
+    };
+    
+    initTasks();
   }, []);
 
   // 处理任务完成
   const handleCompleteTask = (taskId: string) => {
+    const task = dailyTasks.find(t => t.id === taskId);
+    if (!task || task.completed) return;
+    
+    // 检查连击
+    const now = Date.now();
+    if (now - lastCompleteTime < 10000) { // 10秒内连续完成
+      setCombo(prev => prev + 1);
+    } else {
+      setCombo(1);
+    }
+    setLastCompleteTime(now);
+    
+    // 完成任务
+    const oldLevel = character.level;
     completeTask(taskId);
-    // 显示iOS式简洁提示
-    // TODO: 添加toast提示
+    const newLevel = useRPGStore.getState().character.level;
+    
+    // 显示动画
+    setShowTaskCompleteAnim(true);
+    setShowExpGain({ show: true, amount: task.expReward });
+    setShowGoldGain({ show: true, amount: task.goldReward });
+    
+    // 显示通知
+    RPGNotificationService.showTaskComplete(task.title, task.expReward, task.goldReward);
+    
+    // 检查是否升级
+    if (newLevel > oldLevel) {
+      setTimeout(() => {
+        setShowLevelUpAnim(true);
+        RPGNotificationService.showLevelUp(newLevel, character.title);
+      }, 1000);
+    }
+    
+    // 改进任务特殊提示
+    if (task.isImprovement) {
+      setTimeout(() => {
+        RPGNotificationService.showImprovementComplete(task.title);
+      }, 1500);
+    }
   };
 
-  // 一键领取所有任务
-  const handleClaimAllTasks = () => {
-    // TODO: 将任务同步到时间轴
-    alert('任务已同步到时间轴！');
+  // 一键领取所有任务（智能同步）
+  const handleClaimAllTasks = async () => {
+    setIsSyncing(true);
+    try {
+      const result = await RPGTaskSyncService.smartScheduleTasks(dailyTasks.filter(t => !t.completed));
+      
+      RPGNotificationService.show({
+        type: 'success',
+        title: '✅ 同步成功',
+        message: `已将 ${result.success} 个任务同步到时间轴`,
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('同步失败：', error);
+      RPGNotificationService.showWarning('同步失败', '请稍后重试');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+  
+  // 重新生成任务
+  const handleRegenerateTasks = async () => {
+    setIsGenerating(true);
+    try {
+      const aiTasks = await RPGAIAnalyzer.generateDailyTasks();
+      // 清空现有任务
+      useRPGStore.setState({ dailyTasks: [] });
+      // 添加新任务
+      aiTasks.forEach(task => {
+        useRPGStore.getState().addDailyTask(task);
+      });
+      
+      RPGNotificationService.show({
+        type: 'success',
+        title: '✨ 任务已更新',
+        message: '已根据你的数据生成新任务',
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('重新生成失败：', error);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
     <div className="min-h-screen p-4 pb-20" style={{ backgroundColor: VINTAGE_COLORS.cream }}>
+      {/* 动画层 */}
+      <TaskCompleteAnimation 
+        show={showTaskCompleteAnim} 
+        onComplete={() => setShowTaskCompleteAnim(false)} 
+      />
+      <LevelUpAnimation 
+        show={showLevelUpAnim} 
+        onComplete={() => setShowLevelUpAnim(false)} 
+      />
+      <ExpGainAnimation show={showExpGain.show} amount={showExpGain.amount} />
+      <GoldGainAnimation show={showGoldGain.show} amount={showGoldGain.amount} />
+      <AchievementUnlockAnimation 
+        show={showAchievementUnlock.show} 
+        achievement={showAchievementUnlock.achievement}
+        onComplete={() => setShowAchievementUnlock({ show: false })}
+      />
+      <ComboAnimation show={combo > 1} combo={combo} />
+      
+      {/* 弹窗 */}
+      <AchievementWall isOpen={showAchievements} onClose={() => setShowAchievements(false)} />
+      <GrowthTree isOpen={showGrowthTree} onClose={() => setShowGrowthTree(false)} />
+      <SeasonPass isOpen={showSeasonPass} onClose={() => setShowSeasonPass(false)} />
       {/* 角色信息面板 */}
       <div 
         className="rounded-2xl p-6 mb-4 shadow-sm"
@@ -328,16 +484,33 @@ export default function RPGHomePage() {
               📝 每日任务宝箱
             </span>
           </div>
-          <button 
-            onClick={handleClaimAllTasks}
-            className="text-xs px-3 py-1.5 rounded-full font-semibold"
-            style={{ 
-              backgroundColor: VINTAGE_COLORS.leaves,
-              color: '#fff'
-            }}
-          >
-            一键领取
-          </button>
+          <div className="flex gap-2">
+            <button 
+              onClick={handleRegenerateTasks}
+              disabled={isGenerating}
+              className="text-xs px-3 py-1.5 rounded-full font-semibold flex items-center gap-1"
+              style={{ 
+                backgroundColor: VINTAGE_COLORS.pastelBlue,
+                color: VINTAGE_COLORS.burgundy,
+                opacity: isGenerating ? 0.5 : 1
+              }}
+            >
+              <RefreshCw className={`w-3 h-3 ${isGenerating ? 'animate-spin' : ''}`} />
+              {isGenerating ? '生成中' : '重新生成'}
+            </button>
+            <button 
+              onClick={handleClaimAllTasks}
+              disabled={isSyncing}
+              className="text-xs px-3 py-1.5 rounded-full font-semibold"
+              style={{ 
+                backgroundColor: VINTAGE_COLORS.leaves,
+                color: '#fff',
+                opacity: isSyncing ? 0.5 : 1
+              }}
+            >
+              {isSyncing ? '同步中...' : '一键领取'}
+            </button>
+          </div>
         </div>
         
         <div className="space-y-2">
@@ -429,24 +602,16 @@ export default function RPGHomePage() {
 
       {/* 成就墙预览 */}
       <div 
-        className="rounded-2xl p-4 mb-4 shadow-sm"
+        className="rounded-2xl p-4 mb-4 shadow-sm cursor-pointer"
         style={{ backgroundColor: VINTAGE_COLORS.wisteria }}
+        onClick={() => setShowAchievements(true)}
       >
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Award className="w-5 h-5 text-white" />
             <span className="font-bold text-white">🏅 成就勋章</span>
           </div>
-          <button 
-            onClick={() => setShowAchievements(true)}
-            className="text-xs px-3 py-1 rounded-full"
-            style={{ 
-              backgroundColor: 'rgba(255,255,255,0.3)',
-              color: '#fff'
-            }}
-          >
-            查看全部
-          </button>
+          <ChevronRight className="w-5 h-5 text-white" />
         </div>
         
         <div className="flex gap-2 overflow-x-auto pb-2">
@@ -463,6 +628,37 @@ export default function RPGHomePage() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* 成长树和赛季通行证 */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <button
+          onClick={() => setShowGrowthTree(true)}
+          className="rounded-2xl p-4 shadow-sm text-left"
+          style={{ backgroundColor: VINTAGE_COLORS.paleGreen }}
+        >
+          <TreeDeciduous className="w-6 h-6 mb-2" style={{ color: VINTAGE_COLORS.burgundy }} />
+          <div className="font-bold text-sm mb-1" style={{ color: VINTAGE_COLORS.burgundy }}>
+            成长之树
+          </div>
+          <div className="text-xs opacity-70" style={{ color: VINTAGE_COLORS.burgundy }}>
+            {character.level} 级
+          </div>
+        </button>
+        
+        <button
+          onClick={() => setShowSeasonPass(true)}
+          className="rounded-2xl p-4 shadow-sm text-left"
+          style={{ backgroundColor: VINTAGE_COLORS.wisteria }}
+        >
+          <Gift className="w-6 h-6 mb-2 text-white" />
+          <div className="font-bold text-sm mb-1 text-white">
+            赛季通行证
+          </div>
+          <div className="text-xs opacity-80 text-white">
+            第1赛季
+          </div>
+        </button>
       </div>
 
       {/* 成长数据面板 */}
