@@ -138,7 +138,7 @@ export default function JournalModule({ isDark = false, bgColor = '#ffffff' }: J
               1. 我感受到了什么？
             </label>
             <textarea
-              placeholder="请具体描述情绪名称，如"失望"、"焦虑"、"兴奋"，而非简单的"好"或"坏""
+              placeholder="请具体描述情绪名称，如「失望」、「焦虑」、「兴奋」，而非简单的「好」或「坏」"
               rows={2}
               className="w-full px-3 py-2 rounded-xl border-2 text-sm resize-none focus:outline-none focus:ring-2 transition-all"
               style={{

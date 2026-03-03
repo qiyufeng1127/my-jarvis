@@ -2543,17 +2543,17 @@ export default function NewTimelineView({
 
                     {/* 第三行：按钮 + 金币 + start - 手机版缩小 */}
                     <div className="flex items-center justify-between">
-                      {/* 左侧：三个圆形按钮 */}
+                      {/* 左侧：圆形按钮 */}
                       <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
                         {/* AI拆解子任务 */}
                         <button
                           onClick={() => handleGenerateSubTasks(block.id, block.title, block.description)}
                           disabled={generatingSubTasks === block.id}
-                          className={`${isMobile ? 'w-6 h-6' : 'w-7 h-7'} rounded-full flex items-center justify-center transition-all hover:scale-110 disabled:opacity-50`}
+                          className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110 disabled:opacity-50"
                           style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
                           title="AI拆解子任务"
                         >
-                          <span className={`${isMobile ? 'text-sm' : 'text-base'}`}>{generatingSubTasks === block.id ? '⏳' : '⭐'}</span>
+                          <span className="text-sm">{generatingSubTasks === block.id ? '⏳' : '⭐'}</span>
                         </button>
                         
                         {/* 启用/编辑验证 */}
@@ -2566,7 +2566,7 @@ export default function NewTimelineView({
                               handleEnableVerification(block.id, block.title, block.taskType || 'work');
                             }
                           }}
-                          className={`${isMobile ? 'w-6 h-6' : 'w-7 h-7'} rounded-full flex items-center justify-center transition-all hover:scale-110`}
+                          className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110"
                           style={{ 
                             backgroundColor: taskVerifications[block.id]?.enabled 
                               ? 'rgba(34,197,94,0.4)' 
@@ -2574,17 +2574,7 @@ export default function NewTimelineView({
                           }}
                           title={taskVerifications[block.id]?.enabled ? '编辑验证关键词' : '启用拖延验证'}
                         >
-                          <span className={`${isMobile ? 'text-sm' : 'text-base'}`}>⏱️</span>
-                        </button>
-                        
-                        {/* 笔记和附件 */}
-                        <button
-                          onClick={() => toggleExpand(block.id)}
-                          className={`${isMobile ? 'w-6 h-6' : 'w-7 h-7'} rounded-full flex items-center justify-center transition-all hover:scale-110`}
-                          style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
-                          title="笔记和附件"
-                        >
-                          <span className={`${isMobile ? 'text-sm' : 'text-base'}`}>📝</span>
+                          <span className="text-sm">⏱️</span>
                         </button>
                       </div>
 
@@ -2638,34 +2628,34 @@ export default function NewTimelineView({
                         )}
                         
                         {block.status === 'in_progress' && (
-                          <>
-                            <div 
-                              className={`${isMobile ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-0.5 text-xs'} rounded-full font-bold`}
-                              style={{ 
-                                backgroundColor: 'rgba(34,197,94,0.3)',
-                                color: 'rgba(255,255,255,0.95)',
-                              }}
-                            >
-                              进行中
-                            </div>
-                            <SaveToSOPButton task={block} isDark={isDark} size="small" />
-                            
-                            {/* 任务重复按钮 */}
-                            <button
-                              onClick={() => setRecurrenceDialogTask(allTasks.find(t => t.id === block.id) || null)}
-                              className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110"
-                              style={{ 
-                                backgroundColor: block.isRecurring ? 'rgba(16, 185, 129, 0.3)' : 'rgba(139, 92, 246, 0.3)',
-                              }}
-                              title={block.isRecurring ? '已设置重复' : '设置任务重复'}
-                            >
-                              <span className="text-sm">🔄</span>
-                            </button>
-                          </>
+                          <div 
+                            className="px-2 py-0.5 text-xs rounded-full font-bold"
+                            style={{ 
+                              backgroundColor: 'rgba(34,197,94,0.3)',
+                              color: 'rgba(255,255,255,0.95)',
+                            }}
+                          >
+                            进行中
+                          </div>
                         )}
                         
-                        {/* SOP按钮和重复按钮 - 始终显示 */}
-                        <SaveToSOPButton task={block} isDark={isDark} size="small" />
+                        {/* SOP按钮 - 始终显示 */}
+                        <button
+                          onClick={() => {
+                            const taskData = allTasks.find(t => t.id === block.id);
+                            if (taskData) {
+                              eventBus.emit('openSOPDialog', taskData);
+                            }
+                          }}
+                          className="px-2 py-0.5 rounded-full text-xs font-bold transition-all hover:scale-105"
+                          style={{ 
+                            backgroundColor: 'rgba(59, 130, 246, 0.3)',
+                            color: 'rgb(255, 255, 255)',
+                          }}
+                          title="保存到SOP"
+                        >
+                          SOP
+                        </button>
                         
                         {/* 任务重复按钮 */}
                         <button
@@ -2680,10 +2670,10 @@ export default function NewTimelineView({
                         </button>
                         <button
                           onClick={() => toggleExpand(block.id)}
-                          className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} rounded-full flex items-center justify-center transition-all hover:scale-110`}
+                          className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110"
                           style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
                         >
-                          <ChevronDown className={`${isMobile ? 'w-3 h-3' : 'w-3.5 h-3.5'}`} />
+                          <ChevronDown className="w-3 h-3" />
                         </button>
                       </div>
                     </div>
@@ -2840,7 +2830,7 @@ export default function NewTimelineView({
                         <button
                           onClick={() => handleGenerateSubTasks(block.id, block.title, block.description)}
                           disabled={generatingSubTasks === block.id}
-                          className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110 disabled:opacity-50"
+                          className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110 disabled:opacity-50"
                           style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
                           title="AI拆解子任务"
                         >
@@ -2859,7 +2849,7 @@ export default function NewTimelineView({
                               handleEnableVerification(block.id, block.title, block.taskType || 'work');
                             }
                           }}
-                          className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                          className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110"
                           style={{ 
                             backgroundColor: taskVerifications[block.id]?.enabled 
                               ? 'rgba(34,197,94,0.4)' 
@@ -2868,16 +2858,6 @@ export default function NewTimelineView({
                           title={taskVerifications[block.id]?.enabled ? '编辑验证关键词' : '启用拖延验证'}
                         >
                           <span className="text-sm">⏱️</span>
-                        </button>
-                        
-                        {/* 笔记和附件 */}
-                        <button
-                          onClick={() => toggleExpand(block.id)}
-                          className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
-                          style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
-                          title="笔记和附件"
-                        >
-                          <span className="text-sm">📝</span>
                         </button>
                       </div>
 
