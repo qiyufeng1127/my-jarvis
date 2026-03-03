@@ -2677,23 +2677,20 @@ export default function NewTimelineView({
                           </>
                         )}
                         
-                        {block.isCompleted && (
-                          <>
-                            <SaveToSOPButton task={block} isDark={isDark} size="small" />
-                            
-                            {/* 任务重复按钮 */}
-                            <button
-                              onClick={() => setRecurrenceDialogTask(allTasks.find(t => t.id === block.id) || null)}
-                              className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110"
-                              style={{ 
-                                backgroundColor: block.isRecurring ? 'rgba(16, 185, 129, 0.3)' : 'rgba(139, 92, 246, 0.3)',
-                              }}
-                              title={block.isRecurring ? '已设置重复' : '设置任务重复'}
-                            >
-                              <span className="text-sm">🔄</span>
-                            </button>
-                          </>
-                        )}
+                        {/* SOP按钮和重复按钮 - 始终显示 */}
+                        <SaveToSOPButton task={block} isDark={isDark} size="small" />
+                        
+                        {/* 任务重复按钮 */}
+                        <button
+                          onClick={() => setRecurrenceDialogTask(allTasks.find(t => t.id === block.id) || null)}
+                          className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                          style={{ 
+                            backgroundColor: block.isRecurring ? 'rgba(16, 185, 129, 0.3)' : 'rgba(139, 92, 246, 0.3)',
+                          }}
+                          title={block.isRecurring ? '已设置重复' : '设置任务重复'}
+                        >
+                          <span className="text-sm">🔄</span>
+                        </button>
 
                         <button
                           onClick={() => toggleExpand(block.id)}
