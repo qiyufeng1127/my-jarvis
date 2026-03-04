@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { 
-  Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon
+  Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Inbox, Zap
 } from 'lucide-react';
 import type { Task } from '@/types';
 import NewTimelineView from './NewTimelineView';
+import InboxView from './InboxView';
+import QuickStartView from './QuickStartView';
 
 interface TimelineCalendarProps {
   tasks: Task[];
@@ -42,6 +44,8 @@ export default function TimelineCalendar({
   const [calendarView, setCalendarView] = useState<'week' | 'month'>(isMobile ? 'week' : 'month');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isEditingTask, setIsEditingTask] = useState(false); // 新增：跟踪是否正在编辑任务
+  const [showInbox, setShowInbox] = useState(false); // 新增：是否显示收集箱
+  const [showQuickStart, setShowQuickStart] = useState(false); // 新增：是否显示快捷开始
   
   const timelineRef = useRef<HTMLDivElement>(null);
   
@@ -436,28 +440,126 @@ export default function TimelineCalendar({
       </div>
       )}
 
-      {/* 下半部分：时间轴视图 */}
+      {/* 下半部分：时间轴视图或收集箱或快捷开始 */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        {/* 时间轴主体区域 - 新设计 */}
+        {/* 视图切换按钮 */}
+        <div className="flex-shrink-0 px-4 py-2 flex items-center gap-2" style={{ borderBottom: `1px solid ${borderColor}` }}>
+          <button
+            onClick={() => {
+              setShowInbox(false);
+              setShowQuickStart(false);
+            }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+              !showInbox && !showQuickStart ? 'font-semibold shadow-sm' : ''
+            }`}
+            style={{
+              backgroundColor: !showInbox && !showQuickStart ? hoverBg : 'transparent',
+              color: !showInbox && !showQuickStart ? textColor : accentColor,
+            }}
+          >
+            <CalendarIcon className="w-4 h-4" />
+            <span>时间轴</span>
+          </button>
+          
+          <button
+            onClick={() => {
+              setShowInbox(true);
+              setShowQuickStart(false);
+            }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+              showInbox ? 'font-semibold shadow-sm' : ''
+            }`}
+            style={{
+              backgroundColor: showInbox ? hoverBg : 'transparent',
+              color: showInbox ? textColor : accentColor,
+            }}
+          >
+            <Inbox className="w-4 h-4" />
+            <span>收集箱</span>
+            {tasks.filter(t => !t.scheduledStart).length > 0 && (
+              <span 
+                className="px-2 py-0.5 rounded-full text-xs font-bold"
+                style={{
+                  backgroundColor: '#FF4444',
+                  color: '#FFFFFF',
+                }}
+              >
+                {tasks.filter(t => !t.scheduledStart).length}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => {
+              setShowInbox(false);
+              setShowQuickStart(true);
+            }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+              showQuickStart ? 'font-semibold shadow-sm' : ''
+            }`}
+            style={{
+              backgroundColor: showQuickStart ? hoverBg : 'transparent',
+              color: showQuickStart ? textColor : accentColor,
+            }}
+          >
+            <Zap className="w-4 h-4" />
+            <span>快捷开始</span>
+          </button>
+        </div>
+
+        {/* 主体区域 */}
         <div 
           ref={timelineRef}
-          className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 text-gray-800 dark:text-white"
+          className="flex-1 overflow-y-auto overflow-x-hidden text-gray-800 dark:text-white"
         >
-          <NewTimelineView
-            tasks={tasks}
-            selectedDate={selectedDate}
-            onTaskUpdate={onTaskUpdate}
-            onTaskCreate={onTaskCreate}
-            onTaskDelete={onTaskDelete}
-            bgColor={bgColor}
-            textColor={textColor}
-            accentColor={accentColor}
-            borderColor={borderColor}
-            isDark={isDark}
-            onEditingChange={setIsEditingTask}
-          />
-                </div>
-              </div>
+          {showQuickStart ? (
+            <QuickStartView
+              tasks={tasks}
+              onTaskCreate={(task) => {
+                onTaskCreate(task);
+              }}
+              onTaskUpdate={onTaskUpdate}
+              onTaskDelete={onTaskDelete}
+              bgColor={bgColor}
+              textColor={textColor}
+              accentColor={accentColor}
+              borderColor={borderColor}
+              isDark={isDark}
+            />
+          ) : showInbox ? (
+            <InboxView
+              tasks={tasks}
+              onTaskUpdate={onTaskUpdate}
+              onTaskCreate={onTaskCreate}
+              onTaskDelete={onTaskDelete}
+              onStartTask={(taskId) => {
+                // 切换回时间轴视图
+                setShowInbox(false);
+                setShowQuickStart(false);
+              }}
+              bgColor={bgColor}
+              textColor={textColor}
+              accentColor={accentColor}
+              borderColor={borderColor}
+              isDark={isDark}
+            />
+          ) : (
+            <NewTimelineView
+              tasks={tasks}
+              selectedDate={selectedDate}
+              onTaskUpdate={onTaskUpdate}
+              onTaskCreate={onTaskCreate}
+              onTaskDelete={onTaskDelete}
+              bgColor={bgColor}
+              textColor={textColor}
+              accentColor={accentColor}
+              borderColor={borderColor}
+              isDark={isDark}
+              onEditingChange={setIsEditingTask}
+            />
+          )}
+        </div>
+      </div>
 
     </div>
   );

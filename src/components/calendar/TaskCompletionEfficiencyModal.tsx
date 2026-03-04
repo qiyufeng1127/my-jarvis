@@ -27,10 +27,18 @@ export default function TaskCompletionEfficiencyModal({
   const [efficiency, setEfficiency] = useState(100);
   const [isDragging, setIsDragging] = useState(false);
   const [notes, setNotes] = useState(''); // 备注
+  
+  // 新增：6个反思问题的状态
+  const [feeling, setFeeling] = useState(''); // 1. 我感受到了什么
+  const [reason, setReason] = useState(''); // 2. 为什么有这样的感受
+  const [bodyFeeling, setBodyFeeling] = useState(''); // 3. 身体感受
+  const [thoughts, setThoughts] = useState(''); // 4. 自动想法
+  const [behavior, setBehavior] = useState(''); // 5. 实际行为
+  const [reflection, setReflection] = useState(''); // 6. 认知重评/反思
 
   if (!isOpen) return null;
 
-  // 复古糖果色配色方案
+  // 鲜艳糖果色配色方案
   const candyColors = {
     pink: '#FF6B9D',      // 糖果粉
     mint: '#98D8C8',      // 薄荷绿
@@ -57,7 +65,20 @@ export default function TaskCompletionEfficiencyModal({
   };
 
   const handleConfirm = () => {
-    onConfirm(efficiency, notes);
+    // 将所有反思内容组合成一段话
+    const completionNotes = [
+      `【完成效率】${efficiency}% - ${efficiencyLevel.label}`,
+      feeling && `【感受】${feeling}`,
+      reason && `【原因】${reason}`,
+      bodyFeeling && `【身体感受】${bodyFeeling}`,
+      thoughts && `【自动想法】${thoughts}`,
+      behavior && `【实际行为】${behavior}`,
+      reflection && `【认知重评】${reflection}`,
+    ].filter(Boolean).join('\n\n');
+    
+    console.log('📝 [完成反思] 保存内容:', completionNotes);
+    
+    onConfirm(efficiency, completionNotes);
     onClose();
   };
 
@@ -65,7 +86,7 @@ export default function TaskCompletionEfficiencyModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 bg-black/50 backdrop-blur-sm">
       <div
         className="relative w-full max-w-md max-h-[85vh] rounded-3xl shadow-2xl flex flex-col animate-in fade-in zoom-in duration-200"
-        style={{ backgroundColor: '#FFF5F7' }}
+        style={{ backgroundColor: '#F8F6F3' }}
       >
         {/* 关闭按钮 - 固定在顶部 */}
         <button
@@ -85,10 +106,10 @@ export default function TaskCompletionEfficiencyModal({
             <div className="flex items-center justify-center gap-3">
               <span className="text-5xl animate-bounce">💰</span>
               <div className="text-center">
-                <div className="text-4xl font-black text-white animate-pulse drop-shadow-lg">
+                <div className="text-4xl font-black drop-shadow-lg" style={{ color: '#8B7355' }}>
                   +{goldReward} 金币
                 </div>
-                <div className="text-sm font-medium mt-1" style={{ color: '#8B6914' }}>
+                <div className="text-sm font-medium mt-1" style={{ color: '#6B5D4F' }}>
                   🎉 太棒啦！
                 </div>
               </div>
@@ -100,36 +121,36 @@ export default function TaskCompletionEfficiencyModal({
         {/* 标题 */}
         <div className="mb-6 text-center">
           <div className="text-3xl mb-2">✨</div>
-          <h2 className="text-2xl font-bold mb-2" style={{ color: candyColors.pink }}>任务完成啦！</h2>
-          <p className="text-sm font-medium" style={{ color: candyColors.coral }}>
+          <h2 className="text-2xl font-bold mb-2" style={{ color: '#2C2C2C' }}>任务完成啦！</h2>
+          <p className="text-sm font-medium" style={{ color: '#666666' }}>
             {taskTitle}
           </p>
         </div>
 
         {/* 图片统计 */}
-        <div className="mb-6 p-4 rounded-2xl" style={{ backgroundColor: candyColors.mint + '30' }}>
+        <div className="mb-6 p-4 rounded-2xl border-2" style={{ backgroundColor: candyColors.mint + '15', borderColor: candyColors.mint }}>
           <div className="flex justify-between items-center mb-2">
-            <span className="text-sm font-medium flex items-center gap-1" style={{ color: candyColors.mint }}>
+            <span className="text-sm font-medium flex items-center gap-1" style={{ color: '#2C2C2C' }}>
               📸 计划拍照
             </span>
-            <span className="font-bold text-lg" style={{ color: candyColors.mint }}>{plannedImageCount} 次</span>
+            <span className="font-bold text-lg" style={{ color: '#2C2C2C' }}>{plannedImageCount} 次</span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-sm font-medium flex items-center gap-1" style={{ color: candyColors.mint }}>
+            <span className="text-sm font-medium flex items-center gap-1" style={{ color: '#2C2C2C' }}>
               ✅ 实际拍照
             </span>
-            <span className="font-bold text-lg" style={{ color: candyColors.mint }}>{actualImageCount} 次</span>
+            <span className="font-bold text-lg" style={{ color: '#2C2C2C' }}>{actualImageCount} 次</span>
           </div>
         </div>
 
         {/* 效率滑块 */}
         <div className="mb-6">
           <div className="flex justify-between items-center mb-4">
-            <span className="font-bold text-lg" style={{ color: candyColors.lavender }}>🎯 完成效率</span>
+            <span className="font-bold text-lg" style={{ color: '#2C2C2C' }}>🎯 完成效率</span>
             <div className="flex items-center gap-2">
               <div
                 className="flex items-center gap-1 px-4 py-2 rounded-full shadow-md"
-                style={{ backgroundColor: efficiencyLevel.color, color: 'white' }}
+                style={{ backgroundColor: efficiencyLevel.color, color: '#FFFFFF' }}
               >
                 <span className="text-xl">{efficiencyLevel.emoji}</span>
                 <span className="font-black text-lg">{efficiency}%</span>
@@ -157,7 +178,7 @@ export default function TaskCompletionEfficiencyModal({
               onTouchEnd={() => setIsDragging(false)}
               className="w-full h-4 rounded-full appearance-none cursor-pointer transition-all"
               style={{
-                background: `linear-gradient(to right, ${efficiencyLevel.color} 0%, ${efficiencyLevel.color} ${efficiency}%, #FFE4E9 ${efficiency}%, #FFE4E9 100%)`,
+                background: `linear-gradient(to right, ${efficiencyLevel.color} 0%, ${efficiencyLevel.color} ${efficiency}%, #E8E4DF ${efficiency}%, #E8E4DF 100%)`,
               }}
             />
             <style>{`
@@ -198,7 +219,7 @@ export default function TaskCompletionEfficiencyModal({
           </div>
 
           {/* 刻度标记 */}
-          <div className="flex justify-between mt-2 text-xs font-medium" style={{ color: candyColors.coral }}>
+          <div className="flex justify-between mt-2 text-xs font-medium" style={{ color: '#666666' }}>
             <span>0%</span>
             <span>25%</span>
             <span>50%</span>
@@ -221,108 +242,120 @@ export default function TaskCompletionEfficiencyModal({
         <div className="mb-6 space-y-4">
           {/* 1. 我感受到了什么 */}
           <div>
-            <label className="block text-sm font-bold mb-2 flex items-center gap-2" style={{ color: candyColors.pink }}>
+            <label className="block text-sm font-bold mb-2 flex items-center gap-2" style={{ color: '#2C2C2C' }}>
               <span className="text-lg">💭</span>
               1. 我感受到了什么？
             </label>
             <textarea
+              value={feeling}
+              onChange={(e) => setFeeling(e.target.value)}
               placeholder='请具体描述情绪名称，如"失望"、"焦虑"、"兴奋"，而非简单的"好"或"坏"'
               rows={2}
-              className="w-full px-4 py-3 rounded-2xl border-3 text-sm resize-none focus:outline-none focus:ring-3 transition-all shadow-sm"
+              className="w-full px-4 py-3 rounded-2xl border-2 text-sm resize-none focus:outline-none focus:ring-2 transition-all shadow-sm"
               style={{ 
-                backgroundColor: 'white',
-                borderColor: candyColors.pink + '60',
-                color: '#333'
+                backgroundColor: candyColors.pink + '15',
+                borderColor: candyColors.pink,
+                color: '#2C2C2C'
               }}
             />
           </div>
 
           {/* 2. 为什么有这样的感受 */}
           <div>
-            <label className="block text-sm font-bold mb-2 flex items-center gap-2" style={{ color: candyColors.peach }}>
+            <label className="block text-sm font-bold mb-2 flex items-center gap-2" style={{ color: '#2C2C2C' }}>
               <span className="text-lg">🤔</span>
               2. 为什么有这样的感受？
             </label>
             <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
               placeholder="描述引发这种感受的具体事件或原因..."
               rows={2}
-              className="w-full px-4 py-3 rounded-2xl border-3 text-sm resize-none focus:outline-none focus:ring-3 transition-all shadow-sm"
+              className="w-full px-4 py-3 rounded-2xl border-2 text-sm resize-none focus:outline-none focus:ring-2 transition-all shadow-sm"
               style={{ 
-                backgroundColor: 'white',
-                borderColor: candyColors.peach + '60',
-                color: '#333'
+                backgroundColor: candyColors.peach + '15',
+                borderColor: candyColors.peach,
+                color: '#2C2C2C'
               }}
             />
           </div>
 
           {/* 3. 身体感受 */}
           <div>
-            <label className="block text-sm font-bold mb-2 flex items-center gap-2" style={{ color: candyColors.mint }}>
+            <label className="block text-sm font-bold mb-2 flex items-center gap-2" style={{ color: '#2C2C2C' }}>
               <span className="text-lg">🫀</span>
               3. 身体感受：情绪在我身体上有什么表现？
             </label>
             <textarea
+              value={bodyFeeling}
+              onChange={(e) => setBodyFeeling(e.target.value)}
               placeholder="如心跳加快、肩膀紧绷、胃部不适..."
               rows={2}
-              className="w-full px-4 py-3 rounded-2xl border-3 text-sm resize-none focus:outline-none focus:ring-3 transition-all shadow-sm"
+              className="w-full px-4 py-3 rounded-2xl border-2 text-sm resize-none focus:outline-none focus:ring-2 transition-all shadow-sm"
               style={{ 
-                backgroundColor: 'white',
-                borderColor: candyColors.mint + '60',
-                color: '#333'
+                backgroundColor: candyColors.mint + '15',
+                borderColor: candyColors.mint,
+                color: '#2C2C2C'
               }}
             />
           </div>
 
           {/* 4. 自动想法 */}
           <div>
-            <label className="block text-sm font-bold mb-2 flex items-center gap-2" style={{ color: candyColors.lavender }}>
+            <label className="block text-sm font-bold mb-2 flex items-center gap-2" style={{ color: '#2C2C2C' }}>
               <span className="text-lg">💡</span>
               4. 自动想法：当时我脑海里闪过了什么念头？
             </label>
             <textarea
+              value={thoughts}
+              onChange={(e) => setThoughts(e.target.value)}
               placeholder="记录当时的想法和念头..."
               rows={2}
-              className="w-full px-4 py-3 rounded-2xl border-3 text-sm resize-none focus:outline-none focus:ring-3 transition-all shadow-sm"
+              className="w-full px-4 py-3 rounded-2xl border-2 text-sm resize-none focus:outline-none focus:ring-2 transition-all shadow-sm"
               style={{ 
-                backgroundColor: 'white',
-                borderColor: candyColors.lavender + '60',
-                color: '#333'
+                backgroundColor: candyColors.lavender + '15',
+                borderColor: candyColors.lavender,
+                color: '#2C2C2C'
               }}
             />
           </div>
 
           {/* 5. 实际行为 */}
           <div>
-            <label className="block text-sm font-bold mb-2 flex items-center gap-2" style={{ color: candyColors.sky }}>
+            <label className="block text-sm font-bold mb-2 flex items-center gap-2" style={{ color: '#2C2C2C' }}>
               <span className="text-lg">🏃</span>
               5. 实际行为：我实际上做了什么或想做什么？
             </label>
             <textarea
+              value={behavior}
+              onChange={(e) => setBehavior(e.target.value)}
               placeholder="描述你的实际行为或冲动..."
               rows={2}
-              className="w-full px-4 py-3 rounded-2xl border-3 text-sm resize-none focus:outline-none focus:ring-3 transition-all shadow-sm"
+              className="w-full px-4 py-3 rounded-2xl border-2 text-sm resize-none focus:outline-none focus:ring-2 transition-all shadow-sm"
               style={{ 
-                backgroundColor: 'white',
-                borderColor: candyColors.sky + '60',
-                color: '#333'
+                backgroundColor: candyColors.sky + '15',
+                borderColor: candyColors.sky,
+                color: '#2C2C2C'
               }}
             />
           </div>
 
           {/* 6. 认知重评/反思 */}
           <div>
-            <label className="block text-sm font-bold mb-2 flex items-center gap-2" style={{ color: candyColors.coral }}>
+            <label className="block text-sm font-bold mb-2 flex items-center gap-2" style={{ color: '#2C2C2C' }}>
               <span className="text-lg">🌟</span>
               6. 认知重评/反思：现在回过头我对这件事有没有不同的理解？我能更有效地应对吗？
             </label>
             <textarea
+              value={reflection}
+              onChange={(e) => setReflection(e.target.value)}
               placeholder="反思和重新评估这件事..."
               rows={3}
-              className="w-full px-4 py-3 rounded-2xl border-3 text-sm resize-none focus:outline-none focus:ring-3 transition-all shadow-sm"
+              className="w-full px-4 py-3 rounded-2xl border-2 text-sm resize-none focus:outline-none focus:ring-2 transition-all shadow-sm"
               style={{ 
-                backgroundColor: 'white',
-                borderColor: candyColors.coral + '60',
-                color: '#333'
+                backgroundColor: candyColors.coral + '15',
+                borderColor: candyColors.coral,
+                color: '#2C2C2C'
               }}
             />
           </div>

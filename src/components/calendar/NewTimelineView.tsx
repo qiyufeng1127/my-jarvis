@@ -1572,15 +1572,41 @@ export default function NewTimelineView({
     newStart.setHours(currentStart.getHours(), currentStart.getMinutes(), 0, 0);
     
     const newEnd = new Date(newStart);
-    newEnd.setMinutes(newEnd.getMinutes() + recurrenceDialogTask.durationMinutes);
+    newEnd.setMinutes(newEnd.getMinutes() + (recurrenceDialogTask.durationMinutes || 30));
     
     onTaskUpdate(recurrenceDialogTask.id, {
-      scheduledStart: newStart,
-      scheduledEnd: newEnd,
+      scheduledStart: newStart.toISOString(),
+      scheduledEnd: newEnd.toISOString(),
     });
     
-    console.log('✅ 任务已移动到明天:', newStart);
+    console.log('✅ 任务已移动到明天:', newStart.toISOString());
     alert('✅ 任务已移动到明天！');
+  };
+  
+  // 处理复制任务到指定日期
+  const handleCopyTask = (targetDate: Date, targetTime: string) => {
+    if (!recurrenceDialogTask) return;
+    
+    const [hours, minutes] = targetTime.split(':').map(Number);
+    const newStart = new Date(targetDate);
+    newStart.setHours(hours, minutes, 0, 0);
+    
+    const newEnd = new Date(newStart);
+    newEnd.setMinutes(newEnd.getMinutes() + (recurrenceDialogTask.durationMinutes || 30));
+    
+    // 创建新任务（复制）
+    const newTask = {
+      ...recurrenceDialogTask,
+      id: undefined, // 让系统生成新ID
+      scheduledStart: newStart.toISOString(),
+      scheduledEnd: newEnd.toISOString(),
+      status: 'pending' as const,
+      isCompleted: false,
+    };
+    
+    onTaskCreate(newTask);
+    
+    console.log('✅ 任务已复制到:', newStart.toISOString());
   };
 
   // 计算距离今日结束的剩余时间
@@ -2444,6 +2470,12 @@ export default function NewTimelineView({
                       </div>
                       
                       <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
+                        {/* 金币显示 */}
+                        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(255,215,0,0.3)' }}>
+                          <span className="text-sm">💰</span>
+                          <span className="text-xs font-bold">{block.goldReward}</span>
+                        </div>
+                        
                         <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-bold`} style={{ color: '#ff69b4' }}>
                           *{(() => {
                             // 计算实际时长：从实际开始时间到实际结束时间
@@ -2579,13 +2611,8 @@ export default function NewTimelineView({
                         </button>
                       </div>
 
-                      {/* 右侧：金币 + start + 展开 */}
+                      {/* 右侧：start + 展开 */}
                       <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
-                        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(255,215,0,0.3)' }}>
-                          <span className="text-sm">💰</span>
-                          <span className="text-xs font-bold">{block.goldReward}</span>
-                        </div>
-
                         {!block.isCompleted && block.status !== 'in_progress' && taskVerifications[block.id]?.status !== 'started' && (
                           <button
                             onClick={() => handleStartTask(block.id)}
@@ -3513,6 +3540,7 @@ export default function NewTimelineView({
           currentRule={recurrenceDialogTask.recurrenceRule}
           onSave={handleSaveRecurrenceRule}
           onMoveToTomorrow={handleMoveToTomorrow}
+          onCopyTask={handleCopyTask}
           onClose={() => setRecurrenceDialogTask(null)}
           isDark={isDark}
         />

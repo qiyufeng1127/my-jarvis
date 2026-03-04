@@ -15,6 +15,7 @@ interface TaskRecurrenceDialogProps {
   currentRule?: RecurrenceRule;
   onSave: (rule: RecurrenceRule | null) => void;
   onMoveToTomorrow: () => void;
+  onCopyTask?: (targetDate: Date, targetTime: string) => void;
   onClose: () => void;
   isDark: boolean;
 }
@@ -24,6 +25,7 @@ export default function TaskRecurrenceDialog({
   currentRule,
   onSave,
   onMoveToTomorrow,
+  onCopyTask,
   onClose,
   isDark,
 }: TaskRecurrenceDialogProps) {
@@ -31,6 +33,11 @@ export default function TaskRecurrenceDialog({
   const [time, setTime] = useState(currentRule?.time || '09:00');
   const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>(currentRule?.weekdays || [1]); // 默认周一
   const [endDate, setEndDate] = useState(currentRule?.endDate || '');
+  
+  // 复制任务的状态
+  const [showCopySection, setShowCopySection] = useState(false);
+  const [copyDate, setCopyDate] = useState('');
+  const [copyTime, setCopyTime] = useState('09:00');
 
   const bgColor = isDark ? '#1f2937' : '#ffffff';
   const textColor = isDark ? '#ffffff' : '#000000';
@@ -70,6 +77,23 @@ export default function TaskRecurrenceDialog({
     onMoveToTomorrow();
     onClose();
   };
+  
+  const handleCopyTask = () => {
+    if (!copyDate || !copyTime) {
+      alert('请选择复制的日期和时间');
+      return;
+    }
+    
+    const targetDate = new Date(copyDate);
+    const [hours, minutes] = copyTime.split(':').map(Number);
+    targetDate.setHours(hours, minutes, 0, 0);
+    
+    if (onCopyTask) {
+      onCopyTask(targetDate, copyTime);
+      alert('✅ 任务已复制！');
+      onClose();
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
@@ -95,7 +119,7 @@ export default function TaskRecurrenceDialog({
         </div>
 
         {/* 内容 */}
-        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+        <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
           {/* 任务标题 */}
           <div
             className="p-4 rounded-lg"
@@ -215,16 +239,78 @@ export default function TaskRecurrenceDialog({
             <p className="text-sm mb-2" style={{ color: secondaryColor }}>
               快捷操作
             </p>
-            <button
-              onClick={handleMoveToTomorrow}
-              className="w-full py-2 px-4 rounded-lg font-medium transition-all hover:scale-[1.02]"
-              style={{
-                backgroundColor: '#10B981',
-                color: '#ffffff',
-              }}
-            >
-              📅 移动到明天
-            </button>
+            <div className="space-y-2">
+              <button
+                onClick={handleMoveToTomorrow}
+                className="w-full py-2 px-4 rounded-lg font-medium transition-all hover:scale-[1.02]"
+                style={{
+                  backgroundColor: '#10B981',
+                  color: '#ffffff',
+                }}
+              >
+                📅 移动到明天
+              </button>
+              
+              <button
+                onClick={() => setShowCopySection(!showCopySection)}
+                className="w-full py-2 px-4 rounded-lg font-medium transition-all hover:scale-[1.02]"
+                style={{
+                  backgroundColor: '#3B82F6',
+                  color: '#ffffff',
+                }}
+              >
+                📋 复制任务到指定日期
+              </button>
+              
+              {showCopySection && (
+                <div className="mt-3 p-3 rounded-lg space-y-2" style={{ backgroundColor: inputBgColor }}>
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: textColor }}>
+                      选择日期
+                    </label>
+                    <input
+                      type="date"
+                      value={copyDate}
+                      onChange={(e) => setCopyDate(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border-2"
+                      style={{
+                        backgroundColor: isDark ? '#1f2937' : '#ffffff',
+                        borderColor: borderColor,
+                        color: textColor,
+                      }}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: textColor }}>
+                      选择时间
+                    </label>
+                    <input
+                      type="time"
+                      value={copyTime}
+                      onChange={(e) => setCopyTime(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border-2"
+                      style={{
+                        backgroundColor: isDark ? '#1f2937' : '#ffffff',
+                        borderColor: borderColor,
+                        color: textColor,
+                      }}
+                    />
+                  </div>
+                  
+                  <button
+                    onClick={handleCopyTask}
+                    className="w-full py-2 px-4 rounded-lg font-bold transition-all hover:scale-[1.02]"
+                    style={{
+                      backgroundColor: '#8B5CF6',
+                      color: '#ffffff',
+                    }}
+                  >
+                    ✅ 确认复制
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

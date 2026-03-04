@@ -171,12 +171,12 @@ export default function AddHabitModal({ open, onClose }: AddHabitModalProps) {
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: '100%', opacity: 0 }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="rounded-t-3xl md:rounded-3xl w-full md:max-w-2xl max-h-[90vh] overflow-y-auto"
+              className="rounded-t-3xl md:rounded-3xl w-full md:max-w-2xl h-[90vh] flex flex-col"
               style={{ backgroundColor: '#FFFFFF' }}
               onClick={(e) => e.stopPropagation()}
             >
               {/* 标题栏 */}
-              <div className="sticky top-0 border-b px-6 py-4 flex items-center justify-between" style={{
+              <div className="border-b px-6 py-4 flex items-center justify-between flex-shrink-0" style={{
                 backgroundColor: '#FFFFFF',
                 borderColor: 'rgba(0, 0, 0, 0.06)'
               }}>
@@ -192,7 +192,8 @@ export default function AddHabitModal({ open, onClose }: AddHabitModalProps) {
                 </button>
               </div>
               
-              <div className="p-6 space-y-6">
+              {/* 可滚动内容区域 */}
+              <div className="p-6 space-y-6 overflow-y-auto flex-1">
                 {/* Emoji 选择 */}
                 <div>
                   <label className="block text-sm font-medium mb-3" style={{ color: '#1D1D1F' }}>
@@ -613,18 +614,33 @@ export default function AddHabitModal({ open, onClose }: AddHabitModalProps) {
                     className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                   />
                 </div>
-                
-                {/* 提交按钮 */}
+              </div>
+              
+              {/* 底部按钮区域 - 固定在底部 */}
+              <div className="border-t px-6 py-4 flex gap-3 flex-shrink-0" style={{
+                backgroundColor: '#FFFFFF',
+                borderColor: 'rgba(0, 0, 0, 0.06)'
+              }}>
+                <button
+                  onClick={onClose}
+                  className="flex-1 py-3 rounded-full font-semibold text-sm transition-all active:scale-95"
+                  style={{
+                    backgroundColor: '#F5F5F7',
+                    color: '#1D1D1F'
+                  }}
+                >
+                  取消
+                </button>
                 <button
                   onClick={handleSubmit}
                   disabled={!name.trim()}
-                  className="w-full py-4 rounded-full font-semibold text-sm shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 py-3 rounded-full font-semibold text-sm shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{
                     backgroundColor: '#6D9978',
                     color: '#FFFFFF'
                   }}
                 >
-                  创建习惯
+                  保存
                 </button>
               </div>
             </motion.div>

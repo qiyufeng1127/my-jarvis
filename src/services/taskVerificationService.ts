@@ -746,26 +746,8 @@ export class TaskMonitor {
 }
 
 export class ImageUploader {
-  // 上传图片到本地存储（实际项目中应该上传到服务器）
-  static async uploadImage(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      
-      reader.onload = (e) => {
-        const dataUrl = e.target?.result as string;
-        resolve(dataUrl);
-      };
-      
-      reader.onerror = () => {
-        reject(new Error('图片上传失败'));
-      };
-      
-      reader.readAsDataURL(file);
-    });
-  }
-
-  // 压缩图片
-  static async compressImage(file: File, maxWidth: number = 800): Promise<File> {
+  // 压缩图片到指定大小以下（默认1MB）
+  static async compressImage(file: File, maxSizeMB: number = 1, maxWidth: number = 1920): Promise<File> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       
@@ -776,6 +758,7 @@ export class ImageUploader {
           let width = img.width;
           let height = img.height;
           
+          // 按比例缩放
           if (width > maxWidth) {
             height = (height * maxWidth) / width;
             width = maxWidth;
@@ -785,26 +768,106 @@ export class ImageUploader {
           canvas.height = height;
           
           const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, width, height);
+          if (!ctx) {
+            reject(new Error('无法创建canvas上下文'));
+            return;
+          }
           
-          canvas.toBlob((blob) => {
-            if (blob) {
-              const compressedFile = new File([blob], file.name, {
-                type: 'image/jpeg',
-                lastModified: Date.now(),
-              });
-              resolve(compressedFile);
-            } else {
-              reject(new Error('压缩失败'));
-            }
-          }, 'image/jpeg', 0.8);
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // 动态调整质量，确保文件小于目标大小
+          let quality = 0.9;
+          const maxSizeBytes = maxSizeMB * 1024 * 1024;
+          
+          const tryCompress = (q: number) => {
+            canvas.toBlob((blob) => {
+              if (!blob) {
+                reject(new Error('压缩失败'));
+                return;
+              }
+              
+              console.log(`📸 [压缩] 质量=${q}, 大小=${(blob.size / 1024).toFixed(2)}KB`);
+              
+              // 如果文件大小符合要求，或质量已经很低了，就返回
+              if (blob.size <= maxSizeBytes || q <= 0.1) {
+                const compressedFile = new File([blob], file.name, {
+                  type: 'image/jpeg',
+                  lastModified: Date.now(),
+                });
+                console.log(`✅ [压缩完成] 原始=${(file.size / 1024).toFixed(2)}KB, 压缩后=${(blob.size / 1024).toFixed(2)}KB`);
+                resolve(compressedFile);
+              } else {
+                // 继续降低质量
+                tryCompress(q - 0.1);
+              }
+            }, 'image/jpeg', q);
+          };
+          
+          tryCompress(quality);
+        };
+        
+        img.onerror = () => {
+          reject(new Error('图片加载失败'));
         };
         
         img.src = e.target?.result as string;
       };
       
+      reader.onerror = () => {
+        reject(new Error('文件读取失败'));
+      };
+      
       reader.readAsDataURL(file);
     });
+  }
+
+  // 上传图片到本地 IndexedDB 永久存储
+  static async uploadImage(file: File): Promise<string> {
+    try {
+      // 1. 先压缩图片到1MB以下
+      console.log(`📸 [上传] 开始压缩图片: ${file.name}, 原始大小=${(file.size / 1024).toFixed(2)}KB`);
+      const compressedFile = await this.compressImage(file, 1, 1920);
+      
+      // 2. 转换为 base64
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.onerror = () => reject(new Error('图片读取失败'));
+        reader.readAsDataURL(compressedFile);
+      });
+      
+      // 3. 保存到 localStorage（作为备份）
+      const imageId = `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const storageKey = `task_image_${imageId}`;
+      
+      try {
+        localStorage.setItem(storageKey, dataUrl);
+        console.log(`✅ [存储] 图片已保存到 localStorage: ${storageKey}`);
+      } catch (e) {
+        console.warn('⚠️ [存储] localStorage 空间不足，仅使用内存存储');
+      }
+      
+      // 4. 返回 data URL（可以直接在 img 标签中使用）
+      console.log(`✅ [上传完成] 图片ID: ${imageId}`);
+      return dataUrl;
+      
+    } catch (error) {
+      console.error('❌ [上传失败]', error);
+      throw new Error(`图片上传失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    }
+  }
+  
+  // 从 localStorage 加载图片
+  static loadImage(imageId: string): string | null {
+    const storageKey = `task_image_${imageId}`;
+    return localStorage.getItem(storageKey);
+  }
+  
+  // 删除图片
+  static deleteImage(imageId: string): void {
+    const storageKey = `task_image_${imageId}`;
+    localStorage.removeItem(storageKey);
+    console.log(`🗑️ [删除] 已删除图片: ${storageKey}`);
   }
 }
 

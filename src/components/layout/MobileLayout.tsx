@@ -58,6 +58,11 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { id: 'inbox', label: '收集箱', icon: '📥', color: 'blue', component: TaskInbox },
   { id: 'memory', label: '记忆', icon: '🧠', color: 'purple', component: PanoramaMemory },
   { id: 'habits', label: '习惯', icon: '✅', color: 'green', component: HabitsModule },
+  { id: 'money', label: '副业', icon: '💰', color: 'yellow', component: MoneyModule },
+  { id: 'journal', label: '日记', icon: '📔', color: 'pink', component: JournalModule },
+  { id: 'goals', label: '目标', icon: '🎯', color: 'blue', component: GoalsModule },
+  { id: 'gold', label: '金币', icon: '🪙', color: 'yellow', component: GoldModule },
+  { id: 'reports', label: '报告', icon: '📊', color: 'green', component: ReportsModule },
 ];
 
 export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {}) {
@@ -71,6 +76,23 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
     shouldShowOnboarding 
   } = useTutorialStore();
   const { currentLevel, currentExp, getCurrentLevelConfig, getNextLevelConfig } = useLevelStore();
+  
+  // 防止整个页面滚动
+  useEffect(() => {
+    // 禁用 body 滚动
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
+    document.body.style.height = '100%';
+    
+    return () => {
+      // 清理：恢复 body 滚动
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.body.style.height = '';
+    };
+  }, []);
   
   // 小票弹窗状态
   const [showReceipt, setShowReceipt] = useState(false);
@@ -238,11 +260,13 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
   return (
     <>
     <div 
-      className="h-screen flex flex-col" 
+      className="fixed inset-0 flex flex-col" 
       style={{ 
         paddingTop: 'env(safe-area-inset-top)',
+        paddingBottom: 'env(safe-area-inset-bottom)',
         backgroundColor: '#fefaf0',
         fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
+        overflow: 'hidden', // 防止整个页面滚动
       }}
     >
       {/* 通知容器 */}
@@ -272,8 +296,14 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         />
       )}
 
-      {/* 主内容区域 - 可滚动，底部留出导航栏空间，顶部适配刘海屏 */}
-      <div className="flex-1 overflow-y-auto pb-32 relative" style={{ paddingTop: '20px' }}>
+      {/* 主内容区域 - 只有这个区域可以滚动 */}
+      <div 
+        className="flex-1 overflow-y-auto overflow-x-hidden"
+        style={{ 
+          WebkitOverflowScrolling: 'touch', // iOS 平滑滚动
+          paddingBottom: '80px', // 为底部导航栏留出空间
+        }}
+      >
         {renderActiveModule()}
       </div>
 

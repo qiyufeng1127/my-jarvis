@@ -17,15 +17,11 @@ import HabitPage from '@/pages/HabitPage';
 // 通知系统
 import NotificationToast from '@/components/notifications/NotificationToast';
 
-// 新手引导和游戏系统
+// 新手引导
 import { OnboardingTutorial } from '@/components/onboarding/OnboardingTutorial';
-import { GameSystemPanel } from '@/components/game/GameSystemPanel';
 
 // 紧急任务系统
 import EmergencyTaskTrigger from '@/components/emergency/EmergencyTaskTrigger';
-
-// 移动端底部导航
-import MobileBottomNav from '@/components/navigation/MobileBottomNav';
 
 function App() {
   const { initializeUser } = useUserStore();
@@ -174,9 +170,6 @@ function App() {
         {/* 新手引导 */}
         <OnboardingTutorial />
         
-        {/* 游戏系统面板 */}
-        <GameSystemPanel />
-        
         {/* 紧急任务触发器 */}
         <EmergencyTaskTrigger />
         
@@ -205,9 +198,6 @@ function App() {
           {/* 其他路由 */}
           <Route path="*" element={<Dashboard />} />
         </Routes>
-        
-        {/* 移动端底部导航栏 */}
-        <MobileBottomNav />
       </div>
     </Router>
   );
