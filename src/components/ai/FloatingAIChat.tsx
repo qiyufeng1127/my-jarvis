@@ -1982,7 +1982,7 @@ ${message}
                 { label: '帮我安排', icon: '🎯', action: 'smart_schedule', title: '学习你的习惯，智能推荐当前适合做的任务' },
                 { label: '关于收入', icon: '💰', action: 'income_mode', title: '记录副业收入，自动同步到副业追踪和时间轴' },
                 { label: '关于目标', icon: '🎯', action: 'goal_mode', title: '设置长期或短期目标，AI智能解析' },
-                { label: '碎碎念', icon: '💭', action: 'mutter_mode', title: '记录心情、想法和碎碎念，AI智能分析' },
+                { label: '心情碎碎念', icon: '💭', action: 'mutter_quick', title: '快速记录心情碎碎念' },
               ].map((cmd) => (
                 <button
                   key={cmd.label}
@@ -2008,21 +2008,42 @@ ${message}
                         timestamp: new Date(),
                       };
                       setMessages(prev => [...prev, modeMessage]);
-                    } else if (cmd.action === 'mutter_mode') {
-                      setContextMode('mutter');
-                      const modeMessage: Message = {
-                        id: `ai-${Date.now()}`,
-                        role: 'assistant',
-                        content: '💭 **碎碎念模式已开启**\n\n现在你可以随意说说你的想法、心情或任何碎碎念，例如：\n\n• "今天好累啊，感觉什么都不想做"\n• "刚才那个会议真的让我很焦虑"\n• "突然想起小时候的事情，有点想家"\n• "今天天气真好，心情也变好了"\n\nAI会智能分析：\n✅ 你的情绪状态\n✅ 自动分类和打标签\n✅ 生成一句话总结\n✅ 保存到时间轴和记忆库\n\n💡 说完后我会帮你记录下来~',
-                        timestamp: new Date(),
-                      };
-                      setMessages(prev => [...prev, modeMessage]);
+                    } else if (cmd.action === 'mutter_quick') {
+                      // 快速添加心情碎碎念记录
+                      const now = new Date();
+                      const mutterContent = `心情记录 ${now.toLocaleString('zh-CN')}`;
+                      
+                      // 保存到记忆库
+                      addMemory({
+                        type: 'mutter',
+                        content: mutterContent,
+                        mood: '记录',
+                        tags: ['碎碎念', '心情'],
+                        date: now,
+                      });
+                      
+                      // 在时间轴创建粉红色卡片
+                      createTask({
+                        title: `💭💕 心情碎碎念`,
+                        description: `📝 ${mutterContent}\n\n💕 心情备注：点击编辑添加你的心情\n⏰ 记录时间：${now.toLocaleString('zh-CN')}`,
+                        taskType: 'life' as TaskType,
+                        priority: 2,
+                        durationMinutes: 1,
+                        scheduledStart: now,
+                        scheduledEnd: new Date(now.getTime() + 60000),
+                        tags: ['💭碎碎念', '💕心情'],
+                        color: '#FFB6C1', // 粉红色
+                        status: 'completed',
+                        isRecord: true,
+                      });
+                      
+                      // 显示提示消息
+                      notificationService.success('💭 心情碎碎念已记录到时间轴！');
                     }
                   }}
                   className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap hover:scale-105 ${
                     contextMode === 'income' && cmd.action === 'income_mode' ? 'bg-green-500 text-white' :
                     contextMode === 'goal' && cmd.action === 'goal_mode' ? 'bg-blue-500 text-white' :
-                    contextMode === 'mutter' && cmd.action === 'mutter_mode' ? 'bg-purple-500 text-white' :
                     'bg-neutral-100 text-gray-700 active:bg-neutral-200'
                   }`}
                   title={cmd.title}
@@ -2449,7 +2470,7 @@ ${message}
                     { label: '帮我安排', icon: '🎯', action: 'smart_schedule', title: '学习你的习惯，智能推荐当前适合做的任务' },
                     { label: '关于收入', icon: '💰', action: 'income_mode', title: '记录副业收入，自动同步到副业追踪和时间轴' },
                     { label: '关于目标', icon: '🎯', action: 'goal_mode', title: '设置长期或短期目标，AI智能解析' },
-                    { label: '查看进度', icon: '📊', action: 'check_progress', title: '查看今日任务进度' },
+                    { label: '心情碎碎念', icon: '💭', action: 'mutter_quick', title: '快速记录心情碎碎念' },
                   ].map((cmd) => (
                     <button
                       key={cmd.label}
@@ -2475,9 +2496,37 @@ ${message}
                             timestamp: new Date(),
                           };
                           setMessages(prev => [...prev, modeMessage]);
-                        } else if (cmd.action === 'check_progress') {
-                          setInputValue('查看今天的任务');
-                          handleSend();
+                        } else if (cmd.action === 'mutter_quick') {
+                          // 快速添加心情碎碎念记录
+                          const now = new Date();
+                          const mutterContent = `心情记录 ${now.toLocaleString('zh-CN')}`;
+                          
+                          // 保存到记忆库
+                          addMemory({
+                            type: 'mutter',
+                            content: mutterContent,
+                            mood: '记录',
+                            tags: ['碎碎念', '心情'],
+                            date: now,
+                          });
+                          
+                          // 在时间轴创建粉红色卡片
+                          createTask({
+                            title: `💭💕 心情碎碎念`,
+                            description: `📝 ${mutterContent}\n\n💕 心情备注：点击编辑添加你的心情\n⏰ 记录时间：${now.toLocaleString('zh-CN')}`,
+                            taskType: 'life' as TaskType,
+                            priority: 2,
+                            durationMinutes: 1,
+                            scheduledStart: now,
+                            scheduledEnd: new Date(now.getTime() + 60000),
+                            tags: ['💭碎碎念', '💕心情'],
+                            color: '#FFB6C1', // 粉红色
+                            status: 'completed',
+                            isRecord: true,
+                          });
+                          
+                          // 显示提示消息
+                          notificationService.success('💭 心情碎碎念已记录到时间轴！');
                         }
                       }}
                       className={`px-2 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap hover:scale-105`}

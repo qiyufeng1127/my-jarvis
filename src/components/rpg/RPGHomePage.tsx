@@ -9,6 +9,7 @@ import { RPGNotificationService } from '@/services/rpgNotificationService';
 import { RPGRadarUpdater } from '@/services/rpgRadarUpdater';
 import { RPGTaskMonitor } from '@/services/rpgTaskMonitor';
 import { RPGAchievementService } from '@/services/rpgAchievementService';
+import { RPGDataAnalyzer } from '@/services/rpgDataAnalyzer';
 import AchievementWall from './AchievementWall';
 import GrowthTree from './GrowthTree';
 import SeasonPass from './SeasonPass';
@@ -93,6 +94,19 @@ export default function RPGHomePage() {
   useEffect(() => {
     checkAndUnlockAvatars(character.exp);
   }, [character.exp]);
+
+  // 实时同步时间轴数据
+  useEffect(() => {
+    // 初始同步
+    RPGDataAnalyzer.syncAllData();
+    
+    // 每30秒同步一次
+    const interval = setInterval(() => {
+      RPGDataAnalyzer.syncAllData();
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, [tasks]);
 
   // 自动生成每日任务（P0-1 & P0-2集成）
   useEffect(() => {
@@ -485,18 +499,18 @@ export default function RPGHomePage() {
               </div>
             </div>
             
-            {/* 精力值和心情值 */}
+            {/* 自律值和心情值 */}
             <div className="flex gap-3">
               <div className="flex-1">
                 <div className="flex items-center gap-1 text-xs mb-1" style={{ color: MODERN_COLORS.textSecondary }}>
-                  <span>⚡</span>
-                  <span>精力 {character.energy}/100</span>
+                  <span>💪</span>
+                  <span>自律 {character.discipline}/100</span>
                 </div>
                 <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: MODERN_COLORS.border }}>
                   <div 
                     className="h-full rounded-full"
                     style={{ 
-                      width: `${character.energy}%`,
+                      width: `${character.discipline}%`,
                       backgroundColor: MODERN_COLORS.achievement
                     }}
                   />

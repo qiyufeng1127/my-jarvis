@@ -143,18 +143,21 @@ export function calculateGoldReward(
  *    - "站起来"专属任务：15金币/分钟
  * 2. 超时扣罚：若实际完成时长 > 预计完成时长，直接返回 0 金币
  * 3. 启动验证超时：扣除 30% 金币（最终金币 = 基础金币 × 0.7）
+ * 4. 补录历史任务：如果任务开始时间早于当前时间，不计算拖延和扣金币
  * 
  * @param actualMinutes 实际耗时（分钟）
  * @param estimatedMinutes 预计时长（分钟）
  * @param posture 任务姿势 'standing' | 'sitting'
  * @param startVerificationTimeout 启动验证是否超时
+ * @param taskStartTime 任务开始时间（用于判断是否为补录历史任务）
  * @returns { finalGold, baseGold, penalty, reason }
  */
 export function calculateActualGoldReward(
   actualMinutes: number,
   estimatedMinutes: number,
   posture: TaskPosture,
-  startVerificationTimeout: boolean = false
+  startVerificationTimeout: boolean = false,
+  taskStartTime?: Date
 ): {
   finalGold: number;
   baseGold: number;
@@ -181,8 +184,15 @@ export function calculateActualGoldReward(
   let penalty = 0;
   let reason = '';
   
-  // 判断是否超时完成（实际时长 > 预计时长）
-  if (actualMinutes > estimatedMinutes) {
+  // 🔧 判断是否为补录历史任务（任务开始时间早于当前时间）
+  const isHistoricalTask = taskStartTime && taskStartTime < new Date();
+  
+  if (isHistoricalTask) {
+    // 补录历史任务：不计算拖延，直接给予全额金币
+    finalGold = baseGold;
+    reason = `补录历史任务（${actualMinutes}分钟），获得全额金币`;
+  } else if (actualMinutes > estimatedMinutes) {
+    // 判断是否超时完成（实际时长 > 预计时长）
     // 超时完成：直接返回 0 金币（无奖励）
     finalGold = 0;
     penalty = baseGold;

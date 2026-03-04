@@ -6,7 +6,7 @@ export interface RPGCharacter {
   level: number;
   exp: number;
   maxExp: number;
-  energy: number; // 精力值 0-100
+  discipline: number; // 自律值 0-100
   mood: number; // 心情值 0-100
   personality: string[]; // 性格标签
   strengths: Array<{ label: string; description: string }>; // 优势
@@ -119,7 +119,7 @@ interface RPGState {
   updateSeasonPass: (updates: Partial<SeasonPass>) => void;
   addExp: (amount: number) => void;
   addGold: (amount: number) => void;
-  updateEnergy: (amount: number) => void;
+  updateDiscipline: (amount: number) => void;
   updateMood: (amount: number) => void;
 }
 
@@ -131,7 +131,7 @@ export const useRPGStore = create<RPGState>()(
         level: 1,
         exp: 0,
         maxExp: 200,
-        energy: 100,
+        discipline: 100,
         mood: 80,
         personality: ['自律', '目标导向', '偏理性'],
         strengths: [
@@ -344,10 +344,10 @@ export const useRPGStore = create<RPGState>()(
         },
       })),
       
-      updateEnergy: (amount) => set((state) => ({
+      updateDiscipline: (amount) => set((state) => ({
         character: {
           ...state.character,
-          energy: Math.max(0, Math.min(100, state.character.energy + amount)),
+          discipline: Math.max(0, Math.min(100, state.character.discipline + amount)),
         },
       })),
       

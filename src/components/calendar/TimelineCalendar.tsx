@@ -515,9 +515,7 @@ export default function TimelineCalendar({
           {showQuickStart ? (
             <QuickStartView
               tasks={tasks}
-              onTaskCreate={(task) => {
-                onTaskCreate(task);
-              }}
+              onTaskCreate={onTaskCreate}
               onTaskUpdate={onTaskUpdate}
               onTaskDelete={onTaskDelete}
               bgColor={bgColor}

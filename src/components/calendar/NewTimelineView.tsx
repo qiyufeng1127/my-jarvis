@@ -2395,8 +2395,17 @@ export default function NewTimelineView({
                        
                        // 馃敡 璁＄畻閲戝竵濂栧姳锛堟彁鍓嶅畬鎴愬鍔?0%锛塦r
                        const scheduledEndTime = new Date(block.endTime);
+                       const scheduledStartTime = new Date(block.startTime);
+                       const now = new Date();
+                       
+                       // 判断是否为补录历史任务（任务开始时间早于当前时间）
+                       const isHistoricalTask = scheduledStartTime < now;
+                       
                        const isEarly = actualEndTime < scheduledEndTime;
-                       const goldReward = isEarly ? Math.floor((block.goldReward || 0) * 0.5) : 0;
+                       // 如果是补录历史任务，给予全额金币；否则按提前完成计算
+                       const goldReward = isHistoricalTask 
+                         ? (block.goldReward || 0) 
+                         : (isEarly ? Math.floor((block.goldReward || 0) * 0.5) : 0);
                        
                        setEfficiencyModalTask({
                          id: block.id,

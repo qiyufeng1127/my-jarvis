@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Play, Square, Plus, Settings, X, Save } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Play, Square, Plus, Settings, X, Save, ChevronDown, ChevronRight, Folder } from 'lucide-react';
 import type { Task, TaskType } from '@/types';
 
 interface QuickStartItem {
@@ -9,6 +9,14 @@ interface QuickStartItem {
   taskType: TaskType;
   tags?: string[]; // 自定义标签
   defaultDuration?: number; // 默认时长（分钟），用于预估
+  folderId?: string; // 所属文件夹ID
+}
+
+interface QuickStartFolder {
+  id: string;
+  name: string;
+  emoji: string;
+  collapsed: boolean;
 }
 
 interface QuickStartViewProps {
@@ -48,6 +56,27 @@ export default function QuickStartView({
   const [showSettings, setShowSettings] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingItem, setEditingItem] = useState<QuickStartItem | null>(null);
+  const [showFolderForm, setShowFolderForm] = useState(false);
+  const [editingFolder, setEditingFolder] = useState<QuickStartFolder | null>(null);
+
+  // 拖拽相关状态
+  const [draggedItem, setDraggedItem] = useState<string | null>(null);
+  const [dragOverItem, setDragOverItem] = useState<string | null>(null);
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  // 文件夹管理
+  const [folders, setFolders] = useState<QuickStartFolder[]>(() => {
+    const saved = localStorage.getItem('quickStartFolders');
+    if (saved) {
+      return JSON.parse(saved);
+    }
+    return [
+      { id: 'daily', name: '日常', emoji: '🌅', collapsed: false },
+      { id: 'work', name: '工作', emoji: '💼', collapsed: false },
+      { id: 'study', name: '学习', emoji: '📚', collapsed: false },
+    ];
+  });
 
   // 预设的快捷任务（从 localStorage 加载）
   const [quickStartItems, setQuickStartItems] = useState<QuickStartItem[]>(() => {
@@ -56,18 +85,18 @@ export default function QuickStartView({
       return JSON.parse(saved);
     }
     return [
-      { id: 'work', emoji: '💻', label: '工作', taskType: 'work', tags: ['工作'], defaultDuration: 120 },
-      { id: 'reading', emoji: '😌', label: '看小说', taskType: 'rest', tags: ['休闲', '阅读'], defaultDuration: 30 },
-      { id: 'exercise', emoji: '🚶', label: '散步、运动', taskType: 'health', tags: ['运动', '健康'], defaultDuration: 30 },
-      { id: 'fishing', emoji: '🐟', label: '钓鱼', taskType: 'rest', tags: ['休闲'], defaultDuration: 60 },
-      { id: 'study', emoji: '📖', label: '阅读', taskType: 'study', tags: ['学习', '阅读'], defaultDuration: 60 },
-      { id: 'phone', emoji: '📱', label: '刷小红书', taskType: 'rest', tags: ['休闲', '社交'], defaultDuration: 30 },
-      { id: 'wash', emoji: '🚿', label: '洗漱', taskType: 'life', tags: ['生活'], defaultDuration: 20 },
-      { id: 'writing', emoji: '🖊️', label: '写手账', taskType: 'creative', tags: ['创作', '记录'], defaultDuration: 30 },
-      { id: 'listen', emoji: '🪐', label: '听播客', taskType: 'rest', tags: ['休闲', '学习'], defaultDuration: 30 },
-      { id: 'shopping', emoji: '🛍️', label: '购物', taskType: 'life', tags: ['生活', '购物'], defaultDuration: 60 },
-      { id: 'social', emoji: '🐱', label: '社交', taskType: 'social', tags: ['社交'], defaultDuration: 60 },
-      { id: 'housework', emoji: '🧽', label: '家务', taskType: 'life', tags: ['生活', '家务'], defaultDuration: 30 },
+      { id: 'work', emoji: '💻', label: '工作', taskType: 'work', tags: ['工作'], defaultDuration: 120, folderId: 'work' },
+      { id: 'reading', emoji: '😌', label: '看小说', taskType: 'rest', tags: ['休闲', '阅读'], defaultDuration: 30, folderId: 'daily' },
+      { id: 'exercise', emoji: '🚶', label: '散步、运动', taskType: 'health', tags: ['运动', '健康'], defaultDuration: 30, folderId: 'daily' },
+      { id: 'fishing', emoji: '🐟', label: '钓鱼', taskType: 'rest', tags: ['休闲'], defaultDuration: 60, folderId: 'daily' },
+      { id: 'study', emoji: '📖', label: '阅读', taskType: 'study', tags: ['学习', '阅读'], defaultDuration: 60, folderId: 'study' },
+      { id: 'phone', emoji: '📱', label: '刷小红书', taskType: 'rest', tags: ['休闲', '社交'], defaultDuration: 30, folderId: 'daily' },
+      { id: 'wash', emoji: '🚿', label: '洗漱', taskType: 'life', tags: ['生活'], defaultDuration: 20, folderId: 'daily' },
+      { id: 'writing', emoji: '🖊️', label: '写手账', taskType: 'creative', tags: ['创作', '记录'], defaultDuration: 30, folderId: 'daily' },
+      { id: 'listen', emoji: '🪐', label: '听播客', taskType: 'rest', tags: ['休闲', '学习'], defaultDuration: 30, folderId: 'study' },
+      { id: 'shopping', emoji: '🛍️', label: '购物', taskType: 'life', tags: ['生活', '购物'], defaultDuration: 60, folderId: 'daily' },
+      { id: 'social', emoji: '🐱', label: '社交', taskType: 'social', tags: ['社交'], defaultDuration: 60, folderId: 'daily' },
+      { id: 'housework', emoji: '🧽', label: '家务', taskType: 'life', tags: ['生活', '家务'], defaultDuration: 30, folderId: 'daily' },
     ];
   });
 
@@ -79,12 +108,24 @@ export default function QuickStartView({
     taskType: 'life',
     tags: [],
     defaultDuration: 30,
+    folderId: undefined,
+  });
+
+  const [folderFormData, setFolderFormData] = useState<QuickStartFolder>({
+    id: '',
+    name: '',
+    emoji: '📁',
+    collapsed: false,
   });
 
   // 保存到 localStorage
   useEffect(() => {
     localStorage.setItem('quickStartItems', JSON.stringify(quickStartItems));
   }, [quickStartItems]);
+
+  useEffect(() => {
+    localStorage.setItem('quickStartFolders', JSON.stringify(folders));
+  }, [folders]);
 
   // 更新计时器
   useEffect(() => {
@@ -125,6 +166,8 @@ export default function QuickStartView({
       const newElapsed = new Map(elapsedTimes);
       newElapsed.delete(item.id);
       setElapsedTimes(newElapsed);
+      
+      console.log('⏹️ 快捷任务已结束:', item.label, timer.taskId);
     } else {
       // 开始计时 - 立即创建任务
       const startTime = new Date();
@@ -150,7 +193,10 @@ export default function QuickStartView({
       };
       
       try {
+        console.log('🚀 开始创建快捷任务:', item.label);
         const createdTask = await onTaskCreate(newTask);
+        
+        console.log('📝 任务创建结果:', createdTask);
         
         if (createdTask && createdTask.id) {
           // 立即添加计时器
@@ -164,10 +210,18 @@ export default function QuickStartView({
             taskId: createdTask.id,
           });
           setActiveTimers(newTimers);
+          
+          // 初始化计时显示
+          const newElapsed = new Map(elapsedTimes);
+          newElapsed.set(item.id, 0);
+          setElapsedTimes(newElapsed);
+          
           console.log('✅ 快捷任务已开始:', item.label, createdTask.id);
+        } else {
+          console.error('❌ 创建任务失败：没有返回任务ID');
         }
       } catch (error) {
-        console.error('创建快捷任务失败:', error);
+        console.error('❌ 创建快捷任务失败:', error);
       }
     }
   };
@@ -191,6 +245,103 @@ export default function QuickStartView({
       setActiveTimers(newTimers);
     }
   }, [tasks, activeTimers]);
+
+  // 长按拖拽处理
+  const handleTouchStart = (itemId: string) => {
+    if (showSettings) return;
+    
+    longPressTimer.current = setTimeout(() => {
+      setIsDragging(true);
+      setDraggedItem(itemId);
+      // 触觉反馈
+      if (navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+    }, 500); // 500ms 长按
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+
+    if (isDragging && draggedItem && dragOverItem && draggedItem !== dragOverItem) {
+      // 执行拖拽排序
+      const items = [...quickStartItems];
+      const draggedIndex = items.findIndex(item => item.id === draggedItem);
+      const targetIndex = items.findIndex(item => item.id === dragOverItem);
+      
+      if (draggedIndex !== -1 && targetIndex !== -1) {
+        const [removed] = items.splice(draggedIndex, 1);
+        items.splice(targetIndex, 0, removed);
+        setQuickStartItems(items);
+      }
+    }
+
+    setIsDragging(false);
+    setDraggedItem(null);
+    setDragOverItem(null);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent, itemId: string) => {
+    if (!isDragging) return;
+    
+    const touch = e.touches[0];
+    const element = document.elementFromPoint(touch.clientX, touch.clientY);
+    const buttonElement = element?.closest('[data-item-id]');
+    
+    if (buttonElement) {
+      const targetId = buttonElement.getAttribute('data-item-id');
+      if (targetId && targetId !== draggedItem) {
+        setDragOverItem(targetId);
+      }
+    }
+  };
+
+  const toggleFolder = (folderId: string) => {
+    setFolders(folders.map(f => 
+      f.id === folderId ? { ...f, collapsed: !f.collapsed } : f
+    ));
+  };
+
+  const handleSaveFolder = () => {
+    if (!folderFormData.name.trim()) {
+      alert('请输入文件夹名称');
+      return;
+    }
+
+    if (editingFolder) {
+      setFolders(folders.map(f => 
+        f.id === editingFolder.id ? { ...folderFormData, id: editingFolder.id } : f
+      ));
+    } else {
+      const newFolder = {
+        ...folderFormData,
+        id: `folder_${Date.now()}`,
+      };
+      setFolders([...folders, newFolder]);
+    }
+
+    setFolderFormData({
+      id: '',
+      name: '',
+      emoji: '📁',
+      collapsed: false,
+    });
+    setEditingFolder(null);
+    setShowFolderForm(false);
+  };
+
+  const handleDeleteFolder = (folderId: string) => {
+    if (window.confirm('确定要删除这个文件夹吗？文件夹内的按钮将移到未分类。')) {
+      setFolders(folders.filter(f => f.id !== folderId));
+      // 清除该文件夹下所有按钮的 folderId
+      setQuickStartItems(quickStartItems.map(item => 
+        item.folderId === folderId ? { ...item, folderId: undefined } : item
+      ));
+    }
+  };
 
   const handleSaveItem = () => {
     if (!formData.label.trim()) {
@@ -220,6 +371,7 @@ export default function QuickStartView({
       taskType: 'life',
       tags: [],
       defaultDuration: 30,
+      folderId: undefined,
     });
     setEditingItem(null);
     setShowAddForm(false);
@@ -276,8 +428,32 @@ export default function QuickStartView({
         <div className="flex items-center gap-2">
           <button
             onClick={() => {
+              setShowFolderForm(true);
+              setShowAddForm(false);
+              setShowSettings(false);
+              setEditingFolder(null);
+              setFolderFormData({
+                id: '',
+                name: '',
+                emoji: '📁',
+                collapsed: false,
+              });
+            }}
+            className="p-1.5 rounded-lg transition-all hover:shadow-md active:scale-95"
+            style={{
+              backgroundColor: '#8B7FD6',
+              color: '#FFFFFF',
+            }}
+            title="添加文件夹"
+          >
+            <Folder className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() => {
               setShowAddForm(true);
               setShowSettings(false);
+              setShowFolderForm(false);
               setEditingItem(null);
               setFormData({
                 id: '',
@@ -286,32 +462,115 @@ export default function QuickStartView({
                 taskType: 'life',
                 tags: [],
                 defaultDuration: 30,
+                folderId: undefined,
               });
             }}
-            className="p-2 rounded-lg transition-all hover:shadow-md active:scale-95"
+            className="p-1.5 rounded-lg transition-all hover:shadow-md active:scale-95"
             style={{
               backgroundColor: '#6BA56D',
               color: '#FFFFFF',
             }}
+            title="添加按钮"
           >
-            <Plus className="w-5 h-5" />
+            <Plus className="w-4 h-4" />
           </button>
           
           <button
             onClick={() => {
               setShowSettings(!showSettings);
               setShowAddForm(false);
+              setShowFolderForm(false);
             }}
-            className="p-2 rounded-lg transition-all hover:shadow-md active:scale-95"
+            className="p-1.5 rounded-lg transition-all hover:shadow-md active:scale-95"
             style={{
               backgroundColor: showSettings ? '#C85A7C' : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'),
               color: showSettings ? '#FFFFFF' : textColor,
             }}
+            title="设置"
           >
-            <Settings className="w-5 h-5" />
+            <Settings className="w-4 h-4" />
           </button>
         </div>
       </div>
+
+      {/* 添加文件夹表单 */}
+      {showFolderForm && (
+        <div
+          className="rounded-xl p-4 mb-4"
+          style={{
+            backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+            border: `2px solid ${borderColor}`,
+          }}
+        >
+          <div className="space-y-3">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold" style={{ color: textColor }}>
+                {editingFolder ? '编辑文件夹' : '添加文件夹'}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowFolderForm(false);
+                  setEditingFolder(null);
+                }}
+                className="p-1 rounded-lg"
+                style={{ color: accentColor }}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-4 gap-3">
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: textColor }}>
+                  图标
+                </label>
+                <input
+                  type="text"
+                  value={folderFormData.emoji}
+                  onChange={(e) => setFolderFormData({ ...folderFormData, emoji: e.target.value })}
+                  placeholder="📁"
+                  className="w-full px-3 py-2 rounded-lg border text-center text-2xl"
+                  style={{
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#FFFFFF',
+                    borderColor: borderColor,
+                    color: textColor,
+                  }}
+                />
+              </div>
+
+              <div className="col-span-3">
+                <label className="block text-xs font-medium mb-1" style={{ color: textColor }}>
+                  文件夹名称 *
+                </label>
+                <input
+                  type="text"
+                  value={folderFormData.name}
+                  onChange={(e) => setFolderFormData({ ...folderFormData, name: e.target.value })}
+                  placeholder="输入文件夹名称..."
+                  className="w-full px-3 py-2 rounded-lg border"
+                  style={{
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#FFFFFF',
+                    borderColor: borderColor,
+                    color: textColor,
+                  }}
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={handleSaveFolder}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-all hover:shadow-md active:scale-95"
+              style={{
+                backgroundColor: '#8B7FD6',
+                color: '#FFFFFF',
+              }}
+            >
+              <Save className="w-4 h-4" />
+              <span>保存</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 添加/编辑表单 */}
       {showAddForm && (
@@ -376,6 +635,30 @@ export default function QuickStartView({
                   }}
                 />
               </div>
+            </div>
+
+            {/* 所属文件夹 */}
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: textColor }}>
+                所属文件夹
+              </label>
+              <select
+                value={formData.folderId || ''}
+                onChange={(e) => setFormData({ ...formData, folderId: e.target.value || undefined })}
+                className="w-full px-3 py-2 rounded-lg border"
+                style={{
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#FFFFFF',
+                  borderColor: borderColor,
+                  color: textColor,
+                }}
+              >
+                <option value="">未分类</option>
+                {folders.map(folder => (
+                  <option key={folder.id} value={folder.id}>
+                    {folder.emoji} {folder.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* 任务类型 */}
@@ -467,75 +750,227 @@ export default function QuickStartView({
         </div>
       )}
 
-      {/* 快捷任务网格 */}
-      <div className="grid grid-cols-4 gap-3 mb-4">
-        {quickStartItems.map((item) => {
-          const isActive = activeTimers.has(item.id);
-          const elapsed = elapsedTimes.get(item.id) || 0;
+      {/* 快捷任务 - 按文件夹分组 */}
+      <div className="space-y-4 mb-4">
+        {/* 渲染每个文件夹 */}
+        {folders.map(folder => {
+          const folderItems = quickStartItems.filter(item => item.folderId === folder.id);
+          if (folderItems.length === 0 && !showSettings) return null;
 
           return (
-            <div key={item.id} className="relative">
-              <button
-                onClick={() => !showSettings && handleToggle(item)}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  if (!showSettings) {
-                    handleEditItem(item);
-                  }
-                }}
-                className="w-full flex flex-col items-center justify-center rounded-2xl p-4 transition-all active:scale-95"
-                style={{
-                  backgroundColor: isActive 
-                    ? '#C85A7C' 
-                    : isDark ? 'rgba(255,255,255,0.08)' : '#F5F5F5',
-                  aspectRatio: '1',
-                  opacity: showSettings ? 0.7 : 1,
-                }}
-              >
-                {/* Emoji 图标 */}
-                <div className="text-4xl mb-2">
-                  {item.emoji}
-                </div>
-
-                {/* 标签或计时 */}
-                <div 
-                  className="text-xs font-medium text-center"
-                  style={{ 
-                    color: isActive ? '#FFFFFF' : textColor,
+            <div key={folder.id} className="space-y-2">
+              {/* 文件夹标题 */}
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => toggleFolder(folder.id)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:bg-opacity-80"
+                  style={{
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+                    color: textColor,
                   }}
                 >
-                  {isActive ? formatTime(elapsed) : item.label}
-                </div>
+                  {folder.collapsed ? (
+                    <ChevronRight className="w-4 h-4" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4" />
+                  )}
+                  <span className="text-lg">{folder.emoji}</span>
+                  <span className="font-semibold">{folder.name}</span>
+                  <span className="text-xs opacity-60">({folderItems.length})</span>
+                </button>
 
-                {/* 活跃指示器 */}
-                {isActive && (
-                  <div 
-                    className="absolute top-2 right-2 w-2 h-2 rounded-full animate-pulse"
-                    style={{ backgroundColor: '#FF4444' }}
-                  />
+                {showSettings && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => {
+                        setEditingFolder(folder);
+                        setFolderFormData(folder);
+                        setShowFolderForm(true);
+                      }}
+                      className="p-1 rounded-lg"
+                      style={{ 
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                        color: textColor 
+                      }}
+                    >
+                      <Settings className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteFolder(folder.id)}
+                      className="p-1 rounded-lg"
+                      style={{ 
+                        backgroundColor: '#FF4444',
+                        color: '#FFFFFF'
+                      }}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
                 )}
-              </button>
+              </div>
 
-              {/* 设置模式下的编辑/删除按钮 */}
-              {showSettings && (
-                <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 rounded-2xl">
-                  <button
-                    onClick={() => handleEditItem(item)}
-                    className="p-2 rounded-lg bg-white"
-                  >
-                    <Settings className="w-4 h-4 text-gray-800" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteItem(item.id)}
-                    className="p-2 rounded-lg bg-red-500"
-                  >
-                    <X className="w-4 h-4 text-white" />
-                  </button>
+              {/* 文件夹内的按钮 */}
+              {!folder.collapsed && (
+                <div className="grid grid-cols-4 gap-3 pl-2">
+                  {folderItems.map((item) => {
+                    const isActive = activeTimers.has(item.id);
+                    const elapsed = elapsedTimes.get(item.id) || 0;
+
+                    return (
+                      <div key={item.id} className="relative">
+                        <button
+                          data-item-id={item.id}
+                          onClick={() => !showSettings && !isDragging && handleToggle(item)}
+                          onTouchStart={() => handleTouchStart(item.id)}
+                          onTouchEnd={handleTouchEnd}
+                          onTouchMove={(e) => handleTouchMove(e, item.id)}
+                          className="w-full flex flex-col items-center justify-center rounded-2xl p-4 transition-all active:scale-95 relative"
+                          style={{
+                            backgroundColor: isActive 
+                              ? '#FF6B9D' 
+                              : isDark ? 'rgba(255,255,255,0.08)' : '#F5F5F5',
+                            aspectRatio: '1',
+                            opacity: showSettings ? 0.7 : (draggedItem === item.id ? 0.5 : (dragOverItem === item.id ? 0.8 : 1)),
+                            boxShadow: isActive ? '0 4px 12px rgba(255, 107, 157, 0.4)' : 'none',
+                            transform: draggedItem === item.id ? 'scale(1.05)' : 'scale(1)',
+                          }}
+                        >
+                          {/* 活跃指示器 - 红点 */}
+                          {isActive && (
+                            <div 
+                              className="absolute top-2 right-2 w-2 h-2 rounded-full animate-pulse"
+                              style={{ 
+                                backgroundColor: '#FF4444',
+                                boxShadow: '0 0 8px rgba(255, 68, 68, 0.6)',
+                              }}
+                            />
+                          )}
+
+                          {/* Emoji 图标 */}
+                          <div className="text-4xl mb-2">
+                            {item.emoji}
+                          </div>
+
+                          {/* 标签或计时 */}
+                          <div 
+                            className="text-xs font-medium text-center"
+                            style={{ 
+                              color: isActive ? '#FFFFFF' : textColor,
+                            }}
+                          >
+                            {isActive ? formatTime(elapsed) : item.label}
+                          </div>
+                        </button>
+
+                        {/* 设置模式下的编辑/删除按钮 */}
+                        {showSettings && (
+                          <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 rounded-2xl">
+                            <button
+                              onClick={() => handleEditItem(item)}
+                              className="p-1.5 rounded-lg bg-white"
+                            >
+                              <Settings className="w-3 h-3 text-gray-800" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteItem(item.id)}
+                              className="p-1.5 rounded-lg bg-red-500"
+                            >
+                              <X className="w-3 h-3 text-white" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
           );
         })}
+
+        {/* 未分类的按钮 */}
+        {(() => {
+          const uncategorizedItems = quickStartItems.filter(item => !item.folderId);
+          if (uncategorizedItems.length === 0) return null;
+
+          return (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 px-3 py-2">
+                <span className="font-semibold" style={{ color: textColor }}>未分类</span>
+                <span className="text-xs opacity-60" style={{ color: textColor }}>({uncategorizedItems.length})</span>
+              </div>
+
+              <div className="grid grid-cols-4 gap-3">
+                {uncategorizedItems.map((item) => {
+                  const isActive = activeTimers.has(item.id);
+                  const elapsed = elapsedTimes.get(item.id) || 0;
+
+                  return (
+                    <div key={item.id} className="relative">
+                      <button
+                        data-item-id={item.id}
+                        onClick={() => !showSettings && !isDragging && handleToggle(item)}
+                        onTouchStart={() => handleTouchStart(item.id)}
+                        onTouchEnd={handleTouchEnd}
+                        onTouchMove={(e) => handleTouchMove(e, item.id)}
+                        className="w-full flex flex-col items-center justify-center rounded-2xl p-4 transition-all active:scale-95 relative"
+                        style={{
+                          backgroundColor: isActive 
+                            ? '#FF6B9D' 
+                            : isDark ? 'rgba(255,255,255,0.08)' : '#F5F5F5',
+                          aspectRatio: '1',
+                          opacity: showSettings ? 0.7 : (draggedItem === item.id ? 0.5 : (dragOverItem === item.id ? 0.8 : 1)),
+                          boxShadow: isActive ? '0 4px 12px rgba(255, 107, 157, 0.4)' : 'none',
+                          transform: draggedItem === item.id ? 'scale(1.05)' : 'scale(1)',
+                        }}
+                      >
+                        {isActive && (
+                          <div 
+                            className="absolute top-2 right-2 w-2 h-2 rounded-full animate-pulse"
+                            style={{ 
+                              backgroundColor: '#FF4444',
+                              boxShadow: '0 0 8px rgba(255, 68, 68, 0.6)',
+                            }}
+                          />
+                        )}
+
+                        <div className="text-4xl mb-2">
+                          {item.emoji}
+                        </div>
+
+                        <div 
+                          className="text-xs font-medium text-center"
+                          style={{ 
+                            color: isActive ? '#FFFFFF' : textColor,
+                          }}
+                        >
+                          {isActive ? formatTime(elapsed) : item.label}
+                        </div>
+                      </button>
+
+                      {showSettings && (
+                        <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 rounded-2xl">
+                          <button
+                            onClick={() => handleEditItem(item)}
+                            className="p-1.5 rounded-lg bg-white"
+                          >
+                            <Settings className="w-3 h-3 text-gray-800" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteItem(item.id)}
+                            className="p-1.5 rounded-lg bg-red-500"
+                          >
+                            <X className="w-3 h-3 text-white" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* 进行中列表 */}
