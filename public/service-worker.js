@@ -1,8 +1,8 @@
 // Service Worker - 增强版（支持后台通知和语音）
 const CACHE_NAME = 'manifestos-v2';
 const urlsToCache = [
-  '/my-jarvis/',
-  '/my-jarvis/index.html',
+  '/',
+  '/index.html',
 ];
 
 // 安装事件
@@ -90,13 +90,13 @@ self.addEventListener('notificationclick', (event) => {
         // 如果已有窗口打开，聚焦它
         for (let i = 0; i < clientList.length; i++) {
           const client = clientList[i];
-          if (client.url.includes('/my-jarvis') && 'focus' in client) {
+          if ('focus' in client) {
             return client.focus();
           }
         }
         // 否则打开新窗口
         if (clients.openWindow) {
-          return clients.openWindow('/my-jarvis/');
+          return clients.openWindow('/');
         }
       })
   );

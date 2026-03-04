@@ -2,15 +2,15 @@
   "name": "ManifestOS",
   "short_name": "ManifestOS",
   "description": "Personal growth operating system",
-  "start_url": "/my-jarvis/",
-  "scope": "/my-jarvis/",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#e2d9bc",
   "theme_color": "#e2d9bc",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/my-jarvis/vite.svg",
+      "src": "/vite.svg",
       "sizes": "any",
       "type": "image/svg+xml"
     }
