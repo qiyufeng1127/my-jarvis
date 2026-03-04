@@ -5,7 +5,7 @@ import path from 'path'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: '/', // Vercel 部署使用根路径
+  base: '/my-jarvis/', // 与 service worker 路径保持一致
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

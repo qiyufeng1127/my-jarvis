@@ -911,8 +911,14 @@ export default function TaskVerificationCountdownContent({
           backgroundTaskScheduler.updateTaskStatus(taskId, 'completed');
           backgroundTaskScheduler.unscheduleTask(taskId);
           
+          // 🔧 通知父组件更新任务，保存超时数据
           if (onComplete) {
             onComplete(now);
+          }
+          
+          // 🔧 通过 onTimeoutUpdate 回调将超时数据传递给父组件
+          if (onTimeoutUpdate) {
+            onTimeoutUpdate(state.startTimeoutCount, state.completeTimeoutCount);
           }
           
           localStorage.removeItem(storageKey);

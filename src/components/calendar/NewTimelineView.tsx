@@ -42,6 +42,7 @@ import CompactTaskEditModal from './CompactTaskEditModal';
 import { useTaskStore } from '@/stores/taskStore';
 import SaveToSOPButton from '@/components/sop/SaveToSOPButton';
 import TaskRecurrenceDialog, { RecurrenceRule } from './TaskRecurrenceDialog';
+import TaskStatusBadge from './TaskStatusBadge';
 
 interface NewTimelineViewProps {
   tasks: Task[];
@@ -161,6 +162,8 @@ export default function NewTimelineView({
   useEffect(() => {
     const newVerifications: Record<string, TaskVerification> = {};
     const newImages: Record<string, TaskImage[]> = {};
+    const newStartTimeouts: Record<string, boolean> = {};
+    const newFinishTimeouts: Record<string, boolean> = {};
     
     tasks.forEach(task => {
       // 恢复验证设置
@@ -202,10 +205,22 @@ export default function NewTimelineView({
         newImages[task.id] = task.images;
         console.log(`✅ 恢复任务 ${task.title} 的 ${task.images.length} 张照片`);
       }
+      
+      // 恢复超时状态（即使任务已完成也要显示）
+      if (task.startVerificationTimeout) {
+        newStartTimeouts[task.id] = true;
+        console.log(`✅ 恢复任务 ${task.title} 的启动超时标记`);
+      }
+      if (task.completionTimeout) {
+        newFinishTimeouts[task.id] = true;
+        console.log(`✅ 恢复任务 ${task.title} 的完成超时标记`);
+      }
     });
     
     setTaskVerifications(newVerifications);
     setTaskImages(newImages);
+    setTaskStartTimeouts(newStartTimeouts);
+    setTaskFinishTimeouts(newFinishTimeouts);
   }, [tasks]);
   
   // 智能识别任务类型：是否为照片任务
@@ -2342,6 +2357,19 @@ export default function NewTimelineView({
                   filter: block.isCompleted ? 'saturate(0.5)' : 'none',
                 }}
               >
+                {/* 任务状态标记 - 右上角显示超时和低效率标记 */}
+                <TaskStatusBadge
+                  taskId={block.id}
+                  taskTitle={block.title}
+                  goldReward={block.goldReward}
+                  isCompleted={block.isCompleted}
+                  startTimeoutCount={allTasks.find(t => t.id === block.id)?.startTimeoutCount || 0}
+                  completeTimeoutCount={allTasks.find(t => t.id === block.id)?.completeTimeoutCount || 0}
+                  efficiencyLevel={block.efficiencyLevel}
+                  completionEfficiency={block.completionEfficiency}
+                  position="top-right"
+                  size={isMobile ? 'small' : 'medium'}
+                />
                 
                 {/* 🔥 验证倒计时组件 - 预设时间到达或任务进行中时显示 */}
                 {(() => {
@@ -2416,6 +2444,24 @@ export default function NewTimelineView({
                          goldReward,
                        });
                        setEfficiencyModalOpen(true);
+                     }}
+                     onTimeoutUpdate={(startTimeoutCount, completeTimeoutCount) => {
+                       // 保存超时数据到任务对象
+                       console.log(`💾 保存超时数据: 启动${startTimeoutCount}次, 完成${completeTimeoutCount}次`);
+                       
+                       onTaskUpdate(block.id, {
+                         startVerificationTimeout: startTimeoutCount > 0,
+                         startTimeoutCount: startTimeoutCount,
+                         completionTimeout: completeTimeoutCount > 0,
+                         completeTimeoutCount: completeTimeoutCount,
+                       });
+                       
+                       if (startTimeoutCount > 0) {
+                         setTaskStartTimeouts(prev => ({ ...prev, [block.id]: true }));
+                       }
+                       if (completeTimeoutCount > 0) {
+                         setTaskFinishTimeouts(prev => ({ ...prev, [block.id]: true }));
+                       }
                      }}
                      hasVerification={!!taskVerifications[block.id]?.enabled}
                      startKeywords={taskVerifications[block.id]?.startKeywords || ['启动', '开始']}
@@ -3504,7 +3550,11 @@ export default function NewTimelineView({
               isCompleted: true,
               status: 'completed',
               completionEfficiency: efficiency,
+              efficiencyLevel: efficiency >= 80 ? 'excellent' : efficiency >= 60 ? 'good' : efficiency >= 40 ? 'average' : 'poor',
               completionNotes: notes, // 保存完成笔记
+              // 保存超时状态，以便任务完成后仍能显示
+              startVerificationTimeout: taskStartTimeouts[efficiencyModalTask.id],
+              completionTimeout: taskFinishTimeouts[efficiencyModalTask.id],
             });
             
             setEfficiencyModalOpen(false);

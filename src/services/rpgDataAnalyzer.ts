@@ -512,42 +512,47 @@ export class RPGDataAnalyzer {
   /**
    * 同步所有数据到RPG Store
    */
-  static syncAllData() {
-    const { useRPGStore } = require('@/stores/rpgStore');
-    const goldStore = useGoldStore.getState();
-    
-    // 计算经验值（基于金币）
-    const totalExp = this.calculateExpFromGold(goldStore.balance);
-    
-    // 计算等级
-    let level = 1;
-    let remainingExp = totalExp;
-    let maxExp = 200;
-    
-    while (remainingExp >= maxExp) {
-      level++;
-      remainingExp -= maxExp;
-      maxExp = Math.floor(maxExp * 1.5);
+  static async syncAllData() {
+    try {
+      // 使用动态导入避免循环依赖
+      const { useRPGStore } = await import('@/stores/rpgStore');
+      const goldStore = useGoldStore.getState();
+      
+      // 计算经验值（基于金币）
+      const totalExp = this.calculateExpFromGold(goldStore.balance);
+      
+      // 计算等级
+      let level = 1;
+      let remainingExp = totalExp;
+      let maxExp = 200;
+      
+      while (remainingExp >= maxExp) {
+        level++;
+        remainingExp -= maxExp;
+        maxExp = Math.floor(maxExp * 1.5);
+      }
+      
+      // 更新角色数据
+      useRPGStore.getState().updateCharacter({
+        level,
+        exp: remainingExp,
+        maxExp,
+        discipline: this.calculateDisciplineScore(), // 自律值
+        mood: this.estimateMoodScore(),
+        personality: this.analyzePersonality(),
+        strengths: this.analyzeStrengths(),
+        improvements: this.analyzeImprovements(),
+      });
+      
+      // 更新今日状态
+      useRPGStore.setState({
+        todayStatus: this.generateTodayStatus()
+      });
+      
+      console.log('✅ RPG数据已同步');
+    } catch (error) {
+      console.error('❌ RPG数据同步失败:', error);
     }
-    
-    // 更新角色数据
-    useRPGStore.getState().updateCharacter({
-      level,
-      exp: remainingExp,
-      maxExp,
-      discipline: this.calculateDisciplineScore(), // 自律值
-      mood: this.estimateMoodScore(),
-      personality: this.analyzePersonality(),
-      strengths: this.analyzeStrengths(),
-      improvements: this.analyzeImprovements(),
-    });
-    
-    // 更新今日状态
-    useRPGStore.setState({
-      todayStatus: this.generateTodayStatus()
-    });
-    
-    console.log('✅ RPG数据已同步');
   }
 }
 

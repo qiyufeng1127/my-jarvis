@@ -98,11 +98,15 @@ export default function RPGHomePage() {
   // 实时同步时间轴数据
   useEffect(() => {
     // 初始同步
-    RPGDataAnalyzer.syncAllData();
+    const syncData = async () => {
+      await RPGDataAnalyzer.syncAllData();
+    };
+    
+    syncData();
     
     // 每30秒同步一次
     const interval = setInterval(() => {
-      RPGDataAnalyzer.syncAllData();
+      syncData();
     }, 30000);
     
     return () => clearInterval(interval);

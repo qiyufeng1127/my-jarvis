@@ -102,7 +102,10 @@ export interface Task {
   // 倒计时相关（新增）
   startVerificationDeadline?: Date; // 启动验证截止时间（2分钟倒计时）
   startVerificationTimeout?: boolean; // 启动验证是否超时
+  startTimeoutCount?: number; // 启动超时次数
   completionDeadline?: Date; // 完成验证截止时间（任务总时长倒计时）
+  completionTimeout?: boolean; // 完成验证是否超时
+  completeTimeoutCount?: number; // 完成超时次数
   
   // 子任务
   subtasks?: SubTask[];

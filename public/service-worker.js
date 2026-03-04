@@ -41,6 +41,11 @@ self.addEventListener('activate', (event) => {
 
 // 拦截请求
 self.addEventListener('fetch', (event) => {
+  // 只处理 http/https 请求，忽略 chrome-extension 等协议
+  if (!event.request.url.startsWith('http')) {
+    return;
+  }
+  
   // 不拦截 API 请求，让它们直接通过
   if (event.request.url.includes('/api/')) {
     return;
@@ -58,7 +63,9 @@ self.addEventListener('fetch', (event) => {
         if (response && response.status === 200) {
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
+            cache.put(event.request, responseToCache).catch(err => {
+              console.warn('缓存失败:', err);
+            });
           });
         }
         return response;
