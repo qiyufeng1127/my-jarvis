@@ -53,19 +53,26 @@
     height: auto;
   }
 
-  /* 导航栏固定在底部 */
+  /* 导航栏固定在底部 - 紧贴底部无空隙 */
   .mobile-nav {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
     z-index: 1000;
-    padding-bottom: env(safe-area-inset-bottom); /* iOS 安全区域 */
+    margin: 0;
+    padding: 0;
   }
 
   /* 主内容区域留出底部导航栏空间 */
   .main-content {
     padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  }
+  
+  /* 确保页面底部没有多余空白 */
+  body {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
   }
 
   /* 顶部状态栏留出刘海屏空间 */

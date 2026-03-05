@@ -147,6 +147,13 @@ export default function NewTimelineView({
   const [completingTask, setCompletingTask] = useState<string | null>(null);
   const [verifyingTask, setVerifyingTask] = useState<string | null>(null); // 正在验证的任务
   const [verifyingType, setVerifyingType] = useState<'start' | 'complete' | null>(null); // 验证类型
+  
+  // 🔧 新增：间隔任务创建状态
+  const [creatingGapTask, setCreatingGapTask] = useState<{
+    startTime: Date;
+    endTime: Date;
+    maxDuration: number;
+  } | null>(null);
   const [taskStartTimeouts, setTaskStartTimeouts] = useState<Record<string, boolean>>({}); // 启动验证超时标记
   const [taskFinishTimeouts, setTaskFinishTimeouts] = useState<Record<string, boolean>>({}); // 完成验证超时标记
   const [taskActualStartTimes, setTaskActualStartTimes] = useState<Record<string, Date>>({}); // 任务实际启动时间
@@ -1791,8 +1798,8 @@ export default function NewTimelineView({
         console.log('🎨 NewTimelineView 编辑弹窗已渲染 - 智能分配按钮应该可见');
         
         return (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-3" style={{ paddingBottom: '100px' }}>
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col border border-gray-200 dark:border-gray-700">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-3" style={{ paddingBottom: '120px' }}>
+            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full max-h-[75vh] overflow-hidden flex flex-col border border-gray-200 dark:border-gray-700">
               {/* 头部 - 只显示关闭按钮 */}
               <div className="flex-shrink-0 px-3 py-2 flex items-center justify-end border-b" style={{ borderColor: isDark ? '#374151' : '#e5e7eb' }}>
                 <button
@@ -3398,23 +3405,12 @@ export default function NewTimelineView({
                 {/* 间隔按钮 */}
                 <button
                   onClick={() => {
-                    try {
-                      // 使用间隔开始时间作为新任务的开始时间
-                      const startTime = new Date(gap.startTime);
-                      const endTime = new Date(startTime.getTime() + gap.durationMinutes * 60000);
-                      const newTask = {
-                        title: '新任务',
-                        scheduledStart: startTime.toISOString(),
-                        scheduledEnd: endTime.toISOString(),
-                        durationMinutes: gap.durationMinutes, // 使用间隔时长
-                        taskType: 'work',
-                        status: 'pending' as const,
-                      };
-                      onTaskCreate(newTask);
-                    } catch (error) {
-                      console.error('创建间隔任务失败:', error);
-                      alert('创建任务失败: ' + (error instanceof Error ? error.message : String(error)));
-                    }
+                    // 🔧 修复：打开任务创建对话框，而不是直接创建任务
+                    setCreatingGapTask({
+                      startTime: gap.startTime,
+                      endTime: gap.endTime,
+                      maxDuration: gap.durationMinutes,
+                    });
                   }}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-full transition-all hover:scale-105"
                   style={{ 
@@ -3603,6 +3599,132 @@ export default function NewTimelineView({
           onClose={() => setRecurrenceDialogTask(null)}
           isDark={isDark}
         />
+      )}
+      
+      {/* 🔧 新增：间隔任务创建对话框 */}
+      {creatingGapTask && (
+        <div 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => setCreatingGapTask(null)}
+        >
+          <div 
+            className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            style={{ backgroundColor: isDark ? '#1a1a1a' : '#ffffff' }}
+          >
+            <h3 className="text-xl font-bold mb-4" style={{ color: textColor }}>
+              添加任务到间隔时间
+            </h3>
+            
+            <div className="space-y-4">
+              {/* 时间范围提示 */}
+              <div 
+                className="p-3 rounded-lg text-sm"
+                style={{ 
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                  color: accentColor 
+                }}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Clock className="w-4 h-4" />
+                  <span className="font-semibold">可用时间段</span>
+                </div>
+                <div>
+                  {creatingGapTask.startTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} - {creatingGapTask.endTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                  （最多 {creatingGapTask.maxDuration} 分钟）
+                </div>
+              </div>
+              
+              {/* 任务标题输入 */}
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: textColor }}>
+                  任务标题
+                </label>
+                <input
+                  type="text"
+                  id="gap-task-title"
+                  placeholder="例如：打扫卫生"
+                  className="w-full px-4 py-2 rounded-lg border-2 focus:outline-none focus:border-pink-500"
+                  style={{ 
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#ffffff',
+                    borderColor: borderColor,
+                    color: textColor 
+                  }}
+                  autoFocus
+                />
+              </div>
+              
+              {/* 持续时间输入 */}
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: textColor }}>
+                  持续时间（分钟）
+                </label>
+                <input
+                  type="number"
+                  id="gap-task-duration"
+                  placeholder="30"
+                  min="1"
+                  max={creatingGapTask.maxDuration}
+                  defaultValue="30"
+                  className="w-full px-4 py-2 rounded-lg border-2 focus:outline-none focus:border-pink-500"
+                  style={{ 
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#ffffff',
+                    borderColor: borderColor,
+                    color: textColor 
+                  }}
+                />
+              </div>
+              
+              {/* 按钮组 */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setCreatingGapTask(null)}
+                  className="flex-1 px-4 py-2 rounded-lg font-medium transition-colors"
+                  style={{ 
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                    color: accentColor 
+                  }}
+                >
+                  取消
+                </button>
+                <button
+                  onClick={() => {
+                    const titleInput = document.getElementById('gap-task-title') as HTMLInputElement;
+                    const durationInput = document.getElementById('gap-task-duration') as HTMLInputElement;
+                    
+                    const title = titleInput?.value.trim() || '新任务';
+                    const duration = Math.min(
+                      parseInt(durationInput?.value) || 30,
+                      creatingGapTask.maxDuration
+                    );
+                    
+                    // 创建任务
+                    const startTime = new Date(creatingGapTask.startTime);
+                    const endTime = new Date(startTime.getTime() + duration * 60000);
+                    
+                    onTaskCreate({
+                      title,
+                      scheduledStart: startTime.toISOString(),
+                      scheduledEnd: endTime.toISOString(),
+                      durationMinutes: duration,
+                      taskType: 'work',
+                      status: 'pending' as const,
+                    });
+                    
+                    setCreatingGapTask(null);
+                  }}
+                  className="flex-1 px-4 py-2 rounded-lg font-bold transition-all hover:scale-105"
+                  style={{ 
+                    backgroundColor: '#C85A7C',
+                    color: 'white' 
+                  }}
+                >
+                  确定添加
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

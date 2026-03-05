@@ -154,7 +154,7 @@ class NotificationService {
   }
 
   /**
-   * 发送通知（支持后台）
+   * 发送通知（支持后台）- 增强错误处理
    */
   async sendNotification(
     title: string,
@@ -168,16 +168,16 @@ class NotificationService {
       vibrate?: number[];
     }
   ): Promise<void> {
-    // 检查权限
-    if (this.permission !== 'granted') {
-      const granted = await this.requestPermission();
-      if (!granted) {
-        console.warn('通知权限未授予');
-        return;
-      }
-    }
-
     try {
+      // 检查权限
+      if (this.permission !== 'granted') {
+        const granted = await this.requestPermission();
+        if (!granted) {
+          console.warn('⚠️ 通知权限未授予');
+          return;
+        }
+      }
+
       // 优先使用 Service Worker 发送通知（支持后台）
       if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
         try {
@@ -198,7 +198,7 @@ class NotificationService {
           console.log('✅ 通过 Service Worker 发送通知');
           return;
         } catch (swError) {
-          console.warn('Service Worker 通知失败，使用普通通知:', swError);
+          console.warn('⚠️ Service Worker 通知失败，使用普通通知:', swError);
         }
       }
 
@@ -214,23 +214,41 @@ class NotificationService {
 
       // 点击通知时聚焦窗口
       notification.onclick = () => {
-        window.focus();
-        notification.close();
+        try {
+          window.focus();
+          notification.close();
+        } catch (err) {
+          console.error('❌ 通知点击处理失败:', err);
+        }
+      };
+
+      // 错误处理
+      notification.onerror = (err) => {
+        console.error('❌ 通知显示失败:', err);
       };
 
       // 自动关闭（5秒后）
       if (!options?.requireInteraction) {
         setTimeout(() => {
-          notification.close();
+          try {
+            notification.close();
+          } catch (err) {
+            console.error('❌ 关闭通知失败:', err);
+          }
         }, 5000);
       }
       
       // 振动反馈
       if ('vibrate' in navigator && options?.vibrate) {
-        navigator.vibrate(options.vibrate);
+        try {
+          navigator.vibrate(options.vibrate);
+        } catch (err) {
+          console.error('❌ 振动失败:', err);
+        }
       }
     } catch (error) {
-      console.error('发送通知失败:', error);
+      console.error('❌ 发送通知失败:', error);
+      // 不抛出错误，避免影响应用运行
     }
   }
 
@@ -247,14 +265,25 @@ class NotificationService {
     }
     
     try {
+      // 🔧 重新初始化音频上下文（如果失效）
+      if (!this.audioContext || this.audioContext.state === 'closed') {
+        console.log('🔄 音频上下文失效，重新初始化...');
+        this.initAudioContext();
+      }
+
       if (!this.audioContext) {
-        console.warn('音频上下文未初始化');
+        console.warn('⚠️ 音频上下文未初始化，跳过音效播放');
         return;
       }
 
-      // 恢复音频上下文（如果被暂停）
+      // 🔧 恢复音频上下文（如果被暂停）
       if (this.audioContext.state === 'suspended') {
-        this.audioContext.resume();
+        console.log('🔄 恢复音频上下文...');
+        this.audioContext.resume().catch(err => {
+          console.error('❌ 恢复音频上下文失败:', err);
+          this.isPlayingSound = false;
+          return;
+        });
       }
 
       // 🔧 标记正在播放
@@ -304,7 +333,7 @@ class NotificationService {
           // 🔧 播放完成后解除锁定
           setTimeout(() => {
             this.isPlayingSound = false;
-          }, duration * 1000);
+          }, duration * 1000 + 100); // 多加100ms缓冲
           
           console.log('✅ 金币音效播放成功');
           return;
@@ -324,13 +353,21 @@ class NotificationService {
 
       console.log('✅ 音效播放成功:', type);
 
-      // 🔧 播放完成后解除锁定（警告音不播放两次了）
+      // 🔧 播放完成后解除锁定
       setTimeout(() => {
         this.isPlayingSound = false;
-      }, duration * 1000);
+      }, duration * 1000 + 100); // 多加100ms缓冲
     } catch (error) {
-      console.error('播放提示音失败:', error);
+      console.error('❌ 播放提示音失败:', error);
       this.isPlayingSound = false;
+      
+      // 🔧 尝试重新初始化音频上下文
+      try {
+        this.audioContext = null;
+        this.initAudioContext();
+      } catch (reinitError) {
+        console.error('❌ 重新初始化音频上下文失败:', reinitError);
+      }
     }
   }
 
@@ -349,7 +386,7 @@ class NotificationService {
   }
 
   /**
-   * 语音播报 - 增强版（支持移动端）
+   * 语音播报 - 增强版（支持移动端）- 增强错误处理
    */
   speak(text: string) {
     // 检查设置
@@ -365,48 +402,72 @@ class NotificationService {
 
     try {
       // 取消之前的播报
-      window.speechSynthesis.cancel();
+      try {
+        window.speechSynthesis.cancel();
+      } catch (cancelError) {
+        console.warn('⚠️ 取消语音播报失败:', cancelError);
+      }
       
       // 等待一小段时间，确保取消完成
       setTimeout(() => {
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'zh-CN';
-        utterance.rate = this.settings.voiceRate;
-        utterance.pitch = this.settings.voicePitch;
-        utterance.volume = this.settings.voiceVolume;
+        try {
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.lang = 'zh-CN';
+          utterance.rate = this.settings.voiceRate;
+          utterance.pitch = this.settings.voicePitch;
+          utterance.volume = this.settings.voiceVolume;
 
-        utterance.onstart = () => {
-          console.log('🔊 开始语音播报:', text);
-        };
+          utterance.onstart = () => {
+            console.log('🔊 开始语音播报:', text);
+          };
 
-        utterance.onend = () => {
-          console.log('✅ 语音播报完成');
-        };
+          utterance.onend = () => {
+            console.log('✅ 语音播报完成');
+          };
 
-        utterance.onerror = (e) => {
-          console.error('❌ 语音播报失败:', e);
-          
-          // 如果是移动端Safari，尝试重新播报
-          if (e.error === 'not-allowed' || e.error === 'interrupted') {
-            console.log('🔄 尝试重新播报...');
+          utterance.onerror = (e) => {
+            console.error('❌ 语音播报失败:', e);
+            
+            // 如果是移动端Safari，尝试重新播报（但不要无限重试）
+            if ((e.error === 'not-allowed' || e.error === 'interrupted') && !utterance.dataset?.retried) {
+              console.log('🔄 尝试重新播报...');
+              utterance.dataset = { retried: 'true' };
+              setTimeout(() => {
+                try {
+                  window.speechSynthesis.speak(utterance);
+                } catch (retryError) {
+                  console.error('❌ 重新播报失败:', retryError);
+                }
+              }, 100);
+            }
+          };
+
+          // 移动端需要确保语音合成器已准备好
+          if (window.speechSynthesis.getVoices().length === 0) {
+            const voicesChangedHandler = () => {
+              console.log('🎤 语音列表已加载');
+              try {
+                window.speechSynthesis.speak(utterance);
+              } catch (speakError) {
+                console.error('❌ 语音播报失败:', speakError);
+              }
+            };
+            window.speechSynthesis.addEventListener('voiceschanged', voicesChangedHandler, { once: true });
+            
+            // 设置超时，避免永久等待
             setTimeout(() => {
-              window.speechSynthesis.speak(utterance);
-            }, 100);
-          }
-        };
-
-        // 移动端需要确保语音合成器已准备好
-        if (window.speechSynthesis.getVoices().length === 0) {
-          window.speechSynthesis.addEventListener('voiceschanged', () => {
-            console.log('🎤 语音列表已加载');
+              window.speechSynthesis.removeEventListener('voiceschanged', voicesChangedHandler);
+            }, 3000);
+          } else {
             window.speechSynthesis.speak(utterance);
-          }, { once: true });
-        } else {
-          window.speechSynthesis.speak(utterance);
+          }
+        } catch (utteranceError) {
+          console.error('❌ 创建语音播报失败:', utteranceError);
         }
       }, 100);
     } catch (error) {
       console.error('❌ 语音播报异常:', error);
+      // 不抛出错误，避免影响应用运行
     }
   }
   

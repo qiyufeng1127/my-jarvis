@@ -564,6 +564,13 @@ export class TaskMonitor {
     const timers: NodeJS.Timeout[] = [];
     const now = new Date();
     
+    // 🔧 修复：如果任务是历史任务（开始时间在当前时间之前），不启动监控
+    // 这样补录历史任务时就不会触发超时警告
+    if (scheduledStart.getTime() < now.getTime()) {
+      console.log(`📝 任务 "${taskTitle}" 是历史任务，跳过监控`);
+      return;
+    }
+    
     // 如果启用了验证
     if (verification && verification.enabled) {
       // 1. 任务开始时间到达 - 开始启动倒计时

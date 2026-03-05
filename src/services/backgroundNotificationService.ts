@@ -21,33 +21,62 @@ class BackgroundNotificationService {
   private isInitialized = false;
 
   /**
-   * 初始化服务
+   * 初始化服务 - 增强错误处理
    */
   async initialize() {
     if (this.isInitialized) return;
     
-    console.log('🔔 初始化后台通知服务...');
-    
-    // 1. 请求通知权限
-    await this.requestPermissions();
-    
-    // 2. 注册 Service Worker
-    await this.registerServiceWorker();
-    
-    // 3. 请求屏幕常亮（防止后台休眠）
-    await this.requestWakeLock();
-    
-    // 4. 初始化音频上下文（用于后台音效）
-    this.initAudioContext();
-    
-    // 5. 启动定时检查
-    this.startPeriodicCheck();
-    
-    // 6. 监听页面可见性变化
-    this.setupVisibilityListener();
-    
-    this.isInitialized = true;
-    console.log('✅ 后台通知服务已启动');
+    try {
+      console.log('🔔 初始化后台通知服务...');
+      
+      // 1. 请求通知权限
+      try {
+        await this.requestPermissions();
+      } catch (error) {
+        console.error('❌ 请求权限失败:', error);
+      }
+      
+      // 2. 注册 Service Worker
+      try {
+        await this.registerServiceWorker();
+      } catch (error) {
+        console.error('❌ 注册 Service Worker 失败:', error);
+      }
+      
+      // 3. 请求屏幕常亮（防止后台休眠）
+      try {
+        await this.requestWakeLock();
+      } catch (error) {
+        console.error('❌ 请求屏幕常亮失败:', error);
+      }
+      
+      // 4. 初始化音频上下文（用于后台音效）
+      try {
+        this.initAudioContext();
+      } catch (error) {
+        console.error('❌ 初始化音频上下文失败:', error);
+      }
+      
+      // 5. 启动定时检查
+      try {
+        this.startPeriodicCheck();
+      } catch (error) {
+        console.error('❌ 启动定时检查失败:', error);
+      }
+      
+      // 6. 监听页面可见性变化
+      try {
+        this.setupVisibilityListener();
+      } catch (error) {
+        console.error('❌ 设置可见性监听失败:', error);
+      }
+      
+      this.isInitialized = true;
+      console.log('✅ 后台通知服务已启动');
+    } catch (error) {
+      console.error('❌ 后台通知服务初始化失败:', error);
+      // 不抛出错误，让应用继续运行
+    }
   }
 
   /**
@@ -113,7 +142,7 @@ class BackgroundNotificationService {
   }
 
   /**
-   * 初始化音频上下文
+   * 初始化音频上下文 - 增强错误处理
    */
   private initAudioContext() {
     try {
@@ -123,9 +152,16 @@ class BackgroundNotificationService {
         
         // 用户交互后恢复音频上下文
         const resumeAudio = () => {
-          if (this.audioContext && this.audioContext.state === 'suspended') {
-            this.audioContext.resume();
-            console.log('🔊 音频上下文已恢复');
+          try {
+            if (this.audioContext && this.audioContext.state === 'suspended') {
+              this.audioContext.resume().then(() => {
+                console.log('🔊 音频上下文已恢复');
+              }).catch(err => {
+                console.error('❌ 恢复音频上下文失败:', err);
+              });
+            }
+          } catch (error) {
+            console.error('❌ 恢复音频上下文异常:', error);
           }
         };
         
@@ -134,6 +170,7 @@ class BackgroundNotificationService {
       }
     } catch (error) {
       console.warn('⚠️ 音频上下文初始化失败:', error);
+      this.audioContext = null;
     }
   }
 
@@ -198,61 +235,101 @@ class BackgroundNotificationService {
   }
 
   /**
-   * 发送任务开始提醒
+   * 发送任务开始提醒 - 增强错误处理
    */
   private async sendTaskStartReminder(task: any) {
-    console.log('📢 发送任务开始提醒:', task.title);
-    
-    const startTime = new Date(task.scheduledStart);
-    const minutesUntilStart = Math.ceil((startTime.getTime() - Date.now()) / 60000);
-    
-    const body = `${task.title} 将在 ${minutesUntilStart} 分钟后开始`;
-    
-    // 1. 发送通知
-    await notificationService.sendNotification('⏰ 任务即将开始', {
-      body,
-      tag: `task-start-${task.id}`,
-      requireInteraction: true,
-      vibrate: [200, 100, 200],
-    });
-    
-    // 2. 播放音效
-    notificationService.playSound('start');
-    
-    // 3. 语音播报
-    notificationService.speak(body);
-    
-    // 4. 震动
-    notificationService.vibrate([200, 100, 200]);
+    try {
+      console.log('📢 发送任务开始提醒:', task.title);
+      
+      const startTime = new Date(task.scheduledStart);
+      const minutesUntilStart = Math.ceil((startTime.getTime() - Date.now()) / 60000);
+      
+      const body = `${task.title} 将在 ${minutesUntilStart} 分钟后开始`;
+      
+      // 1. 发送通知
+      try {
+        await notificationService.sendNotification('⏰ 任务即将开始', {
+          body,
+          tag: `task-start-${task.id}`,
+          requireInteraction: true,
+          vibrate: [200, 100, 200],
+        });
+      } catch (error) {
+        console.error('❌ 发送通知失败:', error);
+      }
+      
+      // 2. 播放音效
+      try {
+        notificationService.playSound('start');
+      } catch (error) {
+        console.error('❌ 播放音效失败:', error);
+      }
+      
+      // 3. 语音播报
+      try {
+        notificationService.speak(body);
+      } catch (error) {
+        console.error('❌ 语音播报失败:', error);
+      }
+      
+      // 4. 震动
+      try {
+        notificationService.vibrate([200, 100, 200]);
+      } catch (error) {
+        console.error('❌ 震动失败:', error);
+      }
+    } catch (error) {
+      console.error('❌ 发送任务开始提醒失败:', error);
+    }
   }
 
   /**
-   * 发送任务结束提醒
+   * 发送任务结束提醒 - 增强错误处理
    */
   private async sendTaskEndReminder(task: any) {
-    console.log('📢 发送任务结束提醒:', task.title);
-    
-    const endTime = new Date(task.scheduledEnd);
-    const minutesUntilEnd = Math.ceil((endTime.getTime() - Date.now()) / 60000);
-    
-    const body = `${task.title} 还有 ${minutesUntilEnd} 分钟结束`;
-    
-    // 1. 发送通知
-    await notificationService.sendNotification('⏰ 任务即将结束', {
-      body,
-      tag: `task-end-${task.id}`,
-      requireInteraction: true,
-      vibrate: [100, 50, 100, 50, 100],
-    });
-    
-    // 2. 播放警告音
-    notificationService.playSound('warning');
-    
-    // 3. 语音播报
-    notificationService.speak(body);
-    
-    // 4. 震动
-    notificationService.vibrate([100, 50, 100, 50, 100]);
+    try {
+      console.log('📢 发送任务结束提醒:', task.title);
+      
+      const endTime = new Date(task.scheduledEnd);
+      const minutesUntilEnd = Math.ceil((endTime.getTime() - Date.now()) / 60000);
+      
+      const body = `${task.title} 还有 ${minutesUntilEnd} 分钟结束`;
+      
+      // 1. 发送通知
+      try {
+        await notificationService.sendNotification('⏰ 任务即将结束', {
+          body,
+          tag: `task-end-${task.id}`,
+          requireInteraction: true,
+          vibrate: [100, 50, 100, 50, 100],
+        });
+      } catch (error) {
+        console.error('❌ 发送通知失败:', error);
+      }
+      
+      // 2. 播放警告音
+      try {
+        notificationService.playSound('warning');
+      } catch (error) {
+        console.error('❌ 播放音效失败:', error);
+      }
+      
+      // 3. 语音播报
+      try {
+        notificationService.speak(body);
+      } catch (error) {
+        console.error('❌ 语音播报失败:', error);
+      }
+      
+      // 4. 震动
+      try {
+        notificationService.vibrate([100, 50, 100, 50, 100]);
+      } catch (error) {
+        console.error('❌ 震动失败:', error);
+      }
+    } catch (error) {
+      console.error('❌ 发送任务结束提醒失败:', error);
+    }
   }
 
   /**

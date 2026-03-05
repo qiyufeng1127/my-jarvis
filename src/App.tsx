@@ -23,6 +23,9 @@ import { OnboardingTutorial } from '@/components/onboarding/OnboardingTutorial';
 // 紧急任务系统
 import EmergencyTaskTrigger from '@/components/emergency/EmergencyTaskTrigger';
 
+// 错误边界
+import ErrorBoundary from '@/components/shared/ErrorBoundary';
+
 function App() {
   const { initializeUser } = useUserStore();
   const { effectiveTheme, updateEffectiveTheme } = useThemeStore();
@@ -44,82 +47,87 @@ function App() {
   useEffect(() => {
     // 初始化应用
     const initialize = async () => {
-      console.log('🚀 应用初始化开始...');
-      
-      // 执行数据迁移（如果需要）
-      if (shouldMigrate()) {
-        console.log('🔄 检测到旧数据，开始迁移...');
-        migrateStorage();
+      try {
+        console.log('🚀 应用初始化开始...');
+        
+        // 执行数据迁移（如果需要）
+        if (shouldMigrate()) {
+          console.log('🔄 检测到旧数据，开始迁移...');
+          migrateStorage();
+        }
+        
+        // 初始化本地用户
+        initializeUser();
+        
+        // 启动标签自动同步服务
+        const { tagSyncService } = await import('@/services/tagSyncService');
+        tagSyncService.startAutoSync();
+        
+        // 初始化坏习惯预设
+        const { useHabitCanStore } = await import('@/stores/habitCanStore');
+        useHabitCanStore.getState().initializePresets();
+        console.log('🏺 坏习惯预设已初始化');
+        
+        // 启动坏习惯监控服务
+        const { habitMonitorService } = await import('@/services/habitMonitorService');
+        habitMonitorService.initialize();
+        console.log('🏺 坏习惯监控服务已启动');
+        
+        // 启动后台通知服务（PWA 增强）
+        const { backgroundNotificationService } = await import('@/services/backgroundNotificationService');
+        await backgroundNotificationService.initialize();
+        console.log('🔔 后台通知服务已启动');
+        
+        // 🚀 启动后台任务调度服务（真正的后台运行）
+        const { backgroundTaskScheduler } = await import('@/services/backgroundTaskScheduler');
+        await backgroundTaskScheduler.init();
+        console.log('🚀 后台任务调度服务已启动');
+        
+        // 🎯 启动活动监控服务（替代每日成本检查）
+        const { activityMonitorService } = await import('@/services/activityMonitorService');
+        activityMonitorService.start();
+        console.log('🎯 活动监控服务已启动');
+        
+        // 🔔 启动连胜提醒服务
+        const { streakReminderService } = await import('@/services/streakReminderService');
+        streakReminderService.start();
+        console.log('🔔 连胜提醒服务已启动');
+        
+        // 🐾 启动宠物状态更新服务
+        const { petUpdateService } = await import('@/services/petUpdateService');
+        petUpdateService.start();
+        console.log('🐾 宠物状态更新服务已启动');
+        
+        // 🏪 初始化宠物商店
+        const { usePetStore } = await import('@/stores/petStore');
+        usePetStore.getState().initializeShop();
+        console.log('🏪 宠物商店已初始化');
+        
+        // 🏆 检查成就
+        const { useLeaderboardStore } = await import('@/stores/leaderboardStore');
+        useLeaderboardStore.getState().checkAchievements();
+        console.log('🏆 成就系统已初始化');
+        
+        // 🎯 初始化习惯追踪系统
+        const { useHabitStore } = await import('@/stores/habitStore');
+        useHabitStore.getState().initialize();
+        console.log('🎯 习惯追踪系统已初始化');
+        
+        // 🤖 启动习惯识别服务
+        const { habitRecognitionService } = await import('@/services/habitRecognitionService');
+        habitRecognitionService.start();
+        console.log('🤖 习惯识别服务已启动');
+        
+        // 🌙 启动反向检测服务
+        const { habitReverseDetectionService } = await import('@/services/habitReverseDetectionService');
+        habitReverseDetectionService.start();
+        console.log('🌙 反向检测服务已启动');
+        
+        console.log('✅ 应用初始化完成（纯本地模式）');
+      } catch (error) {
+        console.error('❌ 应用初始化失败:', error);
+        // 不抛出错误，让应用继续运行
       }
-      
-      // 初始化本地用户
-      initializeUser();
-      
-      // 启动标签自动同步服务
-      const { tagSyncService } = await import('@/services/tagSyncService');
-      tagSyncService.startAutoSync();
-      
-      // 初始化坏习惯预设
-      const { useHabitCanStore } = await import('@/stores/habitCanStore');
-      useHabitCanStore.getState().initializePresets();
-      console.log('🏺 坏习惯预设已初始化');
-      
-      // 启动坏习惯监控服务
-      const { habitMonitorService } = await import('@/services/habitMonitorService');
-      habitMonitorService.initialize();
-      console.log('🏺 坏习惯监控服务已启动');
-      
-      // 启动后台通知服务（PWA 增强）
-      const { backgroundNotificationService } = await import('@/services/backgroundNotificationService');
-      await backgroundNotificationService.initialize();
-      console.log('🔔 后台通知服务已启动');
-      
-      // 🚀 启动后台任务调度服务（真正的后台运行）
-      const { backgroundTaskScheduler } = await import('@/services/backgroundTaskScheduler');
-      await backgroundTaskScheduler.init();
-      console.log('🚀 后台任务调度服务已启动');
-      
-      // 🎯 启动活动监控服务（替代每日成本检查）
-      const { activityMonitorService } = await import('@/services/activityMonitorService');
-      activityMonitorService.start();
-      console.log('🎯 活动监控服务已启动');
-      
-      // 🔔 启动连胜提醒服务
-      const { streakReminderService } = await import('@/services/streakReminderService');
-      streakReminderService.start();
-      console.log('🔔 连胜提醒服务已启动');
-      
-      // 🐾 启动宠物状态更新服务
-      const { petUpdateService } = await import('@/services/petUpdateService');
-      petUpdateService.start();
-      console.log('🐾 宠物状态更新服务已启动');
-      
-      // 🏪 初始化宠物商店
-      const { usePetStore } = await import('@/stores/petStore');
-      usePetStore.getState().initializeShop();
-      console.log('🏪 宠物商店已初始化');
-      
-      // 🏆 检查成就
-      const { useLeaderboardStore } = await import('@/stores/leaderboardStore');
-      useLeaderboardStore.getState().checkAchievements();
-      console.log('🏆 成就系统已初始化');
-      
-      // 🎯 初始化习惯追踪系统
-      const { useHabitStore } = await import('@/stores/habitStore');
-      useHabitStore.getState().initialize();
-      console.log('🎯 习惯追踪系统已初始化');
-      
-      // 🤖 启动习惯识别服务
-      const { habitRecognitionService } = await import('@/services/habitRecognitionService');
-      habitRecognitionService.start();
-      console.log('🤖 习惯识别服务已启动');
-      
-      // 🌙 启动反向检测服务
-      const { habitReverseDetectionService } = await import('@/services/habitReverseDetectionService');
-      habitReverseDetectionService.start();
-      console.log('🌙 反向检测服务已启动');
-      
-      console.log('✅ 应用初始化完成（纯本地模式）');
     };
 
     initialize();
@@ -128,6 +136,8 @@ function App() {
     return () => {
       import('@/services/habitMonitorService').then(({ habitMonitorService }) => {
         habitMonitorService.destroy();
+      }).catch(err => {
+        console.error('❌ 清理服务失败:', err);
       });
     };
   }, []);
@@ -161,45 +171,113 @@ function App() {
     };
   }, []);
 
+  // 全局错误处理器 - 防止白屏
+  useEffect(() => {
+    // 捕获未处理的 Promise 错误
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      console.error('❌ [全局错误] 未处理的 Promise 错误:', event.reason);
+      event.preventDefault(); // 阻止默认行为（白屏）
+      
+      // 记录错误
+      try {
+        const errorLog = {
+          timestamp: new Date().toISOString(),
+          type: 'unhandledRejection',
+          reason: event.reason?.toString() || 'Unknown error',
+          stack: event.reason?.stack || '',
+        };
+        
+        const existingLogs = localStorage.getItem('error_logs');
+        const logs = existingLogs ? JSON.parse(existingLogs) : [];
+        logs.push(errorLog);
+        
+        if (logs.length > 10) logs.shift();
+        localStorage.setItem('error_logs', JSON.stringify(logs));
+      } catch (logError) {
+        console.error('❌ 保存错误日志失败:', logError);
+      }
+    };
+
+    // 捕获全局 JavaScript 错误
+    const handleError = (event: ErrorEvent) => {
+      console.error('❌ [全局错误] JavaScript 错误:', event.error);
+      event.preventDefault(); // 阻止默认行为（白屏）
+      
+      // 记录错误
+      try {
+        const errorLog = {
+          timestamp: new Date().toISOString(),
+          type: 'error',
+          message: event.message,
+          filename: event.filename,
+          lineno: event.lineno,
+          colno: event.colno,
+          stack: event.error?.stack || '',
+        };
+        
+        const existingLogs = localStorage.getItem('error_logs');
+        const logs = existingLogs ? JSON.parse(existingLogs) : [];
+        logs.push(errorLog);
+        
+        if (logs.length > 10) logs.shift();
+        localStorage.setItem('error_logs', JSON.stringify(logs));
+      } catch (logError) {
+        console.error('❌ 保存错误日志失败:', logError);
+      }
+    };
+
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    window.addEventListener('error', handleError);
+
+    console.log('✅ 全局错误处理器已启动');
+
+    return () => {
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+      window.removeEventListener('error', handleError);
+    };
+  }, []);
+
   return (
-    <Router>
-      <div className="min-h-screen bg-white dark:bg-black transition-colors pb-16 md:pb-0">
-        {/* 全局通知系统 */}
-        <NotificationToast />
-        
-        {/* 新手引导 */}
-        <OnboardingTutorial />
-        
-        {/* 紧急任务触发器 */}
-        <EmergencyTaskTrigger />
-        
-        <Routes>
-          {/* 主控面板 */}
-          <Route path="/" element={<Dashboard />} />
+    <ErrorBoundary>
+      <Router>
+        <div className="min-h-screen bg-white dark:bg-black transition-colors pb-20 md:pb-0">
+          {/* 全局通知系统 */}
+          <NotificationToast />
           
-          {/* SOP 任务库 */}
-          <Route path="/sop" element={<SOPLibrary />} />
+          {/* 新手引导 */}
+          <OnboardingTutorial />
           
-          {/* 习惯追踪 */}
-          <Route path="/habit" element={<HabitPage />} />
+          {/* 紧急任务触发器 */}
+          <EmergencyTaskTrigger />
           
-          {/* 欢迎页 */}
-          <Route path="/welcome" element={<Welcome />} />
-          
-          {/* 百度AI测试页 */}
-          <Route path="/baidu-ai-test" element={<BaiduAITest />} />
-          
-          {/* 设计系统展示页 */}
-          <Route path="/design-demo" element={<DesignSystemDemo />} />
-          
-          {/* 日记系统测试页 */}
-          <Route path="/diary-test" element={<DiarySystemTest />} />
-          
-          {/* 其他路由 */}
-          <Route path="*" element={<Dashboard />} />
-        </Routes>
-      </div>
-    </Router>
+          <Routes>
+            {/* 主控面板 */}
+            <Route path="/" element={<Dashboard />} />
+            
+            {/* SOP 任务库 */}
+            <Route path="/sop" element={<SOPLibrary />} />
+            
+            {/* 习惯追踪 */}
+            <Route path="/habit" element={<HabitPage />} />
+            
+            {/* 欢迎页 */}
+            <Route path="/welcome" element={<Welcome />} />
+            
+            {/* 百度AI测试页 */}
+            <Route path="/baidu-ai-test" element={<BaiduAITest />} />
+            
+            {/* 设计系统展示页 */}
+            <Route path="/design-demo" element={<DesignSystemDemo />} />
+            
+            {/* 日记系统测试页 */}
+            <Route path="/diary-test" element={<DiarySystemTest />} />
+            
+            {/* 其他路由 */}
+            <Route path="*" element={<Dashboard />} />
+          </Routes>
+        </div>
+      </Router>
+    </ErrorBoundary>
   );
 }
 
