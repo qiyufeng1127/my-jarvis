@@ -6,6 +6,7 @@ import type { Task } from '@/types';
 import NewTimelineView from './NewTimelineView';
 import InboxView from './InboxView';
 import QuickStartView from './QuickStartView';
+import ImportExportButton from './ImportExportButton';
 
 interface TimelineCalendarProps {
   tasks: Task[];
@@ -443,68 +444,86 @@ export default function TimelineCalendar({
       {/* 下半部分：时间轴视图或收集箱或快捷开始 */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* 视图切换按钮 */}
-        <div className="flex-shrink-0 px-4 py-2 flex items-center gap-2" style={{ borderBottom: `1px solid ${borderColor}` }}>
-          <button
-            onClick={() => {
-              setShowInbox(false);
-              setShowQuickStart(false);
-            }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-              !showInbox && !showQuickStart ? 'font-semibold shadow-sm' : ''
-            }`}
-            style={{
-              backgroundColor: !showInbox && !showQuickStart ? hoverBg : 'transparent',
-              color: !showInbox && !showQuickStart ? textColor : accentColor,
-            }}
-          >
-            <CalendarIcon className="w-4 h-4" />
-            <span>时间轴</span>
-          </button>
-          
-          <button
-            onClick={() => {
-              setShowInbox(true);
-              setShowQuickStart(false);
-            }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-              showInbox ? 'font-semibold shadow-sm' : ''
-            }`}
-            style={{
-              backgroundColor: showInbox ? hoverBg : 'transparent',
-              color: showInbox ? textColor : accentColor,
-            }}
-          >
-            <Inbox className="w-4 h-4" />
-            <span>收集箱</span>
-            {tasks.filter(t => !t.scheduledStart).length > 0 && (
-              <span 
-                className="px-2 py-0.5 rounded-full text-xs font-bold"
-                style={{
-                  backgroundColor: '#FF4444',
-                  color: '#FFFFFF',
-                }}
-              >
-                {tasks.filter(t => !t.scheduledStart).length}
-              </span>
-            )}
-          </button>
+        <div className="flex-shrink-0 px-4 py-2 flex items-center justify-between gap-2" style={{ borderBottom: `1px solid ${borderColor}` }}>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setShowInbox(false);
+                setShowQuickStart(false);
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                !showInbox && !showQuickStart ? 'font-semibold shadow-sm' : ''
+              }`}
+              style={{
+                backgroundColor: !showInbox && !showQuickStart ? hoverBg : 'transparent',
+                color: !showInbox && !showQuickStart ? textColor : accentColor,
+              }}
+            >
+              <CalendarIcon className="w-4 h-4" />
+              <span>时间轴</span>
+            </button>
+            
+            <button
+              onClick={() => {
+                setShowInbox(true);
+                setShowQuickStart(false);
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                showInbox ? 'font-semibold shadow-sm' : ''
+              }`}
+              style={{
+                backgroundColor: showInbox ? hoverBg : 'transparent',
+                color: showInbox ? textColor : accentColor,
+              }}
+            >
+              <Inbox className="w-4 h-4" />
+              <span>收集箱</span>
+              {tasks.filter(t => !t.scheduledStart).length > 0 && (
+                <span 
+                  className="px-2 py-0.5 rounded-full text-xs font-bold"
+                  style={{
+                    backgroundColor: '#FF4444',
+                    color: '#FFFFFF',
+                  }}
+                >
+                  {tasks.filter(t => !t.scheduledStart).length}
+                </span>
+              )}
+            </button>
 
-          <button
-            onClick={() => {
-              setShowInbox(false);
-              setShowQuickStart(true);
+            <button
+              onClick={() => {
+                setShowInbox(false);
+                setShowQuickStart(true);
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                showQuickStart ? 'font-semibold shadow-sm' : ''
+              }`}
+              style={{
+                backgroundColor: showQuickStart ? hoverBg : 'transparent',
+                color: showQuickStart ? textColor : accentColor,
+              }}
+            >
+              <Zap className="w-4 h-4" />
+              <span>快捷开始</span>
+            </button>
+          </div>
+
+          {/* 导入导出按钮 */}
+          <ImportExportButton
+            tasks={tasks}
+            onImport={(importedTasks) => {
+              // 批量创建导入的任务
+              importedTasks.forEach(task => {
+                onTaskCreate(task);
+              });
             }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-              showQuickStart ? 'font-semibold shadow-sm' : ''
-            }`}
-            style={{
-              backgroundColor: showQuickStart ? hoverBg : 'transparent',
-              color: showQuickStart ? textColor : accentColor,
-            }}
-          >
-            <Zap className="w-4 h-4" />
-            <span>快捷开始</span>
-          </button>
+            bgColor={bgColor}
+            textColor={textColor}
+            accentColor={accentColor}
+            borderColor={borderColor}
+            isDark={isDark}
+          />
         </div>
 
         {/* 主体区域 */}

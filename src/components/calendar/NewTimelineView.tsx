@@ -1798,8 +1798,8 @@ export default function NewTimelineView({
         console.log('🎨 NewTimelineView 编辑弹窗已渲染 - 智能分配按钮应该可见');
         
         return (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-3" style={{ paddingBottom: '120px' }}>
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full max-h-[75vh] overflow-hidden flex flex-col border border-gray-200 dark:border-gray-700">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-3" style={{ paddingBottom: '100px' }}>
+            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col border border-gray-200 dark:border-gray-700">
               {/* 头部 - 只显示关闭按钮 */}
               <div className="flex-shrink-0 px-3 py-2 flex items-center justify-end border-b" style={{ borderColor: isDark ? '#374151' : '#e5e7eb' }}>
                 <button

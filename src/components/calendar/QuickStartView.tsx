@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Play, Square, Plus, Settings, X, Save, ChevronDown, ChevronRight, Folder } from 'lucide-react';
 import type { Task, TaskType } from '@/types';
+import ImportExportButton from './ImportExportButton';
 
 interface QuickStartItem {
   id: string;
@@ -426,6 +427,22 @@ export default function QuickStartView({
           快捷开始
         </h2>
         <div className="flex items-center gap-2">
+          {/* 导入导出按钮 */}
+          <ImportExportButton
+            tasks={tasks}
+            onImport={(importedTasks) => {
+              // 批量创建导入的任务
+              importedTasks.forEach(task => {
+                onTaskCreate(task);
+              });
+            }}
+            bgColor={bgColor}
+            textColor={textColor}
+            accentColor={accentColor}
+            borderColor={borderColor}
+            isDark={isDark}
+          />
+
           <button
             onClick={() => {
               setShowFolderForm(true);

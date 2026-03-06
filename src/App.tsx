@@ -60,68 +60,120 @@ function App() {
         initializeUser();
         
         // 启动标签自动同步服务
-        const { tagSyncService } = await import('@/services/tagSyncService');
-        tagSyncService.startAutoSync();
+        try {
+          const { tagSyncService } = await import('@/services/tagSyncService');
+          tagSyncService.startAutoSync();
+        } catch (err) {
+          console.warn('⚠️ 标签同步服务启动失败:', err);
+        }
         
         // 初始化坏习惯预设
-        const { useHabitCanStore } = await import('@/stores/habitCanStore');
-        useHabitCanStore.getState().initializePresets();
-        console.log('🏺 坏习惯预设已初始化');
+        try {
+          const { useHabitCanStore } = await import('@/stores/habitCanStore');
+          useHabitCanStore.getState().initializePresets();
+          console.log('🏺 坏习惯预设已初始化');
+        } catch (err) {
+          console.warn('⚠️ 坏习惯预设初始化失败:', err);
+        }
         
         // 启动坏习惯监控服务
-        const { habitMonitorService } = await import('@/services/habitMonitorService');
-        habitMonitorService.initialize();
-        console.log('🏺 坏习惯监控服务已启动');
+        try {
+          const { habitMonitorService } = await import('@/services/habitMonitorService');
+          habitMonitorService.initialize();
+          console.log('🏺 坏习惯监控服务已启动');
+        } catch (err) {
+          console.warn('⚠️ 坏习惯监控服务启动失败:', err);
+        }
         
         // 启动后台通知服务（PWA 增强）
-        const { backgroundNotificationService } = await import('@/services/backgroundNotificationService');
-        await backgroundNotificationService.initialize();
-        console.log('🔔 后台通知服务已启动');
+        try {
+          const { backgroundNotificationService } = await import('@/services/backgroundNotificationService');
+          await backgroundNotificationService.initialize();
+          console.log('🔔 后台通知服务已启动');
+        } catch (err) {
+          console.warn('⚠️ 后台通知服务启动失败:', err);
+        }
         
         // 🚀 启动后台任务调度服务（真正的后台运行）
-        const { backgroundTaskScheduler } = await import('@/services/backgroundTaskScheduler');
-        await backgroundTaskScheduler.init();
-        console.log('🚀 后台任务调度服务已启动');
+        try {
+          const { backgroundTaskScheduler } = await import('@/services/backgroundTaskScheduler');
+          await backgroundTaskScheduler.init();
+          console.log('🚀 后台任务调度服务已启动');
+        } catch (err) {
+          console.warn('⚠️ 后台任务调度服务启动失败:', err);
+        }
         
         // 🎯 启动活动监控服务（替代每日成本检查）
-        const { activityMonitorService } = await import('@/services/activityMonitorService');
-        activityMonitorService.start();
-        console.log('🎯 活动监控服务已启动');
+        try {
+          const { activityMonitorService } = await import('@/services/activityMonitorService');
+          activityMonitorService.start();
+          console.log('🎯 活动监控服务已启动');
+        } catch (err) {
+          console.warn('⚠️ 活动监控服务启动失败:', err);
+        }
         
         // 🔔 启动连胜提醒服务
-        const { streakReminderService } = await import('@/services/streakReminderService');
-        streakReminderService.start();
-        console.log('🔔 连胜提醒服务已启动');
+        try {
+          const { streakReminderService } = await import('@/services/streakReminderService');
+          streakReminderService.start();
+          console.log('🔔 连胜提醒服务已启动');
+        } catch (err) {
+          console.warn('⚠️ 连胜提醒服务启动失败:', err);
+        }
         
         // 🐾 启动宠物状态更新服务
-        const { petUpdateService } = await import('@/services/petUpdateService');
-        petUpdateService.start();
-        console.log('🐾 宠物状态更新服务已启动');
+        try {
+          const { petUpdateService } = await import('@/services/petUpdateService');
+          petUpdateService.start();
+          console.log('🐾 宠物状态更新服务已启动');
+        } catch (err) {
+          console.warn('⚠️ 宠物状态更新服务启动失败:', err);
+        }
         
         // 🏪 初始化宠物商店
-        const { usePetStore } = await import('@/stores/petStore');
-        usePetStore.getState().initializeShop();
-        console.log('🏪 宠物商店已初始化');
+        try {
+          const { usePetStore } = await import('@/stores/petStore');
+          usePetStore.getState().initializeShop();
+          console.log('🏪 宠物商店已初始化');
+        } catch (err) {
+          console.warn('⚠️ 宠物商店初始化失败:', err);
+        }
         
         // 🏆 检查成就
-        const { useLeaderboardStore } = await import('@/stores/leaderboardStore');
-        useLeaderboardStore.getState().checkAchievements();
-        console.log('🏆 成就系统已初始化');
+        try {
+          const { useLeaderboardStore } = await import('@/stores/leaderboardStore');
+          useLeaderboardStore.getState().checkAchievements();
+          console.log('🏆 成就系统已初始化');
+        } catch (err) {
+          console.warn('⚠️ 成就系统初始化失败:', err);
+        }
         
         // 🎯 初始化习惯追踪系统
-        const { useHabitStore } = await import('@/stores/habitStore');
-        useHabitStore.getState().initialize();
-        console.log('🎯 习惯追踪系统已初始化');
+        try {
+          const { useHabitStore } = await import('@/stores/habitStore');
+          useHabitStore.getState().initialize();
+          console.log('🎯 习惯追踪系统已初始化');
+        } catch (err) {
+          console.warn('⚠️ 习惯追踪系统初始化失败:', err);
+        }
         
         // 🤖 启动习惯识别服务
-        const { habitRecognitionService } = await import('@/services/habitRecognitionService');
-        habitRecognitionService.start();
-        console.log('🤖 习惯识别服务已启动');
+        try {
+          const { habitRecognitionService } = await import('@/services/habitRecognitionService');
+          habitRecognitionService.start();
+          console.log('🤖 习惯识别服务已启动');
+        } catch (err) {
+          console.warn('⚠️ 习惯识别服务启动失败:', err);
+        }
         
         // 🌙 启动反向检测服务
-        const { habitReverseDetectionService } = await import('@/services/habitReverseDetectionService');
-        habitReverseDetectionService.start();
-        console.log('🌙 反向检测服务已启动');
+        try {
+          const { habitReverseDetectionService } = await import('@/services/habitReverseDetectionService');
+          habitReverseDetectionService.start();
+          console.log('🌙 反向检测服务已启动');
+        } catch (err) {
+          console.warn('⚠️ 反向检测服务启动失败:', err);
+        }
         
         console.log('✅ 应用初始化完成（纯本地模式）');
       } catch (error) {
@@ -178,7 +230,7 @@ function App() {
       console.error('❌ [全局错误] 未处理的 Promise 错误:', event.reason);
       event.preventDefault(); // 阻止默认行为（白屏）
       
-      // 记录错误
+      // 记录错误但不让错误日志本身导致崩溃
       try {
         const errorLog = {
           timestamp: new Date().toISOString(),
@@ -191,10 +243,24 @@ function App() {
         const logs = existingLogs ? JSON.parse(existingLogs) : [];
         logs.push(errorLog);
         
-        if (logs.length > 10) logs.shift();
+        // 只保留最近 20 条错误日志
+        if (logs.length > 20) logs.shift();
         localStorage.setItem('error_logs', JSON.stringify(logs));
       } catch (logError) {
         console.error('❌ 保存错误日志失败:', logError);
+      }
+      
+      // 尝试恢复应用状态
+      try {
+        // 如果是存储相关错误，尝试清理
+        if (event.reason?.message?.includes('localStorage') || 
+            event.reason?.message?.includes('QuotaExceededError')) {
+          console.warn('⚠️ 检测到存储错误，尝试清理...');
+          // 清理旧的错误日志
+          localStorage.removeItem('error_logs');
+        }
+      } catch (recoveryError) {
+        console.error('❌ 恢复失败:', recoveryError);
       }
     };
 
@@ -219,7 +285,8 @@ function App() {
         const logs = existingLogs ? JSON.parse(existingLogs) : [];
         logs.push(errorLog);
         
-        if (logs.length > 10) logs.shift();
+        // 只保留最近 20 条错误日志
+        if (logs.length > 20) logs.shift();
         localStorage.setItem('error_logs', JSON.stringify(logs));
       } catch (logError) {
         console.error('❌ 保存错误日志失败:', logError);
@@ -240,7 +307,7 @@ function App() {
   return (
     <ErrorBoundary>
       <Router>
-        <div className="min-h-screen bg-white dark:bg-black transition-colors pb-20 md:pb-0">
+        <div className="min-h-screen bg-white dark:bg-black transition-colors pb-4 md:pb-0">
           {/* 全局通知系统 */}
           <NotificationToast />
           
