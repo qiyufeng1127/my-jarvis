@@ -512,9 +512,11 @@ export default function TimelineCalendar({
           <ImportExportButton
             tasks={tasks}
             onImport={(importedTasks) => {
-              // 批量创建导入的任务
-              importedTasks.forEach(task => {
-                onTaskCreate(task);
+              // 批量创建导入的任务 - 使用 Promise.all 避免循环触发
+              Promise.all(
+                importedTasks.map(task => onTaskCreate(task))
+              ).catch(err => {
+                console.error('❌ 批量导入任务失败:', err);
               });
             }}
             bgColor={bgColor}

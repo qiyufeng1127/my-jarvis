@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Download, Upload, X, Calendar, CheckCircle, AlertCircle } from 'lucide-react';
 import type { Task } from '@/types';
 
 interface ImportExportButtonProps {
   tasks: Task[];
-  onImport: (tasks: Task[]) => void;
+  onImport: (tasks: Partial<Task>[]) => void;
   bgColor?: string;
   textColor?: string;
   accentColor?: string;
@@ -27,8 +27,8 @@ export default function ImportExportButton({
     message: string;
   } | null>(null);
 
-  // 导出今日时间轴数据
-  const handleExport = () => {
+  // 导出今日时间轴数据 - 使用 useCallback 避免重复创建
+  const handleExport = useCallback(() => {
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -90,10 +90,10 @@ export default function ImportExportButton({
       });
       setTimeout(() => setShowResult(null), 3000);
     }
-  };
+  }, [tasks]); // 只依赖 tasks
 
-  // 导入时间轴数据
-  const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // 导入时间轴数据 - 使用 useCallback 避免重复创建
+  const handleImport = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -108,17 +108,31 @@ export default function ImportExportButton({
           throw new Error('无效的数据格式');
         }
 
-        // 恢复日期对象
-        const importedTasks: Task[] = importData.tasks.map((task: any) => ({
-          ...task,
+        // 恢复日期对象 - 只传递必要的字段，让 taskStore 处理其余部分
+        const importedTasks: Partial<Task>[] = importData.tasks.map((task: any) => ({
+          id: task.id, // 保留原有ID
+          title: task.title,
+          description: task.description,
+          taskType: task.taskType,
+          priority: task.priority,
+          durationMinutes: task.durationMinutes,
           scheduledStart: task.scheduledStart ? new Date(task.scheduledStart) : undefined,
           scheduledEnd: task.scheduledEnd ? new Date(task.scheduledEnd) : undefined,
           actualStart: task.actualStart ? new Date(task.actualStart) : undefined,
           actualEnd: task.actualEnd ? new Date(task.actualEnd) : undefined,
-          createdAt: new Date(task.createdAt),
-          updatedAt: new Date(task.updatedAt),
-          startVerificationDeadline: task.startVerificationDeadline ? new Date(task.startVerificationDeadline) : undefined,
-          completionDeadline: task.completionDeadline ? new Date(task.completionDeadline) : undefined,
+          status: task.status,
+          goldEarned: task.goldEarned || 0,
+          penaltyGold: task.penaltyGold || 0,
+          tags: task.tags || [],
+          color: task.color,
+          location: task.location,
+          goldReward: task.goldReward || 0,
+          growthDimensions: task.growthDimensions || {},
+          longTermGoals: task.longTermGoals || {},
+          identityTags: task.identityTags || [],
+          enableProgressCheck: task.enableProgressCheck || false,
+          progressChecks: task.progressChecks || [],
+          metadata: task.metadata,
         }));
 
         // 检查是否有重复任务（根据ID）
@@ -161,7 +175,7 @@ export default function ImportExportButton({
     reader.readAsText(file);
     // 重置input，允许重复选择同一文件
     event.target.value = '';
-  };
+  }, [tasks, onImport]); // 依赖 tasks 和 onImport
 
   return (
     <div className="relative">

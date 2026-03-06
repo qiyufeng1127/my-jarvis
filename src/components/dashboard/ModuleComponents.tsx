@@ -19,7 +19,7 @@ import { useThemeStore, ACCENT_COLORS } from '@/stores/themeStore';
 import { useDeviceStore } from '@/stores/deviceStore';
 import { DeviceIdentityService } from '@/services/deviceIdentityService';
 import { TrendingUp, Target, CheckCircle, Clock, ShoppingBag, History, Plus } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 // 设备信息面板组件
 function DeviceInfoPanel({ isDark, cardBg, textColor, accentColor, buttonBg }: { 
@@ -1488,6 +1488,11 @@ export function TimelineModule({ isDark = false, bgColor = '#ffffff', moduleSize
   const [showAIChat, setShowAIChat] = useState(false);
   const [showConfigPrompt, setShowConfigPrompt] = useState(false);
   
+  // 使用 useCallback 包装 createTask，避免无限循环
+  const handleCreateTask = useCallback((task: any) => {
+    return createTask(task);
+  }, [createTask]);
+  
   // 检查AI是否已配置
   const checkAIConfig = () => {
     const aiConfig = localStorage.getItem('manifestos-ai-config-storage');
@@ -1517,7 +1522,7 @@ export function TimelineModule({ isDark = false, bgColor = '#ffffff', moduleSize
         <TimelineCalendar 
           tasks={tasks}
           onTaskUpdate={updateTask}
-          onTaskCreate={createTask}
+          onTaskCreate={handleCreateTask}
           onTaskDelete={deleteTask}
           bgColor={bgColor}
           moduleSize={moduleSize}

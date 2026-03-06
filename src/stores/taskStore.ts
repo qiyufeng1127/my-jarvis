@@ -64,7 +64,7 @@ export const useTaskStore = create<TaskState>()(
         : undefined;
       
       const newTask: Task = {
-        id: crypto.randomUUID(),
+        id: taskData.id || crypto.randomUUID(), // 如果已有ID则使用，否则生成新ID
         userId,
         title: taskData.title || '',
         description: taskData.description,

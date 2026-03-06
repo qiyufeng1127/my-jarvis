@@ -33,10 +33,10 @@ export default function HabitPage() {
   ];
   
   return (
-    <div className="min-h-screen pb-20" style={{ backgroundColor: '#FFFFFF' }}>
+    <div className="min-h-screen" style={{ backgroundColor: '#FFFFFF' }}>
       {/* 顶部标题栏 */}
       <div className="sticky top-0 z-10 backdrop-blur-lg border-b" style={{
-        backgroundColor: 'rgba(255, 255, 255, 0.8)',
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
         borderColor: 'rgba(0, 0, 0, 0.06)'
       }}>
         <div className="max-w-4xl mx-auto px-4 py-4">
