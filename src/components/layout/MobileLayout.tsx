@@ -301,7 +301,7 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         className="flex-1 overflow-y-auto overflow-x-hidden"
         style={{ 
           WebkitOverflowScrolling: 'touch', // iOS 平滑滚动
-          paddingBottom: '120px', // 为底部导航栏留出更多空间，防止内容被遮挡
+          paddingBottom: '80px', // 为底部导航栏留出空间，防止内容被遮挡
         }}
       >
         {renderActiveModule()}

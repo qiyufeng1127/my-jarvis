@@ -168,15 +168,13 @@ export default function ImportExportButton({
       {/* 主按钮 */}
       <button
         onClick={() => setShowMenu(!showMenu)}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:shadow-md active:scale-95"
+        className="flex items-center justify-center w-10 h-10 rounded-lg transition-all hover:shadow-md active:scale-95"
         style={{
           backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-          color: textColor,
         }}
         title="导入/导出"
       >
-        <Download className="w-4 h-4" />
-        <span className="text-sm font-medium">导入/导出</span>
+        <span className="text-xl">💾</span>
       </button>
 
       {/* 下拉菜单 */}

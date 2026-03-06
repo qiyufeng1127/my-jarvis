@@ -451,16 +451,15 @@ export default function TimelineCalendar({
                 setShowInbox(false);
                 setShowQuickStart(false);
               }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                !showInbox && !showQuickStart ? 'font-semibold shadow-sm' : ''
+              className={`flex items-center justify-center w-10 h-10 rounded-lg transition-all ${
+                !showInbox && !showQuickStart ? 'shadow-sm' : ''
               }`}
               style={{
                 backgroundColor: !showInbox && !showQuickStart ? hoverBg : 'transparent',
-                color: !showInbox && !showQuickStart ? textColor : accentColor,
               }}
+              title="时间轴"
             >
-              <CalendarIcon className="w-4 h-4" />
-              <span>时间轴</span>
+              <span className="text-xl">📅</span>
             </button>
             
             <button
@@ -468,22 +467,23 @@ export default function TimelineCalendar({
                 setShowInbox(true);
                 setShowQuickStart(false);
               }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                showInbox ? 'font-semibold shadow-sm' : ''
+              className={`relative flex items-center justify-center w-10 h-10 rounded-lg transition-all ${
+                showInbox ? 'shadow-sm' : ''
               }`}
               style={{
                 backgroundColor: showInbox ? hoverBg : 'transparent',
-                color: showInbox ? textColor : accentColor,
               }}
+              title="收集箱"
             >
-              <Inbox className="w-4 h-4" />
-              <span>收集箱</span>
+              <span className="text-xl">📥</span>
               {tasks.filter(t => !t.scheduledStart).length > 0 && (
                 <span 
-                  className="px-2 py-0.5 rounded-full text-xs font-bold"
+                  className="absolute -top-1 -right-1 px-1.5 py-0.5 rounded-full text-xs font-bold"
                   style={{
                     backgroundColor: '#FF4444',
                     color: '#FFFFFF',
+                    minWidth: '20px',
+                    textAlign: 'center',
                   }}
                 >
                   {tasks.filter(t => !t.scheduledStart).length}
@@ -496,16 +496,15 @@ export default function TimelineCalendar({
                 setShowInbox(false);
                 setShowQuickStart(true);
               }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                showQuickStart ? 'font-semibold shadow-sm' : ''
+              className={`flex items-center justify-center w-10 h-10 rounded-lg transition-all ${
+                showQuickStart ? 'shadow-sm' : ''
               }`}
               style={{
                 backgroundColor: showQuickStart ? hoverBg : 'transparent',
-                color: showQuickStart ? textColor : accentColor,
               }}
+              title="快捷开始"
             >
-              <Zap className="w-4 h-4" />
-              <span>快捷开始</span>
+              <span className="text-xl">⚡</span>
             </button>
           </div>
 

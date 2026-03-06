@@ -1,7 +1,8 @@
-import { motion } from 'framer-motion';
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useHabitStore } from '@/stores/habitStore';
 import type { Habit } from '@/types/habit';
-import { Check } from 'lucide-react';
+import { Check, Sparkles } from 'lucide-react';
 
 interface HabitListProps {
   habits: Habit[];
@@ -11,9 +12,60 @@ interface HabitListProps {
 export default function HabitList({ habits, onHabitClick }: HabitListProps) {
   const logHabit = useHabitStore((state) => state.logHabit);
   const getLogsForDate = useHabitStore((state) => state.getLogsForDate);
+  const updateHabit = useHabitStore((state) => state.updateHabit);
+  
+  const [showEmojiPicker, setShowEmojiPicker] = useState<string | null>(null);
+  const [isAIGenerating, setIsAIGenerating] = useState<string | null>(null);
   
   const today = new Date().toISOString().split('T')[0];
   const todayLogs = getLogsForDate(today);
+  
+  // AI 智能推荐 emoji
+  const EMOJI_SUGGESTIONS: Record<string, string[]> = {
+    '水': ['💧', '🚰', '💦', '🌊'],
+    '跑': ['🏃', '🏃‍♂️', '🏃‍♀️', '👟', '🎽'],
+    '读': ['📚', '📖', '📕', '📗', '📘'],
+    '写': ['✍️', '📝', '✏️', '🖊️'],
+    '冥想': ['🧘', '🧘‍♂️', '🧘‍♀️', '🕉️'],
+    '健身': ['💪', '🏋️', '🏋️‍♂️', '🏋️‍♀️'],
+    '画': ['🎨', '🖌️', '🖍️', '🎭'],
+    '音乐': ['🎵', '🎶', '🎸', '🎹', '🎤'],
+    '吃': ['🍎', '🥗', '🥙', '🍱'],
+    '睡': ['😴', '🛌', '💤', '🌙'],
+    '咖啡': ['☕', '☕️'],
+    '早起': ['🌅', '⏰', '🌄'],
+    '学习': ['📚', '📖', '✏️', '🎓'],
+    '工作': ['💼', '💻', '⌨️', '🖥️'],
+    '运动': ['🏃', '⚽', '🏀', '🎾', '🏊'],
+    '瑜伽': ['🧘', '🧘‍♀️', '🕉️'],
+  };
+  
+  const getSmartEmojis = (habitName: string): string[] => {
+    // 根据习惯名称智能推荐 emoji
+    for (const [keyword, emojis] of Object.entries(EMOJI_SUGGESTIONS)) {
+      if (habitName.includes(keyword)) {
+        return emojis;
+      }
+    }
+    // 默认推荐
+    return ['⭐', '✨', '🎯', '🔥', '💡', '🌟'];
+  };
+  
+  const handleSmartEmojiChange = async (habitId: string, habitName: string) => {
+    setIsAIGenerating(habitId);
+    
+    // 模拟 AI 思考过程
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    const suggestions = getSmartEmojis(habitName);
+    setShowEmojiPicker(habitId);
+    setIsAIGenerating(null);
+  };
+  
+  const handleEmojiSelect = (habitId: string, emoji: string) => {
+    updateHabit(habitId, { emoji });
+    setShowEmojiPicker(null);
+  };
   
   const handleQuickLog = (e: React.MouseEvent, habitId: string, targetValue: number) => {
     e.stopPropagation();
@@ -37,6 +89,7 @@ export default function HabitList({ habits, onHabitClick }: HabitListProps) {
       {habits.map((habit, index) => {
         const completed = isCompletedToday(habit.id, habit.targetValue);
         const progress = getTodayProgress(habit.id, habit.targetValue);
+        const suggestions = getSmartEmojis(habit.name);
         
         return (
           <motion.div
@@ -44,8 +97,7 @@ export default function HabitList({ habits, onHabitClick }: HabitListProps) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05 }}
-            onClick={() => onHabitClick(habit.id)}
-            className="rounded-2xl p-4 transition-all cursor-pointer active:scale-98"
+            className="rounded-2xl p-4 transition-all relative"
             style={{
               backgroundColor: '#FFFFFF',
               boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
@@ -54,9 +106,13 @@ export default function HabitList({ habits, onHabitClick }: HabitListProps) {
             <div className="flex items-center gap-4">
               {/* Emoji 图标 */}
               <div className="relative">
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl" style={{
-                  backgroundColor: '#F5F5F7'
-                }}>
+                <div 
+                  onClick={() => onHabitClick(habit.id)}
+                  className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl cursor-pointer" 
+                  style={{
+                    backgroundColor: '#F5F5F7'
+                  }}
+                >
                   {habit.emoji}
                 </div>
                 {completed && (
@@ -72,7 +128,7 @@ export default function HabitList({ habits, onHabitClick }: HabitListProps) {
               </div>
               
               {/* 习惯信息 */}
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0" onClick={() => onHabitClick(habit.id)}>
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="font-semibold truncate" style={{ color: '#1D1D1F' }}>
                     {habit.name}
@@ -126,20 +182,107 @@ export default function HabitList({ habits, onHabitClick }: HabitListProps) {
                 </div>
               </div>
               
-              {/* 快速打卡按钮 */}
-              {!completed && (
+              {/* 右侧按钮组 */}
+              <div className="flex flex-col gap-2">
+                {/* 智能修改emoji按钮 */}
                 <button
-                  onClick={(e) => handleQuickLog(e, habit.id, habit.targetValue)}
-                  className="w-12 h-12 rounded-xl flex items-center justify-center transition-all active:scale-95"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleSmartEmojiChange(habit.id, habit.name);
+                  }}
+                  disabled={isAIGenerating === habit.id}
+                  className="px-3 py-1.5 rounded-full text-xs font-medium transition-all active:scale-95 flex items-center gap-1 whitespace-nowrap disabled:opacity-50"
                   style={{
                     backgroundColor: '#6D9978',
                     color: '#FFFFFF'
                   }}
                 >
-                  <Plus className="w-6 h-6" />
+                  {isAIGenerating === habit.id ? (
+                    <>
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                      >
+                        <Sparkles className="w-3 h-3" />
+                      </motion.div>
+                      <span>生成中</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3 h-3" />
+                      <span>智能修改emoji</span>
+                    </>
+                  )}
                 </button>
-              )}
+                
+                {/* 快速打卡按钮 */}
+                {!completed && (
+                  <button
+                    onClick={(e) => handleQuickLog(e, habit.id, habit.targetValue)}
+                    className="w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-95"
+                    style={{
+                      backgroundColor: '#DD617C',
+                      color: '#FFFFFF'
+                    }}
+                  >
+                    <Plus className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
             </div>
+            
+            {/* Emoji 选择器弹窗 */}
+            <AnimatePresence>
+              {showEmojiPicker === habit.id && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9, y: -10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, y: -10 }}
+                  className="absolute top-full left-0 right-0 mt-2 p-4 rounded-2xl z-10"
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)'
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold" style={{ color: '#1D1D1F' }}>
+                      AI 推荐的 Emoji
+                    </h4>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowEmojiPicker(null);
+                      }}
+                      className="text-xs px-2 py-1 rounded-lg"
+                      style={{
+                        backgroundColor: '#F5F5F7',
+                        color: 'rgba(0, 0, 0, 0.5)'
+                      }}
+                    >
+                      取消
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-6 gap-2">
+                    {suggestions.map((emoji) => (
+                      <button
+                        key={emoji}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEmojiSelect(habit.id, emoji);
+                        }}
+                        className="w-full aspect-square rounded-xl text-2xl flex items-center justify-center transition-all active:scale-95 hover:shadow-md"
+                        style={{
+                          backgroundColor: habit.emoji === emoji ? '#6D9978' : '#F5F5F7'
+                        }}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         );
       })}
