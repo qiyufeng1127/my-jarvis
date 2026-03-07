@@ -510,8 +510,28 @@ class AICommandCenter {
   
   private async recordMutter(params: any) {
     const { addMemory } = useMemoryStore.getState();
+    
+    console.log('📝 [记录碎碎念] 参数:', params);
+    
     // 实现碎碎念记录逻辑
-    return addMemory(params);
+    const memory = {
+      type: 'thought' as const,
+      content: params.content,
+      emotionTags: params.tags || [],
+      categoryTags: params.tags || [],
+      rewards: {
+        gold: 5,
+        growth: 2,
+      },
+    };
+    
+    console.log('📝 [记录碎碎念] 创建记录:', memory);
+    
+    addMemory(memory);
+    
+    console.log('✅ [记录碎碎念] 记录成功');
+    
+    return memory;
   }
   
   private async deleteTasks(params: any) {
