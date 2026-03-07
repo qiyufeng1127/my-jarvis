@@ -41,7 +41,7 @@ export default function TagListV2({ tags, selectedTags, onSelectTag, isDark = fa
     setContextMenuTag(null);
   };
   
-  const handleRename = (oldName: string, newName: string) => {
+  const handleRename = (oldName: string, newName: string, emoji?: string, color?: string) => {
     const relatedTasksCount = tasks.filter(task => 
       task.tags?.includes(oldName)
     ).length;
@@ -51,7 +51,7 @@ export default function TagListV2({ tags, selectedTags, onSelectTag, isDark = fa
     );
     
     if (confirmed) {
-      updateTag(oldName, newName);
+      updateTag(oldName, newName, emoji, color);
       setEditingTag(null);
     }
   };
@@ -293,7 +293,7 @@ export default function TagListV2({ tags, selectedTags, onSelectTag, isDark = fa
         <TagEditModal
           tag={editingTag}
           onClose={() => setEditingTag(null)}
-          onSave={(newName) => handleRename(editingTag.name, newName)}
+          onSave={(newName, emoji, color) => handleRename(editingTag.name, newName, emoji, color)}
           isDark={isDark}
         />
       )}
