@@ -397,8 +397,8 @@ ${sopTasks.map((t, i) => `${i + 1}. ${t.title}${t.description ? ` - ${t.descript
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 z-50">
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden border-2 border-purple-200 dark:border-purple-800">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 z-50" style={{ paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}>
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[calc(100vh-160px)] flex flex-col overflow-hidden border-2 border-purple-200 dark:border-purple-800">
         {/* 头部 - 紧凑设计 */}
         <div className="flex-shrink-0 bg-gradient-to-r from-purple-500 to-pink-500 px-4 py-2.5 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -414,8 +414,8 @@ ${sopTasks.map((t, i) => `${i + 1}. ${t.title}${t.description ? ` - ${t.descript
           </button>
         </div>
 
-        {/* 表单内容 - 紧凑布局，添加更大的底部内边距避免被按钮和导航栏遮挡 */}
-        <div className="flex-1 overflow-y-auto p-4 pb-40 space-y-3">
+        {/* 表单内容 - 紧凑布局，添加更大的底部内边距避免被按钮遮挡 */}
+        <div className="flex-1 overflow-y-auto p-4 pb-4 space-y-3">
           {/* 任务标题 */}
           <div>
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
@@ -801,8 +801,8 @@ ${sopTasks.map((t, i) => `${i + 1}. ${t.title}${t.description ? ` - ${t.descript
           </div>
         )}
 
-        {/* 底部按钮 - 固定在底部，避免被导航栏遮挡，增加z-index确保在最上层 */}
-        <div className="flex-shrink-0 border-t-2 border-gray-200 dark:border-gray-700 px-3 py-3 flex gap-2 bg-white dark:bg-gray-800 sticky bottom-0 z-[100] shadow-2xl">
+        {/* 底部按钮 - 固定在弹窗底部 */}
+        <div className="flex-shrink-0 border-t-2 border-gray-200 dark:border-gray-700 px-3 py-3 flex gap-2 bg-white dark:bg-gray-800 shadow-2xl">
           <button
             onClick={handleDelete}
             className="px-4 py-2 rounded-lg font-semibold transition-all active:scale-95 text-sm"
