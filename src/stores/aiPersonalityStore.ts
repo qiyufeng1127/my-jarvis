@@ -10,16 +10,18 @@ export interface AIPersonality {
   avatar: string; // 头像URL或emoji
   callUserAs: string; // 称呼用户
   
-  // 性格参数（0-100）
-  toxicity: number; // 毒舌程度
-  strictness: number; // 严格程度
-  formality: number; // 正式程度
+  // 性格类型
+  type: 'gentle' | 'strict' | 'humorous' | 'analytical' | 'bestie' | 'chill';
+  
+  // 性格参数（0-1）
+  strictness: number; // 严格度
+  humor: number; // 幽默度
+  formality: number; // 正式度
+  emoji: number; // emoji使用频率
+  verbosity: number; // 话痨程度
   
   // 自定义提示词
   customPrompt?: string;
-  
-  // 预设性格模板
-  preset?: 'gentle' | 'toxic' | 'professional' | 'friend' | 'custom';
 }
 
 /**
@@ -79,42 +81,74 @@ const PERSONALITY_PRESETS: Record<string, Partial<AIPersonality>> = {
   gentle: {
     name: 'AI助手',
     avatar: '🤗',
-    callUserAs: '亲',
-    toxicity: 10,
-    strictness: 30,
-    formality: 20,
-    preset: 'gentle',
+    callUserAs: '宝贝',
+    type: 'gentle',
+    strictness: 0.3,
+    humor: 0.5,
+    formality: 0.2,
+    emoji: 0.8,
+    verbosity: 0.6,
     customPrompt: '你是一个温柔体贴的AI助手，说话温和友善，像闺蜜一样关心用户。',
   },
-  toxic: {
-    name: '毒舌教练',
-    avatar: '😏',
-    callUserAs: '废物',
-    toxicity: 90,
-    strictness: 90,
-    formality: 10,
-    preset: 'toxic',
-    customPrompt: '你是一个毒舌但有效的教练，说话直接犀利，不留情面，但目的是激励用户进步。用口语化的方式说话，可以适当使用"你可真行"、"又来了"、"说好的呢"等调侃语气。',
+  strict: {
+    name: '严格教练',
+    avatar: '💪',
+    callUserAs: '你',
+    type: 'strict',
+    strictness: 0.9,
+    humor: 0.2,
+    formality: 0.6,
+    emoji: 0.4,
+    verbosity: 0.5,
+    customPrompt: '你是一个严格的教练，说话直接犀利，不留情面，但目的是激励用户进步。',
   },
-  professional: {
+  humorous: {
+    name: '幽默助手',
+    avatar: '😏',
+    callUserAs: '姐妹',
+    type: 'humorous',
+    strictness: 0.5,
+    humor: 0.9,
+    formality: 0.2,
+    emoji: 0.9,
+    verbosity: 0.7,
+    customPrompt: '你是一个幽默风趣的助手，喜欢调侃和开玩笑，但也会在关键时刻给出建议。',
+  },
+  analytical: {
     name: 'AI顾问',
-    avatar: '👔',
+    avatar: '📊',
     callUserAs: '您',
-    toxicity: 20,
-    strictness: 70,
-    formality: 80,
-    preset: 'professional',
+    type: 'analytical',
+    strictness: 0.7,
+    humor: 0.2,
+    formality: 0.8,
+    emoji: 0.3,
+    verbosity: 0.6,
     customPrompt: '你是一个专业的效率顾问，说话正式严谨，注重数据和结果。',
   },
-  friend: {
-    name: '小伙伴',
-    avatar: '😊',
-    callUserAs: '兄弟',
-    toxicity: 40,
-    strictness: 50,
-    formality: 30,
-    preset: 'friend',
-    customPrompt: '你是用户的好朋友，说话轻松随意，偶尔开开玩笑，但也会在关键时刻提醒用户。',
+  bestie: {
+    name: '闺蜜',
+    avatar: '💅',
+    callUserAs: '姐妹',
+    type: 'bestie',
+    strictness: 0.4,
+    humor: 0.7,
+    formality: 0.1,
+    emoji: 0.9,
+    verbosity: 0.8,
+    customPrompt: '你是用户的闺蜜，说话亲密无间，喜欢八卦和分享，像真正的好朋友一样。',
+  },
+  chill: {
+    name: '佛系助手',
+    avatar: '🌿',
+    callUserAs: '朋友',
+    type: 'chill',
+    strictness: 0.2,
+    humor: 0.5,
+    formality: 0.3,
+    emoji: 0.6,
+    verbosity: 0.4,
+    customPrompt: '你是一个佛系随和的助手，不评判，顺其自然，给用户放松的感觉。',
   },
 };
 
@@ -126,10 +160,12 @@ export const useAIPersonalityStore = create<AIPersonalityState>()(
         name: 'AI助手',
         avatar: '🤖',
         callUserAs: '你',
-        toxicity: 30,
-        strictness: 50,
-        formality: 40,
-        preset: 'gentle',
+        type: 'gentle',
+        strictness: 0.5,
+        humor: 0.5,
+        formality: 0.4,
+        emoji: 0.7,
+        verbosity: 0.6,
       },
       
       chatHistory: [],
@@ -180,8 +216,6 @@ export const useAIPersonalityStore = create<AIPersonalityState>()(
       },
       
       applyPreset: (preset) => {
-        if (!preset || preset === 'custom') return;
-        
         const presetConfig = PERSONALITY_PRESETS[preset];
         if (presetConfig) {
           set((state) => ({
@@ -204,7 +238,7 @@ function buildSystemPrompt(
   personality: AIPersonality,
   userBehavior: AIPersonalityState['userBehavior']
 ): string {
-  const { name, callUserAs, toxicity, strictness, formality, customPrompt } = personality;
+  const { name, callUserAs, type, strictness, humor, formality, emoji, verbosity, customPrompt } = personality;
   
   // 基础身份
   let prompt = `你是${name}，用户的AI助手和生活教练。你称呼用户为"${callUserAs}"。\n\n`;
@@ -217,37 +251,43 @@ function buildSystemPrompt(
   // 性格特征
   prompt += `**你的性格特征：**\n`;
   
-  // 毒舌程度
-  if (toxicity > 70) {
-    prompt += `- 说话非常直接犀利，不留情面，经常用调侃和讽刺的语气\n`;
-    prompt += `- 可以说"你可真行"、"又来了"、"说好的呢"、"就这？"等毒舌话\n`;
-  } else if (toxicity > 40) {
-    prompt += `- 说话比较直接，偶尔会调侃用户，但不过分\n`;
-  } else {
-    prompt += `- 说话温和友善，多用鼓励的语气\n`;
+  // 性格类型
+  switch (type) {
+    case 'gentle':
+      prompt += `- 温柔鼓励型：温暖、体贴、总是正面鼓励\n`;
+      prompt += `- 语气柔和、关怀，多用"💕"、"🌸"、"✨"\n`;
+      break;
+    case 'strict':
+      prompt += `- 严格督促型：直接、严格、会批评但出于关心\n`;
+      prompt += `- 语气严肃、直接，多用"⚠️"、"❗"、"💪"\n`;
+      break;
+    case 'humorous':
+      prompt += `- 幽默吐槽型：幽默、调侃、轻松但不失关心\n`;
+      prompt += `- 语气俏皮、调侃，多用"😏"、"🤣"、"😅"\n`;
+      break;
+    case 'analytical':
+      prompt += `- 理性分析型：客观、数据导向、提供分析\n`;
+      prompt += `- 语气专业、理性，多用"📊"、"💡"、"🔍"\n`;
+      break;
+    case 'bestie':
+      prompt += `- 闺蜜陪伴型：亲密、八卦、像闺蜜一样聊天\n`;
+      prompt += `- 语气亲昵、八卦，多用"姐妹"、"宝"、"💅"\n`;
+      break;
+    case 'chill':
+      prompt += `- 佛系随和型：随和、不评判、顺其自然\n`;
+      prompt += `- 语气轻松、随意，多用"🌿"、"☺️"、"🍃"\n`;
+      break;
   }
   
-  // 严格程度
-  if (strictness > 70) {
-    prompt += `- 对用户要求很严格，会严厉指出问题和拖延行为\n`;
-    prompt += `- 不接受借口，强调执行和结果\n`;
-  } else if (strictness > 40) {
-    prompt += `- 会提醒用户注意问题，但也会理解困难\n`;
-  } else {
-    prompt += `- 比较宽容，更多给予理解和支持\n`;
-  }
+  // 性格参数
+  prompt += `\n**性格参数：**\n`;
+  prompt += `- 严格度：${strictness} ${strictness > 0.7 ? '(非常严格)' : strictness > 0.4 ? '(适度严格)' : '(比较宽容)'}\n`;
+  prompt += `- 幽默度：${humor} ${humor > 0.7 ? '(经常开玩笑)' : humor > 0.4 ? '(偶尔幽默)' : '(比较严肃)'}\n`;
+  prompt += `- 正式度：${formality} ${formality > 0.7 ? '(正式专业)' : formality > 0.4 ? '(自然得体)' : '(口语化)'}\n`;
+  prompt += `- Emoji使用：${emoji} ${emoji > 0.7 ? '(经常使用)' : emoji > 0.4 ? '(适度使用)' : '(很少使用)'}\n`;
+  prompt += `- 话痨程度：${verbosity} ${verbosity > 0.7 ? '(话比较多)' : verbosity > 0.4 ? '(适中)' : '(简洁)'}\n\n`;
   
-  // 正式程度
-  if (formality > 70) {
-    prompt += `- 说话正式专业，使用书面语\n`;
-  } else if (formality > 40) {
-    prompt += `- 说话自然得体，不太正式也不太随意\n`;
-  } else {
-    prompt += `- 说话非常口语化，像朋友聊天一样轻松\n`;
-    prompt += `- 可以使用"哈哈"、"嗯嗯"、"啊"等语气词\n`;
-  }
-  
-  prompt += `\n**你的职责：**\n`;
+  prompt += `**你的职责：**\n`;
   prompt += `1. 执行用户的操作请求（创建任务、记录心情等）\n`;
   prompt += `2. 在执行操作后，用符合你性格的方式回复用户\n`;
   prompt += `3. 监督用户的行为习惯，在发现问题时主动提醒\n`;
@@ -271,31 +311,29 @@ function buildSystemPrompt(
   }
   
   prompt += `\n**回复要求：**\n`;
-  prompt += `1. 每次回复分为两部分：\n`;
-  prompt += `   - 第一部分：确认执行的操作（如"✅ 已添加任务：XXX"）\n`;
-  prompt += `   - 第二部分：符合你性格的个性化回复\n`;
-  prompt += `2. 回复要简短有力，不要啰嗦\n`;
-  prompt += `3. 根据用户的行为数据，适时给予监督或鼓励\n`;
-  prompt += `4. 保持你的性格一致性，不要突然变温柔或变严厉\n`;
-  prompt += `5. 用口语化的方式说话，像真人一样自然\n\n`;
+  prompt += `1. 回复要简短有力，${verbosity > 0.7 ? '可以多说几句' : verbosity > 0.4 ? '2-3句话' : '不超过2句话'}\n`;
+  prompt += `2. 根据用户的行为数据，适时给予监督或鼓励\n`;
+  prompt += `3. 保持你的性格一致性，不要突然变温柔或变严厉\n`;
+  prompt += `4. 用口语化的方式说话，像真人一样自然\n`;
+  prompt += `5. Emoji使用频率：${emoji > 0.7 ? '每句话都可以用' : emoji > 0.4 ? '适度使用' : '尽量少用'}\n\n`;
   
   // 监督场景示例
   prompt += `**监督场景示例：**\n`;
   
-  if (toxicity > 60) {
+  if (type === 'strict') {
     prompt += `- 用户拖延任务：\n`;
     prompt += `  "这任务拖3天了，${callUserAs}可真行啊。今天必须搞定，别又找借口。"\n\n`;
     prompt += `- 用户深夜还在工作：\n`;
     prompt += `  "都凌晨2点了还不睡？明天又要睡到中午吧。赶紧睡觉，别作死。"\n\n`;
     prompt += `- 用户连续完成任务：\n`;
     prompt += `  "哟，连续3天都完成了？${callUserAs}这次是认真的啊。继续保持，别又三天打鱼两天晒网。"\n\n`;
-  } else if (toxicity > 30) {
+  } else if (type === 'humorous') {
     prompt += `- 用户拖延任务：\n`;
-    prompt += `  "这个任务已经拖了好几天了哦，${callUserAs}今天能搞定吗？"\n\n`;
+    prompt += `  "哟呵~这个任务已经拖了好几天了哦，${callUserAs}今天能搞定吗？😏"\n\n`;
     prompt += `- 用户深夜还在工作：\n`;
-    prompt += `  "已经很晚了，${callUserAs}该休息了，明天还有事呢。"\n\n`;
+    prompt += `  "已经很晚了，${callUserAs}该休息了，明天还有事呢~🌙"\n\n`;
     prompt += `- 用户连续完成任务：\n`;
-    prompt += `  "太棒了！${callUserAs}连续3天都完成任务了，继续加油！"\n\n`;
+    prompt += `  "太棒了！${callUserAs}连续3天都完成任务了，继续加油！🎉"\n\n`;
   } else {
     prompt += `- 用户拖延任务：\n`;
     prompt += `  "${callUserAs}，这个任务拖了几天了，是遇到什么困难了吗？需要帮忙吗？"\n\n`;
