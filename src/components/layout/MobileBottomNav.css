@@ -10,9 +10,23 @@
   z-index: var(--z-fixed);
   background-color: var(--bg-card);
   border-top: 1px solid var(--border-light);
-  padding: var(--spacing-2) var(--spacing-2) var(--spacing-2);
-  padding-bottom: calc(var(--spacing-2) + env(safe-area-inset-bottom, 0px));
+  padding: var(--spacing-2);
+  padding-bottom: max(var(--spacing-2), env(safe-area-inset-bottom, 0px));
   box-shadow: var(--shadow-lg);
+  /* 确保背景色延伸到底部 */
+  padding-bottom: var(--spacing-2);
+  /* 使用伪元素填充安全区域 */
+}
+
+.mobile-bottom-nav::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-bottom, 0px);
+  background-color: var(--bg-card);
+  transform: translateY(100%);
 }
 
 .mobile-bottom-nav__container {
