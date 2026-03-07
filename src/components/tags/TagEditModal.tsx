@@ -31,11 +31,14 @@ export default function TagEditModal({ tag, onClose, onSave, isDark = false }: T
   return (
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+      style={{ 
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        paddingBottom: 'calc(100px + env(safe-area-inset-bottom, 0px))' // 为导航栏留出空间
+      }}
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-2xl shadow-2xl p-6"
+        className="w-full max-w-md rounded-2xl shadow-2xl p-6 max-h-[calc(100vh-200px)] overflow-y-auto"
         style={{ backgroundColor: bgColor }}
         onClick={(e) => e.stopPropagation()}
       >
