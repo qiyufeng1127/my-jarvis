@@ -10,7 +10,8 @@
   z-index: var(--z-fixed);
   background-color: var(--bg-card);
   border-top: 1px solid var(--border-light);
-  padding: var(--spacing-2) var(--spacing-2) env(safe-area-inset-bottom);
+  padding: var(--spacing-2) var(--spacing-2) var(--spacing-2);
+  padding-bottom: calc(var(--spacing-2) + env(safe-area-inset-bottom, 0px));
   box-shadow: var(--shadow-lg);
 }
 

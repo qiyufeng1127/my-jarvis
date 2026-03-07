@@ -263,7 +263,7 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
       className="fixed inset-0 flex flex-col" 
       style={{ 
         paddingTop: 'env(safe-area-inset-top)',
-        paddingBottom: 'env(safe-area-inset-bottom)',
+        paddingBottom: '0', // 移除底部padding，让导航栏贴底
         backgroundColor: '#fefaf0',
         fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
         overflow: 'hidden', // 防止整个页面滚动
