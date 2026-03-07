@@ -1,10 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, X, Minimize2, Maximize2, GripVertical, Settings, Hourglass, ChevronDown, ChevronUp, CheckSquare, Square, Sparkles, Volume2, VolumeX } from 'lucide-react';
+import { Send, X, Minimize2, Maximize2, GripVertical, Settings, Hourglass, ChevronDown, ChevronUp, CheckSquare, Square, Sparkles, Volume2, VolumeX, User } from 'lucide-react';
 import { useGoalStore } from '@/stores/goalStore';
 import { matchTaskToGoals, generateGoalSuggestionMessage } from '@/services/aiGoalMatcher';
 import { useMemoryStore, EMOTION_TAGS, CATEGORY_TAGS } from '@/stores/memoryStore';
 import VoiceControl from '@/components/voice/VoiceControl';
 import { notificationService } from '@/services/notificationService';
+import { useAIPersonalityStore } from '@/stores/aiPersonalityStore';
+import { behaviorMonitorService } from '@/services/behaviorMonitorService';
+import AIPersonalitySettings from './AIPersonalitySettings';
+import { processMutter } from '@/services/mutterService';
+import { aiCommandCenter } from '@/services/aiCommandCenter';
 
 // 标签ID到中文的映射
 const TAG_LABELS: Record<string, string> = {
@@ -113,9 +118,13 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
   const { createTask, updateTask, deleteTask, tasks, getTodayTasks } = useTaskStore();
   const { createSideHustle, addIncome, addExpense } = useSideHustleStore();
   const { createGoal } = useGoalStore();
+  const { personality, addMessage: addChatMessage, chatHistory } = useAIPersonalityStore();
   
   // 上下文模式状态
   const [contextMode, setContextMode] = useState<'normal' | 'income' | 'goal' | 'mutter'>('normal');
+  
+  // 性格设置弹窗
+  const [showPersonalitySettings, setShowPersonalitySettings] = useState(false);
   
   // 使用自定义 Hooks
   const [persistedState, setPersistedState] = useLocalStorage('ai_chat_state', {
@@ -139,7 +148,7 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
     {
       id: 'welcome',
       role: 'assistant',
-      content: '你好！我是你的AI助手，我能帮你：\n\n• 📅 智能分解任务和安排时间\n• 💰 自动分配金币和成长值\n• 🏷️ 自动打标签分类（AI智能理解）\n• 🕒 直接创建和修改时间轴任务\n• 🎯 智能关联长期目标\n• 📝 记录心情、想法、感恩、成功\n• 💡 收集创业想法到副业追踪器\n• 🔍 查询任务进度和统计\n• 🏠 智能动线优化（根据家里格局排序）\n• ✨ 万能收集：支持批量智能分析并分配\n• 🗑️ 时间轴操作：删除任务、移动任务\n\n**时间轴操作示例**：\n• "删除今天的任务"\n• "删除昨天的任务"\n• "删除今天下午2点之后的任务"\n• "把16号的任务挪到15号"\n\n直接输入文字开始对话吧！',
+      content: `你好！我是${personality.name}，你的AI助手${personality.toxicity > 60 ? '兼毒舌教练' : ''}。\n\n我能帮你：\n\n• 📅 智能分解任务和安排时间\n• 💰 自动分配金币和成长值\n• 🏷️ 自动打标签分类（AI智能理解）\n• 🕒 直接创建和修改时间轴任务\n• 🎯 智能关联长期目标\n• 📝 记录心情、想法、感恩、成功\n• 💡 收集创业想法到副业追踪器\n• 🔍 查询任务进度和统计\n• 🏠 智能动线优化（根据家里格局排序）\n• ✨ 万能收集：支持批量智能分析并分配\n• 🗑️ 时间轴操作：删除任务、移动任务\n\n**重要更新：**\n• 💬 我现在会真正和你对话，不只是执行命令\n• 👀 我会监督你的行为习惯（吃饭、睡觉、任务完成）\n• ${personality.toxicity > 60 ? '😏 该夸你的时候夸，该骂的时候绝不手软' : '🤗 该鼓励时鼓励，该提醒时提醒'}\n• 🎨 点击右上角头像可以设置我的性格\n\n直接输入文字开始对话吧！`,
       timestamp: new Date(),
     }
   ]);
@@ -580,14 +589,43 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
         createdTasks.push(task);
       }
 
-      // 显示成功消息
+      // 🎯 使用带性格的AI回复
+      const actionDescription = `已成功推送 ${createdTasks.length} 个任务到时间轴`;
+      const response = await aiService.chatWithPersonality(
+        `用户刚才让我创建了${createdTasks.length}个任务，现在已经全部添加到时间轴了。`,
+        { 
+          actionDescription,
+          conversationHistory: messages.slice(-5).map(m => ({
+            role: m.role,
+            content: m.content,
+          }))
+        }
+      );
+
+      let aiReply = `✅ ${actionDescription}！\n\n📅 你可以在时间轴模块查看和管理这些任务。`;
+      
+      if (response.success && response.content) {
+        aiReply = `✅ ${actionDescription}\n\n${response.content}`;
+      }
+
       const successMessage: Message = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        content: `✅ 太棒了！已成功推送 ${createdTasks.length} 个任务到时间轴！\n\n📅 你可以在时间轴模块查看和管理这些任务。\n💡 完成任务后记得标记完成，可以获得金币和成长值哦！`,
+        content: aiReply,
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, successMessage]);
+      
+      // 保存到聊天记录
+      addChatMessage({
+        role: 'assistant',
+        content: aiReply,
+        actions: [{
+          type: 'create_task',
+          description: actionDescription,
+          data: createdTasks,
+        }],
+      });
       
       // 关闭编辑器
       setShowTaskEditor(false);
@@ -1150,6 +1188,104 @@ ${message}
     setInputValue(''); // 立即清空输入框
     setIsProcessing(true);
     
+    // 🧠 ==================== 智能AI指挥中枢 ==================== 🧠
+    // 使用真正的AI语义理解，而不是关键词匹配
+    try {
+      console.log('🧠 [智能AI] 启动AI指挥中枢');
+      
+      // 准备上下文
+      const context = {
+        conversationHistory: messages.slice(-10).map(m => ({
+          role: m.role,
+          content: m.content,
+        })),
+        currentTime: new Date(),
+        userBehavior: useAIPersonalityStore.getState().userBehavior,
+        recentTasks: tasks.slice(-10),
+        recentMemories: useMemoryStore.getState().memories.slice(-10),
+      };
+      
+      // 让AI理解用户意图
+      addThinkingStep('🧠 正在理解你的意图...');
+      const intent = await aiCommandCenter.processUserInput(message, context);
+      
+      addThinkingStep(`✅ 理解：${intent.understanding}`);
+      addThinkingStep(`🎯 意图：${intent.intent} (置信度 ${Math.round(intent.confidence * 100)}%)`);
+      
+      // 如果需要确认
+      if (intent.needsConfirmation && intent.actions.length > 0) {
+        const confirmed = confirm(`${intent.understanding}\n\n确定要执行吗？`);
+        if (!confirmed) {
+          const cancelMessage: Message = {
+            id: `ai-${Date.now()}`,
+            role: 'assistant',
+            content: '好的，已取消操作。',
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, cancelMessage]);
+          setIsProcessing(false);
+          clearThinkingSteps();
+          return;
+        }
+      }
+      
+      // 执行AI决定的操作
+      if (intent.actions.length > 0) {
+        addThinkingStep(`⚙️ 正在执行 ${intent.actions.length} 个操作...`);
+        
+        const execution = await aiCommandCenter.executeActions(intent.actions);
+        
+        if (execution.success) {
+          addThinkingStep('✅ 所有操作执行成功');
+        } else {
+          addThinkingStep(`⚠️ 部分操作失败: ${execution.errors.join(', ')}`);
+        }
+      }
+      
+      // 显示AI的回复
+      const aiMessage: Message = {
+        id: `ai-${Date.now()}`,
+        role: 'assistant',
+        content: intent.reply,
+        timestamp: new Date(),
+        thinkingProcess: [...thinkingSteps],
+        isThinkingExpanded: false,
+      };
+      
+      setMessages(prev => [...prev, aiMessage]);
+      
+      // 保存到聊天记录
+      addChatMessage({
+        role: 'user',
+        content: message,
+      });
+      addChatMessage({
+        role: 'assistant',
+        content: intent.reply,
+        actions: intent.actions.map(a => ({
+          type: a.type,
+          description: a.description,
+          data: a.params,
+        })),
+      });
+      
+      // 清除超时定时器
+      if (sendTimeoutRef.current) {
+        clearTimeout(sendTimeoutRef.current);
+        sendTimeoutRef.current = null;
+      }
+      
+      setIsProcessing(false);
+      clearThinkingSteps();
+      return; // 🎯 使用智能AI处理后直接返回
+      
+    } catch (error) {
+      console.error('🧠 [智能AI] 处理失败，降级到传统模式:', error);
+      addThinkingStep('⚠️ AI智能处理失败，使用传统模式');
+      // 继续执行下面的传统处理逻辑
+    }
+    // 🧠 ==================== 智能AI指挥中枢结束 ==================== 🧠
+    
     // 检查上下文模式
     if (contextMode === 'income') {
       clearThinkingSteps();
@@ -1674,7 +1810,87 @@ ${message}
         console.log('🔍 [简单模式] showTaskEditor 已设置为 true');
         console.log('🔍 [简单模式] editingTasks 已设置');
       } else if (analysis.type) {
-        // 只是记录，不是任务
+        // 🎯 特殊处理碎碎念和心情记录（新增）
+        if (analysis.type === 'mood' || analysis.type === 'thought') {
+          try {
+            addThinkingStep('💭 识别为碎碎念/心情记录...');
+            
+            // 使用碎碎念处理服务
+            const mutterResult = await processMutter(message);
+            
+            addThinkingStep(`${mutterResult.moodEmoji} 心情: ${mutterResult.mood}`);
+            addThinkingStep(`📂 分类: ${mutterResult.category}`);
+            
+            // 保存到记忆库
+            addMemory({
+              type: analysis.type,
+              content: message,
+              emotionTags: analysis.emotions,
+              categoryTags: analysis.categories,
+              rewards: analysis.rewards,
+            });
+            
+            addThinkingStep('💾 已保存到记忆库');
+            
+            // 在时间轴创建醒目的碎碎念卡片
+            const now = new Date();
+            await createTask({
+              title: mutterResult.cardTitle,
+              description: mutterResult.cardDescription,
+              taskType: 'life' as TaskType,
+              priority: 2,
+              durationMinutes: 1,
+              scheduledStart: now,
+              scheduledEnd: new Date(now.getTime() + 60000),
+              tags: mutterResult.tags,
+              color: mutterResult.cardColor,
+              status: 'completed',
+              isRecord: true,
+            });
+            
+            addThinkingStep('📅 已在时间轴标记');
+            
+            // 显示AI的个性化回复
+            const mutterResponseContent = `✅ **已记录你的碎碎念**\n\n${mutterResult.moodEmoji} **心情**: ${mutterResult.mood}\n📂 **分类**: ${mutterResult.category}\n🏷️ **标签**: ${mutterResult.tags.join('、')}\n\n---\n\n${mutterResult.aiReply}`;
+            
+            const aiMessage: Message = {
+              id: `ai-${Date.now()}`,
+              role: 'assistant',
+              content: mutterResponseContent,
+              timestamp: new Date(),
+              thinkingProcess: [...thinkingSteps],
+              isThinkingExpanded: false,
+            };
+            
+            setMessages(prev => [...prev, aiMessage]);
+            
+            // 保存到聊天记录
+            addChatMessage({
+              role: 'assistant',
+              content: mutterResponseContent,
+              actions: [{
+                type: 'add_memory',
+                description: '记录碎碎念',
+                data: { mood: mutterResult.mood, category: mutterResult.category },
+              }],
+            });
+            
+            // 清除超时定时器
+            if (sendTimeoutRef.current) {
+              clearTimeout(sendTimeoutRef.current);
+              sendTimeoutRef.current = null;
+            }
+            
+            setIsProcessing(false);
+            clearThinkingSteps();
+            return;
+          } catch (error) {
+            console.error('💭 [碎碎念处理] 处理失败:', error);
+            // 如果处理失败，继续执行原有逻辑
+          }
+        }
+        
+        // 只是记录，不是任务（原有逻辑）
         const aiMessage: Message = {
           id: `ai-${Date.now()}`,
           role: 'assistant',
@@ -1730,9 +1946,15 @@ ${message}
         {/* 头部 */}
         <div className="px-4 py-3 flex items-center justify-between border-b border-neutral-200 bg-white">
           <div className="flex items-center space-x-2">
-            <span className="text-2xl">🤖</span>
+            <button
+              onClick={() => setShowPersonalitySettings(true)}
+              className="text-2xl hover:scale-110 transition-transform"
+              title="点击设置AI性格"
+            >
+              {personality.avatar}
+            </button>
             <div>
-              <div className="font-semibold text-gray-900">AI助手</div>
+              <div className="font-semibold text-gray-900">{personality.name}</div>
               <div className="text-xs text-gray-500">
                 {isSelectionMode ? `已选择 ${selectedCount} 条` : '智能任务分析'}
               </div>
@@ -2086,6 +2308,9 @@ ${message}
         {/* AI配置弹窗 */}
         <AIConfigModal isOpen={showConfigModal} onClose={() => setShowConfigModal(false)} />
         
+        {/* AI性格设置弹窗 */}
+        <AIPersonalitySettings isOpen={showPersonalitySettings} onClose={() => setShowPersonalitySettings(false)} />
+        
         {/* 新版任务编辑器 - 全屏模式也需要 */}
         {showTaskEditor && editingTasks.length > 0 && (
           <UnifiedTaskEditor
@@ -2175,9 +2400,15 @@ ${message}
           >
             <div className="flex items-center space-x-2">
               <GripVertical className="w-4 h-4 opacity-50" />
-              <span className="text-2xl">🤖</span>
+              <button
+                onClick={() => setShowPersonalitySettings(true)}
+                className="text-2xl hover:scale-110 transition-transform"
+                title="点击设置AI性格"
+              >
+                {personality.avatar}
+              </button>
               <div>
-                <div className="font-semibold" style={{ color: theme.textColor }}>AI助手</div>
+                <div className="font-semibold" style={{ color: theme.textColor }}>{personality.name}</div>
                 <div className="text-xs" style={{ color: theme.accentColor }}>智能任务分析</div>
               </div>
             </div>
@@ -2600,6 +2831,12 @@ ${message}
       <AIConfigModal 
         isOpen={showConfigModal} 
         onClose={() => setShowConfigModal(false)} 
+      />
+      
+      {/* AI性格设置弹窗 */}
+      <AIPersonalitySettings 
+        isOpen={showPersonalitySettings} 
+        onClose={() => setShowPersonalitySettings(false)} 
       />
       
       {/* 新版任务编辑器 - 非全屏模式 */}

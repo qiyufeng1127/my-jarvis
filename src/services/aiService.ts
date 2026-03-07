@@ -232,6 +232,8 @@ class AIService {
     categoryTags: string[];
     confidence: number;
     reason: string;
+    moodDescription?: string; // 新增：心情描述
+    moodEmoji?: string; // 新增：心情emoji
   }> {
     const systemPrompt = `你是一个智能内容分类助手，负责分析用户输入并决定应该分配到哪个组件。
 
@@ -242,55 +244,60 @@ class AIService {
   "emotionTags": ["情绪标签数组"],
   "categoryTags": ["分类标签数组"],
   "confidence": 0.0-1.0的置信度,
-  "reason": "分类理由（简短说明）"
+  "reason": "分类理由（简短说明）",
+  "moodDescription": "心情描述（如果是心情或碎碎念）",
+  "moodEmoji": "心情emoji（如果是心情或碎碎念）"
 }
 
 **内容类型（contentType）：**
 - task: 待办任务、计划、安排（例如："明天要开会"、"学习英语1小时"、"去健身房"）
 - mood: 心情记录（例如："今天很开心"、"感觉有点累"、"心情不错"）
-- thought: 碎碎念、想法、灵感（例如："突然想到一个点子"、"今天的天气真好"）
+- thought: 碎碎念、想法、灵感、吐槽、抱怨（例如："突然想到一个点子"、"今天的天气真好"、"我刚才去大姨妈了糟死了"、"啊啊啊好烦"）
 - gratitude: 感恩内容（例如："感谢朋友的帮助"、"很庆幸遇到你"）
 - success: 成功日记（例如："今天完成了项目"、"成功减肥5斤"）
 - startup: 创业想法、商业计划（例如："想做一个APP"、"新的商业模式"、"产品创意"）
 - timeline_control: 时间轴控制指令（例如："删除今天的任务"、"修改任务时间"、"查看明天的安排"）
 
 **目标组件（targetComponent）：**
-- timeline: 时间轴（用于 task 和 timeline_control）
+- timeline: 时间轴（用于 task 和 timeline_control，以及 mood/thought 的记录卡片）
 - memory: 全景记忆栏（用于 mood、thought）
 - journal: 成功&感恩日记（用于 gratitude、success）
 - sidehustle: 副业追踪（用于 startup）
 - none: 不分配（无法识别或不适合任何组件）
 
 **情绪标签（emotionTags）：**
-happy, excited, calm, grateful, proud, anxious, sad, angry, frustrated, tired
+happy, excited, calm, grateful, proud, anxious, sad, angry, frustrated, tired, annoyed, uncomfortable
 
 **分类标签（categoryTags）：**
-work, study, life, housework, health, social, hobby, startup, finance, family
+work, study, life, housework, health, social, hobby, startup, finance, family, personal
 
 **分类规则：**
 1. 如果包含明确的时间、地点、动作 → task → timeline
-2. 如果表达心情、感受 → mood → memory
-3. 如果是随意的想法、碎碎念 → thought → memory
+2. 如果表达心情、感受 → mood → memory + timeline（创建记录卡片）
+3. 如果是随意的想法、碎碎念、吐槽、抱怨 → thought → memory + timeline（创建记录卡片）
 4. 如果表达感恩、感谢 → gratitude → journal
 5. 如果记录成功、成就 → success → journal
 6. 如果是创业想法、商业计划、产品创意 → startup → sidehustle
 7. 如果是控制时间轴的指令 → timeline_control → timeline
+
+**碎碎念识别特征：**
+- 口语化表达（"啊啊啊"、"哎呀"、"天哪"、"糟了"）
+- 情绪宣泄（"好烦"、"累死了"、"受不了"）
+- 生活琐事（"大姨妈"、"肚子疼"、"睡不着"）
+- 随意吐槽（"今天真倒霉"、"又迟到了"）
 
 **示例：**
 输入："明天下午2点开会"
 输出：{"contentType": "task", "targetComponent": "timeline", "emotionTags": [], "categoryTags": ["work"], "confidence": 0.95, "reason": "明确的任务安排"}
 
 输入："今天心情不错，阳光很好"
-输出：{"contentType": "mood", "targetComponent": "memory", "emotionTags": ["happy", "calm"], "categoryTags": ["life"], "confidence": 0.9, "reason": "表达心情感受"}
+输出：{"contentType": "mood", "targetComponent": "timeline", "emotionTags": ["happy", "calm"], "categoryTags": ["life"], "confidence": 0.9, "reason": "表达心情感受", "moodDescription": "心情不错", "moodEmoji": "😊"}
 
-输入："突然想到可以做一个帮助用户管理时间的APP"
-输出：{"contentType": "startup", "targetComponent": "sidehustle", "emotionTags": [], "categoryTags": ["startup"], "confidence": 0.92, "reason": "创业产品想法"}
+输入："我刚才去大姨妈了糟死了都啊啊啊啊"
+输出：{"contentType": "thought", "targetComponent": "timeline", "emotionTags": ["frustrated", "uncomfortable"], "categoryTags": ["health", "personal"], "confidence": 0.95, "reason": "碎碎念吐槽", "moodDescription": "不舒服烦躁", "moodEmoji": "😣"}
 
-输入："感谢朋友今天的帮助"
-输出：{"contentType": "gratitude", "targetComponent": "journal", "emotionTags": ["grateful"], "categoryTags": ["social"], "confidence": 0.95, "reason": "表达感恩"}
-
-输入："今天成功完成了项目，很有成就感"
-输出：{"contentType": "success", "targetComponent": "journal", "emotionTags": ["proud", "happy"], "categoryTags": ["work"], "confidence": 0.93, "reason": "记录成功成就"}
+输入："啊啊啊好烦今天什么都不顺"
+输出：{"contentType": "thought", "targetComponent": "timeline", "emotionTags": ["frustrated", "annoyed"], "categoryTags": ["life"], "confidence": 0.92, "reason": "情绪宣泄", "moodDescription": "烦躁", "moodEmoji": "😤"}
 
 **只返回JSON，不要其他内容。**`;
 
@@ -328,17 +335,19 @@ work, study, life, housework, health, social, hobby, startup, finance, family
       const result = JSON.parse(jsonContent);
       return {
         contentType: result.contentType || 'thought',
-        targetComponent: result.targetComponent || 'memory',
+        targetComponent: result.targetComponent || 'timeline',
         emotionTags: result.emotionTags || [],
         categoryTags: result.categoryTags || [],
         confidence: result.confidence || 0,
         reason: result.reason || '',
+        moodDescription: result.moodDescription,
+        moodEmoji: result.moodEmoji,
       };
     } catch (error) {
       console.error('解析AI响应失败:', error);
       return {
         contentType: 'thought',
-        targetComponent: 'memory',
+        targetComponent: 'timeline',
         emotionTags: [],
         categoryTags: [],
         confidence: 0,
@@ -399,6 +408,51 @@ work, study, life, housework, health, social, hobby, startup, finance, family
     ];
 
     return await this.chat(messages);
+  }
+
+  // 带性格的AI回复（新增）
+  async chatWithPersonality(
+    userMessage: string,
+    context: {
+      actionDescription?: string; // 执行的操作描述
+      userBehavior?: any; // 用户行为数据
+      conversationHistory?: AIMessage[];
+    } = {}
+  ): Promise<AIResponse> {
+    try {
+      // 动态导入 personality store
+      const { useAIPersonalityStore } = await import('@/stores/aiPersonalityStore');
+      const { getSystemPrompt, personality } = useAIPersonalityStore.getState();
+      
+      // 获取带性格的系统提示词
+      const systemPrompt = getSystemPrompt();
+      
+      // 构建用户消息
+      let userPrompt = '';
+      
+      if (context.actionDescription) {
+        userPrompt += `[已执行操作]\n${context.actionDescription}\n\n`;
+      }
+      
+      userPrompt += `[用户输入]\n${userMessage}\n\n`;
+      userPrompt += `请用符合你性格的方式回复用户。回复要求：\n`;
+      userPrompt += `1. 简短有力，不超过3句话\n`;
+      userPrompt += `2. 如果执行了操作，先确认操作，再给出个性化评论\n`;
+      userPrompt += `3. 根据用户行为数据，适时监督或鼓励\n`;
+      userPrompt += `4. 保持你的性格特征，自然真实\n`;
+      
+      const messages: AIMessage[] = [
+        { role: 'system', content: systemPrompt },
+        ...(context.conversationHistory || []),
+        { role: 'user', content: userPrompt },
+      ];
+      
+      return await this.chat(messages);
+    } catch (error) {
+      console.error('带性格的AI回复失败:', error);
+      // 降级到普通回复
+      return await this.chatWithUser(userMessage, context.conversationHistory);
+    }
   }
 
   // 智能任务分解
