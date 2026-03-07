@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
 import { useGoldStore } from '@/stores/goldStore';
@@ -115,12 +115,18 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
   
   const [activeTab, setActiveTab] = useState<TabType>('home'); // 默认显示首页
   
-  // 当 activeTab 改变时，通知父组件
+  // 当 activeTab 改变时，通知父组件 - 使用 useRef 避免无限循环
+  const onModuleChangeRef = useRef(onModuleChange);
+  
   useEffect(() => {
-    if (onModuleChange) {
-      onModuleChange(activeTab);
+    onModuleChangeRef.current = onModuleChange;
+  }, [onModuleChange]);
+  
+  useEffect(() => {
+    if (onModuleChangeRef.current) {
+      onModuleChangeRef.current(activeTab);
     }
-  }, [activeTab, onModuleChange]);
+  }, [activeTab]);
   const [showMoreModal, setShowMoreModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingItems, setEditingItems] = useState<NavItem[]>([]);
