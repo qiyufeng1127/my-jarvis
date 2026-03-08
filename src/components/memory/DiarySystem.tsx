@@ -3,6 +3,7 @@ import { Sparkles } from 'lucide-react';
 import DiaryCalendar from './DiaryCalendar';
 import DiaryView from './DiaryView';
 import IdealSelfView from './IdealSelfView';
+import ReviewSelector from './ReviewSelector';
 
 interface DiarySystemProps {
   isDark?: boolean;
@@ -11,6 +12,7 @@ interface DiarySystemProps {
 
 type DiaryType = 'content' | 'emotion' | 'success';
 type ViewMode = 'calendar' | 'diary' | 'ideal-self';
+type TimeRange = 'day' | 'week' | 'month' | 'custom';
 
 // 日记系统配色 - 参考坏习惯组件
 const DIARY_COLORS = {
@@ -33,6 +35,10 @@ export default function DiarySystem({ isDark = false, bgColor = '#ffffff' }: Dia
   const [diaryType, setDiaryType] = useState<DiaryType>('content');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('calendar');
+  const [timeRange, setTimeRange] = useState<TimeRange>('day');
+  const [customStartDate, setCustomStartDate] = useState<Date>();
+  const [customEndDate, setCustomEndDate] = useState<Date>();
+  const [triggerGenerate, setTriggerGenerate] = useState(0);
 
   const diaryTypes = [
     { 
@@ -94,6 +100,51 @@ export default function DiarySystem({ isDark = false, bgColor = '#ffffff' }: Dia
           boxShadow: DIARY_COLORS.shadows.card,
         }}
       >
+        {/* 时间范围选择器 - 始终显示 */}
+        <div className="mb-3">
+          <ReviewSelector
+            selectedDate={selectedDate || new Date()}
+            timeRange={timeRange}
+            onTimeRangeChange={(range) => {
+              setTimeRange(range);
+              // 选择时间范围后自动生成
+              const dateToUse = selectedDate || customStartDate || new Date();
+              setSelectedDate(dateToUse);
+              setViewMode('diary');
+              setTriggerGenerate(prev => prev + 1);
+            }}
+            onDateChange={setSelectedDate}
+            customStartDate={customStartDate}
+            customEndDate={customEndDate}
+            onCustomRangeChange={(start, end) => {
+              setCustomStartDate(start);
+              setCustomEndDate(end);
+              // 自定义时间范围后自动生成
+              setSelectedDate(start);
+              setViewMode('diary');
+              setTriggerGenerate(prev => prev + 1);
+            }}
+          />
+        </div>
+
+        {/* 生成复盘按钮 - 改为手动重新生成 */}
+        {viewMode === 'diary' && (
+          <button
+            onClick={() => {
+              setTriggerGenerate(prev => prev + 1);
+            }}
+            className="w-full px-4 py-3 rounded-lg mb-3 transition-transform active:scale-95 font-medium"
+            style={{
+              backgroundColor: DIARY_COLORS.mielDore,
+              color: DIARY_COLORS.espresso,
+              fontSize: '15px',
+              boxShadow: DIARY_COLORS.shadows.card,
+            }}
+          >
+            🔄 重新生成
+          </button>
+        )}
+
         <div className="flex items-center justify-between space-x-2 mb-3">
           {diaryTypes.map((type) => {
             const isSelected = diaryType === type.id;
@@ -159,6 +210,10 @@ export default function DiarySystem({ isDark = false, bgColor = '#ffffff' }: Dia
             bgColor={bgColor}
             selectedDate={selectedDate}
             diaryType={diaryType}
+            timeRange={timeRange}
+            customStartDate={customStartDate}
+            customEndDate={customEndDate}
+            triggerGenerate={triggerGenerate}
           />
           
           {/* 成功日记特有：理想的自己按钮 */}

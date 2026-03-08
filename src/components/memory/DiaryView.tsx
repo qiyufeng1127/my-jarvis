@@ -1,25 +1,35 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Sparkles, Heart, TrendingUp, Loader2, MessageCircle, Clock, Tag as TagIcon } from 'lucide-react';
 import { useMemoryStore, EMOTION_TAGS, CATEGORY_TAGS } from '@/stores/memoryStore';
 import { useTaskStore } from '@/stores/taskStore';
 import { useAIStore } from '@/stores/aiStore';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface DiaryViewProps {
   isDark?: boolean;
   bgColor?: string;
   selectedDate: Date;
   diaryType: 'content' | 'emotion' | 'success';
+  timeRange?: 'day' | 'week' | 'month' | 'custom';
+  customStartDate?: Date;
+  customEndDate?: Date;
+  triggerGenerate?: number;
 }
 
 export default function DiaryView({ 
   isDark = false, 
   bgColor = '#ffffff',
   selectedDate,
-  diaryType
+  diaryType,
+  timeRange = 'day',
+  customStartDate,
+  customEndDate,
+  triggerGenerate = 0
 }: DiaryViewProps) {
   const { memories } = useMemoryStore();
   const { tasks } = useTaskStore();
-  const { chat } = useAIStore();
+  const { chatStream } = useAIStore();
   
   const [aiAnalysis, setAiAnalysis] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -51,6 +61,13 @@ export default function DiaryView({
   const cardBg = DIARY_COLORS.glassmorphism.light;
   const textColor = DIARY_COLORS.espresso;
   const accentColor = DIARY_COLORS.eauTrouble;
+
+  // 监听 triggerGenerate 变化，自动触发生成
+  useEffect(() => {
+    if (triggerGenerate > 0) {
+      generateDiary();
+    }
+  }, [triggerGenerate]);
 
   // 获取当天的数据（包括所有任务详情）
   const dateStr = selectedDate.toDateString();
@@ -664,15 +681,21 @@ ${successData || '当天暂无成功记录'}
 请帮我看到自己的闪光点，发现我自己都没意识到的优势和潜能，给我真正的信心和成长方向。`;
       }
 
-      const response = await chat([
+      console.log('📝 [日记生成] 开始调用 AI（流式）...');
+
+      // 使用流式响应，边接收边显示
+      const response = await chatStream([
         { role: 'system', content: '你是一位温暖、专业的生活教练，擅长帮助用户整理思绪、分析情绪、发现优势。' },
         { role: 'user', content: prompt }
-      ]);
+      ], (chunk) => {
+        // 实时更新显示内容
+        setAiAnalysis(prev => prev + chunk);
+      });
 
-      if (response.success && response.content) {
-        setAiAnalysis(response.content);
-      } else {
-        setAiAnalysis('生成失败，请检查AI配置或稍后重试。');
+      console.log('📝 [日记生成] AI 响应完成:', response.success);
+
+      if (!response.success) {
+        setAiAnalysis(`生成失败：${response.error || '未知错误'}\n\n请检查AI配置或稍后重试。`);
       }
     } catch (error) {
       console.error('生成日记失败:', error);
@@ -1329,10 +1352,29 @@ ${todayEmotions || '暂无今日记录'}
             <span>✨ AI日记</span>
           </div>
           <div 
-            className="text-sm leading-relaxed whitespace-pre-wrap"
+            className="text-sm leading-relaxed prose prose-sm max-w-none"
             style={{ color: textColor, fontWeight: 300 }}
           >
-            {aiAnalysis}
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                h1: ({node, ...props}) => <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginTop: '1.5rem', marginBottom: '0.75rem', color: DIARY_COLORS.espresso }} {...props} />,
+                h2: ({node, ...props}) => <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginTop: '1.25rem', marginBottom: '0.5rem', color: DIARY_COLORS.espresso }} {...props} />,
+                h3: ({node, ...props}) => <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginTop: '1rem', marginBottom: '0.5rem', color: DIARY_COLORS.eauTrouble }} {...props} />,
+                p: ({node, ...props}) => <p style={{ marginBottom: '0.75rem', lineHeight: '1.6' }} {...props} />,
+                ul: ({node, ...props}) => <ul style={{ marginLeft: '1.5rem', marginBottom: '0.75rem', listStyleType: 'disc' }} {...props} />,
+                ol: ({node, ...props}) => <ol style={{ marginLeft: '1.5rem', marginBottom: '0.75rem', listStyleType: 'decimal' }} {...props} />,
+                li: ({node, ...props}) => <li style={{ marginBottom: '0.25rem' }} {...props} />,
+                strong: ({node, ...props}) => <strong style={{ fontWeight: 600, color: DIARY_COLORS.espresso }} {...props} />,
+                em: ({node, ...props}) => <em style={{ fontStyle: 'italic', color: DIARY_COLORS.eauTrouble }} {...props} />,
+                blockquote: ({node, ...props}) => <blockquote style={{ borderLeft: `4px solid ${DIARY_COLORS.mielDore}`, paddingLeft: '1rem', marginLeft: 0, fontStyle: 'italic', color: DIARY_COLORS.eauTrouble }} {...props} />,
+                code: ({node, inline, ...props}: any) => inline 
+                  ? <code style={{ backgroundColor: DIARY_COLORS.glassmorphism.accent, padding: '0.125rem 0.25rem', borderRadius: '0.25rem', fontSize: '0.875em' }} {...props} />
+                  : <code style={{ display: 'block', backgroundColor: DIARY_COLORS.glassmorphism.accent, padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '0.75rem', fontSize: '0.875em', overflowX: 'auto' }} {...props} />,
+              }}
+            >
+              {aiAnalysis}
+            </ReactMarkdown>
           </div>
         </div>
       )}
@@ -1408,10 +1450,26 @@ ${todayEmotions || '暂无今日记录'}
             <span>💚 教练给的小建议</span>
           </div>
           <div 
-            className="text-sm leading-relaxed whitespace-pre-wrap"
+            className="text-sm leading-relaxed prose prose-sm max-w-none"
             style={{ color: DIARY_COLORS.espresso, fontWeight: 300 }}
           >
-            {coachAdvice}
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                h1: ({node, ...props}) => <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginTop: '1.5rem', marginBottom: '0.75rem', color: DIARY_COLORS.espresso }} {...props} />,
+                h2: ({node, ...props}) => <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginTop: '1.25rem', marginBottom: '0.5rem', color: DIARY_COLORS.espresso }} {...props} />,
+                h3: ({node, ...props}) => <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginTop: '1rem', marginBottom: '0.5rem', color: DIARY_COLORS.terreCuite }} {...props} />,
+                p: ({node, ...props}) => <p style={{ marginBottom: '0.75rem', lineHeight: '1.6' }} {...props} />,
+                ul: ({node, ...props}) => <ul style={{ marginLeft: '1.5rem', marginBottom: '0.75rem', listStyleType: 'disc' }} {...props} />,
+                ol: ({node, ...props}) => <ol style={{ marginLeft: '1.5rem', marginBottom: '0.75rem', listStyleType: 'decimal' }} {...props} />,
+                li: ({node, ...props}) => <li style={{ marginBottom: '0.25rem' }} {...props} />,
+                strong: ({node, ...props}) => <strong style={{ fontWeight: 600, color: DIARY_COLORS.espresso }} {...props} />,
+                em: ({node, ...props}) => <em style={{ fontStyle: 'italic', color: DIARY_COLORS.terreCuite }} {...props} />,
+                blockquote: ({node, ...props}) => <blockquote style={{ borderLeft: `4px solid ${DIARY_COLORS.mielDore}`, paddingLeft: '1rem', marginLeft: 0, fontStyle: 'italic', color: DIARY_COLORS.terreCuite }} {...props} />,
+              }}
+            >
+              {coachAdvice}
+            </ReactMarkdown>
           </div>
         </div>
       )}
@@ -1432,10 +1490,26 @@ ${todayEmotions || '暂无今日记录'}
             <span>💜 情绪复盘</span>
           </div>
           <div 
-            className="text-sm leading-relaxed whitespace-pre-wrap"
+            className="text-sm leading-relaxed prose prose-sm max-w-none"
             style={{ color: textColor, fontWeight: 300 }}
           >
-            {emotionReview}
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                h1: ({node, ...props}) => <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginTop: '1.5rem', marginBottom: '0.75rem', color: DIARY_COLORS.espresso }} {...props} />,
+                h2: ({node, ...props}) => <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginTop: '1.25rem', marginBottom: '0.5rem', color: DIARY_COLORS.espresso }} {...props} />,
+                h3: ({node, ...props}) => <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginTop: '1rem', marginBottom: '0.5rem', color: DIARY_COLORS.terreCuite }} {...props} />,
+                p: ({node, ...props}) => <p style={{ marginBottom: '0.75rem', lineHeight: '1.6' }} {...props} />,
+                ul: ({node, ...props}) => <ul style={{ marginLeft: '1.5rem', marginBottom: '0.75rem', listStyleType: 'disc' }} {...props} />,
+                ol: ({node, ...props}) => <ol style={{ marginLeft: '1.5rem', marginBottom: '0.75rem', listStyleType: 'decimal' }} {...props} />,
+                li: ({node, ...props}) => <li style={{ marginBottom: '0.25rem' }} {...props} />,
+                strong: ({node, ...props}) => <strong style={{ fontWeight: 600, color: DIARY_COLORS.espresso }} {...props} />,
+                em: ({node, ...props}) => <em style={{ fontStyle: 'italic', color: DIARY_COLORS.eauTrouble }} {...props} />,
+                blockquote: ({node, ...props}) => <blockquote style={{ borderLeft: `4px solid ${DIARY_COLORS.mielDore}`, paddingLeft: '1rem', marginLeft: 0, fontStyle: 'italic', color: DIARY_COLORS.eauTrouble }} {...props} />,
+              }}
+            >
+              {emotionReview}
+            </ReactMarkdown>
           </div>
         </div>
       )}
