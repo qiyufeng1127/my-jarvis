@@ -49,7 +49,7 @@ export default function MemoryList({ date, limit }: MemoryListProps) {
           content={memory.content}
           emotionTags={memory.emotionTags}
           categoryTags={memory.categoryTags}
-          date={memory.date}
+          date={new Date(memory.date)}
           rewards={memory.rewards}
         />
       ))}

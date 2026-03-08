@@ -830,7 +830,7 @@ export default function QuickStartView({
 
               {/* 文件夹内的按钮 */}
               {!folder.collapsed && (
-                <div className="grid grid-cols-4 gap-3 pl-2">
+                <div className="grid grid-cols-5 gap-3 pl-2">
                   {folderItems.map((item) => {
                     const isActive = activeTimers.has(item.id);
                     const elapsed = elapsedTimes.get(item.id) || 0;
@@ -919,7 +919,7 @@ export default function QuickStartView({
                 <span className="text-xs opacity-60" style={{ color: textColor }}>({uncategorizedItems.length})</span>
               </div>
 
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-5 gap-3">
                 {uncategorizedItems.map((item) => {
                   const isActive = activeTimers.has(item.id);
                   const elapsed = elapsedTimes.get(item.id) || 0;

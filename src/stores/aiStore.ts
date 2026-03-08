@@ -29,6 +29,7 @@ interface AIStore {
   setMaxTokens: (maxTokens: number) => void;
   isConfigured: () => boolean;
   chat: (messages: AIMessage[]) => Promise<AIResponse>;
+  chatStream: (messages: AIMessage[], onChunk: (chunk: string) => void) => Promise<AIResponse>;
 }
 
 export const useAIStore = create<AIStore>()(
@@ -39,7 +40,7 @@ export const useAIStore = create<AIStore>()(
         apiEndpoint: 'https://api.deepseek.com/v1/chat/completions',
         model: 'deepseek-chat', // DeepSeek Chat 模型（适合结构化输出）
         temperature: 0.7,
-        maxTokens: 2000,
+        maxTokens: 8000, // 增加到 8000 以支持长文本生成（日记等）
       },
 
       setApiKey: (apiKey) => {
@@ -88,6 +89,21 @@ export const useAIStore = create<AIStore>()(
         }
 
         try {
+          console.log('🌐 [AI请求] 开始请求:', {
+            endpoint: config.apiEndpoint,
+            model: config.model,
+            temperature: config.temperature,
+            maxTokens: config.maxTokens,
+            messagesCount: messages.length,
+          });
+
+          // 添加超时控制（60秒）
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => {
+            controller.abort();
+            console.error('⏱️ [AI请求] 请求超时（60秒）');
+          }, 60000);
+
           const response = await fetch(config.apiEndpoint, {
             method: 'POST',
             headers: {
@@ -100,10 +116,25 @@ export const useAIStore = create<AIStore>()(
               temperature: config.temperature,
               max_tokens: config.maxTokens,
             }),
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeoutId);
+
+          console.log('🌐 [AI请求] 收到响应:', {
+            status: response.status,
+            statusText: response.statusText,
+            ok: response.ok,
+            headers: {
+              contentType: response.headers.get('content-type'),
+              contentLength: response.headers.get('content-length'),
+            }
           });
 
           if (!response.ok) {
             const errorText = await response.text();
+            console.error('❌ [AI请求] 错误响应:', errorText);
+            
             let errorMessage = '调用AI服务失败';
             try {
               const errorJson = JSON.parse(errorText);
@@ -118,7 +149,15 @@ export const useAIStore = create<AIStore>()(
             };
           }
 
+          console.log('📥 [AI请求] 开始解析响应体...');
           const data = await response.json();
+          console.log('✅ [AI请求] 解析成功:', {
+            hasChoices: !!data.choices,
+            choicesLength: data.choices?.length,
+            hasContent: !!data.choices?.[0]?.message?.content,
+            contentLength: data.choices?.[0]?.message?.content?.length || 0,
+          });
+          
           const content = data.choices[0]?.message?.content || '';
           
           return {
@@ -126,7 +165,149 @@ export const useAIStore = create<AIStore>()(
             content: content,
           };
         } catch (error) {
-          console.error('AI调用失败:', error);
+          if (error instanceof Error && error.name === 'AbortError') {
+            console.error('⏱️ [AI请求] 请求超时');
+            return {
+              success: false,
+              error: '请求超时（60秒），请稍后重试或缩短提示词长度',
+            };
+          }
+          
+          console.error('❌ [AI请求] 异常:', error);
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : '网络请求失败',
+          };
+        }
+      },
+
+      chatStream: async (messages, onChunk) => {
+        const { config, isConfigured } = get();
+
+        if (!isConfigured()) {
+          return {
+            success: false,
+            error: '请先在设置中配置 API Key',
+          };
+        }
+
+        try {
+          console.log('🌊 [AI流式请求] 开始请求:', {
+            endpoint: config.apiEndpoint,
+            model: config.model,
+            stream: true,
+          });
+
+          // 添加超时控制（120秒，流式响应可能更慢）
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => {
+            controller.abort();
+            console.error('⏱️ [AI流式请求] 请求超时（120秒）');
+          }, 120000);
+
+          const response = await fetch(config.apiEndpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${config.apiKey}`,
+            },
+            body: JSON.stringify({
+              model: config.model,
+              messages: messages,
+              temperature: config.temperature,
+              max_tokens: config.maxTokens,
+              stream: true, // 启用流式响应
+            }),
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeoutId);
+
+          console.log('🌊 [AI流式请求] 收到响应:', {
+            status: response.status,
+            ok: response.ok,
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error('❌ [AI流式请求] 错误响应:', errorText);
+            
+            let errorMessage = '调用AI服务失败';
+            try {
+              const errorJson = JSON.parse(errorText);
+              errorMessage = errorJson.error?.message || errorJson.message || errorMessage;
+            } catch (e) {
+              errorMessage = errorText || errorMessage;
+            }
+            
+            return {
+              success: false,
+              error: `API错误 (${response.status}): ${errorMessage}`,
+            };
+          }
+
+          // 处理流式响应
+          const reader = response.body?.getReader();
+          const decoder = new TextDecoder();
+          let fullContent = '';
+
+          if (!reader) {
+            return {
+              success: false,
+              error: '无法读取响应流',
+            };
+          }
+
+          console.log('📖 [AI流式请求] 开始读取流...');
+
+          while (true) {
+            const { done, value } = await reader.read();
+            
+            if (done) {
+              console.log('✅ [AI流式请求] 流读取完成，总长度:', fullContent.length);
+              break;
+            }
+
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n').filter(line => line.trim() !== '');
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6);
+                
+                if (data === '[DONE]') {
+                  continue;
+                }
+
+                try {
+                  const json = JSON.parse(data);
+                  const content = json.choices?.[0]?.delta?.content || '';
+                  
+                  if (content) {
+                    fullContent += content;
+                    onChunk(content); // 实时回调
+                  }
+                } catch (e) {
+                  console.warn('⚠️ [AI流式请求] 解析chunk失败:', data);
+                }
+              }
+            }
+          }
+
+          return {
+            success: true,
+            content: fullContent,
+          };
+        } catch (error) {
+          if (error instanceof Error && error.name === 'AbortError') {
+            console.error('⏱️ [AI流式请求] 请求超时');
+            return {
+              success: false,
+              error: '请求超时（120秒），请稍后重试',
+            };
+          }
+          
+          console.error('❌ [AI流式请求] 异常:', error);
           return {
             success: false,
             error: error instanceof Error ? error.message : '网络请求失败',
@@ -167,16 +348,20 @@ export const useAIStore = create<AIStore>()(
           }
         },
       },
-      // 合并策略：保留本地配置
+      // 合并策略：保留本地配置，但强制更新 maxTokens
       merge: (persistedState: any, currentState: any) => {
         console.log('🔄 合并 AI 配置数据...');
-        return {
+        const merged = {
           ...currentState,
           config: {
             ...currentState.config,
             ...persistedState?.config,
+            // 强制更新 maxTokens 到 8000（支持长文本生成）
+            maxTokens: Math.max(persistedState?.config?.maxTokens || 0, 8000),
           },
         };
+        console.log('✅ 合并后的配置:', merged.config);
+        return merged;
       },
     }
   )

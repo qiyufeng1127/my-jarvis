@@ -212,7 +212,9 @@ class AICommandCenter {
 - move_task: 移动/修改任务
 - query_info: 查询信息
 - set_goal: 设置目标
-- record_income: 记录收入/支出
+- record_income: 记录收入
+- record_expense: 记录支出
+- analyze_performance: 分析表现
 - analyze_mood: 分析心情
 - remind_me: 设置提醒
 - chat: 纯聊天（不需要执行功能）
@@ -313,24 +315,56 @@ class AICommandCenter {
       "content": "今天不小心把所有代码都删掉了，好烦又要重新写",
       "mood": "烦躁",
       "moodEmoji": "😤",
-      "tags": ["工作", "吐槽"]
+      "tags": ["烦躁", "工作", "网站优化"]
     }
   }],
-  "reply": "代码删了确实很烦。不过重新写也是个机会，可以写得更好。加油，我相信你能搞定。",
+  "reply": "代码删了确实很烦，我懂这种感觉。不过重新写也是个机会，可以写得更好。加油，我相信你能搞定的。需要我帮你安排一下重写的时间吗？",
   "needsConfirmation": false
 }
 \`\`\`
 
-**示例6：日常闲聊**
+**示例6：日常闲聊与支出记录**
 用户："今天吃饭花了100块钱"
-理解：用户在分享日常，可能是在吐槽花钱多
+理解：用户在分享日常花费，可以记录支出并给予毒舌评价
 \`\`\`json
 {
-  "intent": "chat",
+  "intent": "record_expense",
   "confidence": 0.88,
-  "understanding": "你在分享今天的花费，可能觉得有点贵",
-  "actions": [],
-  "reply": "吃个饭花了100块？吃的啥这么贵？你这个月不是还没赚到钱吗，这么能花啊。下次能不能省着点？",
+  "understanding": "你在分享今天的花费，我帮你记录一下",
+  "actions": [{
+    "type": "record_expense",
+    "description": "记录支出",
+    "params": {
+      "amount": 100,
+      "category": "餐饮",
+      "description": "吃饭",
+      "date": "today"
+    }
+  }],
+  "reply": "吃个饭花了100块？吃的啥这么贵？你这个月不是还没赚到钱吗，这么能花啊。下次能不能省着点？已经帮你记录到支出里了。",
+  "needsConfirmation": false
+}
+\`\`\`
+
+**示例6.5：收入记录**
+用户："今天文创设计赚了2000块钱"
+理解：用户在记录副业收入
+\`\`\`json
+{
+  "intent": "record_income",
+  "confidence": 0.95,
+  "understanding": "你在记录文创设计的副业收入，金额2000元",
+  "actions": [{
+    "type": "record_income",
+    "description": "记录收入：文创设计",
+    "params": {
+      "amount": 2000,
+      "source": "文创设计",
+      "description": "文创设计收入",
+      "date": "today"
+    }
+  }],
+  "reply": "哟，终于开张了？文创设计赚了2000块，不错嘛！虽然比起你的目标还差得远，但总算有点进账了。继续加油，别赚了点小钱就飘了。已经帮你记录到副业收入里了。",
   "needsConfirmation": false
 }
 \`\`\`
@@ -355,15 +389,44 @@ class AICommandCenter {
 }
 \`\`\`
 
-**示例8：情感交流**
+**示例8：数据分析和反馈**
+用户："今天做的怎么样，有没有什么缺点？"
+理解：用户在寻求对今天表现的评价和建议
+\`\`\`json
+{
+  "intent": "chat",
+  "confidence": 0.92,
+  "understanding": "你想听听我对你今天表现的分析和建议",
+  "actions": [{
+    "type": "analyze_performance",
+    "description": "分析今天的表现",
+    "params": {
+      "date": "today"
+    }
+  }],
+  "reply": "今天你完成了3个任务，总共工作了5小时。优点是效率还不错，缺点是有点拖延，本来2点开始的任务拖到了3点。建议明天能不能更准时一点？另外，你今天休息时间太少了，注意劳逸结合。",
+  "needsConfirmation": false
+}
+\`\`\`
+
+**示例9：情感交流**
 用户："我好累啊"
 理解：用户在表达疲惫，需要安慰
 \`\`\`json
 {
-  "intent": "chat",
+  "intent": "record_mutter",
   "confidence": 0.85,
-  "understanding": "你感到很疲惫，需要休息",
-  "actions": [],
+  "understanding": "你感到很疲惫，需要记录心情并得到安慰",
+  "actions": [{
+    "type": "record_mutter",
+    "description": "记录碎碎念",
+    "params": {
+      "content": "我好累啊",
+      "mood": "疲惫",
+      "moodEmoji": "😫",
+      "tags": ["疲惫", "需要休息"]
+    }
+  }],
   "reply": "累了就休息一下吧，别硬撑。要不要我帮你取消今天剩下的任务？身体最重要。",
   "needsConfirmation": false
 }
@@ -484,6 +547,16 @@ class AICommandCenter {
             results.push({ type: 'income_recorded', data: income });
             break;
             
+          case 'record_expense':
+            const expense = await this.recordExpense(action.params);
+            results.push({ type: 'expense_recorded', data: expense });
+            break;
+            
+          case 'analyze_performance':
+            const analysis = await this.analyzePerformance(action.params);
+            results.push({ type: 'performance_analyzed', data: analysis });
+            break;
+            
           default:
             console.warn('🎯 [执行操作] 未知操作类型:', action.type);
         }
@@ -509,29 +582,40 @@ class AICommandCenter {
   }
   
   private async recordMutter(params: any) {
-    const { addMemory } = useMemoryStore.getState();
+    const { createTask } = useTaskStore.getState();
     
     console.log('📝 [记录碎碎念] 参数:', params);
     
-    // 实现碎碎念记录逻辑
-    const memory = {
-      type: 'thought' as const,
-      content: params.content,
-      emotionTags: params.tags || [],
-      categoryTags: params.tags || [],
-      rewards: {
-        gold: 5,
-        growth: 2,
-      },
+    // 创建一个特殊的"碎碎念任务"显示在时间轴上
+    const now = new Date();
+    const mutterTask = {
+      title: `${params.moodEmoji || '💭'} ${params.content}`,
+      taskType: 'rest' as const, // 使用 rest 类型
+      priority: 1 as const, // 低优先级
+      durationMinutes: 0, // 碎碎念不需要时长
+      scheduledStart: now,
+      scheduledEnd: now,
+      actualStart: now,
+      actualEnd: now,
+      status: 'completed' as const, // 碎碎念直接标记为完成
+      tags: params.tags || [],
+      goldEarned: 5, // 记录碎碎念奖励5金币
+      penaltyGold: 0,
+      growthDimensions: {},
+      longTermGoals: {},
+      identityTags: [],
+      enableProgressCheck: false,
+      progressChecks: [],
+      isMutter: true, // 标记为碎碎念
     };
     
-    console.log('📝 [记录碎碎念] 创建记录:', memory);
+    console.log('📝 [记录碎碎念] 创建任务:', mutterTask);
     
-    addMemory(memory);
+    const createdTask = await createTask(mutterTask);
     
-    console.log('✅ [记录碎碎念] 记录成功');
+    console.log('✅ [记录碎碎念] 记录成功，已显示在时间轴');
     
-    return memory;
+    return createdTask;
   }
   
   private async deleteTasks(params: any) {
@@ -558,8 +642,118 @@ class AICommandCenter {
   
   private async recordIncome(params: any) {
     const { addIncome } = useSideHustleStore.getState();
-    // 实现收入记录逻辑
-    return addIncome(params);
+    const { sideHustles, createSideHustle } = useSideHustleStore.getState();
+    
+    console.log('💰 [记录收入] 参数:', params);
+    
+    // 如果没有指定副业，尝试根据描述创建或查找副业
+    let sideHustleId = params.sideHustleId;
+    
+    if (!sideHustleId) {
+      // 从描述中提取副业名称（如果有）
+      const sidHustleName = params.source || params.description || '其他收入';
+      
+      // 查找是否已有该副业
+      let sideHustle = sideHustles.find(sh => sh.name === sidHustleName);
+      
+      if (!sideHustle) {
+        // 创建新副业
+        sideHustle = createSideHustle({
+          name: sidHustleName,
+          icon: '💼',
+          color: '#6BA56D',
+          status: 'active',
+          startDate: new Date(),
+        });
+        console.log('📝 [记录收入] 创建新副业:', sideHustle);
+      }
+      
+      sideHustleId = sideHustle.id;
+    }
+    
+    const income = {
+      sideHustleId: sideHustleId,
+      amount: Math.abs(params.amount), // 确保是正数
+      source: params.source || params.description || '收入',
+      description: params.description || '',
+      date: params.date === 'today' ? new Date() : new Date(params.date || Date.now()),
+    };
+    
+    console.log('💰 [记录收入] 创建记录:', income);
+    addIncome(income);
+    console.log('✅ [记录收入] 记录成功');
+    
+    return income;
+  }
+  
+  private async recordExpense(params: any) {
+    const { addExpense } = useSideHustleStore.getState();
+    const { sideHustles, createSideHustle } = useSideHustleStore.getState();
+    
+    console.log('💰 [记录支出] 参数:', params);
+    
+    // 如果没有副业，创建一个默认的"日常开销"副业
+    let sideHustleId = params.sideHustleId;
+    
+    if (!sideHustleId) {
+      // 查找是否已有"日常开销"副业
+      let dailyExpenseSideHustle = sideHustles.find(sh => sh.name === '日常开销');
+      
+      if (!dailyExpenseSideHustle) {
+        // 创建"日常开销"副业
+        dailyExpenseSideHustle = createSideHustle({
+          name: '日常开销',
+          icon: '💰',
+          color: '#E8C259',
+          status: 'active',
+          startDate: new Date(),
+        });
+        console.log('📝 [记录支出] 创建默认副业:', dailyExpenseSideHustle);
+      }
+      
+      sideHustleId = dailyExpenseSideHustle.id;
+    }
+    
+    const expense = {
+      sideHustleId: sideHustleId,
+      amount: Math.abs(params.amount), // 确保是正数
+      category: params.category || '其他',
+      description: params.description || '',
+      date: params.date === 'today' ? new Date() : new Date(params.date || Date.now()),
+    };
+    
+    console.log('💰 [记录支出] 创建记录:', expense);
+    addExpense(expense);
+    console.log('✅ [记录支出] 记录成功');
+    
+    return expense;
+  }
+  
+  private async analyzePerformance(params: any) {
+    const { tasks } = useTaskStore.getState();
+    // 实现表现分析逻辑
+    console.log('📊 [分析表现] 参数:', params);
+    
+    const today = new Date();
+    const todayTasks = tasks.filter(task => {
+      const taskDate = new Date(task.scheduledStart || task.createdAt);
+      return taskDate.toDateString() === today.toDateString();
+    });
+    
+    const completedTasks = todayTasks.filter(t => t.status === 'completed');
+    const totalDuration = completedTasks.reduce((sum, t) => sum + (t.durationMinutes || 0), 0);
+    
+    const analysis = {
+      date: params.date || 'today',
+      totalTasks: todayTasks.length,
+      completedTasks: completedTasks.length,
+      totalDuration: totalDuration,
+      completionRate: todayTasks.length > 0 ? (completedTasks.length / todayTasks.length * 100).toFixed(0) : 0,
+    };
+    
+    console.log('📊 [分析表现] 分析结果:', analysis);
+    
+    return analysis;
   }
 }
 

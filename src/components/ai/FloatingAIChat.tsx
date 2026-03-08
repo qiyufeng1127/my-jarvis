@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, X, Minimize2, Maximize2, GripVertical, Settings, Hourglass, ChevronDown, ChevronUp, CheckSquare, Square, Sparkles, Volume2, VolumeX, User } from 'lucide-react';
+import { Send, X, Minimize2, Maximize2, GripVertical, Settings, Hourglass, ChevronDown, ChevronUp, CheckSquare, Square, Sparkles, Volume2, VolumeX, User, Trash2 } from 'lucide-react';
 import { useGoalStore } from '@/stores/goalStore';
 import { matchTaskToGoals, generateGoalSuggestionMessage } from '@/services/aiGoalMatcher';
 import { useMemoryStore, EMOTION_TAGS, CATEGORY_TAGS } from '@/stores/memoryStore';
@@ -144,14 +144,49 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
   const [isVoiceControlOpen, setIsVoiceControlOpen] = useState(false);
   const [isVoiceListening, setIsVoiceListening] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content: `你好！我是${personality.name}，你的AI助手${personality.toxicity > 60 ? '兼毒舌教练' : ''}。\n\n我能帮你：\n\n• 📅 智能分解任务和安排时间\n• 💰 自动分配金币和成长值\n• 🏷️ 自动打标签分类（AI智能理解）\n• 🕒 直接创建和修改时间轴任务\n• 🎯 智能关联长期目标\n• 📝 记录心情、想法、感恩、成功\n• 💡 收集创业想法到副业追踪器\n• 🔍 查询任务进度和统计\n• 🏠 智能动线优化（根据家里格局排序）\n• ✨ 万能收集：支持批量智能分析并分配\n• 🗑️ 时间轴操作：删除任务、移动任务\n\n**重要更新：**\n• 💬 我现在会真正和你对话，不只是执行命令\n• 👀 我会监督你的行为习惯（吃饭、睡觉、任务完成）\n• ${personality.toxicity > 60 ? '😏 该夸你的时候夸，该骂的时候绝不手软' : '🤗 该鼓励时鼓励，该提醒时提醒'}\n• 🎨 点击右上角头像可以设置我的性格\n\n直接输入文字开始对话吧！`,
-      timestamp: new Date(),
+  
+  // 获取默认欢迎消息
+  const getWelcomeMessage = (): Message => ({
+    id: 'welcome',
+    role: 'assistant',
+    content: `你好！我是${personality.name}，你的AI助手${personality.toxicity > 60 ? '兼毒舌教练' : ''}。\n\n我能帮你：\n\n• 📅 智能分解任务和安排时间\n• 💰 自动分配金币和成长值\n• 🏷️ 自动打标签分类（AI智能理解）\n• 🕒 直接创建和修改时间轴任务\n• 🎯 智能关联长期目标\n• 📝 记录心情、想法、感恩、成功\n• 💡 收集创业想法到副业追踪器\n• 🔍 查询任务进度和统计\n• 🏠 智能动线优化（根据家里格局排序）\n• ✨ 万能收集：支持批量智能分析并分配\n• 🗑️ 时间轴操作：删除任务、移动任务\n\n**重要更新：**\n• 💬 我现在会真正和你对话，不只是执行命令\n• 👀 我会监督你的行为习惯（吃饭、睡觉、任务完成）\n• ${personality.toxicity > 60 ? '😏 该夸你的时候夸，该骂的时候绝不手软' : '🤗 该鼓励时鼓励，该提醒时提醒'}\n• 🎨 点击右上角头像可以设置我的性格\n\n直接输入文字开始对话吧！`,
+    timestamp: new Date(),
+  });
+  
+  // 使用 localStorage 持久化聊天记录
+  const [messages, setMessages] = useState<Message[]>(() => {
+    try {
+      const saved = localStorage.getItem('ai_chat_messages');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // 恢复 Date 对象
+        return parsed.map((msg: any) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
+        }));
+      }
+    } catch (error) {
+      console.error('恢复聊天记录失败:', error);
     }
-  ]);
+    return [getWelcomeMessage()];
+  });
+  
+  // 保存聊天记录到 localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('ai_chat_messages', JSON.stringify(messages));
+    } catch (error) {
+      console.error('保存聊天记录失败:', error);
+    }
+  }, [messages]);
+  
+  // 清除聊天记录
+  const clearChatHistory = () => {
+    if (window.confirm('确定要清除所有聊天记录吗？此操作不可恢复。')) {
+      setMessages([getWelcomeMessage()]);
+      localStorage.removeItem('ai_chat_messages');
+    }
+  };
   
   const chatRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -1998,6 +2033,13 @@ ${message}
             >
               <Settings className="w-5 h-5 text-gray-700" />
             </button>
+            <button
+              onClick={clearChatHistory}
+              className="p-2 rounded-lg bg-neutral-100 hover:bg-red-100 active:bg-red-200"
+              title="清除聊天记录"
+            >
+              <Trash2 className="w-5 h-5 text-gray-700 hover:text-red-600" />
+            </button>
             {onClose && (
               <button
                 onClick={onClose}
@@ -2459,6 +2501,17 @@ ${message}
                 title="AI配置"
               >
                 <Settings className="w-4 h-4" style={{ color: theme.textColor }} />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  clearChatHistory();
+                }}
+                className="p-1 rounded transition-colors hover:bg-red-100"
+                style={{ backgroundColor: theme.buttonBg }}
+                title="清除聊天记录"
+              >
+                <Trash2 className="w-4 h-4" style={{ color: theme.textColor }} />
               </button>
               <button
                 onClick={(e) => {

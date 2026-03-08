@@ -235,6 +235,23 @@
   padding-right: env(safe-area-inset-right);
 }
 
+/* 移动端底部导航栏 - 紧贴屏幕底部 */
+.mobile-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding-bottom: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+/* 支持安全区域的设备 */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .mobile-bottom-nav {
+    padding-bottom: env(safe-area-inset-bottom) !important;
+  }
+}
+
 /* 全屏模式 */
 .fullscreen {
   position: fixed;

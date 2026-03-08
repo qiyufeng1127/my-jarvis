@@ -308,7 +308,7 @@ function App() {
   return (
     <ErrorBoundary>
       <Router>
-        <div className="min-h-screen bg-white dark:bg-black transition-colors pb-4 md:pb-0">
+        <div className="min-h-screen bg-white dark:bg-black transition-colors">
           {/* 全局通知系统 */}
           <NotificationToast />
           
