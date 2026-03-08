@@ -14,8 +14,9 @@
   box-shadow: var(--shadow-lg);
   /* 完全贴底，移除所有底部间距 */
   margin: 0;
+  margin-bottom: 0 !important;
   /* 延伸到安全区域底部 */
-  padding-bottom: env(safe-area-inset-bottom, var(--spacing-2));
+  padding-bottom: max(var(--spacing-2), env(safe-area-inset-bottom));
   /* 确保在最底层 */
   transform: translateZ(0);
   -webkit-transform: translateZ(0);
