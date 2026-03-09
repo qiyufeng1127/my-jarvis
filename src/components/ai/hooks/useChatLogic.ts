@@ -38,7 +38,7 @@ export function useChatLogic() {
   const conversationRef = useRef<HTMLDivElement>(null);
   
   const { createTask, updateTask, deleteTask, tasks: allTasks, getTodayTasks } = useTaskStore();
-  const { goals, addGoal } = useGrowthStore();
+  const { goals, createGoal } = useGoalStore();
   const { 
     getActiveSideHustles, 
     addIncome, 
@@ -104,6 +104,14 @@ export function useChatLogic() {
       };
 
       const response = await AISmartProcessor.process(request);
+      
+      console.log('🤖 AI 处理完成:', {
+        message: response.message,
+        hasActions: !!response.actions,
+        actionsCount: response.actions?.length || 0,
+        autoExecute: response.autoExecute,
+        needsConfirmation: response.needsConfirmation,
+      });
       
       // 显示 AI 消息
       const aiMessage: AIMessage = {

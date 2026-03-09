@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Send, Sparkles, Settings, X } from 'lucide-react';
 import { useAIStore } from '@/stores/aiStore';
 import UnifiedTaskEditor from '@/components/shared/UnifiedTaskEditor';
@@ -18,7 +18,6 @@ export default function AISmartModule({
   className = '',
   height = '100%'
 }: AISmartModuleProps) {
-  // 使用共享 Hooks
   const {
     messages,
     isProcessing,
@@ -43,6 +42,24 @@ export default function AISmartModule({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
   const { config, setApiKey, setApiEndpoint } = useAIStore();
+
+  // 监听消息变化，自动打开任务编辑器
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    
+    if (lastMessage && lastMessage.role === 'assistant' && lastMessage.actions) {
+      // 查找 create_task 类型的操作
+      const createTaskAction = lastMessage.actions.find(action => action.type === 'create_task');
+      
+      if (createTaskAction && createTaskAction.data.tasks) {
+        console.log('🎯 检测到任务分解结果，自动打开编辑器');
+        console.log('📝 任务数量:', createTaskAction.data.tasks.length);
+        
+        // 自动打开任务编辑器
+        startEditing(createTaskAction.data.tasks);
+      }
+    }
+  }, [messages, startEditing]);
 
   const cardBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
   const textColor = '#000000';
@@ -111,9 +128,13 @@ export default function AISmartModule({
 
   // 处理任务编辑器中的按钮点击
   const handleActionClick = async (action: any) => {
+    console.log('🎯 handleActionClick 被调用:', action);
+    
     if (action.type === 'create_task' && action.data.tasks) {
+      console.log('📝 打开任务编辑器，任务数量:', action.data.tasks.length);
       startEditing(action.data.tasks);
     } else {
+      console.log('⚡ 执行其他操作:', action.type);
       await executeActions([action]);
     }
   };

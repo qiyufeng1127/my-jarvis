@@ -235,20 +235,42 @@
   padding-right: env(safe-area-inset-right);
 }
 
-/* 移动端底部导航栏 - 紧贴屏幕底部 */
+/* 移动端底部导航栏 - 完全紧贴屏幕底部 */
 .mobile-bottom-nav {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding-bottom: 0 !important;
-  margin-bottom: 0 !important;
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  background-color: #ffffff !important;
+  z-index: 9999 !important;
 }
 
-/* 支持安全区域的设备 */
+/* 暗色模式 */
+.dark .mobile-bottom-nav {
+  background-color: #1f2937 !important;
+}
+
+/* 支持安全区域的设备 - 扩展到底部 */
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
   .mobile-bottom-nav {
     padding-bottom: env(safe-area-inset-bottom) !important;
+  }
+}
+
+/* 移动端视口修复 - 防止底部黑条 */
+@media (max-width: 768px) {
+  html {
+    height: 100vh;
+    height: -webkit-fill-available;
+  }
+  
+  body {
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
   }
 }
 
@@ -339,5 +361,27 @@
   position: fixed;
   transform: translateZ(0);
   backface-visibility: hidden;
+}
+
+/* 彻底修复底部黑色区域 */
+@media (max-width: 768px) {
+  html, body, #root {
+    background-color: #fefaf0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  /* 确保所有容器都使用正确的背景色 */
+  .fixed.inset-0,
+  .min-h-screen,
+  [class*="flex-col"] {
+    background-color: #fefaf0 !important;
+  }
+  
+  /* 移除所有可能的底部边距和填充 */
+  body::after,
+  #root::after {
+    display: none !important;
+  }
 }
 

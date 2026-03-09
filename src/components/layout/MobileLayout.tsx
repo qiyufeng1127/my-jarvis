@@ -269,10 +269,13 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
       className="fixed inset-0 flex flex-col" 
       style={{ 
         paddingTop: 'env(safe-area-inset-top)',
-        paddingBottom: '0', // 移除底部padding，让导航栏贴底
+        paddingBottom: '0',
+        margin: '0',
         backgroundColor: '#fefaf0',
         fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
-        overflow: 'hidden', // 防止整个页面滚动
+        overflow: 'hidden',
+        height: '100vh',
+        width: '100vw',
       }}
     >
       {/* 通知容器 */}
@@ -307,7 +310,8 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         className="flex-1 overflow-y-auto overflow-x-hidden"
         style={{ 
           WebkitOverflowScrolling: 'touch', // iOS 平滑滚动
-          paddingBottom: '20px', // 为底部导航栏留出空间（56px导航栏高度 + 14px额外空间）
+          paddingBottom: '80px', // 为底部导航栏留出空间
+          backgroundColor: '#fefaf0',
         }}
       >
         {renderActiveModule()}

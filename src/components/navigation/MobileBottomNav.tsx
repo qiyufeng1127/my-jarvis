@@ -58,8 +58,8 @@ export default function MobileBottomNav() {
   };
   
   return (
-    <div className="mobile-bottom-nav z-50 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 md:hidden">
-      <div className="flex items-center justify-around h-14 px-1">
+    <div className="mobile-bottom-nav z-50 bg-white dark:bg-gray-900 md:hidden" style={{ margin: 0, padding: 0, border: 'none' }}>
+      <div className="flex items-center justify-around h-16 px-1" style={{ margin: 0, padding: '0 4px' }}>
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.path);
@@ -73,6 +73,7 @@ export default function MobileBottomNav() {
                   ? 'text-blue-600 dark:text-blue-400'
                   : 'text-gray-600 dark:text-gray-400'
               }`}
+              style={{ margin: 0, padding: '2px' }}
             >
               <div className="relative">
                 <span className="text-lg">{item.emoji}</span>
