@@ -399,6 +399,17 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
                 ))}
               </div>
             </div>
+
+            <div>
+              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#9ca3af]">关键结果说明</div>
+              <textarea
+                value={editorDraft.note}
+                onChange={(event) => setEditorDraft((draft) => draft ? { ...draft, note: event.target.value } : draft)}
+                rows={3}
+                className="w-full rounded-[18px] border border-[#e5e7eb] bg-[#f9fafb] px-4 py-3 text-sm text-[#111827] outline-none"
+                placeholder="例如：今天完成 2 条脚本、1 次复盘，推进了目标数据。"
+              />
+            </div>
           </div>
 
           <div
@@ -460,12 +471,12 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
                     <div key={point.date} className="flex h-full flex-1 flex-col justify-end gap-2">
                       <div className="flex flex-1 items-end justify-center gap-1">
                         <div
-                          className="w-3 rounded-full bg-[#0A84FF]/85"
-                          style={{ height: `${Math.max(18, (point.actual / maxActual) * 110)}px` }}
+                          className="w-3 rounded-full bg-[#8b5cf6]/70"
+                          style={{ height: `${Math.max(16, (point.duration / maxDuration) * 92)}px` }}
                         />
                         <div
-                          className="w-3 rounded-full bg-[#5856d6]/65"
-                          style={{ height: `${Math.max(16, (point.duration / maxDuration) * 92)}px` }}
+                          className="w-3 rounded-full bg-[#34c759]/85"
+                          style={{ height: `${Math.max(18, (point.actual / maxActual) * 110)}px` }}
                         />
                       </div>
                       <div className="text-center text-[11px] text-[#6b7280]">{point.date}</div>
@@ -521,8 +532,8 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
             )}
           </div>
           <div className="mt-3 flex flex-wrap gap-3 text-xs text-[#6b7280]">
-            <div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-[#0A84FF]" />实际产出柱</div>
-            <div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-[#5856d6]" />投入时间柱</div>
+            <div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-[#8b5cf6]" />投入时间柱</div>
+            <div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-[#34c759]" />实际产出柱</div>
             <div className="flex items-center gap-2"><span className="h-[2px] w-4 bg-[#ff5a5f]" />累计实际折线</div>
             <div className="flex items-center gap-2"><span className="h-[2px] w-4 border-t-2 border-dashed border-[#34c759]" />理想进度线</div>
           </div>

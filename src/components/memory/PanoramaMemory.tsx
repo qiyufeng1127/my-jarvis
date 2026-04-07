@@ -33,6 +33,7 @@ type SessionState = {
   messages: ChatMessage[];
   userAnswers: string[];
   sessionDate: string;
+  commitmentSyncResult?: CommitmentSyncResult | null;
 };
 
 type HQReportSummary = {
@@ -56,11 +57,29 @@ type PainFocus = {
   question: string;
 };
 
+type CommitmentPlan = {
+  goalName: string;
+  goalDescription: string;
+  taskTitle: string;
+  taskDescription: string;
+  deadlineDays: number;
+  durationMinutes: number;
+};
+
+type CommitmentSyncResult = {
+  goalId: string;
+  taskId: string;
+  goalName: string;
+  taskTitle: string;
+};
+
 const STORAGE_KEY = 'hq-report-session-v1';
 
 export default function PanoramaMemory({ bgColor = '#ffffff' }: PanoramaMemoryProps) {
   const goals = useGoalStore((state) => state.goals);
+  const createGoal = useGoalStore((state) => state.createGoal);
   const tasks = useTaskStore((state) => state.tasks);
+  const createTask = useTaskStore((state) => state.createTask);
   const sideHustles = useSideHustleStore((state) => state.sideHustles);
   const incomeRecords = useSideHustleStore((state) => state.incomeRecords);
   const timeRecords = useSideHustleStore((state) => state.timeRecords);
@@ -74,6 +93,7 @@ export default function PanoramaMemory({ bgColor = '#ffffff' }: PanoramaMemoryPr
   const [isHydrated, setIsHydrated] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [reportSummary, setReportSummary] = useState<HQReportSummary | null>(null);
+  const [commitmentSyncResult, setCommitmentSyncResult] = useState<CommitmentSyncResult | null>(null);
 
   const reportData = useMemo(() => {
     const now = new Date();
@@ -398,6 +418,7 @@ ${reportData.painFocus.question}`;
           setStage(saved.stage);
           setMessages(saved.messages || []);
           setUserAnswers(saved.userAnswers || []);
+          setCommitmentSyncResult(saved.commitmentSyncResult || null);
           setIsHydrated(true);
           return;
         }
@@ -472,6 +493,7 @@ ${reportData.painFocus.question}`;
       messages,
       userAnswers,
       sessionDate: toDateKey(new Date()),
+      commitmentSyncResult,
     };
 
     try {
@@ -479,7 +501,9 @@ ${reportData.painFocus.question}`;
     } catch (error) {
       console.error('保存总部述职会话失败:', error);
     }
-  }, [isHydrated, messages, stage, userAnswers]);
+  }, [isHydrated, messages, stage, userAnswers, commitmentSyncResult]);
+
+  const conversationAssessment = useMemo(() => assessConversation(userAnswers), [userAnswers]);
 
   useEffect(() => {
     if (stage !== 'report') {
@@ -515,6 +539,7 @@ ${reportData.painFocus.question}`;
     setMessages([]);
     setUserAnswers([]);
     setReportSummary(null);
+    setCommitmentSyncResult(null);
   };
 
   const handleSubmit = async () => {

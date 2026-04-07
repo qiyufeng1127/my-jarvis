@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, ChevronRight, Pencil, Plus, Sparkles, Trash2, TrendingUp } from 'lucide-react';
+import { CalendarDays, ChevronRight, Copy, Pencil, Plus, Sparkles, Trash2, TrendingUp } from 'lucide-react';
 import { useGoalStore } from '@/stores/goalStore';
 import { useGoalContributionStore } from '@/stores/goalContributionStore';
 import GoalAnalyticsView from '@/components/goals/GoalAnalyticsView';
@@ -171,6 +171,39 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
   const handleEditGoal = (goal: LongTermGoal) => {
     setEditingGoal(goal);
     setShowForm(true);
+  };
+
+  const handleDuplicateGoal = (goal: LongTermGoal) => {
+    const duplicatedGoal = createGoal({
+      name: `${goal.name}（副本）`,
+      description: goal.description,
+      goalType: goal.goalType,
+      startDate: goal.startDate ? new Date(goal.startDate) : undefined,
+      endDate: goal.endDate ? new Date(goal.endDate) : undefined,
+      deadline: goal.deadline ? new Date(goal.deadline) : undefined,
+      estimatedTotalHours: goal.estimatedTotalHours,
+      estimatedDailyHours: goal.estimatedDailyHours,
+      targetValue: goal.targetValue,
+      currentValue: goal.currentValue,
+      unit: goal.unit,
+      dimensions: goal.dimensions.map((dimension, index) => ({
+        ...dimension,
+        id: `metric-${Date.now()}-${index}`,
+      })),
+      projectBindings: goal.projectBindings.map((project, index) => ({
+        ...project,
+        id: `${project.id || 'project'}-copy-${Date.now()}-${index}`,
+      })),
+      theme: { ...goal.theme },
+      showInFuture30Chart: goal.showInFuture30Chart,
+      relatedDimensions: [...goal.relatedDimensions],
+      milestones: goal.milestones ? goal.milestones.map((milestone) => ({ ...milestone })) : [],
+      isActive: goal.isActive,
+      isCompleted: false,
+      completedAt: undefined,
+    });
+
+    setSegment(getGoalSegment(duplicatedGoal));
   };
 
   const handleInjectPreviewGoal = () => {
@@ -510,6 +543,16 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
                       aria-label="编辑目标"
                     >
                       <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDuplicateGoal(goal);
+                      }}
+                      className="flex h-11 w-11 items-center justify-center rounded-full bg-[#8b5cf6] text-white transition active:scale-95"
+                      aria-label="复制目标"
+                    >
+                      <Copy className="h-4 w-4" />
                     </button>
                     <button
                       onClick={(e) => {
