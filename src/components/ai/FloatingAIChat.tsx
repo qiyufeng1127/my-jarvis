@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, X, Minimize2, Maximize2, GripVertical, Settings, Hourglass, ChevronDown, ChevronUp, CheckSquare, Square, Sparkles, Volume2, VolumeX, User, Trash2 } from 'lucide-react';
 import { useGoalStore } from '@/stores/goalStore';
+import { useTagStore } from '@/stores/tagStore';
 import { matchTaskToGoals, generateGoalSuggestionMessage } from '@/services/aiGoalMatcher';
 import { useMemoryStore, EMOTION_TAGS, CATEGORY_TAGS } from '@/stores/memoryStore';
 import VoiceControl from '@/components/voice/VoiceControl';
@@ -81,37 +82,38 @@ interface DecomposedTask {
   priority: 'low' | 'medium' | 'high';
 }
 
-interface Message {
+interface GoalDraftDimension {
   id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
-  goalMatches?: Array<{ goalId: string; goalName: string; confidence: number }>;
-  tags?: {
-    emotions: string[];
-    categories: string[];
-    type?: 'mood' | 'thought' | 'todo' | 'success' | 'gratitude';
-  };
-  rewards?: {
-    gold: number;
-    growth: number;
-  };
-  // 任务分解相关
-  decomposedTasks?: DecomposedTask[];
-  // 等待用户确认的操作
-  pendingAction?: {
-    type: 'create_tasks' | 'update_task' | 'query_tasks';
-    data: any;
-  };
-  // 是否显示任务编辑器
-  showTaskEditor?: boolean;
-  // AI思考过程
-  thinkingProcess?: string[];
-  // 思考过程是否展开
-  isThinkingExpanded?: boolean;
-  // 是否被选中（用于批量处理）
-  isSelected?: boolean;
+  name: string;
+  unit: string;
+  targetValue: number;
+  currentValue: number;
+  weight: number;
 }
+
+interface GoalDraftData {
+  name: string;
+  description: string;
+  startDate?: Date;
+  endDate?: Date;
+  estimatedTotalHours: number;
+  estimatedDailyHours: number;
+  targetIncome?: number;
+  projectBindings: Array<{ id: string; name: string; color?: string }>;
+  dimensions: GoalDraftDimension[];
+  theme: { color: string; label?: string };
+  showInFuture30Chart: boolean;
+  relatedDimensions: string[];
+  extractedTags: string[];
+  missingFields: string[];
+}
+
+interface GoalConversationState {
+  draft: GoalDraftData;
+  askedFields: string[];
+  lastAskedField?: string;
+}
+
 
 const beautifyAssistantReply = (content: string) => {
   return content
@@ -1177,7 +1179,18 @@ ${message}
       
       addThinkingStep('📅 已在时间轴标记');
       
-      const responseContent = `✅ **碎碎念已记录！**\n\n💭 内容: ${message}\n\n${analysis.moodEmoji} **心情**: ${analysis.mood}\n📂 **分类**: ${analysis.category}\n✨ **总结**: ${analysis.summary}\n🏷️ **标签**: ${analysis.tags.join('、')}\n\n💰 获得 30 金币！\n\n💡 已同步到记忆库和时间轴~`;
+      const responseContent = beautifyAssistantReply(`好啦，我已经帮你记下这段碎碎念了 🌷
+
+💭 内容：${message}
+
+${analysis.moodEmoji} 心情：${analysis.mood}
+📂 分类：${analysis.category}
+✨ 我的小总结：${analysis.summary}
+🏷️ 标签：${analysis.tags.join('、')}
+
+💰 顺手给你加了 30 金币
+
+我也已经把它轻轻放进记忆库和时间轴里啦 🤍`);
       
       const aiMessage: Message = {
         id: `ai-${Date.now()}`,
@@ -1198,7 +1211,7 @@ ${message}
       const errorMessage: Message = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        content: '❌ 抱歉，记录碎碎念失败了。请稍后再试。',
+        content: beautifyAssistantReply('唔，刚刚这条碎碎念我没有记成功 😢\n\n你别急，等一下再发我一次，我继续陪你记。'),
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -1285,7 +1298,7 @@ ${message}
         isRecord: true,
       });
       
-      const responseContent = `✅ 目标设置成功啦！\n\n🎯 目标：${newGoal.name}\n${targetValue ? `📊 目标值：${targetValue}\n` : ''}${deadline ? `⏰ 期限：${deadline.toLocaleDateString('zh-CN')}\n` : ''}\n✨ 已添加到长期目标里啦\n\n💡 你可以去目标模块里继续查看和管理它～`;
+      const responseContent = beautifyAssistantReply(`好耶，这个目标我已经帮你种下啦 🌱\n\n🎯 目标：${newGoal.name}\n${targetValue ? `📊 目标值：${targetValue}\n` : ''}${deadline ? `⏰ 期限：${deadline.toLocaleDateString('zh-CN')}\n` : ''}\n✨ 我已经把它放进长期目标里了\n\n你之后随时都可以去目标模块看看，我会陪你慢慢往前走的 🤍`);
       
       const aiMessage: Message = {
         id: `ai-${Date.now()}`,
@@ -1306,7 +1319,7 @@ ${message}
       const errorMessage: Message = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        content: '❌ 抱歉，设置目标失败了。请稍后再试。',
+        content: beautifyAssistantReply('这次目标没有帮你存成功呀 🥺\n\n没关系，我们等一下再试一次，我还在。'),
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -1365,7 +1378,7 @@ ${message}
           const cancelMessage: Message = {
             id: `ai-${Date.now()}`,
             role: 'assistant',
-            content: '好的，已取消操作。',
+            content: '没关系，我先停在这里啦 🤍',
             timestamp: new Date(),
           };
           setMessages(prev => [...prev, cancelMessage]);
@@ -1382,9 +1395,9 @@ ${message}
         const execution = await aiCommandCenter.executeActions(intent.actions);
         
         if (execution.success) {
-          addThinkingStep('✅ 所有操作执行成功');
+          addThinkingStep('🤍 都处理好了');
         } else {
-          addThinkingStep(`⚠️ 部分操作失败: ${execution.errors.join(', ')}`);
+          addThinkingStep(`🌧️ 有一小部分没成功：${execution.errors.join(', ')}`);
         }
       }
       
@@ -1657,7 +1670,7 @@ ${message}
           responseContent += '\n\n';
         }
 
-        responseContent += '📝 已自动保存到全景记忆栏！\n\n';
+        responseContent += '📝 我已经轻轻帮你收进全景记忆栏啦\n\n';
 
         // 如果是成功或感恩日记，同步到日记模块
         if (analysis.type === 'success' || analysis.type === 'gratitude') {
@@ -1667,7 +1680,7 @@ ${message}
             tags: analysis.categories,
             rewards: analysis.rewards,
           });
-          responseContent += `💫 同时已同步到${analysis.type === 'success' ? '成功' : '感恩'}日记模块！\n\n`;
+          responseContent += `💫 我也顺手把它放进${analysis.type === 'success' ? '成功' : '感恩'}日记里啦\n\n`;
         }
       }
       
@@ -1809,12 +1822,12 @@ ${message}
               addThinkingStep('✨ 任务分解完成！');
 
               if (!analysis.type) {
-                responseContent += '🤖 **AI智能任务分解**\n\n';
+                responseContent += '我帮你顺了一下，拆成这几步会更轻松一点呀 ✨\n\n';
               } else {
-                responseContent += '---\n\n🤖 **同时帮你分解了任务**\n\n';
+                responseContent += '我也顺手帮你把这件事拆开啦，这样做起来会轻一点 ✨\n\n';
               }
 
-              responseContent += `AI帮你智能分解了 ${tasksWithMetadata.length} 个任务：\n\n`;
+              responseContent += `我先温柔地帮你排成 ${tasksWithMetadata.length} 个小任务：\n\n`;
               
               tasksWithMetadata.forEach((task, index) => {
                 const parsedTitle = task.title || task.description || '';
@@ -1826,20 +1839,22 @@ ${message}
                 const locationEmoji = LOCATION_ICONS[task.location || ''] || '📍';
                 
                 responseContent += `${index + 1}. ${priorityEmoji} ${cleanTitle}\n`;
-                responseContent += `   ${locationEmoji} ${task.location} | ⏱️ ${task.estimated_duration} 分钟 | 🕐 ${task.scheduled_start}\n`;
-                responseContent += `   🏷️ ${task.tags.join(', ')}\n`;
+                responseContent += `   ${locationEmoji} ${task.location} · ⏱️ ${task.estimated_duration} 分钟 · 🕐 ${task.scheduled_start}\n`;
+                if (task.tags.length > 0) {
+                  responseContent += `   🏷️ ${task.tags.join('、')}\n`;
+                }
                 if (note) {
-                  responseContent += `   📝 备注：${note}\n`;
+                  responseContent += `   💬 ${note}\n`;
                 }
                 responseContent += `\n`;
               });
 
-              responseContent += '💡 点击下方按钮打开编辑器，可以调整任务、添加标签和关联目标！';
+              responseContent += '你点下面的任务编辑器，还可以继续慢慢微调时间、标签和目标呀，我会陪着你 🫶';
 
               const aiMessage: Message = {
                 id: `ai-${Date.now()}`,
                 role: 'assistant',
-                content: responseContent,
+                content: beautifyAssistantReply(responseContent),
                 timestamp: new Date(),
                 decomposedTasks: tasksWithMetadata,
                 showTaskEditor: true,
@@ -1889,23 +1904,21 @@ ${message}
         );
         
         if (!analysis.type) {
-          responseContent += '✅ 好的！我来帮你创建任务...\n\n';
+          responseContent += '这件事我先替你放进任务里啦，不急，我们一步一步来 ✅\n\n';
         } else {
-          responseContent += '---\n\n✅ **同时创建为待办任务**\n\n';
+          responseContent += '我也顺手把它记成一个待办啦，我们慢慢处理就好 ✅\n\n';
         }
         
         if (matches.length > 0) {
-          responseContent += '🎯 智能目标关联\n';
-          responseContent += '我发现这个任务可以关联到以下长期目标：\n\n';
+          responseContent += '顺便我发现，它和这些长期目标也有点连起来的感觉：\n\n';
           
           matches.forEach((match, index) => {
             const percentage = Math.round(match.confidence * 100);
-            const bars = '█'.repeat(Math.floor(percentage / 10));
-            responseContent += `${index + 1}. ${match.goalName} (${percentage}%)\n`;
-            responseContent += `   ${bars} ${match.reason}\n\n`;
+            responseContent += `${index + 1}. 🎯 ${match.goalName}（${percentage}%）\n`;
+            responseContent += `   ${match.reason}\n\n`;
           });
           
-          responseContent += '💡 完成这个任务将自动更新相关目标的进度！\n\n';
+          responseContent += '等你做完以后，我也会更方便陪你把目标进度一点点串起来 🌱\n\n';
         }
 
         // 创建单个任务也支持编辑
@@ -1938,12 +1951,12 @@ ${message}
           priority: 'medium',
         };
 
-        responseContent += '💡 点击下方按钮打开编辑器，可以调整任务、添加标签和关联目标！';
+        responseContent += '你点下面的任务编辑器，还能继续改时间、标签和目标，我已经先帮你铺好啦，剩下的我们慢慢来 ✨';
 
         const aiMessage: Message = {
           id: `ai-${Date.now()}`,
           role: 'assistant',
-          content: responseContent,
+          content: beautifyAssistantReply(responseContent),
           timestamp: new Date(),
           goalMatches: matches.map(m => ({
             goalId: m.goalId,
@@ -2011,7 +2024,7 @@ ${message}
             addThinkingStep('📅 已在时间轴标记');
             
             // 显示AI的个性化回复
-            const mutterResponseContent = `✅ 已记录你的碎碎念\n\n${mutterResult.moodEmoji} 心情：${mutterResult.mood}\n📂 分类：${mutterResult.category}\n🏷️ 标签：${mutterResult.tags.join('、')}\n\n────────\n\n${mutterResult.aiReply}`;
+            const mutterResponseContent = `我已经把你的这点小心情收好了 🤍\n\n${mutterResult.moodEmoji} 心情：${mutterResult.mood}\n📂 分类：${mutterResult.category}\n🏷️ 标签：${mutterResult.tags.join('、')}\n\n────────\n\n${mutterResult.aiReply}`;
             
             const aiMessage: Message = {
               id: `ai-${Date.now()}`,
@@ -2065,7 +2078,7 @@ ${message}
         const aiMessage: Message = {
           id: `ai-${Date.now()}`,
           role: 'assistant',
-          content: beautifyAssistantReply('收到啦～我正在帮你处理一下 💭\n\n你可以直接跟我说：\n• 心情、想法或者待办\n• “查看今天的任务”\n• 一串任务让我帮你拆分和排顺序\n\n比如：\n“5分钟后去洗漱，然后洗碗，倒猫粮，洗衣服，工作30分钟，收拾卧室、客厅和拍摄间”'),
+          content: beautifyAssistantReply('收到啦，我在这儿陪你一起看着 💭\n\n你可以直接跟我说：\n• 心情、想法或者待办\n• “查看今天的任务”\n• 一串任务让我帮你拆分和排顺序\n\n比如：\n“5分钟后去洗漱，然后洗碗，倒猫粮，洗衣服，工作30分钟，收拾卧室、客厅和拍摄间”'),
           timestamp: new Date(),
         };
         setMessages(prev => [...prev, aiMessage]);
@@ -2075,7 +2088,7 @@ ${message}
       const aiMessage: Message = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        content: beautifyAssistantReply(`❌ 抱歉呀，刚刚处理你的请求时出了点问题\n\n${error instanceof Error ? error.message : '未知错误'}\n\n你可以试试：\n• 把内容说短一点\n• 分几次发给我\n• 刷新页面再试一次`),
+        content: beautifyAssistantReply(`刚刚那一下我没有接稳你这条消息 😢\n\n${error instanceof Error ? error.message : '未知错误'}\n\n你可以试试：\n• 把内容说短一点\n• 分几次发给我\n• 刷新页面再试一次\n\n没关系，我还在，我们慢慢来。`),
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, aiMessage]);

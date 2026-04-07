@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, ChevronRight, Copy, Pencil, Plus, Sparkles, Trash2, TrendingUp } from 'lucide-react';
+import { ArrowRight, CalendarDays, ChevronRight, Clock3, Copy, Pencil, Plus, Sparkles, Target, Trash2, TrendingUp } from 'lucide-react';
 import eventBus from '@/utils/eventBus';
 import { useGoalStore } from '@/stores/goalStore';
 import { useGoalContributionStore } from '@/stores/goalContributionStore';
+import { useHQBridgeStore } from '@/stores/hqBridgeStore';
+import { useTaskStore } from '@/stores/taskStore';
 import GoalAnalyticsView from '@/components/goals/GoalAnalyticsView';
 import GoalForm, { type GoalFormData } from '@/components/growth/GoalForm';
 import type { LongTermGoal } from '@/types';
@@ -13,6 +15,8 @@ interface GoalHomeViewProps {
 }
 
 type GoalSegment = 'active' | 'planned' | 'expired';
+
+type LoopStage = 'locked' | 'goal' | 'task' | 'kr' | 'done';
 
 interface GoalCardGroup {
   key: GoalSegment;
@@ -119,6 +123,7 @@ function normalizeFormData(goal?: LongTermGoal | null): GoalFormData | undefined
 export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: GoalHomeViewProps) {
   const { goals, loadGoals, createGoal, updateGoal, deleteGoal } = useGoalStore();
   const addContributionRecord = useGoalContributionStore((state) => state.addRecord);
+  const activeLoop = useHQBridgeStore((state) => state.activeLoop);
   const [segment, setSegment] = useState<GoalSegment>('active');
   const [showForm, setShowForm] = useState(false);
   const [editingGoal, setEditingGoal] = useState<LongTermGoal | null>(null);
@@ -135,7 +140,8 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
       if (!payload?.goalId) return;
 
       setLinkedGoalId(payload.goalId);
-      const matchedGoal = useGoalStore.getState().goals.find((goal) => goal.id === payload.goalId);
+      const matchedGoal = useGoalStore.getState().goals.find((goal) => goal.id === payload.goalId)
+        || (activeLoop?.goalId === payload.goalId ? goals.find((goal) => goal.id === activeLoop.goalId) : undefined);
       if (matchedGoal) {
         setSelectedGoal(matchedGoal);
       }
@@ -145,7 +151,7 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
     return () => {
       eventBus.off('dashboard:navigate-module', handleNavigate);
     };
-  }, []);
+  }, [activeLoop?.goalId, goals]);
 
   const activeGoals = useMemo(() => goals.filter((goal) => getGoalSegment(goal) === 'active'), [goals]);
   const plannedGoals = useMemo(() => goals.filter((goal) => getGoalSegment(goal) === 'planned'), [goals]);
@@ -618,7 +624,7 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
             <div>
               <div className="text-sm font-semibold" style={{ color: textPrimary }}>目标分析入口</div>
               <div className="mt-1 text-sm" style={{ color: textSecondary }}>
-                下一步将接入时间轴历史、关键结果记录和图表分析。
+                已接入时间轴关键结果与目标分析图表，可继续补强整改推进面板。
               </div>
             </div>
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#111827] text-white">
@@ -629,12 +635,12 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
           <div className="mt-4 rounded-[22px] p-4" style={{ background: subSurface }}>
             <div className="flex items-center justify-between text-sm">
               <span style={{ color: textSecondary }}>当前可用能力</span>
-              <span style={{ color: '#34C759' }}>已接入目标存储</span>
+              <span style={{ color: '#34C759' }}>已接入时间轴贡献分析</span>
             </div>
             <ul className="mt-3 space-y-2 text-sm" style={{ color: textPrimary }}>
-              <li className="flex items-center justify-between"><span>图二风格目标编辑页</span><ChevronRight className="h-4 w-4" /></li>
-              <li className="flex items-center justify-between"><span>时间区间 / 权重 / 绑定项目</span><ChevronRight className="h-4 w-4" /></li>
-              <li className="flex items-center justify-between"><span>后续接入时间轴分析</span><ChevronRight className="h-4 w-4" /></li>
+              <li className="flex items-center justify-between"><span>总部点名目标自动聚焦</span><ChevronRight className="h-4 w-4" /></li>
+              <li className="flex items-center justify-between"><span>时间轴 KR 自动沉淀到目标分析</span><ChevronRight className="h-4 w-4" /></li>
+              <li className="flex items-center justify-between"><span>趋势图 / 投产比 / 关键结果编辑</span><ChevronRight className="h-4 w-4" /></li>
             </ul>
           </div>
         </div>

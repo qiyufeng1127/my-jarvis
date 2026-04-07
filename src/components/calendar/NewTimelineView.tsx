@@ -22,6 +22,7 @@ import { useGoldStore } from '@/stores/goldStore';
 import { useTagStore } from '@/stores/tagStore';
 import { useGoalStore } from '@/stores/goalStore';
 import { useGoalContributionStore } from '@/stores/goalContributionStore';
+import { useHQBridgeStore } from '@/stores/hqBridgeStore';
 import { useTaskHistoryStore } from '@/stores/taskHistoryStore';
 import CelebrationEffect from '@/components/effects/CelebrationEffect';
 import { 
@@ -85,6 +86,8 @@ export default function NewTimelineView({
   const addGoalContributionRecord = useGoalContributionStore(state => state.addRecord);
   const existingGoalContributionRecords = useGoalContributionStore(state => state.records);
   const addTaskHistoryRecord = useTaskHistoryStore(state => state.addRecord);
+  const activeLoop = useHQBridgeStore((state) => state.activeLoop);
+  const setActiveLoop = useHQBridgeStore((state) => state.setActiveLoop);
   
   // 使用任务store
   const updateTaskEfficiency = useTaskStore(state => state.updateTaskEfficiency);
@@ -578,6 +581,7 @@ export default function NewTimelineView({
         category: task.taskType,
         description: task.description,
         isCompleted: task.status === 'completed',
+        isLinkedHQTask: activeLoop?.taskId === task.id || (task.tags || []).includes('总部承诺'),
         goldReward: taskGold, // 使用任务的金币
         tags: taskTags, // 使用任务的标签
         sourceBadges,
@@ -1468,6 +1472,22 @@ export default function NewTimelineView({
         status: 'completed',
         endTime: now.toISOString()
       });
+
+      if (activeLoop?.taskId === taskId) {
+        setActiveLoop({
+          ...activeLoop,
+          taskId,
+          taskTitle: task.title,
+        });
+      }
+
+      if (activeLoop?.taskId === taskId) {
+        setActiveLoop({
+          ...activeLoop,
+          taskId,
+          taskTitle: task.title,
+        });
+      }
       
       // 记录标签使用时长 - 使用实际时长
       if (task.tags && task.tags.length > 0) {
@@ -1602,6 +1622,14 @@ export default function NewTimelineView({
         status: 'completed',
         endTime: now.toISOString()
       });
+
+      if (activeLoop?.taskId === taskId) {
+        setActiveLoop({
+          ...activeLoop,
+          taskId,
+          taskTitle: task.title,
+        });
+      }
       
       // 记录标签使用时长 - 使用实际时长
       if (task.tags && task.tags.length > 0) {
@@ -1817,24 +1845,33 @@ export default function NewTimelineView({
       tags: Array.from(new Set([...(task.tags || []), goal.name])),
     });
 
-    const dimensionValueMap = new Map(dimensionResults.map((item) => [item.dimensionId, item.value]));
-    const updatedGoalCurrentValue = Number((goal.currentValue + dimensionResults.reduce((sum, item) => sum + item.value, 0)).toFixed(2));
-    const nextCurrentIncome = Math.round((updatedGoalCurrentValue / Math.max(goal.targetValue || 1, 1)) * (goal.targetIncome || 0));
+    const nextDimensions = goal.dimensions.map((dimension) => ({
+      ...dimension,
+      currentValue: Number((dimension.currentValue + (dimensionResults.find((item) => item.dimensionId === dimension.id)?.value || 0)).toFixed(2)),
+    }));
+
     useGoalStore.getState().updateGoal(goal.id, {
-      dimensions: goal.dimensions.map((dimension) => ({
-        ...dimension,
-        currentValue: Number((dimension.currentValue + (dimensionValueMap.get(dimension.id) || 0)).toFixed(2)),
-      })),
-      currentValue: updatedGoalCurrentValue,
-      currentIncome: nextCurrentIncome,
+      dimensions: nextDimensions,
+      currentValue: nextDimensions.reduce((sum, item) => sum + item.currentValue, 0),
+      targetValue: nextDimensions.reduce((sum, item) => sum + item.targetValue, 0),
     });
 
-    setGoalContributionSaving(false);
-    setGoalContributionSuccess('关键结果已写入目标分析。');
-    setTimeout(() => {
+    if (activeLoop?.taskId === task.id) {
+      setActiveLoop({
+        ...activeLoop,
+        goalId: goal.id,
+        goalName: goal.name,
+        taskId: task.id,
+        taskTitle: task.title,
+      });
+    }
+
+    setGoalContributionSuccess(`已把 ${task.title} 的关键结果写入 ${goal.name}`);
+    window.setTimeout(() => {
       setGoalContributionTaskId(null);
+      setGoalContributionSaving(false);
       setGoalContributionSuccess(null);
-    }, 600);
+    }, 900);
   };
 
   // 计算距离今日结束的剩余时间
@@ -2944,6 +2981,14 @@ export default function NewTimelineView({
                         style={{ backgroundColor: 'rgba(255,255,255,0.22)', color: '#fff7ed' }}
                       >
                         总部刚刚把你带到这条任务，先把它处理掉。
+                      </div>
+                    )}
+                    {block.isLinkedHQTask && linkedTaskId !== block.id && (
+                      <div
+                        className="mb-2 rounded-full px-3 py-1 text-[10px] font-black tracking-[0.14em]"
+                        style={{ backgroundColor: 'rgba(255,255,255,0.16)', color: '#fff7ed' }}
+                      >
+                        总部整改主任务，建议优先完成并补 KR。
                       </div>
                     )}
                     {/* 第一行：拖拽手柄 + 标签 + 时长 + 编辑按钮 - 减少下边距 */}

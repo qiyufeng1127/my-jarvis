@@ -31,8 +31,12 @@ function formatHours(minutes: number) {
 
 function getComparisonTone(current: number, target: number) {
   if (current >= target) return '#34c759';
-  if (target - current >= 5) return '#ff3b30';
-  return '#ff9500';
+  if (target <= 0) return '#34c759';
+
+  const gapRatio = (target - current) / target;
+  if (gapRatio >= 0.2) return '#ff3b30';
+  if (gapRatio >= 0.05) return '#ff9500';
+  return '#34c759';
 }
 
 interface ContributionEditorDraft {

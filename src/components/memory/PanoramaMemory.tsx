@@ -10,6 +10,7 @@ import {
 import eventBus from '@/utils/eventBus';
 import { useGoalStore } from '@/stores/goalStore';
 import { useTaskStore } from '@/stores/taskStore';
+import { useHQBridgeStore } from '@/stores/hqBridgeStore';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
 import { useAIStore } from '@/stores/aiStore';
 import AIConfigModal from '@/components/ai/AIConfigModal';
@@ -148,6 +149,8 @@ export default function PanoramaMemory({ bgColor = '#ffffff' }: PanoramaMemoryPr
   const incomeRecords = useSideHustleStore((state) => state.incomeRecords);
   const timeRecords = useSideHustleStore((state) => state.timeRecords);
   const { isConfigured, chat } = useAIStore();
+  const activeLoop = useHQBridgeStore((state) => state.activeLoop);
+  const setActiveLoop = useHQBridgeStore((state) => state.setActiveLoop);
 
   const [stage, setStage] = useState<SessionStage>('loading');
   const [inputValue, setInputValue] = useState('');
@@ -678,6 +681,7 @@ ${reportData.painFocus.question}`;
         goals,
         createGoal,
         createTask,
+        setActiveLoop,
       });
       setCommitmentSyncResult(syncResult);
       setStage('report');
@@ -690,11 +694,12 @@ ${reportData.painFocus.question}`;
   const ringPercent = Math.max(0, Math.min(100, Number(reportData.monthRate.toFixed(0))));
   const reportTitle = `【${reportData.now.getFullYear()}年${reportData.now.getMonth() + 1}月${reportData.now.getDate()}日】AI总部述职报告`;
   const linkedCommitmentTask = useMemo(() => {
-    if (commitmentSyncResult?.taskId) {
-      return tasks.find((task) => task.id === commitmentSyncResult.taskId) || null;
+    const preferredTaskId = commitmentSyncResult?.taskId || activeLoop?.taskId;
+    if (preferredTaskId) {
+      return tasks.find((task) => task.id === preferredTaskId) || null;
     }
     return tasks.find((task) => (task.tags || []).includes('总部承诺')) || null;
-  }, [commitmentSyncResult, tasks]);
+  }, [activeLoop?.taskId, commitmentSyncResult?.taskId, tasks]);
   const isCommitmentTaskCompleted = linkedCommitmentTask?.status === 'completed';
   const quickBridgeCards = useMemo<QuickBridgeCard[]>(() => {
     const topGoal = goals.find((goal) => goal.isActive && !goal.isCompleted) || goals[0];
@@ -711,7 +716,7 @@ ${reportData.painFocus.question}`;
         accent: '#23160d',
         module: 'memory',
         event: 'dashboard:navigate-module',
-        payload: { module: 'memory', goalId: commitmentSyncResult?.goalId, taskId: commitmentSyncResult?.taskId },
+        payload: { module: 'memory', goalId: commitmentSyncResult?.goalId || activeLoop?.goalId, taskId: commitmentSyncResult?.taskId || activeLoop?.taskId },
       },
       {
         id: 'goal-bridge',
@@ -722,12 +727,12 @@ ${reportData.painFocus.question}`;
         accent: '#0f766e',
         module: 'goals',
         event: 'dashboard:navigate-module',
-        payload: { module: 'goals', goalId: commitmentSyncResult?.goalId || topGoal?.id },
+        payload: { module: 'goals', goalId: commitmentSyncResult?.goalId || activeLoop?.goalId || topGoal?.id },
       },
       {
         id: 'timeline-bridge',
         title: '时间轴动作',
-        subtitle: topTask?.title || commitmentSyncResult?.taskTitle || '等待生成整改动作',
+        subtitle: topTask?.title || activeLoop?.taskTitle || commitmentSyncResult?.taskTitle || '等待生成整改动作',
         metric: isCommitmentTaskCompleted ? '已收口' : topTask?.scheduledStart ? formatDate(new Date(topTask.scheduledStart)) : '待安排',
         detail: isCommitmentTaskCompleted
           ? '总部整改动作已经完成，这一轮闭环已真正落地。'
@@ -737,14 +742,14 @@ ${reportData.painFocus.question}`;
         accent: '#8b5cf6',
         module: 'timeline',
         event: 'dashboard:navigate-module',
-        payload: { module: 'timeline', taskId: commitmentSyncResult?.taskId || topTask?.id },
+        payload: { module: 'timeline', taskId: commitmentSyncResult?.taskId || activeLoop?.taskId || topTask?.id },
       },
     ];
-  }, [commitmentSyncResult, conversationAssessment.resolved, currentSummary.promise, goals, isCommitmentTaskCompleted, linkedCommitmentTask, reportData, tasks]);
+  }, [activeLoop?.goalId, activeLoop?.taskId, activeLoop?.taskTitle, commitmentSyncResult, conversationAssessment.resolved, currentSummary.promise, goals, isCommitmentTaskCompleted, linkedCommitmentTask, reportData, tasks]);
   const loopStatusCards = useMemo(() => {
     const hasCommitment = userAnswers.length > 0;
-    const linkedGoal = commitmentSyncResult?.goalId
-      ? goals.find((goal) => goal.id === commitmentSyncResult.goalId)
+    const linkedGoal = (commitmentSyncResult?.goalId || activeLoop?.goalId)
+      ? goals.find((goal) => goal.id === (commitmentSyncResult?.goalId || activeLoop?.goalId))
       : goals.find((goal) => goal.name.includes('总部整改'));
     const hasGoalLinked = Boolean(linkedGoal);
     const hasTaskLinked = Boolean(linkedCommitmentTask);
@@ -1667,12 +1672,14 @@ async function syncCommitmentPlan({
   goals,
   createGoal,
   createTask,
+  setActiveLoop,
 }: {
   answers: string[];
   reportData: HQReportData;
   goals: ReturnType<typeof useGoalStore.getState>['goals'];
   createGoal: ReturnType<typeof useGoalStore.getState>['createGoal'];
   createTask: ReturnType<typeof useTaskStore.getState>['createTask'];
+  setActiveLoop: ReturnType<typeof useHQBridgeStore.getState>['setActiveLoop'];
 }): Promise<CommitmentSyncResult | null> {
   try {
     const plan = buildCommitmentPlan(answers, reportData);
@@ -1714,16 +1721,24 @@ async function syncCommitmentPlan({
       scheduledStart: taskStart,
       scheduledEnd: taskEnd,
       longTermGoals: { [goal.id]: 100 },
-      tags: ['总部承诺', reportData.painFocus.label],
+      tags: ['总部承诺', '总部联动', reportData.painFocus.label],
       status: 'scheduled',
     });
 
-    return {
+    const syncResult = {
       goalId: goal.id,
       taskId: task.id,
       goalName: goal.name,
       taskTitle: task.title,
     };
+
+    setActiveLoop({
+      ...syncResult,
+      painLabel: reportData.painFocus.label,
+      promise: answers[answers.length - 1] || reportData.painFocus.detail,
+    });
+
+    return syncResult;
   } catch (error) {
     console.error('同步总部承诺失败:', error);
     return null;
