@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Camera, Check, ChevronDown, ChevronUp, Edit2, Trash2, GripVertical, Star, Clock, FileText, Upload, X } from 'lucide-react';
-import type { Task } from '@/types';
+import type { Task, LongTermGoal } from '@/types';
 import { 
   generateVerificationKeywords, 
   generateSubTasks, 
@@ -20,6 +20,8 @@ import { useAIStore } from '@/stores/aiStore';
 import { useGoldStore } from '@/stores/goldStore';
 import { useTagStore } from '@/stores/tagStore';
 import { useGoalStore } from '@/stores/goalStore';
+import { useGoalContributionStore } from '@/stores/goalContributionStore';
+import { useTaskHistoryStore } from '@/stores/taskHistoryStore';
 import CelebrationEffect from '@/components/effects/CelebrationEffect';
 import { 
   adjustTaskStartTime, 
@@ -79,6 +81,10 @@ export default function NewTimelineView({
   
   // 使用金币store
   const goldBalance = useGoldStore(state => state.balance);
+  const goals = useGoalStore(state => state.goals);
+  const addGoalContributionRecord = useGoalContributionStore(state => state.addRecord);
+  const existingGoalContributionRecords = useGoalContributionStore(state => state.records);
+  const addTaskHistoryRecord = useTaskHistoryStore(state => state.addRecord);
   
   // 使用任务store
   const updateTaskEfficiency = useTaskStore(state => state.updateTaskEfficiency);
@@ -157,6 +163,11 @@ export default function NewTimelineView({
   const [taskStartTimeouts, setTaskStartTimeouts] = useState<Record<string, boolean>>({}); // 启动验证超时标记
   const [taskFinishTimeouts, setTaskFinishTimeouts] = useState<Record<string, boolean>>({}); // 完成验证超时标记
   const [taskActualStartTimes, setTaskActualStartTimes] = useState<Record<string, Date>>({}); // 任务实际启动时间
+  const [goalContributionTaskId, setGoalContributionTaskId] = useState<string | null>(null);
+  const [goalContributionDrafts, setGoalContributionDrafts] = useState<Record<string, { goalId: string; note: string; values: Record<string, string> }>>({});
+  const [goalContributionError, setGoalContributionError] = useState<string | null>(null);
+  const [goalContributionSuccess, setGoalContributionSuccess] = useState<string | null>(null);
+  const [goalContributionSaving, setGoalContributionSaving] = useState(false);
   const [editingVerification, setEditingVerification] = useState<string | null>(null);
   const [addingSubTask, setAddingSubTask] = useState<string | null>(null);
   const [newSubTaskTitle, setNewSubTaskTitle] = useState('');
@@ -1631,6 +1642,144 @@ export default function NewTimelineView({
     console.log('✅ 任务已复制到:', newStart.toISOString());
   };
 
+  const getMatchedGoalsForTask = (task: Task) => {
+    if (goals.length === 0) return [] as LongTermGoal[];
+
+    const explicitGoalText = [
+      (task as Task & { goals?: string }).goals,
+      task.description,
+      ...(task.tags || []),
+    ].filter(Boolean).join(' ');
+
+    const matched = explicitGoalText.trim().length > 0
+      ? useGoalStore.getState().findMatchingGoals(task.title, explicitGoalText.split(/\s+/).filter(Boolean))
+      : useGoalStore.getState().findMatchingGoals(task.title, task.tags || []);
+
+    return matched.slice(0, 3);
+  };
+
+  const createContributionDraft = (task: Task, matchedGoals: LongTermGoal[]) => {
+    const primaryGoal = matchedGoals[0];
+    const existingRecord = existingGoalContributionRecords.find((record) => record.taskId === task.id && record.goalId === primaryGoal?.id);
+
+    return {
+      goalId: primaryGoal?.id || '',
+      note: existingRecord?.note || '',
+      values: (primaryGoal?.dimensions || []).reduce<Record<string, string>>((acc, dimension) => {
+        const existingValue = existingRecord?.dimensionResults.find((item) => item.dimensionId === dimension.id)?.value;
+        acc[dimension.id] = existingValue !== undefined ? String(existingValue) : '';
+        return acc;
+      }, {}),
+    };
+  };
+
+  const openGoalContributionModal = (taskId: string) => {
+    const task = allTasks.find((item) => item.id === taskId);
+    if (!task) return;
+
+    const matchedGoals = getMatchedGoalsForTask(task);
+    const draft = createContributionDraft(task, matchedGoals);
+
+    setGoalContributionDrafts((prev) => ({
+      ...prev,
+      [taskId]: prev[taskId] || draft,
+    }));
+    setGoalContributionTaskId(taskId);
+    setGoalContributionError(null);
+    setGoalContributionSuccess(null);
+  };
+
+  const handleGoalContributionDraftChange = (taskId: string, updates: Partial<{ goalId: string; note: string; values: Record<string, string> }>) => {
+    setGoalContributionDrafts((prev) => ({
+      ...prev,
+      [taskId]: {
+        goalId: updates.goalId ?? prev[taskId]?.goalId ?? '',
+        note: updates.note ?? prev[taskId]?.note ?? '',
+        values: updates.values ?? prev[taskId]?.values ?? {},
+      },
+    }));
+  };
+
+  const handleSaveGoalContribution = () => {
+    if (!goalContributionTaskId) return;
+
+    const task = allTasks.find((item) => item.id === goalContributionTaskId);
+    const draft = goalContributionDrafts[goalContributionTaskId];
+    const goal = goals.find((item) => item.id === draft?.goalId);
+
+    if (!task || !draft || !goal) {
+      setGoalContributionError('请选择一个目标后再保存关键结果。');
+      return;
+    }
+
+    const dimensionResults = goal.dimensions
+      .map((dimension) => ({
+        dimensionId: dimension.id,
+        dimensionName: dimension.name,
+        unit: dimension.unit,
+        value: Number(draft.values[dimension.id] || 0),
+      }))
+      .filter((dimension) => dimension.value > 0);
+
+    if (dimensionResults.length === 0) {
+      setGoalContributionError('请至少填写一个大于 0 的关键结果。');
+      return;
+    }
+
+    setGoalContributionSaving(true);
+    setGoalContributionError(null);
+
+    const existingRecord = existingGoalContributionRecords.find((record) => record.taskId === task.id && record.goalId === goal.id);
+
+    if (existingRecord) {
+      useGoalContributionStore.getState().updateRecord(existingRecord.id, {
+        note: draft.note,
+        durationMinutes: task.durationMinutes || 0,
+        startTime: task.scheduledStart ? new Date(task.scheduledStart) : undefined,
+        endTime: task.scheduledEnd ? new Date(task.scheduledEnd) : undefined,
+        dimensionResults,
+      });
+    } else {
+      addGoalContributionRecord({
+        goalId: goal.id,
+        taskId: task.id,
+        taskTitle: task.title,
+        startTime: task.scheduledStart ? new Date(task.scheduledStart) : undefined,
+        endTime: task.scheduledEnd ? new Date(task.scheduledEnd) : undefined,
+        durationMinutes: task.durationMinutes || 0,
+        note: draft.note,
+        source: 'timeline',
+        dimensionResults,
+      });
+    }
+
+    addTaskHistoryRecord({
+      taskTitle: task.title,
+      taskType: task.taskType,
+      category: goal.name,
+      location: task.location || '时间轴',
+      estimatedDuration: task.durationMinutes || 0,
+      actualDuration: task.durationMinutes || 0,
+      tags: Array.from(new Set([...(task.tags || []), goal.name])),
+    });
+
+    const dimensionValueMap = new Map(dimensionResults.map((item) => [item.dimensionId, item.value]));
+    useGoalStore.getState().updateGoal(goal.id, {
+      dimensions: goal.dimensions.map((dimension) => ({
+        ...dimension,
+        currentValue: Number((dimension.currentValue + (dimensionValueMap.get(dimension.id) || 0)).toFixed(2)),
+      })),
+      currentValue: Number((goal.currentValue + dimensionResults.reduce((sum, item) => sum + item.value, 0)).toFixed(2)),
+    });
+
+    setGoalContributionSaving(false);
+    setGoalContributionSuccess('关键结果已写入目标分析。');
+    setTimeout(() => {
+      setGoalContributionTaskId(null);
+      setGoalContributionSuccess(null);
+    }, 600);
+  };
+
   // 计算距离今日结束的剩余时间
   const calculateTimeUntilEndOfDay = () => {
     if (timeBlocks.length === 0) return null;
@@ -1782,6 +1931,130 @@ export default function NewTimelineView({
         />
       )}
       
+
+      {/* 关键结果填写弹层 */}
+      {goalContributionTaskId && (() => {
+        const currentTask = allTasks.find((item) => item.id === goalContributionTaskId);
+        if (!currentTask) return null;
+
+        const matchedGoals = getMatchedGoalsForTask(currentTask);
+        const draft = goalContributionDrafts[goalContributionTaskId] || createContributionDraft(currentTask, matchedGoals);
+        const currentGoal = goals.find((item) => item.id === draft.goalId) || matchedGoals[0];
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 px-3 py-6 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-[28px] bg-white p-4 shadow-[0_30px_80px_rgba(15,23,42,0.22)]">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm text-[#6b7280]">时间轴任务关键结果</div>
+                  <div className="mt-1 text-lg font-semibold text-[#111827]">{currentTask.title}</div>
+                </div>
+                <button
+                  onClick={() => {
+                    setGoalContributionTaskId(null);
+                    setGoalContributionError(null);
+                    setGoalContributionSuccess(null);
+                  }}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f3f4f6] text-[#111827]"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                <div>
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#9ca3af]">关联目标</div>
+                  <select
+                    value={draft.goalId}
+                    onChange={(e) => handleGoalContributionDraftChange(goalContributionTaskId, {
+                      goalId: e.target.value,
+                      values: (goals.find((goal) => goal.id === e.target.value)?.dimensions || []).reduce<Record<string, string>>((acc, dimension) => {
+                        acc[dimension.id] = '';
+                        return acc;
+                      }, {}),
+                    })}
+                    className="w-full rounded-[18px] border border-[#e5e7eb] bg-[#f9fafb] px-4 py-3 text-sm text-[#111827] outline-none"
+                  >
+                    <option value="">请选择目标</option>
+                    {matchedGoals.map((goal) => (
+                      <option key={goal.id} value={goal.id}>{goal.name}</option>
+                    ))}
+                    {matchedGoals.length === 0 && goals.map((goal) => (
+                      <option key={goal.id} value={goal.id}>{goal.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {currentGoal && (
+                  <div className="rounded-[22px] bg-[#f7f8fb] p-3">
+                    <div className="mb-3 text-sm font-medium text-[#111827]">填写本次产出</div>
+                    <div className="space-y-3">
+                      {currentGoal.dimensions.map((dimension) => (
+                        <div key={dimension.id} className="flex items-center gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-medium text-[#111827]">{dimension.name}</div>
+                            <div className="text-xs text-[#9ca3af]">目标 {dimension.targetValue} {dimension.unit}</div>
+                          </div>
+                          <div className="flex w-[124px] items-center rounded-[16px] bg-white px-3 py-2 shadow-sm">
+                            <input
+                              type="number"
+                              min={0}
+                              step="0.1"
+                              value={draft.values[dimension.id] || ''}
+                              onChange={(e) => handleGoalContributionDraftChange(goalContributionTaskId, {
+                                values: {
+                                  ...draft.values,
+                                  [dimension.id]: e.target.value,
+                                },
+                              })}
+                              className="w-full bg-transparent text-right text-sm font-semibold text-[#111827] outline-none"
+                              placeholder="0"
+                            />
+                            <span className="ml-2 text-xs text-[#6b7280]">{dimension.unit}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#9ca3af]">关键结果说明</div>
+                  <textarea
+                    value={draft.note}
+                    onChange={(e) => handleGoalContributionDraftChange(goalContributionTaskId, { note: e.target.value })}
+                    rows={3}
+                    className="w-full rounded-[18px] border border-[#e5e7eb] bg-[#f9fafb] px-4 py-3 text-sm text-[#111827] outline-none"
+                    placeholder="例如：今天完成 2 条脚本、1 次复盘，推进了目标数据。"
+                  />
+                </div>
+
+                {(goalContributionError || goalContributionSuccess) && (
+                  <div className={`rounded-[16px] px-3 py-2 text-sm ${goalContributionError ? 'bg-[#fef2f2] text-[#dc2626]' : 'bg-[#ecfdf3] text-[#16a34a]'}`}>
+                    {goalContributionError || goalContributionSuccess}
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-1">
+                  <button
+                    onClick={() => setGoalContributionTaskId(null)}
+                    className="flex-1 rounded-full bg-[#eef0f6] px-4 py-3 text-sm font-medium text-[#111827]"
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={handleSaveGoalContribution}
+                    disabled={goalContributionSaving}
+                    className="flex-1 rounded-full bg-[#0A84FF] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                  >
+                    {goalContributionSaving ? '保存中...' : '写入分析'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 编辑任务弹窗 - 紧凑优化版 */}
       {editingTask && (() => {
@@ -2671,6 +2944,16 @@ export default function NewTimelineView({
                         >
                           <span className="text-sm">⏱️</span>
                         </button>
+
+                        {/* 关键结果 */}
+                        <button
+                          onClick={() => openGoalContributionModal(block.id)}
+                          className="rounded-full px-2 py-1 text-[10px] font-bold transition-all hover:scale-105"
+                          style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
+                          title="填写关键结果"
+                        >
+                          KR
+                        </button>
                       </div>
 
                       {/* 右侧：start + 展开 */}
@@ -2948,6 +3231,15 @@ export default function NewTimelineView({
                           title={taskVerifications[block.id]?.enabled ? '编辑验证关键词' : '启用拖延验证'}
                         >
                           <span className="text-sm">⏱️</span>
+                        </button>
+
+                        <button
+                          onClick={() => openGoalContributionModal(block.id)}
+                          className="rounded-full px-2 py-1 text-[10px] font-bold transition-all hover:scale-105"
+                          style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
+                          title="填写关键结果"
+                        >
+                          KR
                         </button>
                       </div>
 

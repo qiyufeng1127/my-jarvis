@@ -359,16 +359,16 @@
 /* 彻底修复底部黑色区域 */
 @media (max-width: 768px) {
   html, body, #root {
-    background-color: #fefaf0 !important;
+    background-color: #ffffff !important;
     margin: 0 !important;
     padding: 0 !important;
   }
   
-  /* 确保所有容器都使用正确的背景色 */
+  /* 不再全局强刷布局容器为米黄色，避免系统区和底部露色 */
   .fixed.inset-0,
   .min-h-screen,
   [class*="flex-col"] {
-    background-color: #fefaf0 !important;
+    background-color: transparent !important;
   }
   
   /* 移除所有可能的底部边距和填充 */

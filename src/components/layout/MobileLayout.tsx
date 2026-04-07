@@ -51,11 +51,25 @@ interface NavItem {
   component?: React.ComponentType<any>;
 }
 
+const GOALS_NAV_ITEM_ID: TabType = 'goals';
+
+function ensureGoalsNavItem(items: NavItem[]) {
+  const goalsItem = ALL_NAV_ITEMS.find((item) => item.id === GOALS_NAV_ITEM_ID);
+  if (!goalsItem) return items;
+
+  const withoutGoals = items.filter((item) => item.id !== GOALS_NAV_ITEM_ID);
+  return [
+    ...withoutGoals.slice(0, 2),
+    goalsItem,
+    ...withoutGoals.slice(2),
+  ];
+}
+
 const ALL_NAV_ITEMS: NavItem[] = [
   { id: 'timeline', label: '时间轴', icon: '📅', color: 'pink', component: TimelineModule },
   { id: 'tags', label: '标签', icon: '🏷️', color: 'purple' }, // 标签管理（特殊处理，不是模块）
   { id: 'goals', label: '目标', icon: '🎯', color: 'blue', component: GoalHomeView },
-  { id: 'memory', label: '记忆', icon: '🧠', color: 'purple', component: PanoramaMemory },
+  { id: 'memory', label: '总部', icon: '🧠', color: 'purple', component: PanoramaMemory },
   { id: 'habits', label: '习惯', icon: '✅', color: 'green', component: HabitsModule },
   { id: 'money', label: '副业', icon: '💰', color: 'yellow', component: MoneyModule },
   { id: 'journal', label: '日记', icon: '📔', color: 'pink', component: JournalModule },
@@ -101,14 +115,14 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
     if (saved) {
       try {
         const savedIds = JSON.parse(saved) as TabType[];
-        return savedIds.map(id => ALL_NAV_ITEMS.find(item => item.id === id)!).filter(Boolean);
+        return ensureGoalsNavItem(savedIds.map(id => ALL_NAV_ITEMS.find(item => item.id === id)!).filter(Boolean));
       } catch {
         // 默认显示：时间轴、标签、目标、记忆、习惯
-        return ALL_NAV_ITEMS.slice(0, 5);
+        return ensureGoalsNavItem(ALL_NAV_ITEMS.slice(0, 5));
       }
     }
     // 默认显示：时间轴、标签、目标、记忆、习惯
-    return ALL_NAV_ITEMS.slice(0, 5);
+    return ensureGoalsNavItem(ALL_NAV_ITEMS.slice(0, 5));
   });
   
   const [activeTab, setActiveTab] = useState<TabType>('home'); // 默认显示首页
@@ -157,7 +171,13 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
 
   // 保存导航栏配置
   useEffect(() => {
-    localStorage.setItem('mobile_nav_items', JSON.stringify(navItems.map(item => item.id)));
+    const normalizedNavItems = ensureGoalsNavItem(navItems);
+    if (normalizedNavItems.length !== navItems.length || normalizedNavItems.some((item, index) => item.id !== navItems[index]?.id)) {
+      setNavItems(normalizedNavItems);
+      return;
+    }
+
+    localStorage.setItem('mobile_nav_items', JSON.stringify(normalizedNavItems.map(item => item.id)));
   }, [navItems]);
 
   // 渲染当前激活的模块
@@ -253,11 +273,12 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
 
   // 保存编辑
   const handleSaveEdit = () => {
-    setNavItems(editingItems);
+    const normalizedItems = ensureGoalsNavItem(editingItems);
+    setNavItems(normalizedItems);
     setShowEditModal(false);
     // 如果当前激活的标签被移除了，切换到第一个
-    if (!editingItems.find(item => item.id === activeTab)) {
-      setActiveTab(editingItems[0]?.id || 'timeline');
+    if (!normalizedItems.find(item => item.id === activeTab)) {
+      setActiveTab(normalizedItems[0]?.id || 'timeline');
     }
   };
 
@@ -269,7 +290,7 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         paddingTop: 'env(safe-area-inset-top)',
         paddingBottom: '0',
         margin: '0',
-        backgroundColor: '#fefaf0',
+        backgroundColor: 'transparent',
         fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
         overflow: 'hidden',
         height: '100dvh',
@@ -309,8 +330,9 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         className="flex-1 overflow-y-auto overflow-x-hidden"
         style={{ 
           WebkitOverflowScrolling: 'touch', // iOS 平滑滚动
-          paddingBottom: 'var(--mobile-bottom-nav-total-height)', // 为系统底部区域与按钮区一起预留空间
+          paddingBottom: '76px',
           backgroundColor: '#fefaf0',
+          minHeight: 0,
         }}
       >
         {renderActiveModule()}

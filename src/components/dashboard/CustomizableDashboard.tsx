@@ -159,7 +159,7 @@ const availableModules: ModuleDefinition[] = [
   {
     id: 'memory',
     type: 'memory',
-    title: '全景记忆栏',
+    title: 'AI总部述职',
     icon: <span className="text-2xl">🧠</span>,
     defaultColor: '#8B5CF6',
     component: PanoramaMemory,

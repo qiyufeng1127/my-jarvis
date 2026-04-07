@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, ChevronRight, Pencil, Plus, Trash2, TrendingUp } from 'lucide-react';
+import { CalendarDays, ChevronRight, Pencil, Plus, Sparkles, Trash2, TrendingUp } from 'lucide-react';
 import { useGoalStore } from '@/stores/goalStore';
+import { useGoalContributionStore } from '@/stores/goalContributionStore';
 import GoalAnalyticsView from '@/components/goals/GoalAnalyticsView';
 import GoalForm, { type GoalFormData } from '@/components/growth/GoalForm';
 import type { LongTermGoal } from '@/types';
@@ -115,6 +116,7 @@ function normalizeFormData(goal?: LongTermGoal | null): GoalFormData | undefined
 
 export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: GoalHomeViewProps) {
   const { goals, loadGoals, createGoal, updateGoal, deleteGoal } = useGoalStore();
+  const addContributionRecord = useGoalContributionStore((state) => state.addRecord);
   const [segment, setSegment] = useState<GoalSegment>('active');
   const [showForm, setShowForm] = useState(false);
   const [editingGoal, setEditingGoal] = useState<LongTermGoal | null>(null);
@@ -171,6 +173,124 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
     setShowForm(true);
   };
 
+  const handleInjectPreviewGoal = () => {
+    const existingPreviewGoal = goals.find((goal) => goal.name === '30天打造穿搭账号增长实验');
+
+    if (existingPreviewGoal) {
+      setSelectedGoal(existingPreviewGoal);
+      return;
+    }
+
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 9);
+    startDate.setHours(0, 0, 0, 0);
+
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + 21);
+    endDate.setHours(0, 0, 0, 0);
+
+    const previewGoal = createGoal({
+      name: '30天打造穿搭账号增长实验',
+      description: '验证内容产出、发布频次和私域转化是否能形成稳定增长。',
+      goalType: 'numeric',
+      startDate,
+      endDate,
+      deadline: endDate,
+      estimatedTotalHours: 72,
+      dimensions: [
+        {
+          id: 'preview-posts',
+          name: '内容发布',
+          unit: '条',
+          targetValue: 30,
+          currentValue: 12,
+          weight: 35,
+        },
+        {
+          id: 'preview-leads',
+          name: '私信线索',
+          unit: '个',
+          targetValue: 80,
+          currentValue: 26,
+          weight: 40,
+        },
+        {
+          id: 'preview-conversion',
+          name: '成交转化',
+          unit: '单',
+          targetValue: 12,
+          currentValue: 4,
+          weight: 25,
+        },
+      ],
+      projectBindings: [
+        { id: 'preview-project-xhs', name: '小红书账号', color: '#FF5A5F' },
+        { id: 'preview-project-wechat', name: '私域跟进', color: '#34C759' },
+      ],
+      theme: {
+        color: '#FF5A5F',
+        label: '落日珊瑚',
+      },
+      showInFuture30Chart: true,
+      relatedDimensions: ['preview-posts', 'preview-leads', 'preview-conversion'],
+    });
+
+    const seededRecords = [
+      {
+        taskTitle: '完成3条春季穿搭选题与封面',
+        durationMinutes: 150,
+        note: '集中完成选题库搭建，并同步产出 3 条可发布内容。',
+        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 6),
+        dimensionResults: [
+          { dimensionId: 'preview-posts', dimensionName: '内容发布', unit: '条', value: 3 },
+          { dimensionId: 'preview-leads', dimensionName: '私信线索', unit: '个', value: 6 },
+        ],
+      },
+      {
+        taskTitle: '直播复盘并优化私信成交话术',
+        durationMinutes: 110,
+        note: '优化开场钩子和成交问答，转化效率明显提升。',
+        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 4),
+        dimensionResults: [
+          { dimensionId: 'preview-leads', dimensionName: '私信线索', unit: '个', value: 8 },
+          { dimensionId: 'preview-conversion', dimensionName: '成交转化', unit: '单', value: 2 },
+        ],
+      },
+      {
+        taskTitle: '连发2条爆款模版并跟进高意向用户',
+        durationMinutes: 180,
+        note: '发布节奏稳定，单日新增咨询显著上升。',
+        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 1),
+        dimensionResults: [
+          { dimensionId: 'preview-posts', dimensionName: '内容发布', unit: '条', value: 2 },
+          { dimensionId: 'preview-leads', dimensionName: '私信线索', unit: '个', value: 12 },
+          { dimensionId: 'preview-conversion', dimensionName: '成交转化', unit: '单', value: 1 },
+        ],
+      },
+    ];
+
+    seededRecords.forEach((record) => {
+      const inserted = addContributionRecord({
+        goalId: previewGoal.id,
+        taskTitle: record.taskTitle,
+        durationMinutes: record.durationMinutes,
+        note: record.note,
+        source: 'manual',
+        startTime: record.createdAt,
+        endTime: new Date(record.createdAt.getTime() + record.durationMinutes * 60000),
+        dimensionResults: record.dimensionResults,
+      });
+
+      useGoalContributionStore.getState().updateRecord(inserted.id, {
+        createdAt: record.createdAt,
+        updatedAt: record.createdAt,
+      });
+    });
+
+    setSegment('active');
+    setSelectedGoal(previewGoal);
+  };
+
   const surface = isDark ? 'rgba(28, 28, 30, 0.94)' : 'rgba(255,255,255,0.96)';
   const subSurface = isDark ? 'rgba(44, 44, 46, 0.92)' : 'rgba(244, 244, 248, 0.95)';
   const textPrimary = isDark ? '#f7f7fa' : '#141414';
@@ -221,16 +341,24 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
               <p className="text-sm font-medium" style={{ color: textSecondary }}>目标工作台</p>
               <h1 className="mt-1 text-[28px] font-semibold tracking-[-0.04em]" style={{ color: textPrimary }}>目标</h1>
             </div>
-            <button
-              onClick={() => {
-                setEditingGoal(null);
-                setShowForm(true);
-              }}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0A84FF] text-white shadow-[0_12px_24px_rgba(10,132,255,0.3)] transition active:scale-95"
-              aria-label="新建目标"
-            >
-              <Plus className="h-5 w-5" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleInjectPreviewGoal}
+                className="flex h-10 items-center gap-2 rounded-full bg-[#111827] px-4 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(15,23,42,0.22)] transition active:scale-95"
+              >
+                <Sparkles className="h-4 w-4" /> 预览
+              </button>
+              <button
+                onClick={() => {
+                  setEditingGoal(null);
+                  setShowForm(true);
+                }}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0A84FF] text-white shadow-[0_12px_24px_rgba(10,132,255,0.3)] transition active:scale-95"
+                aria-label="新建目标"
+              >
+                <Plus className="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-3 gap-2 rounded-[22px] p-1" style={{ background: subSurface }}>

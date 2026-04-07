@@ -20,7 +20,7 @@ html, body, #root {
   padding: 0 !important;
   width: 100%;
   height: 100%;
-  background-color: #fefaf0 !important;
+  background-color: #ffffff !important;
   overflow: hidden;
   position: fixed;
   -webkit-font-smoothing: antialiased;
@@ -89,7 +89,7 @@ input, textarea, select {
     height: 100% !important;
     min-height: 100dvh !important;
     overflow: hidden !important;
-    background-color: #fefaf0 !important;
+    background-color: #ffffff !important;
   }
   
   body {
@@ -98,7 +98,7 @@ input, textarea, select {
     height: 100% !important;
     min-height: 100dvh !important;
     overflow: hidden !important;
-    background-color: #fefaf0 !important;
+    background-color: #ffffff !important;
     margin: 0 !important;
     padding: 0 !important;
   }
@@ -109,7 +109,7 @@ input, textarea, select {
     height: 100% !important;
     min-height: 100dvh !important;
     overflow: hidden !important;
-    background-color: #fefaf0 !important;
+    background-color: #ffffff !important;
     margin: 0 !important;
     padding: 0 !important;
   }
