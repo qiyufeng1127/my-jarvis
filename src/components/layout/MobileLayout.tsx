@@ -284,6 +284,19 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
 
   return (
     <>
+    <div
+      aria-hidden="true"
+      style={{
+        position: 'fixed',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        height: 'env(safe-area-inset-bottom, 0px)',
+        backgroundColor: '#ffffff',
+        zIndex: 2147483646,
+        pointerEvents: 'none',
+      }}
+    />
     <div 
       className="fixed inset-0 flex flex-col" 
       style={{ 
@@ -293,10 +306,9 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         backgroundColor: 'transparent',
         fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
         overflow: 'hidden',
-        height: 'calc(100dvh + 48px)',
-        minHeight: 'calc(100dvh + 48px)',
+        height: '100dvh',
+        minHeight: '100dvh',
         width: '100vw',
-        bottom: '48px',
       }}
     >
       {/* 通知容器 */}
@@ -331,7 +343,7 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         className="flex-1 overflow-y-auto overflow-x-hidden"
         style={{ 
           WebkitOverflowScrolling: 'touch', // iOS 平滑滚动
-          paddingBottom: 'calc(76px + 48px)',
+          paddingBottom: '76px',
           backgroundColor: '#fefaf0',
           minHeight: 0,
         }}

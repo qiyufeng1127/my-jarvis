@@ -99,6 +99,7 @@ function normalizeFormData(goal?: LongTermGoal | null): GoalFormData | undefined
     startDate: goal.startDate ? new Date(goal.startDate).toISOString().split('T')[0] : '',
     endDate: goal.endDate ? new Date(goal.endDate).toISOString().split('T')[0] : '',
     estimatedTotalHours: goal.estimatedTotalHours || 0,
+    targetIncome: goal.targetIncome || 0,
     dimensions: goal.dimensions.length > 0 ? goal.dimensions : [{
       id: `metric-${goal.id}`,
       name: goal.name,
@@ -148,6 +149,7 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
       endDate: formData.endDate ? new Date(formData.endDate) : undefined,
       deadline: formData.endDate ? new Date(formData.endDate) : undefined,
       estimatedTotalHours: formData.estimatedTotalHours,
+      targetIncome: formData.targetIncome,
       dimensions: formData.dimensions,
       projectBindings: formData.projectBindings,
       theme: formData.theme,
@@ -183,6 +185,8 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
       deadline: goal.deadline ? new Date(goal.deadline) : undefined,
       estimatedTotalHours: goal.estimatedTotalHours,
       estimatedDailyHours: goal.estimatedDailyHours,
+      targetIncome: goal.targetIncome,
+      currentIncome: goal.currentIncome,
       targetValue: goal.targetValue,
       currentValue: goal.currentValue,
       unit: goal.unit,
@@ -230,6 +234,8 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
       endDate,
       deadline: endDate,
       estimatedTotalHours: 72,
+      targetIncome: 50000,
+      currentIncome: 18000,
       dimensions: [
         {
           id: 'preview-posts',

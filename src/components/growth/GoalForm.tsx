@@ -9,6 +9,7 @@ export interface GoalFormData {
   startDate: string;
   endDate: string;
   estimatedTotalHours: number;
+  targetIncome: number;
   dimensions: GoalMetric[];
   projectBindings: GoalProjectBinding[];
   theme: GoalTheme;
@@ -65,6 +66,7 @@ export default function GoalForm({
       startDate: '',
       endDate: '',
       estimatedTotalHours: 0,
+      targetIncome: 0,
       dimensions: [createMetric(0), createMetric(1)],
       projectBindings: [projectOptions[0]],
       theme: themeOptions[0],
@@ -233,6 +235,22 @@ export default function GoalForm({
               </div>
               <div className="mt-2 text-sm text-[#8e8e93]">可选，单位：小时</div>
               {errors.estimatedTotalHours && <p className="mt-2 text-sm text-[#ff3b30]">{errors.estimatedTotalHours}</p>}
+            </section>
+
+            <section className="rounded-[26px] bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
+              <div className="mb-3 text-[16px] text-[#3a3a3c]">目标收入</div>
+              <div className="flex items-end justify-between gap-3">
+                <input
+                  type="number"
+                  min="0"
+                  step="100"
+                  value={formData.targetIncome}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, targetIncome: Number(e.target.value || 0) }))}
+                  className="w-full rounded-[18px] bg-[#f7f7fa] px-4 py-3 text-[22px] font-semibold text-[#111111] outline-none"
+                />
+                <div className="whitespace-nowrap pb-2 text-[16px] text-[#8e8e93]">元</div>
+              </div>
+              <div className="mt-2 text-sm text-[#8e8e93]">用于查看该目标的收入完成情况</div>
             </section>
 
             <section className="rounded-[26px] bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">

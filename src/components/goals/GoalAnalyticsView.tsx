@@ -76,6 +76,15 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
     [contributionRecords]
   );
 
+  const totalIncome = useMemo(() => {
+    if (!liveGoal.targetIncome || !liveGoal.targetValue) return liveGoal.currentIncome || 0;
+    const income = contributionRecords.reduce((sum, record) => {
+      const contributionValue = record.dimensionResults.reduce((acc, item) => acc + item.value, 0);
+      return sum + (contributionValue / Math.max(liveGoal.targetValue || 1, 1)) * liveGoal.targetIncome!;
+    }, 0);
+    return Math.round(income);
+  }, [contributionRecords, liveGoal.currentIncome, liveGoal.targetIncome, liveGoal.targetValue]);
+
   const openRecordEditor = (record: GoalContributionRecord) => {
     setSelectedRecord(record);
     setEditorDraft({
@@ -133,6 +142,10 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
       dimensions: nextDimensions,
       currentValue: nextDimensions.reduce((sum, item) => sum + item.currentValue, 0),
       targetValue: nextDimensions.reduce((sum, item) => sum + item.targetValue, 0),
+      currentIncome: Math.round(recordsAfterUpdate.reduce((sum, record) => {
+        const contributionValue = record.dimensionResults.reduce((acc, item) => acc + item.value, 0);
+        return sum + ((liveGoal.targetIncome || 0) * contributionValue) / Math.max(liveGoal.targetValue || 1, 1);
+      }, 0)),
     });
 
     closeRecordEditor();
@@ -182,23 +195,30 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
     }
 
     let runningActual = 0;
+    let runningIncome = 0;
     const finalCumulative = filledEntries.reduce((sum, item) => sum + item.actual, 0);
 
     return filledEntries.map((entry, index) => {
       runningActual += entry.actual;
+      const incomeIncrement = liveGoal.targetIncome && liveGoal.targetValue
+        ? (entry.actual / Math.max(liveGoal.targetValue, 1)) * liveGoal.targetIncome
+        : 0;
+      runningIncome += incomeIncrement;
+
       return {
         date: formatDateLabel(entry.date),
         actual: entry.actual,
         duration: entry.duration,
         cumulativeActual: runningActual,
+        cumulativeIncome: Number(runningIncome.toFixed(2)),
         idealCumulative: filledEntries.length > 1 ? Number((((index + 1) / filledEntries.length) * finalCumulative).toFixed(2)) : finalCumulative,
       };
     });
-  }, [contributionRecords, matchedHistory, liveGoal.estimatedTotalHours]);
+  }, [contributionRecords, matchedHistory, liveGoal.estimatedTotalHours, liveGoal.targetIncome, liveGoal.targetValue]);
 
   const maxActual = Math.max(...chartPoints.map((item) => item.actual), 1);
   const maxDuration = Math.max(...chartPoints.map((item) => item.duration), 1);
-  const maxCumulative = Math.max(...chartPoints.map((item) => Math.max(item.cumulativeActual, item.idealCumulative)), 1);
+  const maxCumulative = Math.max(...chartPoints.map((item) => Math.max(item.cumulativeActual, item.idealCumulative, item.cumulativeIncome)), 1);
 
   const chartGeometry = useMemo(() => {
     const chartWidth = 320;
@@ -208,6 +228,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
       return {
         actualLine: '',
         idealLine: '',
+        incomeLine: '',
         areaPath: '',
       };
     }
@@ -217,6 +238,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
 
     const actualCoordinates = chartPoints.map((point, index) => `${getX(index)},${getY(point.cumulativeActual)}`);
     const idealCoordinates = chartPoints.map((point, index) => `${getX(index)},${getY(point.idealCumulative)}`);
+    const incomeCoordinates = chartPoints.map((point, index) => `${getX(index)},${getY(point.cumulativeIncome)}`);
 
     const areaPath = actualCoordinates.length > 0
       ? `M 0 ${chartHeight} L ${actualCoordinates.join(' L ')} L ${getX(chartPoints.length - 1)} ${chartHeight} Z`
@@ -225,6 +247,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
     return {
       actualLine: actualCoordinates.join(' '),
       idealLine: idealCoordinates.join(' '),
+      incomeLine: incomeCoordinates.join(' '),
       areaPath,
     };
   }, [chartPoints, maxCumulative]);
@@ -452,6 +475,16 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
           <div className="mt-4">
             <div className="text-sm text-[#6b7280]">{liveGoal.name}</div>
             <div className="mt-2 text-[28px] font-semibold tracking-[-0.04em] text-[#111827]">当前进度：{progress}%</div>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div className="rounded-[18px] bg-[#f7f8fb] px-3 py-3">
+                <div className="text-xs uppercase tracking-[0.14em] text-[#9ca3af]">目标收入</div>
+                <div className="mt-1 text-[20px] font-semibold text-[#111827]">¥{liveGoal.targetIncome || 0}</div>
+              </div>
+              <div className="rounded-[18px] bg-[#f5fbf7] px-3 py-3">
+                <div className="text-xs uppercase tracking-[0.14em] text-[#9ca3af]">累计收入</div>
+                <div className="mt-1 text-[20px] font-semibold text-[#34c759]">¥{totalIncome}</div>
+              </div>
+            </div>
             <div className="mt-2 flex items-center gap-2 text-sm font-semibold" style={{ color: progress >= idealProgress ? '#34c759' : '#ff9500' }}>
               <Flame className="h-4 w-4" />
               {progress >= idealProgress ? '进度领先' : `进度落后 ${Math.max(0, idealProgress - progress)}%`}
@@ -507,6 +540,15 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
                     strokeLinejoin="round"
                   />
                   <polyline
+                    points={chartGeometry.incomeLine}
+                    fill="none"
+                    stroke="#14b8a6"
+                    strokeWidth="2.5"
+                    strokeDasharray="0"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <polyline
                     points={chartGeometry.actualLine}
                     fill="none"
                     stroke="#ff5a5f"
@@ -517,8 +559,10 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
                   {chartPoints.map((point, index) => {
                     const x = chartPoints.length === 1 ? 160 : (index / (chartPoints.length - 1)) * 320;
                     const y = 160 - (point.cumulativeActual / maxCumulative) * 160;
+                    const incomeY = 160 - (point.cumulativeIncome / maxCumulative) * 160;
                     return (
                       <g key={`${point.date}-node`}>
+                        <circle cx={x} cy={incomeY} r="4.5" fill="#ffffff" stroke="#14b8a6" strokeWidth="2.5" />
                         <circle cx={x} cy={y} r="5.5" fill="#ffffff" stroke="#ff5a5f" strokeWidth="3" />
                       </g>
                     );
@@ -535,6 +579,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
             <div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-[#8b5cf6]" />投入时间柱</div>
             <div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-[#34c759]" />实际产出柱</div>
             <div className="flex items-center gap-2"><span className="h-[2px] w-4 bg-[#ff5a5f]" />累计实际折线</div>
+            <div className="flex items-center gap-2"><span className="h-[2px] w-4 bg-[#14b8a6]" />累计收入线</div>
             <div className="flex items-center gap-2"><span className="h-[2px] w-4 border-t-2 border-dashed border-[#34c759]" />理想进度线</div>
           </div>
         </div>

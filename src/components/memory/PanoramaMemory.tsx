@@ -566,6 +566,9 @@ ${reportData.painFocus.question}`;
     setMessages((prev) => [...prev, userMessage]);
     setInputValue('');
 
+    const assessment = assessConversation(nextAnswers);
+    const resolved = isConversationResolved(nextAnswers, assessment);
+
     const aiReply = await generateStageReply({
       currentStage,
       answer: value,
@@ -573,6 +576,8 @@ ${reportData.painFocus.question}`;
       reportData,
       isAIEnabled: isConfigured(),
       chat,
+      resolved,
+      assessment,
     });
 
     const aiMessage: ChatMessage = {
@@ -584,12 +589,18 @@ ${reportData.painFocus.question}`;
 
     setMessages((prev) => [...prev, aiMessage]);
 
-    setStage((prev) => {
-      if (prev === 'stage1') return 'stage2';
-      if (prev === 'stage2') return 'stage3';
-      if (prev === 'stage3') return 'report';
-      return prev;
-    });
+    if (resolved) {
+      const syncResult = await syncCommitmentPlan({
+        answers: nextAnswers,
+        reportData,
+        goals,
+        createGoal,
+        createTask,
+      });
+      setCommitmentSyncResult(syncResult);
+      setStage('report');
+    }
+
     setIsSubmitting(false);
   };
 
@@ -868,7 +879,8 @@ ${reportData.painFocus.question}`;
                   <div className="grid gap-3 text-sm">
                     <JudgeLine label="异常等级" value={severityLabel(reportData.delaySeverity)} />
                     <JudgeLine label="最近回答态度" value={toneLabel(answerTone)} />
-                    <JudgeLine label="述职进度" value={`${Math.min(userAnswers.length, 3)}/3`} />
+                    <JudgeLine label="述职状态" value={conversationAssessment.resolved ? '可以收口' : '继续追问'} />
+                    <JudgeLine label="问答轮次" value={`${userAnswers.length} 轮`} />
                   </div>
                 </div>
               </div>
@@ -910,7 +922,7 @@ ${reportData.painFocus.question}`;
                 />
                 <ReportBlock
                   title="后续目标与整改安排"
-                  content={`- 月度剩余目标：优先补齐 ${reportData.monthGap} 的进度缺口。\n- 下周核心要求：先清滞后任务，再推进关键目标。\n- 每日执行标准：关键任务优先、当天任务当天清。\n- 本轮整改动作：${currentSummary.promise}`}
+                  content={`- 月度剩余目标：优先补齐 ${reportData.monthGap} 的进度缺口。\n- 下周核心要求：先清滞后任务，再推进关键目标。\n- 每日执行标准：关键任务优先、当天任务当天清。\n- 本轮整改动作：${currentSummary.promise}${commitmentSyncResult ? `\n- 闭环导入：已自动写入目标「${commitmentSyncResult.goalName}」与时间轴任务「${commitmentSyncResult.taskTitle}」` : ''}`}
                 />
                 <ReportBlock
                   title="总部评价与奖惩"
@@ -975,6 +987,8 @@ async function generateStageReply({
   reportData,
   isAIEnabled,
   chat,
+  resolved,
+  assessment,
 }: {
   currentStage: SessionStage;
   answer: string;
@@ -982,17 +996,16 @@ async function generateStageReply({
   reportData: ReturnType<typeof buildPromptData> extends string ? never : any;
   isAIEnabled: boolean;
   chat: ReturnType<typeof useAIStore.getState>['chat'];
+  resolved: boolean;
+  assessment: ReturnType<typeof assessConversation>;
 }) {
-  const fallback = getFallbackReply(currentStage, answer, reportData);
+  const fallback = getFallbackReply(currentStage, answer, reportData, resolved, assessment);
   if (!isAIEnabled) return fallback;
 
   try {
-    const stageInstruction =
-      currentStage === 'stage1'
-        ? '你现在处于第一阶段末尾，准备进入第二阶段深挖。你说话必须像真人当面追责，短句，别讲套话。你必须沿着总部已经锁定的主抓矛盾继续追问，不能换题。只生成一句追问，控制在 1-3 句内。只能提一个问题。'
-        : currentStage === 'stage2'
-          ? '你现在处于第二阶段末尾，准备进入第三阶段整改确认。语气要更压迫、更像真人，不要像模板。你必须继续围绕总部锁定的主抓矛盾推进，不准跳到别的话题。只生成一句追问，控制在 1-3 句内。只能提一个问题。'
-          : '你现在处于第三阶段。请基于前文锁定的主抓矛盾，要求用户做最后的整改确认，并告知将生成述职报告。只输出一段短回应，控制在 2 句内。';
+    const stageInstruction = resolved
+      ? '用户已经给出相对完整的根因、动作和时间安排。你现在只做收口：简短确认承诺已经记录，并明确说明总部将把这份承诺写入目标和时间轴。控制在 2 句内，不要再追问。'
+      : `用户还没有给出让总部满意的整改闭环。当前评估：根因${assessment.hasRootCause ? '已交代' : '未交代'}，动作${assessment.hasConcreteAction ? '已交代' : '未交代'}，时限${assessment.hasTimeBound ? '已交代' : '未交代'}。你必须继续围绕总部锁定的主抓矛盾追问，直到用户说出明确根因、可执行动作和时间安排。短句，像真人追责。一次只问一个问题，控制在 1-3 句内。`;
 
     const response = await chat([
       {
@@ -1058,9 +1071,25 @@ async function generateReportSummary(
   return fallback;
 }
 
-function getFallbackReply(currentStage: SessionStage, answer: string, reportData: any) {
+function getFallbackReply(currentStage: SessionStage, answer: string, reportData: any, resolved = false, assessment?: ReturnType<typeof assessConversation>) {
   const tone = analyzeTone(answer);
   const focusLabel = reportData.painFocus?.label || '执行异常';
+
+  if (resolved) {
+    return '【AI总部】这次答到点上了。你的承诺总部已经记账，接下来会直接写进目标和时间轴，不再只是说说而已。';
+  }
+
+  if (assessment && !assessment.hasRootCause) {
+    return `【AI总部】你还在绕。问题是“${focusLabel}”，但你没说清根因。别讲结果，直接说你最核心的坏习惯是什么。`;
+  }
+
+  if (assessment && !assessment.hasConcreteAction) {
+    return `【AI总部】认错没用。现在给动作。你准备怎么改“${focusLabel}”？说能执行的，不要口号。`;
+  }
+
+  if (assessment && !assessment.hasTimeBound) {
+    return '【AI总部】还差最后一块：时间。你准备从哪天开始、多久内做到、每天什么时候执行？';
+  }
 
   if (currentStage === 'stage1') {
     if (tone === 'excuse') {
@@ -1239,6 +1268,118 @@ function analyzeTone(answer: string): AnswerTone {
   if (/不知道|改不了|没办法|就这样|随便|无所谓/.test(normalized)) return 'passive';
   if (/我拖延|我逃避|我自律差|是我的问题|我没执行|我没盯住/.test(normalized)) return 'honest';
   return 'neutral';
+}
+
+function assessConversation(answers: string[]) {
+  const merged = answers.join(' ');
+  const hasRootCause = /因为|根因|问题在于|我就是|我总是|习惯|逃避|拖延|懒|害怕|分心|松懈|自律差/.test(merged);
+  const hasConcreteAction = /每天|立刻|先|马上|固定|减少|只做|清掉|安排|执行|闹钟|复盘|记录|限制|关闭|专注/.test(merged);
+  const hasTimeBound = /今天|明天|本周|下周|七天|7天|每天|早上|晚上|\\d+天|\\d+点|周一|周二|周三|周四|周五|周六|周日/.test(merged);
+  return {
+    hasRootCause,
+    hasConcreteAction,
+    hasTimeBound,
+    resolved: hasRootCause && hasConcreteAction && hasTimeBound,
+  };
+}
+
+function isConversationResolved(answers: string[], assessment = assessConversation(answers)) {
+  return answers.length >= 2 && assessment.resolved;
+}
+
+async function syncCommitmentPlan({
+  answers,
+  reportData,
+  goals,
+  createGoal,
+  createTask,
+}: {
+  answers: string[];
+  reportData: any;
+  goals: ReturnType<typeof useGoalStore.getState>['goals'];
+  createGoal: ReturnType<typeof useGoalStore.getState>['createGoal'];
+  createTask: ReturnType<typeof useTaskStore.getState>['createTask'];
+}): Promise<CommitmentSyncResult | null> {
+  try {
+    const plan = buildCommitmentPlan(answers, reportData);
+    const matchedGoal = goals.find((goal) => goal.name === plan.goalName);
+
+    const goal = matchedGoal || createGoal({
+      name: plan.goalName,
+      description: plan.goalDescription,
+      goalType: 'milestone',
+      targetValue: 1,
+      currentValue: 0,
+      unit: '次',
+      startDate: new Date(),
+      deadline: addDays(new Date(), plan.deadlineDays),
+      estimatedTotalHours: Math.max(1, Math.ceil(plan.durationMinutes / 60)),
+      estimatedDailyHours: Math.max(0.5, Number((plan.durationMinutes / 60).toFixed(1))),
+      dimensions: [],
+      projectBindings: [],
+      relatedDimensions: [],
+      milestones: [
+        {
+          id: `milestone-${Date.now()}`,
+          name: plan.taskTitle,
+          targetValue: 1,
+          isReached: false,
+        },
+      ],
+    });
+
+    const taskStart = nextMorningAtNine();
+    const taskEnd = new Date(taskStart.getTime() + plan.durationMinutes * 60 * 1000);
+
+    const task = await createTask({
+      title: plan.taskTitle,
+      description: plan.taskDescription,
+      taskType: reportData.painFocus.source === 'goal' ? 'study' : 'work',
+      priority: 1,
+      durationMinutes: plan.durationMinutes,
+      scheduledStart: taskStart,
+      scheduledEnd: taskEnd,
+      longTermGoals: { [goal.id]: 100 },
+      tags: ['总部承诺', reportData.painFocus.label],
+      status: 'scheduled',
+    });
+
+    return {
+      goalId: goal.id,
+      taskId: task.id,
+      goalName: goal.name,
+      taskTitle: task.title,
+    };
+  } catch (error) {
+    console.error('同步总部承诺失败:', error);
+    return null;
+  }
+}
+
+function buildCommitmentPlan(answers: string[], reportData: any): CommitmentPlan {
+  const latestAnswer = answers[answers.length - 1] || '';
+  const focusLabel = reportData.painFocus?.label || '执行整改';
+  return {
+    goalName: `总部整改｜${focusLabel}`,
+    goalDescription: `来自 AI 总部述职闭环，围绕“${focusLabel}”生成的整改目标。最近承诺：${latestAnswer}`,
+    taskTitle: `总部整改动作｜${focusLabel}`,
+    taskDescription: latestAnswer || reportData.painFocus?.detail || '按总部要求完成整改动作。',
+    deadlineDays: 7,
+    durationMinutes: 60,
+  };
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function nextMorningAtNine() {
+  const next = new Date();
+  next.setDate(next.getDate() + 1);
+  next.setHours(9, 0, 0, 0);
+  return next;
 }
 
 function toneLabel(tone: AnswerTone) {

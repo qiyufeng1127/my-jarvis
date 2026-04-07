@@ -1778,12 +1778,15 @@ export default function NewTimelineView({
     });
 
     const dimensionValueMap = new Map(dimensionResults.map((item) => [item.dimensionId, item.value]));
+    const updatedGoalCurrentValue = Number((goal.currentValue + dimensionResults.reduce((sum, item) => sum + item.value, 0)).toFixed(2));
+    const nextCurrentIncome = Math.round((updatedGoalCurrentValue / Math.max(goal.targetValue || 1, 1)) * (goal.targetIncome || 0));
     useGoalStore.getState().updateGoal(goal.id, {
       dimensions: goal.dimensions.map((dimension) => ({
         ...dimension,
         currentValue: Number((dimension.currentValue + (dimensionValueMap.get(dimension.id) || 0)).toFixed(2)),
       })),
-      currentValue: Number((goal.currentValue + dimensionResults.reduce((sum, item) => sum + item.value, 0)).toFixed(2)),
+      currentValue: updatedGoalCurrentValue,
+      currentIncome: nextCurrentIncome,
     });
 
     setGoalContributionSaving(false);
@@ -1954,6 +1957,8 @@ export default function NewTimelineView({
         const matchedGoals = getMatchedGoalsForTask(currentTask);
         const draft = goalContributionDrafts[goalContributionTaskId] || createContributionDraft(currentTask, matchedGoals);
         const currentGoal = goals.find((item) => item.id === draft.goalId) || matchedGoals[0];
+        const currentGoalIncome = currentGoal?.currentIncome || 0;
+        const currentGoalTargetIncome = currentGoal?.targetIncome || 0;
 
         return (
           <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 px-3 pt-6 backdrop-blur-sm">
@@ -1982,6 +1987,19 @@ export default function NewTimelineView({
               </div>
 
               <div className="mt-4 space-y-3">
+                {currentGoal && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-[18px] bg-[#f7f8fb] px-4 py-3">
+                      <div className="text-xs uppercase tracking-[0.14em] text-[#9ca3af]">目标收入</div>
+                      <div className="mt-1 text-[20px] font-semibold text-[#111827]">¥{currentGoalTargetIncome}</div>
+                    </div>
+                    <div className="rounded-[18px] bg-[#f5fbf7] px-4 py-3">
+                      <div className="text-xs uppercase tracking-[0.14em] text-[#9ca3af]">累计收入</div>
+                      <div className="mt-1 text-[20px] font-semibold text-[#34c759]">¥{currentGoalIncome}</div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="rounded-[22px] bg-[#f7f8fb] p-3">
                   <div className="mb-2 text-sm font-medium text-[#111827]">有效时间</div>
                   <div className="rounded-[20px] bg-white px-4 py-4 shadow-sm">

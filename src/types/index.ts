@@ -254,6 +254,8 @@ export interface LongTermGoal {
   endDate?: Date;
   estimatedTotalHours?: number;
   estimatedDailyHours?: number;
+  targetIncome?: number;
+  currentIncome?: number;
   dimensions: GoalMetric[];
   projectBindings: GoalProjectBinding[];
   theme: GoalTheme;

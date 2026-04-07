@@ -57,6 +57,8 @@ function buildGoal(goalData: Partial<LongTermGoal>): LongTermGoal {
     endDate,
     estimatedTotalHours,
     estimatedDailyHours: goalData.estimatedDailyHours ?? (durationDays ? Number((estimatedTotalHours / durationDays).toFixed(1)) : 0),
+    targetIncome: goalData.targetIncome ?? 0,
+    currentIncome: goalData.currentIncome ?? 0,
     dimensions,
     projectBindings: goalData.projectBindings || [],
     theme: goalData.theme || defaultTheme,
