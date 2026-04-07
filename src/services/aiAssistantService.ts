@@ -5,6 +5,7 @@ import { useTagStore } from '@/stores/tagStore';
 import { useGoldStore } from '@/stores/goldStore';
 import { useGoalStore } from '@/stores/goalStore';
 import { useMemoryStore } from '@/stores/memoryStore';
+import eventBus from '@/utils/eventBus';
 
 /**
  * AI 助手完整系统提示词
@@ -422,25 +423,88 @@ class AIAssistantService {
   }
   
   // ========== 具体操作实现 ==========
-  
+
+  private normalizeTaskDraft(rawTask: any, fallbackStart?: Date, sequence: number = 1) {
+    const scheduledStart = rawTask?.scheduledStart
+      ? new Date(rawTask.scheduledStart)
+      : rawTask?.scheduled_start_iso
+      ? new Date(rawTask.scheduled_start_iso)
+      : fallbackStart || new Date();
+
+    const estimatedDuration = rawTask?.durationMinutes || rawTask?.estimated_duration || 30;
+    const scheduledEnd = new Date(scheduledStart.getTime() + estimatedDuration * 60000);
+    const rawPriority = rawTask?.priority;
+
+    return {
+      sequence,
+      title: rawTask?.title || `任务${sequence}`,
+      description: rawTask?.description || '',
+      estimated_duration: estimatedDuration,
+      scheduled_start: scheduledStart.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+      scheduled_end: scheduledEnd.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+      scheduled_start_iso: scheduledStart.toISOString(),
+      task_type: rawTask?.taskType || rawTask?.task_type || 'life',
+      category: rawTask?.category || '生活事务',
+      location: rawTask?.location || '全屋',
+      tags: rawTask?.tags || [],
+      goal: rawTask?.goal || null,
+      gold: rawTask?.goldReward || rawTask?.gold || 0,
+      color: rawTask?.color || '#6A7334',
+      priority:
+        rawPriority === 1 || rawPriority === 'high'
+          ? 'high'
+          : rawPriority === 3 || rawPriority === 'low'
+          ? 'low'
+          : 'medium',
+    };
+  }
+
+  private openTaskEditor(taskDrafts: any[]) {
+    eventBus.emit('ai:open-task-editor', { tasks: taskDrafts });
+  }
+
+  private buildTaskCreateMessage(taskDrafts: any[]) {
+    if (taskDrafts.length === 1) {
+      return `已识别到 1 个任务，已为你打开任务编辑器，确认后就会推送到时间轴。`;
+    }
+
+    return `已识别到 ${taskDrafts.length} 个任务，已为你打开任务编辑器，确认后就会一起推送到时间轴。`;
+  }
+
   private async createTask(params: any) {
-    const taskStore = useTaskStore.getState();
-    const task = await taskStore.addTask({
-      title: params.title,
-      description: params.description,
-      scheduledStart: params.scheduledStart ? new Date(params.scheduledStart) : undefined,
-      durationMinutes: params.durationMinutes,
-      tags: params.tags || [],
-      goldReward: params.goldReward,
-      location: params.location,
-      priority: params.priority,
-      recurrence: params.recurrence,
+    const now = new Date();
+    const rawTasks = Array.isArray(params?.tasks) && params.tasks.length > 0
+      ? params.tasks
+      : [params];
+
+    const taskDrafts: any[] = [];
+
+    rawTasks.forEach((task, index) => {
+      let fallbackStart = now;
+
+      if (task?.scheduledStart) {
+        fallbackStart = new Date(task.scheduledStart);
+      } else if (task?.scheduled_start_iso) {
+        fallbackStart = new Date(task.scheduled_start_iso);
+      } else if (index > 0) {
+        const previousDraft = taskDrafts[index - 1];
+        const previousStart = new Date(previousDraft.scheduled_start_iso);
+        const previousDuration = previousDraft.estimated_duration || 30;
+        fallbackStart = new Date(previousStart.getTime() + previousDuration * 60000);
+      }
+
+      taskDrafts.push(this.normalizeTaskDraft(task, fallbackStart, index + 1));
     });
-    
+
+    this.openTaskEditor(taskDrafts);
+
     return {
       success: true,
-      message: `已创建任务：${params.title}`,
-      data: task,
+      message: this.buildTaskCreateMessage(taskDrafts),
+      data: {
+        tasks: taskDrafts,
+        openTaskEditor: true,
+      },
     };
   }
   

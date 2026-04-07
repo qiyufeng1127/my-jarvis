@@ -1,6 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Settings, Sparkles, X } from 'lucide-react';
 import { useAIAssistant } from '@/hooks/useAIAssistant';
+import { useTaskStore } from '@/stores/taskStore';
+import type { TaskType } from '@/types';
+import eventBus from '@/utils/eventBus';
+import UnifiedTaskEditor from '@/components/shared/UnifiedTaskEditor';
 import AIPersonalitySettings from './AIPersonalitySettings';
 
 /**
@@ -9,7 +13,10 @@ import AIPersonalitySettings from './AIPersonalitySettings';
 export default function AIAssistantChat() {
   const [input, setInput] = useState('');
   const [showSettings, setShowSettings] = useState(false);
+  const [showTaskEditor, setShowTaskEditor] = useState(false);
+  const [editingTasks, setEditingTasks] = useState<any[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { createTask } = useTaskStore();
   
   const {
     isProcessing,
@@ -26,6 +33,49 @@ export default function AIAssistantChat() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory]);
+
+  useEffect(() => {
+    const handleOpenTaskEditor = (payload?: { tasks?: any[] }) => {
+      if (!payload?.tasks || payload.tasks.length === 0) return;
+      setEditingTasks(payload.tasks);
+      setShowTaskEditor(true);
+    };
+
+    eventBus.on('ai:open-task-editor', handleOpenTaskEditor);
+
+    return () => {
+      eventBus.off('ai:open-task-editor', handleOpenTaskEditor);
+    };
+  }, []);
+
+  const handlePushToTimeline = async (tasks: any[]) => {
+    if (!tasks.length) return;
+
+    for (const task of tasks) {
+      const scheduledStart = task.scheduled_start_iso ? new Date(task.scheduled_start_iso) : new Date();
+      const scheduledEnd = new Date(scheduledStart.getTime() + (task.estimated_duration || 30) * 60000);
+
+      await createTask({
+        title: task.title,
+        description: task.description || '',
+        taskType: (task.task_type || 'life') as TaskType,
+        priority: task.priority === 'high' ? 1 : task.priority === 'low' ? 3 : 2,
+        durationMinutes: task.estimated_duration || 30,
+        scheduledStart,
+        scheduledEnd,
+        tags: task.tags || [],
+        color: task.color,
+        location: task.location,
+        goldReward: task.gold || 0,
+        verificationEnabled: true,
+        startKeywords: task.tags?.length ? task.tags : [task.title],
+        completeKeywords: task.tags?.length ? task.tags : [task.title],
+      });
+    }
+
+    setShowTaskEditor(false);
+    setEditingTasks([]);
+  };
   
   // 发送消息
   const handleSend = async () => {
@@ -52,6 +102,17 @@ export default function AIAssistantChat() {
   
   return (
     <div className="flex flex-col h-full bg-white dark:bg-gray-900">
+      {showTaskEditor && editingTasks.length > 0 && (
+        <UnifiedTaskEditor
+          tasks={editingTasks}
+          onClose={() => {
+            setShowTaskEditor(false);
+            setEditingTasks([]);
+          }}
+          onConfirm={handlePushToTimeline}
+          isDark={true}
+        />
+      )}
       {/* 顶部栏 */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-2">

@@ -1,140 +1,179 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { LongTermGoal, GoalType } from '@/types';
+import type { LongTermGoal } from '@/types';
 
 interface GoalState {
   goals: LongTermGoal[];
   isLoading: boolean;
   error: string | null;
-  
-  // Actions
+
   loadGoals: () => void;
   createGoal: (goal: Partial<LongTermGoal>) => LongTermGoal;
   updateGoal: (id: string, updates: Partial<LongTermGoal>) => void;
   deleteGoal: (id: string) => void;
   updateGoalProgress: (id: string, value: number) => void;
-  
-  // Queries
+
   getActiveGoals: () => LongTermGoal[];
   getGoalById: (id: string) => LongTermGoal | undefined;
-  
-  // AI智能匹配
   findMatchingGoals: (taskDescription: string, keywords: string[]) => LongTermGoal[];
+}
+
+const defaultTheme = {
+  color: '#0A84FF',
+  label: '海蓝',
+};
+
+function buildGoal(goalData: Partial<LongTermGoal>): LongTermGoal {
+  const startDate = goalData.startDate ? new Date(goalData.startDate) : undefined;
+  const endDate = goalData.endDate ? new Date(goalData.endDate) : goalData.deadline ? new Date(goalData.deadline) : undefined;
+  const estimatedTotalHours = goalData.estimatedTotalHours ?? 0;
+  const durationDays = startDate && endDate
+    ? Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1)
+    : undefined;
+
+  const dimensions = (goalData.dimensions || []).map((dimension, index) => ({
+    id: dimension.id || `metric-${Date.now()}-${index}`,
+    name: dimension.name || `维度 ${index + 1}`,
+    unit: dimension.unit || '',
+    targetValue: dimension.targetValue || 0,
+    currentValue: dimension.currentValue || 0,
+    weight: dimension.weight || 0,
+  }));
+
+  const targetValue = goalData.targetValue ?? dimensions.reduce((sum, dimension) => sum + dimension.targetValue, 0);
+  const currentValue = goalData.currentValue ?? dimensions.reduce((sum, dimension) => sum + dimension.currentValue, 0);
+
+  return {
+    id: goalData.id || `goal-${Date.now()}`,
+    userId: goalData.userId || 'local-user',
+    name: goalData.name || '',
+    description: goalData.description || '',
+    goalType: goalData.goalType || 'numeric',
+    targetValue,
+    currentValue,
+    unit: goalData.unit || dimensions[0]?.unit || '',
+    deadline: endDate,
+    startDate,
+    endDate,
+    estimatedTotalHours,
+    estimatedDailyHours: goalData.estimatedDailyHours ?? (durationDays ? Number((estimatedTotalHours / durationDays).toFixed(1)) : 0),
+    dimensions,
+    projectBindings: goalData.projectBindings || [],
+    theme: goalData.theme || defaultTheme,
+    showInFuture30Chart: goalData.showInFuture30Chart ?? true,
+    relatedDimensions: goalData.relatedDimensions || [],
+    milestones: goalData.milestones || [],
+    isActive: goalData.isActive ?? true,
+    isCompleted: goalData.isCompleted ?? false,
+    completedAt: goalData.completedAt,
+    createdAt: goalData.createdAt ? new Date(goalData.createdAt) : new Date(),
+    updatedAt: new Date(),
+  };
 }
 
 export const useGoalStore = create<GoalState>()(
   persist(
     (set, get) => ({
-  goals: [],
-  isLoading: false,
-  error: null,
+      goals: [],
+      isLoading: false,
+      error: null,
 
-  loadGoals: () => {
-    // 纯本地模式，persist 会自动加载
-    console.log('📦 使用本地存储的目标');
-  },
+      loadGoals: () => {
+        console.log('📦 使用本地存储的目标');
+      },
 
-  createGoal: (goalData) => {
-    const userId = 'local-user';
-    const newGoal: LongTermGoal = {
-      id: `goal-${Date.now()}`,
-      userId,
-      name: goalData.name || '',
-      description: goalData.description || '',
-      goalType: goalData.goalType || 'numeric',
-      targetValue: goalData.targetValue,
-      currentValue: goalData.currentValue || 0,
-      unit: goalData.unit,
-      deadline: goalData.deadline,
-      relatedDimensions: goalData.relatedDimensions || [],
-      milestones: goalData.milestones || [],
-      isActive: true,
-      isCompleted: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    
-    set({
-      goals: [...get().goals, newGoal],
-    });
-    
-    console.log('🎯 目标已创建:', newGoal.name);
-    return newGoal;
-  },
+      createGoal: (goalData) => {
+        const newGoal = buildGoal(goalData);
 
-  updateGoal: (id, updates) => {
-    const updatedGoal = {
-      ...get().goals.find((g) => g.id === id),
-      ...updates,
-      updatedAt: new Date(),
-    } as LongTermGoal;
-    
-    set({
-      goals: get().goals.map((g) => (g.id === id ? updatedGoal : g)),
-    });
-    
-    console.log('✅ 目标已更新:', id);
-  },
+        set({
+          goals: [...get().goals, newGoal],
+        });
 
-  deleteGoal: (id) => {
-    set({ goals: get().goals.filter((g) => g.id !== id) });
-    console.log('🗑️ 目标已删除:', id);
-  },
+        console.log('🎯 目标已创建:', newGoal.name);
+        return newGoal;
+      },
 
-  updateGoalProgress: (id, value) => {
-    const goal = get().goals.find((g) => g.id === id);
-    if (!goal) return;
-    
-    const isCompleted = value >= (goal.targetValue || 0);
-    const updates = {
-      currentValue: value,
-      isCompleted,
-      completedAt: isCompleted && !goal.completedAt ? new Date() : goal.completedAt,
-    };
-    
-    get().updateGoal(id, updates);
-  },
+      updateGoal: (id, updates) => {
+        const currentGoal = get().goals.find((g) => g.id === id);
+        if (!currentGoal) return;
 
-  getActiveGoals: () => {
-    return get().goals.filter((g) => g.isActive && !g.isCompleted);
-  },
+        const updatedGoal = buildGoal({
+          ...currentGoal,
+          ...updates,
+          id: currentGoal.id,
+          userId: currentGoal.userId,
+          createdAt: currentGoal.createdAt,
+          completedAt: updates.isCompleted ? updates.completedAt || currentGoal.completedAt || new Date() : currentGoal.completedAt,
+        });
 
-  getGoalById: (id) => {
-    return get().goals.find((g) => g.id === id);
-  },
+        set({
+          goals: get().goals.map((g) => (g.id === id ? updatedGoal : g)),
+        });
 
-  findMatchingGoals: (taskDescription, keywords) => {
-    const goals = get().getActiveGoals();
-    const searchText = `${taskDescription} ${keywords.join(' ')}`.toLowerCase();
-    
-    // 智能匹配算法
-    return goals.filter((goal) => {
-      const goalText = `${goal.name} ${goal.description}`.toLowerCase();
-      
-      // 检查关键词匹配
-      const goalKeywords = goalText.split(/\s+/);
-      const matchCount = keywords.filter((keyword) =>
-        goalKeywords.some((gk) => gk.includes(keyword.toLowerCase()) || keyword.toLowerCase().includes(gk))
-      ).length;
-      
-      // 检查直接文本匹配
-      const directMatch = goalText.includes(taskDescription.toLowerCase()) ||
-                         taskDescription.toLowerCase().includes(goal.name.toLowerCase());
-      
-      return matchCount > 0 || directMatch;
-    }).sort((a, b) => {
-      // 按匹配度排序
-      const aScore = calculateMatchScore(a, searchText);
-      const bScore = calculateMatchScore(b, searchText);
-      return bScore - aScore;
-    });
-  },
+        console.log('✅ 目标已更新:', id);
+      },
+
+      deleteGoal: (id) => {
+        set({ goals: get().goals.filter((g) => g.id !== id) });
+        console.log('🗑️ 目标已删除:', id);
+      },
+
+      updateGoalProgress: (id, value) => {
+        const goal = get().goals.find((g) => g.id === id);
+        if (!goal) return;
+
+        const isCompleted = value >= (goal.targetValue || 0);
+        const dimensionTargetTotal = goal.dimensions.reduce((sum, item) => sum + item.targetValue, 0);
+        const nextDimensions = dimensionTargetTotal > 0
+          ? goal.dimensions.map((item) => ({
+              ...item,
+              currentValue: Number(((value / dimensionTargetTotal) * item.targetValue).toFixed(2)),
+            }))
+          : goal.dimensions;
+
+        get().updateGoal(id, {
+          currentValue: value,
+          dimensions: nextDimensions,
+          isCompleted,
+          completedAt: isCompleted && !goal.completedAt ? new Date() : goal.completedAt,
+        });
+      },
+
+      getActiveGoals: () => {
+        return get().goals.filter((g) => g.isActive && !g.isCompleted);
+      },
+
+      getGoalById: (id) => {
+        return get().goals.find((g) => g.id === id);
+      },
+
+      findMatchingGoals: (taskDescription, keywords) => {
+        const goals = get().getActiveGoals();
+        const searchText = `${taskDescription} ${keywords.join(' ')}`.toLowerCase();
+
+        return goals.filter((goal) => {
+          const goalText = `${goal.name} ${goal.description} ${goal.projectBindings.map((item) => item.name).join(' ')}`.toLowerCase();
+          const goalKeywords = goalText.split(/\s+/);
+          const matchCount = keywords.filter((keyword) =>
+            goalKeywords.some((gk) => gk.includes(keyword.toLowerCase()) || keyword.toLowerCase().includes(gk))
+          ).length;
+
+          const directMatch = goalText.includes(taskDescription.toLowerCase()) ||
+            taskDescription.toLowerCase().includes(goal.name.toLowerCase());
+
+          return matchCount > 0 || directMatch;
+        }).sort((a, b) => {
+          const aScore = calculateMatchScore(a, searchText);
+          const bScore = calculateMatchScore(b, searchText);
+          return bScore - aScore;
+        });
+      },
     }),
     {
-      name: 'manifestos-goals-storage', // 使用唯一的存储 key
-      version: 1, // 添加版本号
-      partialize: (state) => ({ 
-        goals: state.goals, // 只持久化 goals
+      name: 'manifestos-goals-storage',
+      version: 2,
+      partialize: (state) => ({
+        goals: state.goals,
       }),
       storage: {
         getItem: (name) => {
@@ -142,14 +181,15 @@ export const useGoalStore = create<GoalState>()(
             const str = localStorage.getItem(name);
             if (!str) return null;
             const parsed = JSON.parse(str);
-            // 恢复日期对象
             if (parsed?.state?.goals) {
-              parsed.state.goals = parsed.state.goals.map((goal: any) => ({
+              parsed.state.goals = parsed.state.goals.map((goal: any) => buildGoal({
                 ...goal,
                 deadline: goal.deadline ? new Date(goal.deadline) : undefined,
+                startDate: goal.startDate ? new Date(goal.startDate) : undefined,
+                endDate: goal.endDate ? new Date(goal.endDate) : undefined,
                 completedAt: goal.completedAt ? new Date(goal.completedAt) : undefined,
-                createdAt: new Date(goal.createdAt),
-                updatedAt: new Date(goal.updatedAt),
+                createdAt: goal.createdAt ? new Date(goal.createdAt) : undefined,
+                updatedAt: goal.updatedAt ? new Date(goal.updatedAt) : undefined,
               }));
             }
             return parsed;
@@ -174,7 +214,6 @@ export const useGoalStore = create<GoalState>()(
           }
         },
       },
-      // 合并策略：保留本地数据
       merge: (persistedState: any, currentState: any) => {
         console.log('🔄 合并目标数据...');
         return {
@@ -186,25 +225,21 @@ export const useGoalStore = create<GoalState>()(
   )
 );
 
-// 计算匹配分数
 function calculateMatchScore(goal: LongTermGoal, searchText: string): number {
-  const goalText = `${goal.name} ${goal.description}`.toLowerCase();
+  const goalText = `${goal.name} ${goal.description} ${goal.projectBindings.map((item) => item.name).join(' ')}`.toLowerCase();
   let score = 0;
-  
-  // 名称完全匹配
+
   if (searchText.includes(goal.name.toLowerCase())) {
     score += 10;
   }
-  
-  // 描述匹配
+
   if (goal.description && searchText.includes(goal.description.toLowerCase())) {
     score += 5;
   }
-  
-  // 关键词匹配
+
   const searchWords = searchText.split(/\s+/);
   const goalWords = goalText.split(/\s+/);
-  
+
   searchWords.forEach((sw) => {
     goalWords.forEach((gw) => {
       if (sw.length > 2 && gw.length > 2) {
@@ -213,7 +248,6 @@ function calculateMatchScore(goal: LongTermGoal, searchText: string): number {
       }
     });
   });
-  
+
   return score;
 }
-

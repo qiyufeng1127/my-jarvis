@@ -1,6 +1,14 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+const resolveApiEndpoint = (endpoint: string) => {
+  if (import.meta.env.DEV && endpoint.includes('api.deepseek.com')) {
+    return '/ai-api';
+  }
+
+  return endpoint;
+};
+
 interface AIConfig {
   apiKey: string;
   apiEndpoint: string;
@@ -90,7 +98,7 @@ export const useAIStore = create<AIStore>()(
 
         try {
           console.log('🌐 [AI请求] 开始请求:', {
-            endpoint: config.apiEndpoint,
+            endpoint: resolveApiEndpoint(config.apiEndpoint),
             model: config.model,
             temperature: config.temperature,
             maxTokens: config.maxTokens,
@@ -104,7 +112,9 @@ export const useAIStore = create<AIStore>()(
             console.error('⏱️ [AI请求] 请求超时（60秒）');
           }, 60000);
 
-          const response = await fetch(config.apiEndpoint, {
+          const requestEndpoint = resolveApiEndpoint(config.apiEndpoint);
+
+          const response = await fetch(requestEndpoint, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -193,7 +203,7 @@ export const useAIStore = create<AIStore>()(
 
         try {
           console.log('🌊 [AI流式请求] 开始请求:', {
-            endpoint: config.apiEndpoint,
+            endpoint: resolveApiEndpoint(config.apiEndpoint),
             model: config.model,
             stream: true,
           });
@@ -205,7 +215,9 @@ export const useAIStore = create<AIStore>()(
             console.error('⏱️ [AI流式请求] 请求超时（120秒）');
           }, 120000);
 
-          const response = await fetch(config.apiEndpoint, {
+          const requestEndpoint = resolveApiEndpoint(config.apiEndpoint);
+
+          const response = await fetch(requestEndpoint, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

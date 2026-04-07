@@ -254,13 +254,6 @@
   background-color: #1f2937 !important;
 }
 
-/* 支持安全区域的设备 - 扩展到底部 */
-@supports (padding-bottom: env(safe-area-inset-bottom)) {
-  .mobile-bottom-nav {
-    padding-bottom: env(safe-area-inset-bottom) !important;
-  }
-}
-
 /* 移动端视口修复 - 防止底部黑条 */
 @media (max-width: 768px) {
   html {

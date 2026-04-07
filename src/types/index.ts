@@ -220,6 +220,26 @@ export interface GrowthDimension {
 
 export type GoalType = 'numeric' | 'milestone' | 'habit';
 
+export interface GoalMetric {
+  id: string;
+  name: string;
+  unit: string;
+  targetValue: number;
+  currentValue: number;
+  weight: number;
+}
+
+export interface GoalProjectBinding {
+  id: string;
+  name: string;
+  color?: string;
+}
+
+export interface GoalTheme {
+  color: string;
+  label?: string;
+}
+
 export interface LongTermGoal {
   id: string;
   userId: string;
@@ -230,6 +250,14 @@ export interface LongTermGoal {
   currentValue: number;
   unit?: string;
   deadline?: Date;
+  startDate?: Date;
+  endDate?: Date;
+  estimatedTotalHours?: number;
+  estimatedDailyHours?: number;
+  dimensions: GoalMetric[];
+  projectBindings: GoalProjectBinding[];
+  theme: GoalTheme;
+  showInFuture30Chart: boolean;
   relatedDimensions: string[]; // dimension IDs
   milestones: Milestone[];
   isActive: boolean;

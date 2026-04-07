@@ -9,7 +9,6 @@ import NotificationContainer from '@/components/ui/NotificationContainer';
 // import AISmartInput from '@/components/ai/AISmartInput'; // 临时注释
 import FloatingAIChat from '@/components/ai/FloatingAIChat';
 import {
-  GoalsModule,
   TimelineModule,
   GoldModule,
   HabitsModule,
@@ -17,9 +16,9 @@ import {
   SettingsModule,
   MoneyModule,
 } from '@/components/dashboard/ModuleComponents';
+import GoalHomeView from '@/components/goals/GoalHomeView';
 import JournalModule from '@/components/journal/JournalModule';
 import PanoramaMemory from '@/components/memory/PanoramaMemory';
-import TaskInbox from '@/components/inbox/TaskInbox';
 import DailyReceipt from '@/components/receipt/DailyReceipt';
 import MobileWelcome from '@/components/tutorial/MobileWelcome';
 import OnboardingTooltip, { ONBOARDING_STEPS } from '@/components/tutorial/OnboardingTooltip';
@@ -38,7 +37,7 @@ import { LeaderboardPanel } from '@/components/leaderboard/LeaderboardPanel';
 import SOPLibrary from '@/components/sop/SOPLibrary';
 import RPGHomePage from '@/components/rpg/RPGHomePage';
 
-type TabType = 'timeline' | 'goals' | 'journal' | 'memory' | 'gold' | 'habits' | 'reports' | 'settings' | 'inbox' | 'ai' | 'more' | 'money' | 'tags' | 'home' | 'pet' | 'focus' | 'leaderboard';
+type TabType = 'timeline' | 'goals' | 'journal' | 'memory' | 'gold' | 'habits' | 'reports' | 'settings' | 'ai' | 'more' | 'money' | 'tags' | 'home' | 'pet' | 'focus' | 'leaderboard';
 
 interface MobileLayoutProps {
   onModuleChange?: (module: string) => void;
@@ -55,12 +54,11 @@ interface NavItem {
 const ALL_NAV_ITEMS: NavItem[] = [
   { id: 'timeline', label: '时间轴', icon: '📅', color: 'pink', component: TimelineModule },
   { id: 'tags', label: '标签', icon: '🏷️', color: 'purple' }, // 标签管理（特殊处理，不是模块）
-  { id: 'inbox', label: '收集箱', icon: '📥', color: 'blue', component: TaskInbox },
+  { id: 'goals', label: '目标', icon: '🎯', color: 'blue', component: GoalHomeView },
   { id: 'memory', label: '记忆', icon: '🧠', color: 'purple', component: PanoramaMemory },
   { id: 'habits', label: '习惯', icon: '✅', color: 'green', component: HabitsModule },
   { id: 'money', label: '副业', icon: '💰', color: 'yellow', component: MoneyModule },
   { id: 'journal', label: '日记', icon: '📔', color: 'pink', component: JournalModule },
-  { id: 'goals', label: '目标', icon: '🎯', color: 'blue', component: GoalsModule },
   { id: 'gold', label: '金币', icon: '🪙', color: 'yellow', component: GoldModule },
   { id: 'reports', label: '报告', icon: '📊', color: 'green', component: ReportsModule },
 ];
@@ -105,11 +103,11 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         const savedIds = JSON.parse(saved) as TabType[];
         return savedIds.map(id => ALL_NAV_ITEMS.find(item => item.id === id)!).filter(Boolean);
       } catch {
-        // 默认显示：时间轴、标签、收集箱、记忆、习惯
+        // 默认显示：时间轴、标签、目标、记忆、习惯
         return ALL_NAV_ITEMS.slice(0, 5);
       }
     }
-    // 默认显示：时间轴、标签、收集箱、记忆、习惯
+    // 默认显示：时间轴、标签、目标、记忆、习惯
     return ALL_NAV_ITEMS.slice(0, 5);
   });
   
@@ -311,7 +309,7 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         className="flex-1 overflow-y-auto overflow-x-hidden"
         style={{ 
           WebkitOverflowScrolling: 'touch', // iOS 平滑滚动
-          paddingBottom: '80px', // 为底部导航栏留出空间
+          paddingBottom: 'var(--mobile-bottom-nav-total-height)', // 为系统底部区域与按钮区一起预留空间
           backgroundColor: '#fefaf0',
         }}
       >

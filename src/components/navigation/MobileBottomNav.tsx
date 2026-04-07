@@ -19,10 +19,10 @@ export default function MobileBottomNav() {
       emoji: '📅',
     },
     {
-      path: '/inbox',
+      path: '/goals',
       icon: ListChecks,
-      label: '收集箱',
-      emoji: '📥',
+      label: '目标',
+      emoji: '🎯',
     },
     {
       path: '/habit',
@@ -35,12 +35,6 @@ export default function MobileBottomNav() {
       icon: ListChecks,
       label: '记忆',
       emoji: '🧠',
-    },
-    {
-      path: '/goals',
-      icon: ListChecks,
-      label: '目标',
-      emoji: '🎯',
     },
     {
       path: '/settings',

@@ -2,6 +2,12 @@
    Mobile Bottom Navigation Styles
    ============================================ */
 
+:root {
+  --mobile-bottom-nav-height: 76px;
+  --mobile-bottom-nav-safe-area: env(safe-area-inset-bottom, 0px);
+  --mobile-bottom-nav-total-height: calc(var(--mobile-bottom-nav-height) + var(--mobile-bottom-nav-safe-area));
+}
+
 .mobile-bottom-nav {
   position: fixed !important;
   inset: auto 0 0 0 !important;
@@ -10,15 +16,24 @@
   right: 0 !important;
   top: auto !important;
   z-index: 2147483647 !important;
+  width: 100vw !important;
+  min-width: 100vw !important;
+  max-width: 100vw !important;
+  height: var(--mobile-bottom-nav-total-height) !important;
+  min-height: var(--mobile-bottom-nav-total-height) !important;
+  max-height: var(--mobile-bottom-nav-total-height) !important;
   background-color: #ffffff !important;
   border: none !important;
-  padding: 8px 8px 0 8px !important;
-  padding-bottom: 0 !important;
+  padding: 0 !important;
   margin: 0 !important;
   box-shadow: none !important;
-  transform: translate3d(0, 0, 0) !important;
-  -webkit-transform: translate3d(0, 0, 0) !important;
+  overflow: hidden !important;
+  transform: none !important;
+  -webkit-transform: none !important;
   translate: 0 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-end !important;
 }
 
 /* 暗色模式 */
@@ -26,29 +41,50 @@
   background-color: #1f2937 !important;
 }
 
+.mobile-bottom-nav__safe-area {
+  flex: 0 0 var(--mobile-bottom-nav-safe-area);
+  height: var(--mobile-bottom-nav-safe-area);
+  min-height: var(--mobile-bottom-nav-safe-area);
+  max-height: var(--mobile-bottom-nav-safe-area);
+  width: 100%;
+  background: inherit;
+  pointer-events: none;
+}
+
 .mobile-bottom-nav__container {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-around;
-  max-width: 600px;
-  margin: 0 auto;
+  width: 100% !important;
+  max-width: none !important;
+  height: var(--mobile-bottom-nav-height) !important;
+  min-height: var(--mobile-bottom-nav-height) !important;
+  max-height: var(--mobile-bottom-nav-height) !important;
+  margin: 0 !important;
+  padding: 0 4px !important;
+  background: inherit;
 }
 
 /* ========== Nav Item ========== */
 .mobile-bottom-nav__item {
   position: relative;
   display: flex;
+  flex: 1 1 0;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--spacing-1);
-  padding: var(--spacing-2) var(--spacing-3);
-  border-radius: var(--radius-xl);
+  gap: 4px;
+  height: var(--mobile-bottom-nav-height) !important;
+  min-height: var(--mobile-bottom-nav-height) !important;
+  max-height: var(--mobile-bottom-nav-height) !important;
+  padding: 8px 2px !important;
+  margin: 0 !important;
+  border-radius: 0;
   background: transparent;
   border: none;
   cursor: pointer;
   transition: all var(--transition-base);
-  min-width: 64px;
+  min-width: 0;
   -webkit-tap-highlight-color: transparent;
 }
 

@@ -1,5 +1,13 @@
 import { useAIStore } from '@/stores/aiStore';
 
+const resolveApiEndpoint = (endpoint: string) => {
+  if (import.meta.env.DEV && endpoint.includes('api.deepseek.com')) {
+    return '/ai-api';
+  }
+
+  return endpoint;
+};
+
 interface AIMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -35,7 +43,9 @@ class AIService {
     }
 
     try {
-      console.log('🔍 [AI Service] 准备发送请求到:', config.apiEndpoint);
+      const requestEndpoint = resolveApiEndpoint(config.apiEndpoint);
+
+      console.log('🔍 [AI Service] 准备发送请求到:', requestEndpoint);
       console.log('🔍 [AI Service] 请求体:', {
         model: config.model,
         messages: messages.map(m => ({ role: m.role, contentLength: m.content.length })),
@@ -43,7 +53,7 @@ class AIService {
         max_tokens: config.maxTokens,
       });
 
-      const response = await fetch(config.apiEndpoint, {
+      const response = await fetch(requestEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

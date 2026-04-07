@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --mobile-bottom-nav-height: 76px;
+  --mobile-bottom-nav-safe-area: env(safe-area-inset-bottom, 0px);
+  --mobile-bottom-nav-total-height: calc(var(--mobile-bottom-nav-height) + var(--mobile-bottom-nav-safe-area));
+}
+
 /* 全局重置 - 确保没有任何多余空白 */
 * {
   margin: 0;
@@ -117,10 +123,13 @@ input, textarea, select {
     right: 0 !important;
     margin: 0 !important;
     padding-bottom: 0 !important;
-    transform: translate3d(0, 0, 0) !important;
-    -webkit-transform: translate3d(0, 0, 0) !important;
+    transform: none !important;
+    -webkit-transform: none !important;
     translate: 0 0 !important;
     z-index: 2147483647 !important;
+    height: var(--mobile-bottom-nav-total-height) !important;
+    min-height: var(--mobile-bottom-nav-total-height) !important;
+    max-height: var(--mobile-bottom-nav-total-height) !important;
   }
 }
 

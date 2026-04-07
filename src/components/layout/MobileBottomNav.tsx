@@ -43,10 +43,11 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   return (
     <motion.div
       className="mobile-bottom-nav"
-      initial={{ y: 100 }}
+      initial={false}
       animate={{ y: 0 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+      transition={{ duration: 0 }}
     >
+      <div className="mobile-bottom-nav__safe-area" aria-hidden="true" />
       <div className="mobile-bottom-nav__container">
         {items.map((item, index) => {
           const isActive = activeId === item.id;

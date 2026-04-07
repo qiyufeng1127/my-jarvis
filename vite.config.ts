@@ -22,6 +22,13 @@ export default defineConfig({
       port: 3000,
     },
     proxy: {
+      // 代理 DeepSeek AI 请求，解决本地开发 CORS 问题
+      '/ai-api': {
+        target: 'https://api.deepseek.com',
+        changeOrigin: true,
+        rewrite: () => '/v1/chat/completions',
+        secure: false,
+      },
       // 代理百度AI API请求，解决CORS跨域问题
       '/baidu-api': {
         target: 'https://aip.baidubce.com',

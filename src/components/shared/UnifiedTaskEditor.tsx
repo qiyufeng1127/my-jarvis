@@ -390,7 +390,16 @@ export default function UnifiedTaskEditor({
 
         {/* 顶部工具栏 */}
         <div className="flex-shrink-0 px-3 md:px-6 py-3 border-b border-gray-200 flex items-center justify-between bg-white/50 backdrop-blur-sm">
-          <h2 className="text-lg font-bold text-gray-900">📝 任务编辑器</h2>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onClose}
+              className="w-9 h-9 rounded-full border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 flex items-center justify-center shadow-sm transition-colors"
+              title="关闭任务编辑器"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="text-lg font-bold text-gray-900">📝 任务编辑器</h2>
+          </div>
           <div className="flex items-center gap-2">
             <button
               onClick={sortTasksByLocation}

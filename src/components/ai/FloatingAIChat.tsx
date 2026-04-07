@@ -10,6 +10,7 @@ import { behaviorMonitorService } from '@/services/behaviorMonitorService';
 import AIPersonalitySettings from './AIPersonalitySettings';
 import { processMutter } from '@/services/mutterService';
 import { aiCommandCenter } from '@/services/aiCommandCenter';
+import eventBus from '@/utils/eventBus';
 
 // 标签ID到中文的映射
 const TAG_LABELS: Record<string, string> = {
@@ -220,6 +221,24 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
     console.log('🔍 [编辑器状态] editingTasks.length:', editingTasks.length);
     console.log('🔍 [编辑器状态] 是否应该显示编辑器:', showTaskEditor && editingTasks.length > 0);
   }, [showTaskEditor, editingTasks]);
+
+  // 监听 AI 打开任务编辑器事件
+  useEffect(() => {
+    const handleOpenTaskEditor = (data?: { tasks?: DecomposedTask[] }) => {
+      const taskDrafts = data?.tasks || [];
+      if (taskDrafts.length === 0) return;
+
+      console.log('📥 [AI编辑器事件] 收到任务草稿:', taskDrafts);
+      setEditingTasks(taskDrafts);
+      setShowTaskEditor(true);
+    };
+
+    eventBus.on('ai:open-task-editor', handleOpenTaskEditor);
+
+    return () => {
+      eventBus.off('ai:open-task-editor', handleOpenTaskEditor);
+    };
+  }, []);
 
   // 自动滚动到底部
   useEffect(() => {
@@ -538,6 +557,83 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
   };
 
 
+
+  // 从 AI 回复文本中提取任务草稿，作为手动打开编辑器的兜底方案
+  const parseDecomposedTasksFromContent = (content: string): DecomposedTask[] => {
+    if (!content) return [];
+
+    const lines = content
+      .split('\n')
+      .map(line => line.trim())
+      .filter(Boolean);
+
+    const taskLines = lines.filter(line => /^\d+[.、]/.test(line));
+    if (taskLines.length === 0) return [];
+
+    const now = new Date();
+
+    return taskLines.map((line, index) => {
+      const cleanedLine = line
+        .replace(/^\d+[.、]\s*/, '')
+        .replace(/\*\*/g, '')
+        .trim();
+
+      const durationMatch = cleanedLine.match(/(\d+)\s*分钟|([一二两三四五六七八九十\d]+)\s*小时/);
+      let estimatedDuration = 30;
+
+      if (durationMatch) {
+        if (durationMatch[1]) {
+          estimatedDuration = parseInt(durationMatch[1], 10);
+        } else if (durationMatch[2]) {
+          const hourText = durationMatch[2];
+          const hourMap: Record<string, number> = {
+            一: 1,
+            二: 2,
+            两: 2,
+            三: 3,
+            四: 4,
+            五: 5,
+            六: 6,
+            七: 7,
+            八: 8,
+            九: 9,
+            十: 10,
+          };
+          const hours = /^\d+$/.test(hourText) ? parseInt(hourText, 10) : (hourMap[hourText] || 1);
+          estimatedDuration = hours * 60;
+        }
+      }
+
+      const title = cleanedLine
+        .replace(/（.*?）/g, '')
+        .replace(/\(.*?\)/g, '')
+        .replace(/^"|"$/g, '')
+        .replace(/^“|”$/g, '')
+        .replace(/^-\s*/, '')
+        .trim();
+
+      const scheduledStart = new Date(now.getTime() + index * estimatedDuration * 60000);
+      const scheduledEnd = new Date(scheduledStart.getTime() + estimatedDuration * 60000);
+
+      return {
+        sequence: index + 1,
+        title: title || `任务${index + 1}`,
+        description: cleanedLine,
+        estimated_duration: estimatedDuration,
+        scheduled_start: scheduledStart.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        scheduled_end: scheduledEnd.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        scheduled_start_iso: scheduledStart.toISOString(),
+        task_type: 'life',
+        category: 'AI安排',
+        location: '全屋',
+        tags: ['AI安排'],
+        goal: null,
+        gold: 0,
+        color: '#6A7334',
+        priority: index === 0 ? 'high' : 'medium',
+      };
+    });
+  };
 
   // 推送任务到时间轴
   const handlePushToTimeline = async (tasks: DecomposedTask[]) => {
@@ -1278,6 +1374,10 @@ ${message}
       }
       
       // 显示AI的回复
+      const fallbackDecomposedTasks = intent.intent === 'create_task'
+        ? parseDecomposedTasksFromContent(intent.reply)
+        : [];
+
       const aiMessage: Message = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
@@ -1285,6 +1385,7 @@ ${message}
         timestamp: new Date(),
         thinkingProcess: [...thinkingSteps],
         isThinkingExpanded: false,
+        decomposedTasks: fallbackDecomposedTasks,
       };
       
       setMessages(prev => [...prev, aiMessage]);
@@ -1975,9 +2076,10 @@ ${message}
   // 全屏模式处理
   if (isFullScreen) {
     const selectedCount = messages.filter(m => m.isSelected).length;
+    const fullScreenComposerHeight = isSelectionMode && selectedCount > 0 ? 92 : 188;
     
     return (
-      <div className="h-full flex flex-col bg-white">
+      <div className="h-full flex flex-col bg-white relative">
         {/* 头部 */}
         <div className="px-4 py-3 flex items-center justify-between border-b border-neutral-200 bg-white">
           <div className="flex items-center space-x-2">
@@ -2053,8 +2155,20 @@ ${message}
         </div>
 
         {/* 对话区域 */}
-        <div ref={conversationRef} className="flex-1 overflow-y-auto p-4 space-y-3 bg-neutral-50">
-          {messages.map((message) => (
+        <div
+          ref={conversationRef}
+          className="flex-1 overflow-y-auto p-4 space-y-3 bg-neutral-50"
+          style={{ paddingBottom: `calc(${fullScreenComposerHeight}px + env(safe-area-inset-bottom) + 88px)` }}
+        >
+          {messages.map((message) => {
+            const resolvedDecomposedTasks =
+              message.decomposedTasks && message.decomposedTasks.length > 0
+                ? message.decomposedTasks
+                : message.role === 'assistant'
+                ? parseDecomposedTasksFromContent(message.content)
+                : [];
+
+            return (
             <div
               key={message.id}
               className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -2166,11 +2280,11 @@ ${message}
                 )}
 
                 {/* 显示分解的任务列表 */}
-                {message.decomposedTasks && message.decomposedTasks.length > 0 && (
+                {resolvedDecomposedTasks.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-gray-200">
                     <div className="text-xs font-semibold mb-2 text-blue-600">📋 分解的任务：</div>
                     <div className="space-y-2">
-                      {message.decomposedTasks.map((task, index) => (
+                      {resolvedDecomposedTasks.map((task, index) => (
                         <div key={index} className="p-2 rounded text-xs bg-gray-50">
                           <div className="font-medium text-gray-900">{task.title}</div>
                           <div className="mt-1 text-gray-600">
@@ -2185,12 +2299,12 @@ ${message}
                     {/* 打开编辑器按钮 */}
                     <button
                       onClick={() => {
-                        setEditingTasks(message.decomposedTasks || []);
+                        setEditingTasks(resolvedDecomposedTasks);
                         setShowTaskEditor(true);
                       }}
                       className="w-full mt-3 py-2 px-3 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 active:bg-purple-800 transition-colors"
                     >
-                      ✏️ 打开编辑器
+                      ✏️ 打开任务编辑器
                     </button>
                   </div>
                 )}
@@ -2200,7 +2314,8 @@ ${message}
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
           
           {/* 处理中状态 */}
           {isProcessing && (
@@ -2226,124 +2341,126 @@ ${message}
           )}
         </div>
 
-        {/* 快速指令或智能分配按钮 */}
-        {isSelectionMode && selectedCount > 0 ? (
-          <div className="px-3 py-3 border-t border-neutral-200 bg-white">
-            <button
-              onClick={handleSmartDistribute}
-              disabled={isProcessing}
-              className="w-full py-3 rounded-lg font-semibold transition-all flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 disabled:opacity-50"
-            >
-              <Sparkles className="w-5 h-5" />
-              <span>智能分析并分配 ({selectedCount} 条)</span>
-            </button>
-          </div>
-        ) : (
-          <div className="px-3 py-2 border-t border-neutral-200 bg-white">
-            <div className="flex items-center space-x-2 overflow-x-auto">
-              <span className="text-xs whitespace-nowrap text-gray-500">快速：</span>
-              {[
-                { label: '帮我安排', icon: '🎯', action: 'smart_schedule', title: '学习你的习惯，智能推荐当前适合做的任务' },
-                { label: '关于收入', icon: '💰', action: 'income_mode', title: '记录副业收入，自动同步到副业追踪和时间轴' },
-                { label: '关于目标', icon: '🎯', action: 'goal_mode', title: '设置长期或短期目标，AI智能解析' },
-                { label: '心情碎碎念', icon: '💭', action: 'mutter_quick', title: '快速记录心情碎碎念' },
-              ].map((cmd) => (
-                <button
-                  key={cmd.label}
-                  onClick={() => {
-                    if (cmd.action === 'smart_schedule') {
-                      setInputValue('根据我的习惯和当前时间，帮我智能安排接下来要做的任务');
-                      handleSend();
-                    } else if (cmd.action === 'income_mode') {
-                      setContextMode('income');
-                      const modeMessage: Message = {
-                        id: `ai-${Date.now()}`,
-                        role: 'assistant',
-                        content: '💰 **收入记录模式已开启**\n\n现在你可以直接输入收入相关的信息，例如：\n\n• "今天画插画赚了2000块钱"\n• "接了个设计单，收入5000元"\n• "副业收入3000"\n\n我会自动：\n✅ 提取金额和描述\n✅ 保存到副业追踪器\n✅ 在时间轴标记收入时间点\n\n💡 输入完成后会自动退出此模式',
-                        timestamp: new Date(),
-                      };
-                      setMessages(prev => [...prev, modeMessage]);
-                    } else if (cmd.action === 'goal_mode') {
-                      setContextMode('goal');
-                      const modeMessage: Message = {
-                        id: `ai-${Date.now()}`,
-                        role: 'assistant',
-                        content: '🎯 **目标设置模式已开启**\n\n现在你可以用口语化的方式描述目标，例如：\n\n• "我希望在三个月之内赚10万块钱"\n• "一个星期之内发布新网站"\n• "今年要读完50本书"\n• "半年内减重20斤"\n\nAI会智能识别：\n✅ 目标内容\n✅ 时间期限\n✅ 数值目标\n✅ 自动分类\n\n💡 输入完成后会自动退出此模式',
-                        timestamp: new Date(),
-                      };
-                      setMessages(prev => [...prev, modeMessage]);
-                    } else if (cmd.action === 'mutter_quick') {
-                      // 快速添加心情碎碎念记录
-                      const now = new Date();
-                      const mutterContent = `心情记录 ${now.toLocaleString('zh-CN')}`;
-                      
-                      // 保存到记忆库
-                      addMemory({
-                        type: 'mutter',
-                        content: mutterContent,
-                        mood: '记录',
-                        tags: ['碎碎念', '心情'],
-                        date: now,
-                      });
-                      
-                      // 在时间轴创建粉红色卡片
-                      createTask({
-                        title: `💭💕 心情碎碎念`,
-                        description: `📝 ${mutterContent}\n\n💕 心情备注：点击编辑添加你的心情\n⏰ 记录时间：${now.toLocaleString('zh-CN')}`,
-                        taskType: 'life' as TaskType,
-                        priority: 2,
-                        durationMinutes: 1,
-                        scheduledStart: now,
-                        scheduledEnd: new Date(now.getTime() + 60000),
-                        tags: ['💭碎碎念', '💕心情'],
-                        color: '#FFB6C1', // 粉红色
-                        status: 'completed',
-                        isRecord: true,
-                      });
-                      
-                      // 显示提示消息
-                      notificationService.success('💭 心情碎碎念已记录到时间轴！');
-                    }
-                  }}
-                  className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap hover:scale-105 ${
-                    contextMode === 'income' && cmd.action === 'income_mode' ? 'bg-green-500 text-white' :
-                    contextMode === 'goal' && cmd.action === 'goal_mode' ? 'bg-blue-500 text-white' :
-                    'bg-neutral-100 text-gray-700 active:bg-neutral-200'
-                  }`}
-                  title={cmd.title}
-                >
-                  {cmd.icon} {cmd.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 输入区域 */}
-        <div className="p-3 border-t border-neutral-200 bg-white pb-safe">
-          {!isSelectionMode && (
-            <div className="flex items-end space-x-2">
-              <textarea
-                ref={textareaRef}
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="对我说点什么..."
-                className="flex-1 px-3 py-2 rounded-lg resize-none focus:outline-none text-sm border border-gray-300 focus:border-blue-500 overflow-y-auto"
-                style={{
-                  minHeight: '40px',
-                  maxHeight: '200px',
-                }}
-              />
+        {/* 底部操作区 */}
+        <div
+          className="fixed left-0 right-0 z-[1001] border-t border-neutral-200 bg-white shadow-[0_-8px_24px_rgba(15,23,42,0.08)]"
+          style={{ bottom: 'calc(76px + env(safe-area-inset-bottom))' }}
+        >
+          {/* 快速指令或智能分配按钮 */}
+          {isSelectionMode && selectedCount > 0 ? (
+            <div className="px-3 py-3">
               <button
-                onClick={handleSend}
-                disabled={!inputValue.trim() || isProcessing}
-                className="p-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                title={isProcessing ? "AI正在思考..." : "发送消息"}
+                onClick={handleSmartDistribute}
+                disabled={isProcessing}
+                className="w-full py-3 rounded-lg font-semibold transition-all flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 disabled:opacity-50"
               >
-                {isProcessing ? <Hourglass className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                <Sparkles className="w-5 h-5" />
+                <span>智能分析并分配 ({selectedCount} 条)</span>
               </button>
             </div>
+          ) : (
+            <>
+              <div className="px-3 py-2">
+                <div className="flex items-center space-x-2 overflow-x-auto">
+                  <span className="text-xs whitespace-nowrap text-gray-500">快速：</span>
+                  {[
+                    { label: '帮我安排', icon: '🎯', action: 'smart_schedule', title: '学习你的习惯，智能推荐当前适合做的任务' },
+                    { label: '关于收入', icon: '💰', action: 'income_mode', title: '记录副业收入，自动同步到副业追踪和时间轴' },
+                    { label: '关于目标', icon: '🎯', action: 'goal_mode', title: '设置长期或短期目标，AI智能解析' },
+                    { label: '心情碎碎念', icon: '💭', action: 'mutter_quick', title: '快速记录心情碎碎念' },
+                  ].map((cmd) => (
+                    <button
+                      key={cmd.label}
+                      onClick={() => {
+                        if (cmd.action === 'smart_schedule') {
+                          setInputValue('根据我的习惯和当前时间，帮我智能安排接下来要做的任务');
+                          handleSend();
+                        } else if (cmd.action === 'income_mode') {
+                          setContextMode('income');
+                          const modeMessage: Message = {
+                            id: `ai-${Date.now()}`,
+                            role: 'assistant',
+                            content: '💰 **收入记录模式已开启**\n\n现在你可以直接输入收入相关的信息，例如：\n\n• "今天画插画赚了2000块钱"\n• "接了个设计单，收入5000元"\n• "副业收入3000"\n\n我会自动：\n✅ 提取金额和描述\n✅ 保存到副业追踪器\n✅ 在时间轴标记收入时间点\n\n💡 输入完成后会自动退出此模式',
+                            timestamp: new Date(),
+                          };
+                          setMessages(prev => [...prev, modeMessage]);
+                        } else if (cmd.action === 'goal_mode') {
+                          setContextMode('goal');
+                          const modeMessage: Message = {
+                            id: `ai-${Date.now()}`,
+                            role: 'assistant',
+                            content: '🎯 **目标设置模式已开启**\n\n现在你可以用口语化的方式描述目标，例如：\n\n• "我希望在三个月之内赚10万块钱"\n• "一个星期之内发布新网站"\n• "今年要读完50本书"\n• "半年内减重20斤"\n\nAI会智能识别：\n✅ 目标内容\n✅ 时间期限\n✅ 数值目标\n✅ 自动分类\n\n💡 输入完成后会自动退出此模式',
+                            timestamp: new Date(),
+                          };
+                          setMessages(prev => [...prev, modeMessage]);
+                        } else if (cmd.action === 'mutter_quick') {
+                          const now = new Date();
+                          const mutterContent = `心情记录 ${now.toLocaleString('zh-CN')}`;
+
+                          addMemory({
+                            type: 'mutter',
+                            content: mutterContent,
+                            mood: '记录',
+                            tags: ['碎碎念', '心情'],
+                            date: now,
+                          });
+
+                          createTask({
+                            title: `💭💕 心情碎碎念`,
+                            description: `📝 ${mutterContent}\n\n💕 心情备注：点击编辑添加你的心情\n⏰ 记录时间：${now.toLocaleString('zh-CN')}`,
+                            taskType: 'life' as TaskType,
+                            priority: 2,
+                            durationMinutes: 1,
+                            scheduledStart: now,
+                            scheduledEnd: new Date(now.getTime() + 60000),
+                            tags: ['💭碎碎念', '💕心情'],
+                            color: '#FFB6C1',
+                            status: 'completed',
+                            isRecord: true,
+                          });
+
+                          notificationService.success('💭 心情碎碎念已记录到时间轴！');
+                        }
+                      }}
+                      className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap hover:scale-105 ${
+                        contextMode === 'income' && cmd.action === 'income_mode' ? 'bg-green-500 text-white' :
+                        contextMode === 'goal' && cmd.action === 'goal_mode' ? 'bg-blue-500 text-white' :
+                        'bg-neutral-100 text-gray-700 active:bg-neutral-200'
+                      }`}
+                      title={cmd.title}
+                    >
+                      {cmd.icon} {cmd.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 输入区域 */}
+              <div className="px-3 pb-2">
+                <div className="flex items-end space-x-2">
+                  <textarea
+                    ref={textareaRef}
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="对我说点什么..."
+                    className="flex-1 px-3 py-2 rounded-lg resize-none focus:outline-none text-sm border border-gray-300 focus:border-blue-500 overflow-y-auto bg-white"
+                    style={{
+                      minHeight: '40px',
+                      maxHeight: '120px',
+                    }}
+                  />
+                  <button
+                    onClick={handleSend}
+                    disabled={!inputValue.trim() || isProcessing}
+                    className="p-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                    title={isProcessing ? 'AI正在思考...' : '发送消息'}
+                  >
+                    {isProcessing ? <Hourglass className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+            </>
           )}
         </div>
 
