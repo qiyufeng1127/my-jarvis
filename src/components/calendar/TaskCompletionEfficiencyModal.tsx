@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { X } from 'lucide-react';
 
 interface TaskCompletionEfficiencyModalProps {
   isOpen: boolean;
@@ -27,34 +27,30 @@ export default function TaskCompletionEfficiencyModal({
   const [efficiency, setEfficiency] = useState(100);
   const [isDragging, setIsDragging] = useState(false);
   const [notes, setNotes] = useState(''); // 备注
-  
-  // 新增：6个反思问题的状态
-  const [feeling, setFeeling] = useState(''); // 1. 我感受到了什么
-  const [reason, setReason] = useState(''); // 2. 为什么有这样的感受
-  const [bodyFeeling, setBodyFeeling] = useState(''); // 3. 身体感受
-  const [thoughts, setThoughts] = useState(''); // 4. 自动想法
-  const [behavior, setBehavior] = useState(''); // 5. 实际行为
-  const [reflection, setReflection] = useState(''); // 6. 认知重评/反思
 
   if (!isOpen) return null;
 
-  // 鲜艳糖果色配色方案
-  const candyColors = {
-    pink: '#FF6B9D',      // 糖果粉
-    mint: '#98D8C8',      // 薄荷绿
-    peach: '#FFB347',     // 蜜桃橙
-    lavender: '#B19CD9',  // 薰衣草紫
-    lemon: '#FFE66D',     // 柠檬黄
-    coral: '#FF6F61',     // 珊瑚红
-    sky: '#87CEEB',       // 天空蓝
+  // 降低饱和度后的沉稳配色
+  const palette = {
+    rose: '#8E5F6B',
+    sage: '#6F8577',
+    amber: '#A07D56',
+    plum: '#7B6A8F',
+    gold: '#B79B5B',
+    brick: '#9B625A',
+    ink: '#2F2A26',
+    subtext: '#6B625B',
+    line: '#D8D0C8',
+    panel: '#F4F0EA',
+    white: '#FFFFFF',
   };
 
-  // 计算效率等级和颜色（使用复古糖果色）
+  // 计算效率等级和颜色
   const getEfficiencyLevel = (eff: number): { label: string; emoji: string; color: string } => {
-    if (eff >= 90) return { label: '超棒', emoji: '🌟', color: candyColors.lemon };
-    if (eff >= 70) return { label: '不错', emoji: '🎈', color: candyColors.mint };
-    if (eff >= 50) return { label: '还行', emoji: '🍬', color: candyColors.peach };
-    return { label: '加油', emoji: '🌈', color: candyColors.lavender };
+    if (eff >= 90) return { label: '超棒', emoji: '🌟', color: palette.gold };
+    if (eff >= 70) return { label: '不错', emoji: '🎈', color: palette.sage };
+    if (eff >= 50) return { label: '还行', emoji: '🍬', color: palette.amber };
+    return { label: '加油', emoji: '🌈', color: palette.plum };
   };
 
   const efficiencyLevel = getEfficiencyLevel(efficiency);
@@ -65,17 +61,8 @@ export default function TaskCompletionEfficiencyModal({
   };
 
   const handleConfirm = () => {
-    // 将所有反思内容组合成一段话
-    const completionNotes = [
-      `【完成效率】${efficiency}% - ${efficiencyLevel.label}`,
-      feeling && `【感受】${feeling}`,
-      reason && `【原因】${reason}`,
-      bodyFeeling && `【身体感受】${bodyFeeling}`,
-      thoughts && `【自动想法】${thoughts}`,
-      behavior && `【实际行为】${behavior}`,
-      reflection && `【认知重评】${reflection}`,
-    ].filter(Boolean).join('\n\n');
-    
+    const completionNotes = notes.trim();
+
     console.log('📝 [完成反思] 保存内容:', completionNotes);
     
     onConfirm(efficiency, completionNotes);
@@ -86,13 +73,13 @@ export default function TaskCompletionEfficiencyModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 bg-black/50 backdrop-blur-sm">
       <div
         className="relative w-full max-w-md max-h-[85vh] rounded-3xl shadow-2xl flex flex-col animate-in fade-in zoom-in duration-200"
-        style={{ backgroundColor: '#F8F6F3' }}
+        style={{ backgroundColor: palette.panel }}
       >
         {/* 关闭按钮 - 固定在顶部 */}
         <button
           onClick={onClose}
           className="absolute top-4 right-4 p-2 rounded-full transition-all z-10 hover:scale-110"
-          style={{ backgroundColor: candyColors.pink, color: 'white' }}
+          style={{ backgroundColor: palette.rose, color: 'white' }}
         >
           <X className="w-5 h-5" />
         </button>
@@ -102,14 +89,14 @@ export default function TaskCompletionEfficiencyModal({
 
         {/* 金币奖励展示 */}
         {goldReward > 0 && (
-          <div className="mb-6 p-6 rounded-3xl shadow-lg" style={{ backgroundColor: candyColors.lemon }}>
+          <div className="mb-6 p-6 rounded-3xl shadow-lg" style={{ backgroundColor: palette.gold }}>
             <div className="flex items-center justify-center gap-3">
               <span className="text-5xl animate-bounce">💰</span>
               <div className="text-center">
-                <div className="text-4xl font-black drop-shadow-lg" style={{ color: '#8B7355' }}>
+                <div className="text-4xl font-black drop-shadow-lg" style={{ color: palette.ink }}>
                   +{goldReward} 金币
                 </div>
-                <div className="text-sm font-medium mt-1" style={{ color: '#6B5D4F' }}>
+                <div className="text-sm font-medium mt-1" style={{ color: palette.subtext }}>
                   🎉 太棒啦！
                 </div>
               </div>
@@ -121,36 +108,36 @@ export default function TaskCompletionEfficiencyModal({
         {/* 标题 */}
         <div className="mb-6 text-center">
           <div className="text-3xl mb-2">✨</div>
-          <h2 className="text-2xl font-bold mb-2" style={{ color: '#2C2C2C' }}>任务完成啦！</h2>
-          <p className="text-sm font-medium" style={{ color: '#666666' }}>
+          <h2 className="text-2xl font-bold mb-2" style={{ color: palette.ink }}>任务完成啦！</h2>
+          <p className="text-sm font-medium" style={{ color: palette.subtext }}>
             {taskTitle}
           </p>
         </div>
 
         {/* 图片统计 */}
-        <div className="mb-6 p-4 rounded-2xl border-2" style={{ backgroundColor: candyColors.mint + '15', borderColor: candyColors.mint }}>
+        <div className="mb-6 p-4 rounded-2xl border-2" style={{ backgroundColor: palette.sage + '14', borderColor: palette.sage }}>
           <div className="flex justify-between items-center mb-2">
-            <span className="text-sm font-medium flex items-center gap-1" style={{ color: '#2C2C2C' }}>
+            <span className="text-sm font-medium flex items-center gap-1" style={{ color: palette.ink }}>
               📸 计划拍照
             </span>
-            <span className="font-bold text-lg" style={{ color: '#2C2C2C' }}>{plannedImageCount} 次</span>
+            <span className="font-bold text-lg" style={{ color: palette.ink }}>{plannedImageCount} 次</span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-sm font-medium flex items-center gap-1" style={{ color: '#2C2C2C' }}>
+            <span className="text-sm font-medium flex items-center gap-1" style={{ color: palette.ink }}>
               ✅ 实际拍照
             </span>
-            <span className="font-bold text-lg" style={{ color: '#2C2C2C' }}>{actualImageCount} 次</span>
+            <span className="font-bold text-lg" style={{ color: palette.ink }}>{actualImageCount} 次</span>
           </div>
         </div>
 
         {/* 效率滑块 */}
         <div className="mb-6">
           <div className="flex justify-between items-center mb-4">
-            <span className="font-bold text-lg" style={{ color: '#2C2C2C' }}>🎯 完成效率</span>
+            <span className="font-bold text-lg" style={{ color: palette.ink }}>🎯 完成效率</span>
             <div className="flex items-center gap-2">
               <div
                 className="flex items-center gap-1 px-4 py-2 rounded-full shadow-md"
-                style={{ backgroundColor: efficiencyLevel.color, color: '#FFFFFF' }}
+                style={{ backgroundColor: efficiencyLevel.color, color: palette.white }}
               >
                 <span className="text-xl">{efficiencyLevel.emoji}</span>
                 <span className="font-black text-lg">{efficiency}%</span>
@@ -178,7 +165,7 @@ export default function TaskCompletionEfficiencyModal({
               onTouchEnd={() => setIsDragging(false)}
               className="w-full h-4 rounded-full appearance-none cursor-pointer transition-all"
               style={{
-                background: `linear-gradient(to right, ${efficiencyLevel.color} 0%, ${efficiencyLevel.color} ${efficiency}%, #E8E4DF ${efficiency}%, #E8E4DF 100%)`,
+                background: `linear-gradient(to right, ${efficiencyLevel.color} 0%, ${efficiencyLevel.color} ${efficiency}%, ${palette.line} ${efficiency}%, ${palette.line} 100%)`,
               }}
             />
             <style>{`
@@ -191,7 +178,7 @@ export default function TaskCompletionEfficiencyModal({
                 cursor: pointer;
                 box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
                 transition: transform 0.2s;
-                border: 3px solid white;
+                border: 3px solid ${palette.white};
               }
               input[type="range"]::-webkit-slider-thumb:hover {
                 transform: scale(1.2);
@@ -205,7 +192,7 @@ export default function TaskCompletionEfficiencyModal({
                 border-radius: 50%;
                 background: ${efficiencyLevel.color};
                 cursor: pointer;
-                border: 3px solid white;
+                border: 3px solid ${palette.white};
                 box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
                 transition: transform 0.2s;
               }
@@ -219,7 +206,7 @@ export default function TaskCompletionEfficiencyModal({
           </div>
 
           {/* 刻度标记 */}
-          <div className="flex justify-between mt-2 text-xs font-medium" style={{ color: '#666666' }}>
+          <div className="flex justify-between mt-2 text-xs font-medium" style={{ color: palette.subtext }}>
             <span>0%</span>
             <span>25%</span>
             <span>50%</span>
@@ -230,147 +217,43 @@ export default function TaskCompletionEfficiencyModal({
 
         {/* 提示信息 */}
         {efficiency < 50 && (
-          <div className="mb-6 p-4 rounded-2xl border-2" style={{ backgroundColor: candyColors.coral + '20', borderColor: candyColors.coral }}>
-            <p className="text-sm font-medium flex items-center gap-2" style={{ color: candyColors.coral }}>
+          <div className="mb-6 p-4 rounded-2xl border-2" style={{ backgroundColor: palette.brick + '16', borderColor: palette.brick }}>
+            <p className="text-sm font-medium flex items-center gap-2" style={{ color: palette.brick }}>
               <span className="text-xl">⚠️</span>
               效率低于50%会被记录为不良习惯哦，下次加油！
             </p>
           </div>
         )}
 
-        {/* 情绪反思记录 */}
-        <div className="mb-6 space-y-4">
-          {/* 1. 我感受到了什么 */}
-          <div>
-            <label className="block text-sm font-bold mb-2 flex items-center gap-2" style={{ color: '#2C2C2C' }}>
-              <span className="text-lg">💭</span>
-              1. 我感受到了什么？
-            </label>
-            <textarea
-              value={feeling}
-              onChange={(e) => setFeeling(e.target.value)}
-              placeholder='请具体描述情绪名称，如"失望"、"焦虑"、"兴奋"，而非简单的"好"或"坏"'
-              rows={2}
-              className="w-full px-4 py-3 rounded-2xl border-2 text-sm resize-none focus:outline-none focus:ring-2 transition-all shadow-sm"
-              style={{ 
-                backgroundColor: candyColors.pink + '15',
-                borderColor: candyColors.pink,
-                color: '#2C2C2C'
-              }}
-            />
-          </div>
-
-          {/* 2. 为什么有这样的感受 */}
-          <div>
-            <label className="block text-sm font-bold mb-2 flex items-center gap-2" style={{ color: '#2C2C2C' }}>
-              <span className="text-lg">🤔</span>
-              2. 为什么有这样的感受？
-            </label>
-            <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="描述引发这种感受的具体事件或原因..."
-              rows={2}
-              className="w-full px-4 py-3 rounded-2xl border-2 text-sm resize-none focus:outline-none focus:ring-2 transition-all shadow-sm"
-              style={{ 
-                backgroundColor: candyColors.peach + '15',
-                borderColor: candyColors.peach,
-                color: '#2C2C2C'
-              }}
-            />
-          </div>
-
-          {/* 3. 身体感受 */}
-          <div>
-            <label className="block text-sm font-bold mb-2 flex items-center gap-2" style={{ color: '#2C2C2C' }}>
-              <span className="text-lg">🫀</span>
-              3. 身体感受：情绪在我身体上有什么表现？
-            </label>
-            <textarea
-              value={bodyFeeling}
-              onChange={(e) => setBodyFeeling(e.target.value)}
-              placeholder="如心跳加快、肩膀紧绷、胃部不适..."
-              rows={2}
-              className="w-full px-4 py-3 rounded-2xl border-2 text-sm resize-none focus:outline-none focus:ring-2 transition-all shadow-sm"
-              style={{ 
-                backgroundColor: candyColors.mint + '15',
-                borderColor: candyColors.mint,
-                color: '#2C2C2C'
-              }}
-            />
-          </div>
-
-          {/* 4. 自动想法 */}
-          <div>
-            <label className="block text-sm font-bold mb-2 flex items-center gap-2" style={{ color: '#2C2C2C' }}>
-              <span className="text-lg">💡</span>
-              4. 自动想法：当时我脑海里闪过了什么念头？
-            </label>
-            <textarea
-              value={thoughts}
-              onChange={(e) => setThoughts(e.target.value)}
-              placeholder="记录当时的想法和念头..."
-              rows={2}
-              className="w-full px-4 py-3 rounded-2xl border-2 text-sm resize-none focus:outline-none focus:ring-2 transition-all shadow-sm"
-              style={{ 
-                backgroundColor: candyColors.lavender + '15',
-                borderColor: candyColors.lavender,
-                color: '#2C2C2C'
-              }}
-            />
-          </div>
-
-          {/* 5. 实际行为 */}
-          <div>
-            <label className="block text-sm font-bold mb-2 flex items-center gap-2" style={{ color: '#2C2C2C' }}>
-              <span className="text-lg">🏃</span>
-              5. 实际行为：我实际上做了什么或想做什么？
-            </label>
-            <textarea
-              value={behavior}
-              onChange={(e) => setBehavior(e.target.value)}
-              placeholder="描述你的实际行为或冲动..."
-              rows={2}
-              className="w-full px-4 py-3 rounded-2xl border-2 text-sm resize-none focus:outline-none focus:ring-2 transition-all shadow-sm"
-              style={{ 
-                backgroundColor: candyColors.sky + '15',
-                borderColor: candyColors.sky,
-                color: '#2C2C2C'
-              }}
-            />
-          </div>
-
-          {/* 6. 认知重评/反思 */}
-          <div>
-            <label className="block text-sm font-bold mb-2 flex items-center gap-2" style={{ color: '#2C2C2C' }}>
-              <span className="text-lg">🌟</span>
-              6. 认知重评/反思：现在回过头我对这件事有没有不同的理解？我能更有效地应对吗？
-            </label>
-            <textarea
-              value={reflection}
-              onChange={(e) => setReflection(e.target.value)}
-              placeholder="反思和重新评估这件事..."
-              rows={3}
-              className="w-full px-4 py-3 rounded-2xl border-2 text-sm resize-none focus:outline-none focus:ring-2 transition-all shadow-sm"
-              style={{ 
-                backgroundColor: candyColors.coral + '15',
-                borderColor: candyColors.coral,
-                color: '#2C2C2C'
-              }}
-            />
-          </div>
+        {/* 备注 */}
+        <div className="mb-6">
+          <label className="block text-sm font-bold mb-2" style={{ color: palette.ink }}>
+            备注（可选）
+          </label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="如果有需要，可以简单记一句..."
+            rows={3}
+            className="w-full px-4 py-3 rounded-2xl border-2 text-sm resize-none focus:outline-none focus:ring-2 transition-all shadow-sm"
+            style={{
+              backgroundColor: palette.white,
+              borderColor: palette.line,
+              color: palette.ink
+            }}
+          />
         </div>
         </div>
 
         {/* 固定底部按钮 */}
-        <div className="flex-shrink-0 p-6 pt-4 border-t-4" style={{ borderColor: candyColors.pink + '40' }}>
+        <div className="flex-shrink-0 p-6 pt-4 border-t-4" style={{ borderColor: palette.rose + '33' }}>
           <div className="flex gap-3">
             <button
               onClick={onClose}
               className="flex-1 py-3 rounded-2xl font-bold transition-all hover:scale-105 shadow-md"
               style={{ 
-                backgroundColor: candyColors.lavender + '40',
-                color: candyColors.lavender
+                backgroundColor: palette.plum + '22',
+                color: palette.plum
               }}
             >
               <span className="text-lg">👋</span> 取消
@@ -378,7 +261,7 @@ export default function TaskCompletionEfficiencyModal({
             <button
               onClick={handleConfirm}
               className="flex-1 py-3 rounded-2xl font-bold text-white transition-all hover:scale-105 shadow-lg"
-              style={{ backgroundColor: candyColors.pink }}
+              style={{ backgroundColor: palette.rose }}
             >
               <span className="text-lg">✨</span> 确认完成
             </button>

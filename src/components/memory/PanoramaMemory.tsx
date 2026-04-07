@@ -1,4 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
+import {
+  PolarAngleAxis,
+  PolarGrid,
+  PolarRadiusAxis,
+  Radar,
+  RadarChart,
+  ResponsiveContainer,
+} from 'recharts';
 import { useGoalStore } from '@/stores/goalStore';
 import { useTaskStore } from '@/stores/taskStore';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
@@ -35,6 +43,19 @@ type HQReportSummary = {
   penalty: string;
 };
 
+type RadarDatum = {
+  subject: string;
+  value: number;
+  fullMark: number;
+};
+
+type PainFocus = {
+  source: 'goal' | 'timeline' | 'mixed';
+  label: string;
+  detail: string;
+  question: string;
+};
+
 const STORAGE_KEY = 'hq-report-session-v1';
 
 export default function PanoramaMemory({ bgColor = '#ffffff' }: PanoramaMemoryProps) {
@@ -42,6 +63,7 @@ export default function PanoramaMemory({ bgColor = '#ffffff' }: PanoramaMemoryPr
   const tasks = useTaskStore((state) => state.tasks);
   const sideHustles = useSideHustleStore((state) => state.sideHustles);
   const incomeRecords = useSideHustleStore((state) => state.incomeRecords);
+  const timeRecords = useSideHustleStore((state) => state.timeRecords);
   const { isConfigured, chat } = useAIStore();
 
   const [stage, setStage] = useState<SessionStage>('loading');
@@ -61,6 +83,7 @@ export default function PanoramaMemory({ bgColor = '#ffffff' }: PanoramaMemoryPr
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const activeGoals = goals.filter((goal) => goal.isActive && !goal.isCompleted);
+    const completedGoals = goals.filter((goal) => goal.isCompleted);
     const yearGoal = activeGoals[0];
 
     const monthGoals = activeGoals.filter((goal) => {
@@ -81,6 +104,7 @@ export default function PanoramaMemory({ bgColor = '#ffffff' }: PanoramaMemoryPr
       return date >= todayStart;
     });
 
+    const completedTasks = tasks.filter((task) => task.status === 'completed');
     const completedToday = todayTasks.filter((task) => task.status === 'completed').length;
     const completedWeek = weekTasks.filter((task) => task.status === 'completed').length;
 
@@ -89,14 +113,25 @@ export default function PanoramaMemory({ bgColor = '#ffffff' }: PanoramaMemoryPr
       return task.status !== 'completed' && new Date(task.scheduledEnd) < now;
     });
 
+    const lowEfficiencyTasks = tasks.filter(
+      (task) => typeof task.completionEfficiency === 'number' && task.completionEfficiency < 60
+    );
+    const timeoutTasks = tasks.filter(
+      (task) => (task.startTimeoutCount || 0) > 0 || (task.completeTimeoutCount || 0) > 0
+    );
+    const plannedTasks = tasks
+      .filter((task) => task.scheduledStart)
+      .sort(
+        (a, b) =>
+          new Date(a.scheduledStart as Date).getTime() - new Date(b.scheduledStart as Date).getTime()
+      );
+
     const procrastinationCount = tasks.reduce(
       (sum, task) => sum + (task.startTimeoutCount || 0) + (task.completeTimeoutCount || 0),
       0
     );
 
-    const lowEfficiencyCount = tasks.filter(
-      (task) => typeof task.completionEfficiency === 'number' && task.completionEfficiency < 60
-    ).length;
+    const lowEfficiencyCount = lowEfficiencyTasks.length;
 
     const monthIncome = incomeRecords
       .filter((record) => new Date(record.date) >= monthStart)
@@ -111,12 +146,64 @@ export default function PanoramaMemory({ bgColor = '#ffffff' }: PanoramaMemoryPr
     const monthRate = monthGoalValue > 0 ? (monthCurrentValue / monthGoalValue) * 100 : 0;
     const monthGap = Math.max(monthGoalValue - monthCurrentValue, 0);
 
+    const delayedTaskNames = delayedTasks.slice(0, 5).map((task) => task.title);
+    const weakGoalNames = monthGoals
+      .filter((goal) => {
+        const target = goal.targetValue || 0;
+        if (target <= 0) return false;
+        return ((goal.currentValue || 0) / target) * 100 < 60;
+      })
+      .slice(0, 5)
+      .map((goal) => goal.name);
+    const recentCompletedTaskNames = completedTasks.slice(-5).reverse().map((task) => task.title);
+    const timeoutTaskNames = timeoutTasks.slice(0, 5).map((task) => task.title);
+    const lowEfficiencyTaskNames = lowEfficiencyTasks.slice(0, 5).map((task) => task.title);
+    const upcomingTaskNames = plannedTasks
+      .filter((task) => new Date(task.scheduledStart as Date) >= now)
+      .slice(0, 5)
+      .map((task) => task.title);
+
+    const painPoints: string[] = [];
+    if (delayedTasks.length > 0) painPoints.push(`有 ${delayedTasks.length} 个滞后任务未收口`);
+    if (procrastinationCount > 0) painPoints.push(`累计拖延/超时 ${procrastinationCount} 次`);
+    if (lowEfficiencyCount > 0) painPoints.push(`存在 ${lowEfficiencyCount} 个低效率任务`);
+    if (monthGap > 0) painPoints.push(`月度目标仍有 ${monthGap} 的进度缺口`);
+    if (weakGoalNames.length > 0) painPoints.push(`目标推进偏弱：${weakGoalNames.join('、')}`);
+    if (painPoints.length === 0) painPoints.push('当前未发现明显硬伤，但需要继续观察执行稳定性');
+
     const delaySeverity: 'light' | 'medium' | 'heavy' =
       procrastinationCount >= 5 || delayedTasks.length >= 2
         ? 'heavy'
         : procrastinationCount >= 3 || delayedTasks.length >= 1
           ? 'medium'
           : 'light';
+
+    const goalPainScore = Math.round(monthGap + weakGoalNames.length * 18 + Math.max(0, 60 - monthRate));
+    const timelinePainScore = Math.round(
+      delayedTasks.length * 30 + procrastinationCount * 12 + lowEfficiencyCount * 15
+    );
+
+    const painFocus =
+      goalPainScore === 0 && timelinePainScore === 0
+        ? {
+            source: 'mixed' as const,
+            label: '执行稳定性',
+            detail: '目标和时间轴暂时没有明显硬伤，但持续性还没有经过足够样本验证。',
+            question: '现在数据看起来不算难看，但你最容易在哪个环节开始松掉？',
+          }
+        : goalPainScore >= timelinePainScore
+          ? {
+              source: 'goal' as const,
+              label: '目标推进失焦',
+              detail: `月度目标缺口 ${monthGap}，推进偏弱目标 ${weakGoalNames.join('、') || '暂无'}。`,
+              question: `总部现在盯住的是目标推进失焦：月度还差 ${monthGap}，偏弱目标是 ${weakGoalNames.join('、') || '暂无'}。你为什么一直没有把主线目标往前推？`,
+            }
+          : {
+              source: 'timeline' as const,
+              label: '时间轴执行失控',
+              detail: `滞后任务 ${delayedTaskNames.join('、') || '暂无'}；拖延/超时 ${procrastinationCount} 次；低效率 ${lowEfficiencyCount} 次。`,
+              question: `总部现在盯住的是时间轴执行失控：滞后任务 ${delayedTaskNames.join('、') || '暂无'}，拖延/超时 ${procrastinationCount} 次，低效率 ${lowEfficiencyCount} 次。你为什么会连续把任务执行搞成这样？`,
+            };
 
     return {
       now,
@@ -133,45 +220,172 @@ export default function PanoramaMemory({ bgColor = '#ffffff' }: PanoramaMemoryPr
       todayTaskCount: todayTasks.length,
       completedToday,
       delayedTasks,
-      delayedTaskNames: delayedTasks.slice(0, 5).map((task) => task.title),
+      delayedTaskNames,
       procrastinationCount,
       lowEfficiencyCount,
       monthIncome,
       activeSideHustles: sideHustles.filter((item) => item.status !== 'archived').length,
       delaySeverity,
+      painFocus,
+      goalSummary: {
+        total: goals.length,
+        active: activeGoals.length,
+        completed: completedGoals.length,
+        weakGoalNames,
+      },
+      timelineSummary: {
+        totalTasks: tasks.length,
+        completedTasks: completedTasks.length,
+        timeoutTaskNames,
+        lowEfficiencyTaskNames,
+        delayedTaskNames,
+        recentCompletedTaskNames,
+        upcomingTaskNames,
+      },
+      painPoints,
     };
-  }, [goals, tasks, sideHustles, incomeRecords]);
+  }, [goals, incomeRecords, sideHustles, tasks]);
 
   const baseFirstQuestion = useMemo(() => {
-    return `【AI总部】\n${formatDate(reportData.now)} 述职数据核查完毕（全自动核算）。\n\n年度主线目标：${reportData.yearGoalName}\n年度进度：${reportData.yearlyCurrentValue}/${reportData.yearlyGoalValue || '未设定'}（${reportData.yearlyRate.toFixed(2)}%）\n月度进度：${reportData.monthCurrentValue}/${reportData.monthGoalValue || '未设定'}（${reportData.monthRate.toFixed(2)}%）\n本周任务完成：${reportData.completedWeek}/${reportData.weekTaskCount}\n今日任务完成：${reportData.completedToday}/${reportData.todayTaskCount}\n异常数据：拖延 ${reportData.procrastinationCount} 次，低效率 ${reportData.lowEfficiencyCount} 次，滞后任务 ${reportData.delayedTasks.length} 项\n目标缺口：${reportData.monthGap}\n\n提问：结合以上数据，你本周最明显的异常行为是什么？`;
+    const weakGoalsText = reportData.goalSummary.weakGoalNames.length
+      ? reportData.goalSummary.weakGoalNames.join('、')
+      : '暂无明显掉队目标';
+    const delayedTasksText = reportData.timelineSummary.delayedTaskNames.length
+      ? reportData.timelineSummary.delayedTaskNames.join('、')
+      : '暂无滞后任务';
+
+    const focusSourceLabel =
+      reportData.painFocus.source === 'goal'
+        ? '目标组件'
+        : reportData.painFocus.source === 'timeline'
+          ? '时间轴组件'
+          : '目标和时间轴';
+
+    return `【AI总部】
+先说结论：这次最严重的问题不在态度口号，在${focusSourceLabel}。
+
+目标：月进度 ${reportData.monthRate.toFixed(2)}%，偏弱目标 ${weakGoalsText}。
+时间轴：拖延/超时 ${reportData.procrastinationCount} 次，滞后任务 ${delayedTasksText}。
+
+最刺眼的是：${reportData.painFocus.label}。
+${reportData.painFocus.question}`;
   }, [reportData]);
 
-  const fallbackSummary = useMemo<HQReportSummary>(() => {
-    const rootCause = userAnswers[1] || '尚未明确主观根因';
-    const promise = userAnswers[2] || '尚未形成明确整改承诺';
-    const issueLevel =
-      reportData.delaySeverity === 'heavy'
-        ? '警告'
-        : reportData.delaySeverity === 'medium'
-          ? '观察'
-          : '轻提醒';
+  const radarMetrics = useMemo(() => {
+    const completedTasks = tasks.filter((task) => task.status === 'completed');
+    const timedTasks = tasks.filter((task) => task.scheduledStart && task.scheduledEnd);
+    const totalGoals = goals.length;
+    const completedGoals = goals.filter((goal) => goal.isCompleted).length;
+    const activeGoals = goals.filter((goal) => goal.isActive && !goal.isCompleted).length;
+    const totalIncomeRecords = incomeRecords.length;
+    const totalIncome = incomeRecords.reduce((sum, record) => sum + record.amount, 0);
+    const totalSideHustleHours = timeRecords.reduce((sum, record) => sum + record.duration, 0);
 
-    return {
-      rootCause,
-      promise,
-      issueLevel,
-      praise:
-        reportData.completedWeek > 0
-          ? `本周仍完成 ${reportData.completedWeek} 项任务，说明执行力不是没有，只是稳定性不足。`
-          : '本周完成量偏弱，当前更需要先恢复基本执行秩序。',
-      penalty:
-        reportData.delaySeverity === 'heavy'
-          ? '总部评价：执行失真明显，借口倾向必须立即切断。'
-          : reportData.delaySeverity === 'medium'
-            ? '总部评价：中度偏航，继续放任就会滑向失控。'
-            : '总部评价：问题已出现苗头，现在不收口，后面一定放大。',
-    };
-  }, [reportData, userAnswers]);
+    const healthTasks = completedTasks.filter((task) => task.taskType === 'health').length;
+    const studyTasks = completedTasks.filter((task) => task.taskType === 'study').length;
+    const creativeTasks = completedTasks.filter((task) => task.taskType === 'creative').length;
+    const workTasks = completedTasks.filter((task) => task.taskType === 'work' || task.taskType === 'finance').length;
+    const lifeTasks = completedTasks.filter((task) => task.taskType === 'life').length;
+    const restTasks = completedTasks.filter((task) => task.taskType === 'rest').length;
+
+    const avgEfficiency = completedTasks.length
+      ? completedTasks.reduce((sum, task) => sum + (task.completionEfficiency ?? 0), 0) / completedTasks.length
+      : 0;
+
+    const onTimeCompleted = completedTasks.filter((task) => {
+      if (!task.scheduledEnd || !task.actualEnd) return false;
+      return new Date(task.actualEnd) <= new Date(task.scheduledEnd);
+    }).length;
+
+    const positiveRadarData: RadarDatum[] = [
+      {
+        subject: '健康',
+        value: clampRadarScore(healthTasks * 12 + restTasks * 4),
+        fullMark: 100,
+      },
+      {
+        subject: '学习力',
+        value: clampRadarScore(studyTasks * 14 + activeGoals * 6),
+        fullMark: 100,
+      },
+      {
+        subject: '赚钱能力',
+        value: clampRadarScore(totalIncomeRecords * 18 + totalIncome / 50),
+        fullMark: 100,
+      },
+      {
+        subject: '执行力',
+        value: clampRadarScore(completedTasks.length * 8 + onTimeCompleted * 6 + avgEfficiency * 0.2),
+        fullMark: 100,
+      },
+      {
+        subject: '专注力',
+        value: clampRadarScore(timedTasks.length * 6 + avgEfficiency * 0.35),
+        fullMark: 100,
+      },
+      {
+        subject: '创造力',
+        value: clampRadarScore(creativeTasks * 18),
+        fullMark: 100,
+      },
+      {
+        subject: '社交力',
+        value: clampRadarScore(lifeTasks * 10 + sideHustles.length * 5),
+        fullMark: 100,
+      },
+      {
+        subject: '情绪管理',
+        value: clampRadarScore(restTasks * 15 + Math.max(0, 100 - reportData.procrastinationCount * 8 - reportData.lowEfficiencyCount * 6) * 0.3),
+        fullMark: 100,
+      },
+    ];
+
+    const negativeRadarData: RadarDatum[] = [
+      {
+        subject: '拖延',
+        value: clampRadarScore(reportData.procrastinationCount * 15),
+        fullMark: 100,
+      },
+      {
+        subject: '焦虑',
+        value: clampRadarScore(reportData.delayedTasks.length * 18 + reportData.monthGap / 20),
+        fullMark: 100,
+      },
+      {
+        subject: '分心',
+        value: clampRadarScore(Math.max(0, timedTasks.length - completedTasks.length) * 10 + reportData.lowEfficiencyCount * 10),
+        fullMark: 100,
+      },
+      {
+        subject: '完美主义',
+        value: clampRadarScore(activeGoals * 8 + Math.max(0, totalGoals - completedGoals) * 6),
+        fullMark: 100,
+      },
+      {
+        subject: '自我怀疑',
+        value: clampRadarScore(Math.max(0, totalGoals - completedGoals) * 10),
+        fullMark: 100,
+      },
+      {
+        subject: '逃避',
+        value: clampRadarScore(reportData.delayedTasks.length * 16 + reportData.procrastinationCount * 6),
+        fullMark: 100,
+      },
+      {
+        subject: '冲动',
+        value: clampRadarScore(reportData.lowEfficiencyCount * 12),
+        fullMark: 100,
+      },
+      {
+        subject: '消极',
+        value: clampRadarScore(Math.max(0, totalSideHustleHours === 0 ? 10 : 0) + Math.max(0, completedTasks.length === 0 ? 20 : 0) + Math.max(0, totalIncome === 0 ? 10 : 0)),
+        fullMark: 100,
+      },
+    ];
+
+    return { positiveRadarData, negativeRadarData };
+  }, [goals, incomeRecords, reportData, sideHustles.length, tasks, timeRecords]);
+
 
   useEffect(() => {
     try {
@@ -194,6 +408,48 @@ export default function PanoramaMemory({ bgColor = '#ffffff' }: PanoramaMemoryPr
 
     setIsHydrated(true);
   }, []);
+
+  const fallbackSummary = useMemo<HQReportSummary>(() => {
+    const focusSourceLabel =
+      reportData.painFocus.source === 'goal'
+        ? '目标组件'
+        : reportData.painFocus.source === 'timeline'
+          ? '时间轴组件'
+          : '目标组件与时间轴组件交叉链路';
+
+    const issueLevel =
+      reportData.delaySeverity === 'heavy'
+        ? '重点整改'
+        : reportData.delaySeverity === 'medium'
+          ? '限期修正'
+          : '轻提醒';
+
+    return {
+      rootCause:
+        reportData.painFocus.source === 'goal'
+          ? `当前主要问题出在${focusSourceLabel}，主线目标没有被持续顶住，导致推进节奏失焦。`
+          : reportData.painFocus.source === 'timeline'
+            ? `当前主要问题出在${focusSourceLabel}，任务执行出现拖延、滞后与低效叠加，节奏已经失控。`
+            : `当前问题不是单点异常，而是${focusSourceLabel}同时失真：目标没盯紧，时间轴也没守住。`,
+      promise:
+        reportData.painFocus.source === 'goal'
+          ? '重新锁定月度主线目标，每天先推进最关键目标，再处理次要事项。'
+          : reportData.painFocus.source === 'timeline'
+            ? '先清掉滞后任务，每天只盯最关键执行项，按时间轴收口，不再拖到下一天。'
+            : '同时收紧目标与时间轴：先定唯一主线，再按时间块执行并当天复盘。',
+      issueLevel,
+      praise:
+        reportData.painPoints.length === 1
+          ? '总部评价：问题集中，说明还有快速收拢的空间。'
+          : '总部评价：问题已经暴露，但至少真实数据足够完整，可以直接定位。',
+      penalty:
+        issueLevel === '重点整改'
+          ? '总部处分：本周必须优先处理主抓矛盾，禁止继续分散精力。'
+          : issueLevel === '限期修正'
+            ? '总部要求：三天内看到改善动作，否则异常等级上调。'
+            : '总部提醒：别因为暂时不严重就放松，继续盯执行稳定性。',
+    };
+  }, [reportData]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -315,7 +571,7 @@ export default function PanoramaMemory({ bgColor = '#ffffff' }: PanoramaMemoryPr
   const currentSummary = reportSummary || fallbackSummary;
   const ringPercent = Math.max(0, Math.min(100, Number(reportData.monthRate.toFixed(0))));
   const reportTitle = `【${reportData.now.getFullYear()}年${reportData.now.getMonth() + 1}月${reportData.now.getDate()}日】AI总部述职报告`;
-
+  
   return (
     <>
       <div
@@ -383,13 +639,13 @@ export default function PanoramaMemory({ bgColor = '#ffffff' }: PanoramaMemoryPr
                   现在会先走本地兜底逻辑；配置后，总部述职会直接接入站内 AI。
                 </div>
               </div>
-              <button
+        <button
                 onClick={() => setShowConfigModal(true)}
                 className="rounded-full px-4 py-2 text-sm font-bold"
                 style={{ backgroundColor: '#23160d', color: '#f7efe1' }}
               >
                 配置 AI Key
-              </button>
+        </button>
             </div>
           )}
 
@@ -467,7 +723,7 @@ export default function PanoramaMemory({ bgColor = '#ffffff' }: PanoramaMemoryPr
                         color: '#23160d',
                       }}
                     />
-                    <button
+        <button
                       onClick={handleSubmit}
                       disabled={!inputValue.trim() || isSubmitting}
                       className="mt-3 w-full rounded-[18px] px-4 py-3 text-sm font-black transition-opacity"
@@ -478,7 +734,7 @@ export default function PanoramaMemory({ bgColor = '#ffffff' }: PanoramaMemoryPr
                       }}
                     >
                       {isSubmitting ? '总部生成中...' : '提交回答'}
-                    </button>
+        </button>
                   </div>
                 )}
               </div>
@@ -551,6 +807,37 @@ export default function PanoramaMemory({ bgColor = '#ffffff' }: PanoramaMemoryPr
                   }}
                 >
                   <div className="mb-3 text-base font-black" style={{ color: '#23160d' }}>
+                    真实数据人格雷达
+                  </div>
+                  <div className="space-y-5">
+                    <RadarPanel
+                      title="正向能力"
+                      subtitle="所有维度默认从 0 起步，随着真实任务、目标、收益与使用行为累积变化"
+                      data={radarMetrics.positiveRadarData}
+                      strokeColor="#9aa57c"
+                      fillColor="rgba(154, 165, 124, 0.26)"
+                      labelColor="#73805b"
+                    />
+                    <RadarPanel
+                      title="待改进行为"
+                      subtitle="数值越低越好，持续使用并改善执行习惯后会逐步下降"
+                      data={radarMetrics.negativeRadarData}
+                      strokeColor="#cf7d69"
+                      fillColor="rgba(207, 125, 105, 0.24)"
+                      labelColor="#c7654e"
+                    />
+                  </div>
+                </div>
+
+                <div
+                  className="rounded-[28px] border p-4 md:p-5"
+                  style={{
+                    background: 'rgba(255,255,255,0.9)',
+                    borderColor: 'rgba(86, 62, 39, 0.12)',
+                    boxShadow: '0 18px 38px rgba(72, 46, 22, 0.08)',
+                  }}
+                >
+                  <div className="mb-3 text-base font-black" style={{ color: '#23160d' }}>
                     述职判断
                   </div>
                   <div className="grid gap-3 text-sm">
@@ -609,7 +896,7 @@ export default function PanoramaMemory({ bgColor = '#ffffff' }: PanoramaMemoryPr
           )}
         </div>
       </div>
-
+      
       <AIConfigModal isOpen={showConfigModal} onClose={() => setShowConfigModal(false)} />
     </>
   );
@@ -628,11 +915,21 @@ async function generateOpeningMessage(
       {
         role: 'system',
         content:
-          '你是AI总部督查官。你现在只负责第一阶段：严肃、干练、无寒暄、无废话。必须先直给数据，再只提一个问题。禁止要求用户自己计算任何数据。',
+          '你是AI总部督查官。你的话必须像真人，不要像汇报机器人。短句，带情绪，带压迫感，但不能辱骂。开场最多 6 行，每行尽量短。先直接给结论，再点出目标问题和时间轴问题，最后只丢一个最痛的问题。禁止编造业务场景、公司经营数据或不存在的指标。',
       },
       {
         role: 'user',
-        content: `请基于以下数据生成总部开场述职文案。要求：\n1. 必须用【AI总部】开头\n2. 直接列数据\n3. 末尾只能提1个问题\n4. 不要输出JSON\n\n${buildPromptData(reportData)}`,
+        content: `请基于以下真实数据生成总部开场述职文案。要求：
+1. 必须用【AI总部】开头
+2. 总长度控制在 4-6 行，别写成大段汇报
+3. 先直接下结论，再各点一句目标组件、时间轴组件
+4. 必须明确指出最痛的 1 个问题
+5. 末尾只能提 1 个问题
+6. 语气要像真人在当场追责，要有情绪和压迫感，但不能辱骂
+7. 不要输出 JSON
+8. 禁止虚构经营数据、行业数据或企业汇报口径
+
+${buildPromptData(reportData)}`,
       },
     ]);
 
@@ -667,20 +964,20 @@ async function generateStageReply({
   try {
     const stageInstruction =
       currentStage === 'stage1'
-        ? '你现在处于第一阶段末尾，准备进入第二阶段深挖。语气要严肃干练。根据用户刚才回答，只生成下一句追问。只能提一个问题。'
+        ? '你现在处于第一阶段末尾，准备进入第二阶段深挖。你说话必须像真人当面追责，短句，别讲套话。你必须沿着总部已经锁定的主抓矛盾继续追问，不能换题。只生成一句追问，控制在 1-3 句内。只能提一个问题。'
         : currentStage === 'stage2'
-          ? '你现在处于第二阶段末尾，准备进入第三阶段整改确认。语气要犀利毒舌但不做人身攻击。根据用户回答态度继续追问或推进。只能提一个问题。'
-          : '你现在处于第三阶段。请基于前文要求用户做最后的整改确认，并告知将生成述职报告。只能输出一段短回应。';
+          ? '你现在处于第二阶段末尾，准备进入第三阶段整改确认。语气要更压迫、更像真人，不要像模板。你必须继续围绕总部锁定的主抓矛盾推进，不准跳到别的话题。只生成一句追问，控制在 1-3 句内。只能提一个问题。'
+          : '你现在处于第三阶段。请基于前文锁定的主抓矛盾，要求用户做最后的整改确认，并告知将生成述职报告。只输出一段短回应，控制在 2 句内。';
 
     const response = await chat([
       {
         role: 'system',
         content:
-          '你是真人式AI总部督查官。必须严格一问一答。禁止一次提多个问题。禁止要求用户计算数据。你可以毒舌，但只针对行为和习惯，不做人身攻击。',
+          '你是真人式AI总部督查官。必须严格一问一答。禁止一次提多个问题。禁止要求用户计算数据。你可以强硬、失望、压迫，像真人在当场追责，但不能辱骂或做人身攻击。少说废话，少讲总结，优先用短句直接戳痛点。你必须围绕用户真实的目标推进情况、时间轴任务执行情况、拖延/滞后/低效记录来追问，并且必须沿着当前锁定的主抓矛盾连续深挖，禁止跳到不存在的公司经营汇报场景。',
       },
       {
         role: 'user',
-        content: `${stageInstruction}\n\n当前数据：\n${buildPromptData(reportData)}\n\n历史回答：\n${answers.map((item, index) => `${index + 1}. ${item}`).join('\n')}\n\n用户刚刚的新回答：${answer}`,
+        content: `${stageInstruction}\n\n以下是总部从目标组件与时间轴组件提取的真实数据，请严格围绕这些事实追问：\n${buildPromptData(reportData)}\n\n历史回答：\n${answers.map((item, index) => `${index + 1}. ${item}`).join('\n')}\n\n用户刚刚的新回答：${answer}`,
       },
     ]);
 
@@ -708,11 +1005,11 @@ async function generateReportSummary(
       {
         role: 'system',
         content:
-          '你是AI总部督查官。请基于数据和用户回答，生成结构化述职报告摘要。必须输出JSON，字段为 rootCause、promise、issueLevel、praise、penalty。不要输出代码块。',
+          '你是AI总部督查官。请基于目标组件和时间轴组件的真实数据，以及用户述职回答，生成结构化述职报告摘要。必须输出JSON，字段为 rootCause、promise、issueLevel、praise、penalty。禁止编造不存在的业务经营数据。不要输出代码块。',
       },
       {
         role: 'user',
-        content: `请根据以下数据与述职对话生成报告摘要：\n\n数据：\n${buildPromptData(reportData)}\n\n回答：\n${userAnswers.map((item, index) => `${index + 1}. ${item}`).join('\n')}`,
+        content: `请根据以下目标组件与时间轴组件的真实数据，以及述职对话生成报告摘要：\n\n数据：\n${buildPromptData(reportData)}\n\n回答：\n${userAnswers.map((item, index) => `${index + 1}. ${item}`).join('\n')}`,
       },
     ]);
 
@@ -738,38 +1035,124 @@ async function generateReportSummary(
 
 function getFallbackReply(currentStage: SessionStage, answer: string, reportData: any) {
   const tone = analyzeTone(answer);
+  const focusLabel = reportData.painFocus?.label || '执行异常';
 
   if (currentStage === 'stage1') {
     if (tone === 'excuse') {
-      return '【AI总部】别拿环境当挡箭牌。忙、忘、外界干扰，这些都解释不了你为什么允许执行滑坡。重新说：你主观上到底放纵了什么行为漏洞？';
+      return `【AI总部】别躲。问题已经摆在这了：${focusLabel}。你还在拿环境说事。真正失控的那一下，到底是你哪根弦先松了？`;
     }
     if (tone === 'passive') {
-      return '【AI总部】“不知道”这种回答没有任何价值。你不是没问题，是不肯承认。直接说：是逃避、贪舒服、怕难，还是根本不想扛责任？';
+      return `【AI总部】“不知道”最没用。数据都已经砸你脸上了，你还装糊涂？直接说，你是在逃、在懒，还是根本没把这件事当回事？`;
     }
-    if (reportData.delaySeverity === 'heavy') {
-      return `【AI总部】记录在案。现在进入深挖：你已经出现 ${reportData.procrastinationCount} 次拖延和 ${reportData.delayedTasks.length} 项滞后，这不是偶发，是习惯性失控。根因到底是什么？`;
+    if (reportData.painFocus?.source === 'goal') {
+      return `【AI总部】主线目标都顶不住，你后面再忙都是假忙。${reportData.painFocus.detail} 你到底为什么一直不肯把最重要的事往前推？`;
     }
-    return '【AI总部】收到。别再复述表面现象。下一问：你为什么会连续允许这种异常出现？只说主观根因，不准甩锅。';
+    if (reportData.painFocus?.source === 'timeline') {
+      return `【AI总部】885 次这种级别，已经不是失误，是习惯烂了。${reportData.painFocus.detail} 你到底为什么会把执行放任成这样？`;
+    }
+    return `【AI总部】目标和时间轴一起失真，这不是一句“状态不好”能带过去的。你就正面回答：你到底为什么会把自己过成这样？`;
   }
 
   if (currentStage === 'stage2') {
     if (tone === 'excuse') {
-      return '【AI总部】你又在往外推责任。总部只认你能控制的部分。最后追问一次：你最核心的习惯性漏洞是什么？说人话，说主观原因。';
+      return `【AI总部】还在甩锅？没意义。总部盯的是“${focusLabel}”，不是你的理由。最后问一遍：你最核心的坏习惯，到底是什么？`;
     }
     if (tone === 'passive') {
-      return '【AI总部】继续摆烂，只会让下周的数据更难看。现在立刻给整改动作：你接下来七天准备怎么改，具体到每天怎么做。';
+      return `【AI总部】再敷衍，这轮问答就白做了。现在别讲感受，直接讲动作：接下来七天，你准备怎么把“${focusLabel}”压下去？`;
     }
     if (tone === 'honest') {
-      return '【AI总部】这次算你开始面对问题了。进入整改确认：接下来七天，你准备用什么硬动作堵住这个漏洞？只能说可执行动作，不要喊口号。';
+      return `【AI总部】这次总算说到点上了。那就别停在认错。接下来七天，你准备用什么硬动作，把这个漏洞堵死？`;
     }
-    return '【AI总部】根因基本清楚。进入整改确认：接下来七天，你用什么具体动作把问题压住？只要动作，不要空话。';
+    return `【AI总部】问题已经很清楚了，就是“${focusLabel}”。别再绕。你接下来七天，准备怎么改？`;
   }
 
-  return '【AI总部】承诺已记录。述职结束，正在生成你的总部述职报告。';
+  return '【AI总部】行，话记下了。总部开始出报告。';
 }
 
 function buildPromptData(reportData: any) {
-  return reportData;
+  return [
+    `日期: ${reportData.now.toISOString()}`,
+    `年度主线目标: ${reportData.yearGoalName}`,
+    `年度进度: ${reportData.yearlyCurrentValue}/${reportData.yearlyGoalValue}`,
+    `月度进度: ${reportData.monthCurrentValue}/${reportData.monthGoalValue}`,
+    `月度完成率: ${reportData.monthRate.toFixed(2)}%`,
+    `月度缺口: ${reportData.monthGap}`,
+    `目标总数: ${reportData.goalSummary.total}`,
+    `活跃目标数: ${reportData.goalSummary.active}`,
+    `已完成目标数: ${reportData.goalSummary.completed}`,
+    `推进偏弱目标: ${reportData.goalSummary.weakGoalNames.join('、') || '无'}`,
+    `目标组件痛点评分: ${reportData.painFocus?.source === 'goal' || reportData.painFocus?.source === 'mixed' ? reportData.painFocus.label : '次要矛盾'}`,
+    `时间轴总任务数: ${reportData.timelineSummary.totalTasks}`,
+    `已完成任务数: ${reportData.timelineSummary.completedTasks}`,
+    `本周完成: ${reportData.completedWeek}/${reportData.weekTaskCount}`,
+    `今日完成: ${reportData.completedToday}/${reportData.todayTaskCount}`,
+    `拖延/超时总次数: ${reportData.procrastinationCount}`,
+    `低效率任务数: ${reportData.lowEfficiencyCount}`,
+    `滞后任务: ${reportData.timelineSummary.delayedTaskNames.join('、') || '无'}`,
+    `超时任务: ${reportData.timelineSummary.timeoutTaskNames.join('、') || '无'}`,
+    `低效率任务: ${reportData.timelineSummary.lowEfficiencyTaskNames.join('、') || '无'}`,
+    `最近完成任务: ${reportData.timelineSummary.recentCompletedTaskNames.join('、') || '无'}`,
+    `接下来任务: ${reportData.timelineSummary.upcomingTaskNames.join('、') || '无'}`,
+    `总部判定痛点: ${reportData.painPoints.join('；')}`,
+    `当前主抓矛盾来源: ${reportData.painFocus.source}`,
+    `当前主抓矛盾标签: ${reportData.painFocus.label}`,
+    `当前主抓矛盾说明: ${reportData.painFocus.detail}`,
+    `当前主抓问题: ${reportData.painFocus.question}`,
+  ].join('\n');
+}
+
+function RadarPanel({
+  title,
+  subtitle,
+  data,
+  strokeColor,
+  fillColor,
+  labelColor,
+}: {
+  title: string;
+  subtitle: string;
+  data: RadarDatum[];
+  strokeColor: string;
+  fillColor: string;
+  labelColor: string;
+}) {
+  return (
+    <div className="rounded-[24px] px-3 py-4" style={{ backgroundColor: '#f7f2e8' }}>
+      <div className="mb-1 text-sm font-black" style={{ color: '#23160d' }}>
+        {title}
+      </div>
+      <div className="mb-3 text-xs leading-5" style={{ color: '#7a6654' }}>
+        {subtitle}
+      </div>
+      <div className="h-[290px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <RadarChart data={data} outerRadius="67%">
+            <PolarGrid stroke="rgba(112, 90, 64, 0.16)" />
+            <PolarAngleAxis
+              dataKey="subject"
+              tick={{ fill: '#5d4734', fontSize: 12, fontWeight: 700 }}
+            />
+            <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
+            <Radar
+              dataKey="value"
+              stroke={strokeColor}
+              fill={fillColor}
+              fillOpacity={1}
+              strokeWidth={2}
+            />
+          </RadarChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+        {data.map((item) => (
+          <div key={item.subject} className="flex items-center justify-between rounded-2xl px-3 py-2" style={{ backgroundColor: '#fcfaf6' }}>
+            <span style={{ color: '#7a6654' }}>{item.subject}</span>
+            <span className="font-black" style={{ color: labelColor }}>{item.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function MetricCard({ label, value, warning = false }: { label: string; value: string; warning?: boolean }) {
@@ -817,6 +1200,11 @@ function JudgeLine({ label, value }: { label: string; value: string }) {
       <span className="font-black" style={{ color: '#23160d' }}>{value}</span>
     </div>
   );
+}
+
+function clampRadarScore(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return Math.max(0, Math.min(100, Math.round(value)));
 }
 
 function analyzeTone(answer: string): AnswerTone {

@@ -164,7 +164,12 @@ export default function NewTimelineView({
   const [taskFinishTimeouts, setTaskFinishTimeouts] = useState<Record<string, boolean>>({}); // 完成验证超时标记
   const [taskActualStartTimes, setTaskActualStartTimes] = useState<Record<string, Date>>({}); // 任务实际启动时间
   const [goalContributionTaskId, setGoalContributionTaskId] = useState<string | null>(null);
-  const [goalContributionDrafts, setGoalContributionDrafts] = useState<Record<string, { goalId: string; note: string; values: Record<string, string> }>>({});
+  const [goalContributionDrafts, setGoalContributionDrafts] = useState<Record<string, {
+    goalId: string;
+    note: string;
+    durationMinutes: string;
+    values: Record<string, string>;
+  }>>({});
   const [goalContributionError, setGoalContributionError] = useState<string | null>(null);
   const [goalContributionSuccess, setGoalContributionSuccess] = useState<string | null>(null);
   const [goalContributionSaving, setGoalContributionSaving] = useState(false);
@@ -1665,6 +1670,7 @@ export default function NewTimelineView({
     return {
       goalId: primaryGoal?.id || '',
       note: existingRecord?.note || '',
+      durationMinutes: String(existingRecord?.durationMinutes ?? task.durationMinutes ?? 0),
       values: (primaryGoal?.dimensions || []).reduce<Record<string, string>>((acc, dimension) => {
         const existingValue = existingRecord?.dimensionResults.find((item) => item.dimensionId === dimension.id)?.value;
         acc[dimension.id] = existingValue !== undefined ? String(existingValue) : '';
@@ -1682,19 +1688,25 @@ export default function NewTimelineView({
 
     setGoalContributionDrafts((prev) => ({
       ...prev,
-      [taskId]: prev[taskId] || draft,
+      [taskId]: prev[taskId]
+        ? {
+            ...prev[taskId],
+            durationMinutes: prev[taskId].durationMinutes || String(task.durationMinutes || 0),
+          }
+        : draft,
     }));
     setGoalContributionTaskId(taskId);
     setGoalContributionError(null);
     setGoalContributionSuccess(null);
   };
 
-  const handleGoalContributionDraftChange = (taskId: string, updates: Partial<{ goalId: string; note: string; values: Record<string, string> }>) => {
+  const handleGoalContributionDraftChange = (taskId: string, updates: Partial<{ goalId: string; note: string; durationMinutes: string; values: Record<string, string> }>) => {
     setGoalContributionDrafts((prev) => ({
       ...prev,
       [taskId]: {
         goalId: updates.goalId ?? prev[taskId]?.goalId ?? '',
         note: updates.note ?? prev[taskId]?.note ?? '',
+        durationMinutes: updates.durationMinutes ?? prev[taskId]?.durationMinutes ?? '0',
         values: updates.values ?? prev[taskId]?.values ?? {},
       },
     }));
@@ -1711,6 +1723,8 @@ export default function NewTimelineView({
       setGoalContributionError('请选择一个目标后再保存关键结果。');
       return;
     }
+
+    const effectiveDuration = Math.max(0, Number(draft.durationMinutes || 0));
 
     const dimensionResults = goal.dimensions
       .map((dimension) => ({
@@ -1734,7 +1748,7 @@ export default function NewTimelineView({
     if (existingRecord) {
       useGoalContributionStore.getState().updateRecord(existingRecord.id, {
         note: draft.note,
-        durationMinutes: task.durationMinutes || 0,
+        durationMinutes: effectiveDuration,
         startTime: task.scheduledStart ? new Date(task.scheduledStart) : undefined,
         endTime: task.scheduledEnd ? new Date(task.scheduledEnd) : undefined,
         dimensionResults,
@@ -1746,7 +1760,7 @@ export default function NewTimelineView({
         taskTitle: task.title,
         startTime: task.scheduledStart ? new Date(task.scheduledStart) : undefined,
         endTime: task.scheduledEnd ? new Date(task.scheduledEnd) : undefined,
-        durationMinutes: task.durationMinutes || 0,
+        durationMinutes: effectiveDuration,
         note: draft.note,
         source: 'timeline',
         dimensionResults,
@@ -1759,7 +1773,7 @@ export default function NewTimelineView({
       category: goal.name,
       location: task.location || '时间轴',
       estimatedDuration: task.durationMinutes || 0,
-      actualDuration: task.durationMinutes || 0,
+      actualDuration: effectiveDuration,
       tags: Array.from(new Set([...(task.tags || []), goal.name])),
     });
 
@@ -1942,8 +1956,14 @@ export default function NewTimelineView({
         const currentGoal = goals.find((item) => item.id === draft.goalId) || matchedGoals[0];
 
         return (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 px-3 py-6 backdrop-blur-sm">
-            <div className="w-full max-w-md rounded-[28px] bg-white p-4 shadow-[0_30px_80px_rgba(15,23,42,0.22)]">
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 px-3 pt-6 backdrop-blur-sm">
+            <div
+              className="w-full max-w-md overflow-y-auto rounded-t-[28px] bg-white p-4 shadow-[0_30px_80px_rgba(15,23,42,0.22)]"
+              style={{
+                maxHeight: 'calc(100vh - 24px)',
+                paddingBottom: 'calc(148px + env(safe-area-inset-bottom))',
+              }}
+            >
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-sm text-[#6b7280]">时间轴任务关键结果</div>
@@ -1962,12 +1982,87 @@ export default function NewTimelineView({
               </div>
 
               <div className="mt-4 space-y-3">
+                <div className="rounded-[22px] bg-[#f7f8fb] p-3">
+                  <div className="mb-2 text-sm font-medium text-[#111827]">有效时间</div>
+                  <div className="rounded-[20px] bg-white px-4 py-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-xs font-medium uppercase tracking-[0.18em] text-[#9ca3af]">当前换算</div>
+                        <div className="mt-2 text-[18px] font-medium text-[#6b7280]">
+                          {(Number(draft.durationMinutes || currentTask.durationMinutes || 0) / 60).toFixed(1)} 小时
+                        </div>
+                      </div>
+                      <div className="rounded-full bg-[#edf5ff] px-3 py-1 text-[24px] font-semibold tracking-[-0.04em] text-[#0A84FF]">
+                        {Math.round((Number(draft.durationMinutes || currentTask.durationMinutes || 0) / Math.max(currentTask.durationMinutes || 1, 1)) * 100)}%
+                      </div>
+                    </div>
+
+                    <div className="relative mt-5 px-1">
+                      <div className="pointer-events-none absolute left-0 right-0 top-1/2 h-2 -translate-y-1/2 rounded-full bg-[#dbeafe]" />
+                      <div
+                        className="pointer-events-none absolute top-1/2 h-2 -translate-y-1/2 rounded-full bg-[#0A84FF] shadow-[0_0_18px_rgba(10,132,255,0.35)]"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            (Number(draft.durationMinutes || currentTask.durationMinutes || 0) /
+                              Math.max(Math.max((currentTask.durationMinutes || 60) * 2, 240), 1)) *
+                              100
+                          )}%`,
+                        }}
+                      />
+                      <div
+                        className="pointer-events-none absolute top-1/2 z-[1] h-4 w-[2px] -translate-y-1/2 rounded-full bg-[#111827]/30"
+                        style={{
+                          left: `${Math.min(
+                            100,
+                            ((currentTask.durationMinutes || 0) /
+                              Math.max(Math.max((currentTask.durationMinutes || 60) * 2, 240), 1)) *
+                              100
+                          )}%`,
+                        }}
+                      />
+                      <input
+                        type="range"
+                        min={0}
+                        max={Math.max((currentTask.durationMinutes || 60) * 2, 240)}
+                        step={5}
+                        value={Number(draft.durationMinutes || currentTask.durationMinutes || 0)}
+                        onChange={(e) => handleGoalContributionDraftChange(goalContributionTaskId, { durationMinutes: e.target.value })}
+                        className="relative z-[2] h-8 w-full cursor-pointer appearance-none bg-transparent accent-[#0A84FF]"
+                      />
+                    </div>
+
+                    <div className="mt-2 flex items-center justify-between text-xs text-[#9ca3af]">
+                      <span>0 分钟</span>
+                      <span>原任务 {currentTask.durationMinutes || 0} 分钟</span>
+                      <span>{Math.max((currentTask.durationMinutes || 60) * 2, 240)} 分钟</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-[20px] border border-[#d9ecff] bg-white px-4 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm text-[#6b7280]">有效时间</div>
+                        <div className="mt-2 text-[42px] font-semibold tracking-[-0.06em] text-[#111827]">
+                          {Number(draft.durationMinutes || currentTask.durationMinutes || 0)}
+                        </div>
+                        <div className="text-base text-[#6b7280]">分钟</div>
+                      </div>
+                      <div className="rounded-[18px] bg-[#f5f9ff] px-3 py-2 text-right">
+                        <div className="text-xs uppercase tracking-[0.16em] text-[#9ca3af]">默认值</div>
+                        <div className="mt-1 text-sm font-semibold text-[#111827]">{currentTask.durationMinutes || 0} 分钟</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#9ca3af]">关联目标</div>
                   <select
                     value={draft.goalId}
                     onChange={(e) => handleGoalContributionDraftChange(goalContributionTaskId, {
                       goalId: e.target.value,
+                      durationMinutes: draft.durationMinutes,
                       values: (goals.find((goal) => goal.id === e.target.value)?.dimensions || []).reduce<Record<string, string>>((acc, dimension) => {
                         acc[dimension.id] = '';
                         return acc;
@@ -2034,22 +2129,28 @@ export default function NewTimelineView({
                     {goalContributionError || goalContributionSuccess}
                   </div>
                 )}
+              </div>
 
-                <div className="flex gap-3 pt-1">
-                  <button
-                    onClick={() => setGoalContributionTaskId(null)}
-                    className="flex-1 rounded-full bg-[#eef0f6] px-4 py-3 text-sm font-medium text-[#111827]"
-                  >
-                    取消
-                  </button>
-                  <button
-                    onClick={handleSaveGoalContribution}
-                    disabled={goalContributionSaving}
-                    className="flex-1 rounded-full bg-[#0A84FF] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
-                  >
-                    {goalContributionSaving ? '保存中...' : '写入分析'}
-                  </button>
-                </div>
+              <div
+                className="fixed left-1/2 z-[60] flex w-[calc(100%-24px)] max-w-md -translate-x-1/2 gap-3 rounded-t-[24px] bg-white/96 px-4 pt-3 shadow-[0_-12px_30px_rgba(15,23,42,0.08)] backdrop-blur"
+                style={{
+                  bottom: 'calc(88px + env(safe-area-inset-bottom))',
+                  paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
+                }}
+              >
+                <button
+                  onClick={() => setGoalContributionTaskId(null)}
+                  className="flex-1 rounded-full bg-[#eef0f6] px-4 py-3 text-sm font-medium text-[#111827]"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleSaveGoalContribution}
+                  disabled={goalContributionSaving}
+                  className="flex-1 rounded-full bg-[#0A84FF] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                >
+                  {goalContributionSaving ? '保存中...' : '写入分析'}
+                </button>
               </div>
             </div>
           </div>
@@ -3825,26 +3926,44 @@ export default function NewTimelineView({
             setEfficiencyModalTask(null);
           }}
           onConfirm={(efficiency, notes) => {
-            // 更新任务效率
             updateTaskEfficiency(
               efficiencyModalTask.id,
               efficiency,
               efficiencyModalTask.actualImageCount
             );
-            
-            // 完成任务
+
+            const task = allTasks.find((item) => item.id === efficiencyModalTask.id);
+            const actualDuration = task?.scheduledStart
+              ? Math.max(0, Math.floor((efficiencyModalTask.actualEndTime.getTime() - new Date(task.scheduledStart).getTime()) / 60000))
+              : (task?.durationMinutes || 0);
+
             onTaskUpdate(efficiencyModalTask.id, {
               scheduledEnd: efficiencyModalTask.actualEndTime.toISOString(),
+              endTime: efficiencyModalTask.actualEndTime.toISOString(),
               isCompleted: true,
               status: 'completed',
               completionEfficiency: efficiency,
               efficiencyLevel: efficiency >= 80 ? 'excellent' : efficiency >= 60 ? 'good' : efficiency >= 40 ? 'average' : 'poor',
-              completionNotes: notes, // 保存完成笔记
-              // 保存超时状态，以便任务完成后仍能显示
+              completionNotes: notes,
+              actualDuration,
               startVerificationTimeout: taskStartTimeouts[efficiencyModalTask.id],
               completionTimeout: taskFinishTimeouts[efficiencyModalTask.id],
             });
-            
+
+            if (task) {
+              const matchedGoals = getMatchedGoalsForTask(task);
+              const baseDraft = createContributionDraft(task, matchedGoals);
+              setGoalContributionDrafts((prev) => ({
+                ...prev,
+                [task.id]: {
+                  ...(prev[task.id] || baseDraft),
+                  durationMinutes: prev[task.id]?.durationMinutes || String(actualDuration),
+                  note: prev[task.id]?.note || notes || baseDraft.note,
+                },
+              }));
+              setGoalContributionTaskId(task.id);
+            }
+
             setEfficiencyModalOpen(false);
             setEfficiencyModalTask(null);
           }}
@@ -3853,7 +3972,7 @@ export default function NewTimelineView({
           actualImageCount={efficiencyModalTask.actualImageCount}
           isDark={isDark}
           accentColor={accentColor}
-          goldReward={efficiencyModalTask.goldReward || 0} // 🔧 新增：传递金币奖励数量
+          goldReward={efficiencyModalTask.goldReward || 0}
         />
       )}
       

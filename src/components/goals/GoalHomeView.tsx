@@ -247,6 +247,16 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
         ],
       },
       {
+        taskTitle: '梳理拍摄脚本并安排模特试穿',
+        durationMinutes: 95,
+        note: '提前确定脚本结构，减少正式拍摄返工。',
+        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5),
+        dimensionResults: [
+          { dimensionId: 'preview-posts', dimensionName: '内容发布', unit: '条', value: 1 },
+          { dimensionId: 'preview-leads', dimensionName: '私信线索', unit: '个', value: 4 },
+        ],
+      },
+      {
         taskTitle: '直播复盘并优化私信成交话术',
         durationMinutes: 110,
         note: '优化开场钩子和成交问答，转化效率明显提升。',
@@ -254,6 +264,16 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
         dimensionResults: [
           { dimensionId: 'preview-leads', dimensionName: '私信线索', unit: '个', value: 8 },
           { dimensionId: 'preview-conversion', dimensionName: '成交转化', unit: '单', value: 2 },
+        ],
+      },
+      {
+        taskTitle: '剪出两条短视频并测试新标题模板',
+        durationMinutes: 130,
+        note: '同一主题测试不同封面和标题，观察点击率。',
+        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3),
+        dimensionResults: [
+          { dimensionId: 'preview-posts', dimensionName: '内容发布', unit: '条', value: 2 },
+          { dimensionId: 'preview-leads', dimensionName: '私信线索', unit: '个', value: 5 },
         ],
       },
       {

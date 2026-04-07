@@ -31,6 +31,7 @@ function formatHours(minutes: number) {
 
 interface ContributionEditorDraft {
   durationMinutes: number;
+  note: string;
   values: Record<string, number>;
 }
 
@@ -44,19 +45,19 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
   const [editorDraft, setEditorDraft] = useState<ContributionEditorDraft | null>(null);
 
   const progress = useMemo(() => {
-    if (goal.dimensions.length > 0) {
+    if (liveGoal.dimensions.length > 0) {
       return Math.round(
-        goal.dimensions.reduce((sum, item) => {
+        liveGoal.dimensions.reduce((sum, item) => {
           if (!item.targetValue) return sum;
           return sum + Math.min(1, item.currentValue / item.targetValue) * item.weight;
         }, 0)
       );
     }
-    if (!goal.targetValue) return 0;
-    return Math.round((goal.currentValue / goal.targetValue) * 100);
-  }, [goal]);
+    if (!liveGoal.targetValue) return 0;
+    return Math.round((liveGoal.currentValue / liveGoal.targetValue) * 100);
+  }, [liveGoal]);
 
-  const idealProgress = useMemo(() => getIdealProgress(goal), [goal]);
+  const idealProgress = useMemo(() => getIdealProgress(liveGoal), [liveGoal]);
 
   const totalMinutes = useMemo(
     () => contributionRecords.reduce((sum, item) => sum + item.durationMinutes, 0),
@@ -64,11 +65,11 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
   );
 
   const matchedHistory = useMemo(() => {
-    const keywords = [goal.name, ...goal.projectBindings.map((item) => item.name)].filter(Boolean);
+    const keywords = [liveGoal.name, ...liveGoal.projectBindings.map((item) => item.name)].filter(Boolean);
     return taskHistoryRecords.filter((record) =>
       keywords.some((keyword) => record.taskTitle.includes(keyword) || record.tags.some((tag) => tag.includes(keyword)))
     );
-  }, [goal, taskHistoryRecords]);
+  }, [liveGoal, taskHistoryRecords]);
 
   const totalContributionValue = useMemo(
     () => contributionRecords.reduce((sum, record) => sum + record.dimensionResults.reduce((acc, item) => acc + item.value, 0), 0),
@@ -79,6 +80,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
     setSelectedRecord(record);
     setEditorDraft({
       durationMinutes: record.durationMinutes,
+      note: record.note || '',
       values: liveGoal.dimensions.reduce<Record<string, number>>((acc, dimension) => {
         const matched = record.dimensionResults.find((item) => item.dimensionId === dimension.id);
         acc[dimension.id] = matched?.value || 0;
@@ -95,7 +97,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
   const saveRecordEditor = () => {
     if (!selectedRecord || !editorDraft) return;
 
-    const nextDimensionResults = goal.dimensions.map((dimension) => ({
+    const nextDimensionResults = liveGoal.dimensions.map((dimension) => ({
       dimensionId: dimension.id,
       dimensionName: dimension.name,
       unit: dimension.unit,
@@ -104,6 +106,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
 
     updateContributionRecord(selectedRecord.id, {
       durationMinutes: Math.max(0, Number(editorDraft.durationMinutes || 0)),
+      note: editorDraft.note,
       dimensionResults: nextDimensionResults,
     });
 
@@ -112,12 +115,13 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
         ? {
             ...record,
             durationMinutes: Math.max(0, Number(editorDraft.durationMinutes || 0)),
+            note: editorDraft.note,
             dimensionResults: nextDimensionResults,
           }
         : record
     );
 
-    const nextDimensions = goal.dimensions.map((dimension) => ({
+    const nextDimensions = liveGoal.dimensions.map((dimension) => ({
       ...dimension,
       currentValue: recordsAfterUpdate.reduce((sum, record) => {
         const matched = record.dimensionResults.find((item) => item.dimensionId === dimension.id);
@@ -190,7 +194,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
         idealCumulative: filledEntries.length > 1 ? Number((((index + 1) / filledEntries.length) * finalCumulative).toFixed(2)) : finalCumulative,
       };
     });
-  }, [contributionRecords, matchedHistory, goal.estimatedTotalHours]);
+  }, [contributionRecords, matchedHistory, liveGoal.estimatedTotalHours]);
 
   const maxActual = Math.max(...chartPoints.map((item) => item.actual), 1);
   const maxDuration = Math.max(...chartPoints.map((item) => item.duration), 1);
@@ -236,6 +240,192 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
     },
   ];
 
+  if (selectedRecord && editorDraft) {
+    const originalDuration = Math.max(selectedRecord.durationMinutes || 0, 1);
+    const durationMax = Math.max(originalDuration * 2, 240);
+    const durationPercent = Math.round((editorDraft.durationMinutes / originalDuration) * 100);
+    const sliderFillPercent = Math.min(100, (editorDraft.durationMinutes / Math.max(durationMax, 1)) * 100);
+    const originalMarkerPercent = Math.min(100, (originalDuration / Math.max(durationMax, 1)) * 100);
+
+    return (
+      <div className="min-h-full bg-[#efeff4] px-4 pb-10 pt-5">
+        <div className="mx-auto max-w-xl space-y-4 pb-[148px]">
+          <div className="rounded-[32px] bg-white px-5 py-5 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
+            <div className="flex items-center justify-between">
+              <button onClick={closeRecordEditor} className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f4f6] text-[#111827]">
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <div className="text-lg font-semibold text-[#111827]">关键结果编辑</div>
+              <div className="h-10 w-10 rounded-full" />
+            </div>
+
+            <div className="mt-5 rounded-[24px] bg-[linear-gradient(180deg,rgba(244,249,255,0.98),rgba(247,248,252,0.95))] px-4 py-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-16 w-16 items-center justify-center rounded-[20px] bg-[radial-gradient(circle_at_30%_20%,#d7ebff,#9fd0ff_58%,#5aa9ff)] text-3xl shadow-[0_10px_24px_rgba(10,132,255,0.18)]">
+                  ⏱️
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7aa7d9]">历史记录编辑态</div>
+                      <div className="mt-1 text-[22px] font-semibold tracking-[-0.04em] text-[#111827]">{selectedRecord.taskTitle}</div>
+                    </div>
+                    <div className="rounded-full bg-[#edf5ff] px-3 py-1 text-[22px] font-semibold tracking-[-0.04em] text-[#0A84FF]">
+                      {durationPercent}%
+                    </div>
+                  </div>
+                  <div className="mt-2 text-sm text-[#6b7280]">在这里直接调整有效时间和本次实际关键结果，风格与时间轴弹窗保持一致。</div>
+                  <div className="mt-3 inline-flex rounded-full border border-[#d9ecff] bg-white px-3 py-1 text-xs font-semibold text-[#111827] shadow-sm">
+                    {liveGoal.projectBindings[0]?.name || '目标关联任务'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-[22px] bg-[#f7f8fb] p-3">
+              <div className="mb-2 text-sm font-medium text-[#111827]">有效时间</div>
+              <div className="rounded-[20px] bg-white px-4 py-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-medium uppercase tracking-[0.18em] text-[#9ca3af]">当前换算</div>
+                    <div className="mt-2 text-[18px] font-medium text-[#6b7280]">{formatHours(editorDraft.durationMinutes)}</div>
+                  </div>
+                  <div className="rounded-full bg-[#edf5ff] px-3 py-1 text-[24px] font-semibold tracking-[-0.04em] text-[#0A84FF]">
+                    {durationPercent}%
+                  </div>
+                </div>
+
+                <div className="relative mt-5 px-1">
+                  <div className="pointer-events-none absolute left-0 right-0 top-1/2 h-2 -translate-y-1/2 rounded-full bg-[#dbeafe]" />
+                  <div
+                    className="pointer-events-none absolute top-1/2 h-2 -translate-y-1/2 rounded-full bg-[#0A84FF] shadow-[0_0_18px_rgba(10,132,255,0.35)]"
+                    style={{ width: `${sliderFillPercent}%` }}
+                  />
+                  <div
+                    className="pointer-events-none absolute top-1/2 z-[1] h-4 w-[2px] -translate-y-1/2 rounded-full bg-[#111827]/30"
+                    style={{ left: `${originalMarkerPercent}%` }}
+                  />
+                  <input
+                    type="range"
+                    min={0}
+                    max={durationMax}
+                    step={5}
+                    value={editorDraft.durationMinutes}
+                    onChange={(event) => setEditorDraft((draft) => draft ? { ...draft, durationMinutes: Number(event.target.value) } : draft)}
+                    className="relative z-[2] h-8 w-full cursor-pointer appearance-none bg-transparent accent-[#0A84FF]"
+                  />
+                </div>
+
+                <div className="mt-2 flex items-center justify-between text-xs text-[#9ca3af]">
+                  <span>0 分钟</span>
+                  <span>原记录 {selectedRecord.durationMinutes} 分钟</span>
+                  <span>{durationMax} 分钟</span>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-[20px] border border-[#d9ecff] bg-white px-4 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm text-[#6b7280]">有效时间</div>
+                    <input
+                      type="number"
+                      min={0}
+                      value={editorDraft.durationMinutes}
+                      onChange={(event) => setEditorDraft((draft) => draft ? { ...draft, durationMinutes: Number(event.target.value) } : draft)}
+                      className="mt-2 w-full border-none bg-transparent p-0 text-[42px] font-semibold tracking-[-0.06em] text-[#111827] outline-none"
+                    />
+                    <div className="text-base text-[#6b7280]">分钟</div>
+                  </div>
+                  <div className="rounded-[18px] bg-[#f5f9ff] px-3 py-2 text-right">
+                    <div className="text-xs uppercase tracking-[0.16em] text-[#9ca3af]">默认值</div>
+                    <div className="mt-1 text-sm font-semibold text-[#111827]">{selectedRecord.durationMinutes} 分钟</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-[22px] bg-[#f7f8fb] p-3">
+              <div className="mb-3 text-sm font-medium text-[#111827]">填写本次产出</div>
+              <div className="space-y-3">
+                {liveGoal.dimensions.map((dimension, index) => (
+                  <div key={dimension.id} className="flex items-center gap-3 rounded-[18px] bg-white px-3 py-3 shadow-sm">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium text-[#111827]">{dimension.name}</div>
+                      <div className="mt-1 text-xs text-[#9ca3af]">目标 {dimension.targetValue}{dimension.unit} · 当前累计 {dimension.currentValue}{dimension.unit}</div>
+                    </div>
+                    <div className="flex w-[128px] items-center rounded-[16px] bg-[#f8fafc] px-3 py-2">
+                      <input
+                        type="number"
+                        min={0}
+                        value={editorDraft.values[dimension.id] || 0}
+                        onChange={(event) => setEditorDraft((draft) => draft ? {
+                          ...draft,
+                          values: {
+                            ...draft.values,
+                            [dimension.id]: Number(event.target.value),
+                          },
+                        } : draft)}
+                        className="w-full bg-transparent text-right text-sm font-semibold text-[#111827] outline-none"
+                      />
+                      <span className="ml-2 text-xs text-[#6b7280]">{dimension.unit}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setEditorDraft((draft) => draft ? {
+                          ...draft,
+                          values: {
+                            ...draft.values,
+                            [dimension.id]: Math.max(0, (draft.values[dimension.id] || 0) - 1),
+                          },
+                        } : draft)}
+                        className="flex h-9 w-9 items-center justify-center rounded-full bg-[#eaf3ff] text-xl leading-none text-[#0A84FF]"
+                      >
+                        −
+                      </button>
+                      <button
+                        onClick={() => setEditorDraft((draft) => draft ? {
+                          ...draft,
+                          values: {
+                            ...draft.values,
+                            [dimension.id]: (draft.values[dimension.id] || 0) + (index === 0 ? 1 : 1),
+                          },
+                        } : draft)}
+                        className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0A84FF] text-xl leading-none text-white shadow-[0_10px_20px_rgba(10,132,255,0.2)]"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div
+            className="fixed left-1/2 z-[60] flex w-[calc(100%-24px)] max-w-xl -translate-x-1/2 gap-3 rounded-t-[24px] bg-white/96 px-4 pt-3 shadow-[0_-12px_30px_rgba(15,23,42,0.08)] backdrop-blur"
+            style={{
+              bottom: 'calc(88px + env(safe-area-inset-bottom))',
+              paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
+            }}
+          >
+            <button
+              onClick={closeRecordEditor}
+              className="flex-1 rounded-full bg-[#eef0f6] px-4 py-3 text-sm font-medium text-[#111827]"
+            >
+              取消
+            </button>
+            <button
+              onClick={saveRecordEditor}
+              className="flex-1 rounded-full bg-[#0A84FF] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(10,132,255,0.18)]"
+            >
+              完成
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-full bg-[#efeff4] px-4 pb-10 pt-5">
       <div className="mx-auto max-w-xl space-y-4">
@@ -249,7 +439,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
           </div>
 
           <div className="mt-4">
-            <div className="text-sm text-[#6b7280]">{goal.name}</div>
+            <div className="text-sm text-[#6b7280]">{liveGoal.name}</div>
             <div className="mt-2 text-[28px] font-semibold tracking-[-0.04em] text-[#111827]">当前进度：{progress}%</div>
             <div className="mt-2 flex items-center gap-2 text-sm font-semibold" style={{ color: progress >= idealProgress ? '#34c759' : '#ff9500' }}>
               <Flame className="h-4 w-4" />
@@ -352,7 +542,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
             <BarChart3 className="h-4 w-4" /> 客观量进度
           </div>
           <div className="space-y-4">
-            {goal.dimensions.map((dimension) => {
+            {liveGoal.dimensions.map((dimension) => {
               const progressValue = dimension.targetValue > 0 ? Math.round((dimension.currentValue / dimension.targetValue) * 100) : 0;
               return (
                 <div key={dimension.id}>
@@ -361,7 +551,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
                     <span className="text-[#6b7280]">{dimension.currentValue} / {dimension.targetValue} {dimension.unit}</span>
                   </div>
                   <div className="h-3 overflow-hidden rounded-full bg-[#eef0f6]">
-                    <div className="h-full rounded-full" style={{ width: `${Math.min(progressValue, 100)}%`, backgroundColor: goal.theme.color }} />
+                    <div className="h-full rounded-full" style={{ width: `${Math.min(progressValue, 100)}%`, backgroundColor: liveGoal.theme.color }} />
                   </div>
                 </div>
               );
@@ -375,13 +565,24 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
           </div>
           <div className="space-y-3">
             {contributionRecords.length > 0 ? contributionRecords.map((record) => (
-              <div key={record.id} className="rounded-[20px] bg-[#f7f8fb] px-4 py-3">
+              <button
+                key={record.id}
+                type="button"
+                onClick={() => openRecordEditor(record)}
+                className="w-full rounded-[22px] border border-[#d9ecff] bg-[linear-gradient(180deg,#f9fbff_0%,#f4f8ff_100%)] px-4 py-4 text-left shadow-[0_12px_30px_rgba(10,132,255,0.06)] transition active:scale-[0.99]"
+              >
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-medium text-[#111827]">{record.taskTitle}</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <div className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#0A84FF] shadow-sm">
+                        可编辑
+                      </div>
+                      <div className="text-xs text-[#9ca3af]">点击进入编辑态</div>
+                    </div>
+                    <div className="mt-2 font-medium text-[#111827]">{record.taskTitle}</div>
                     <div className="mt-1 text-xs text-[#6b7280]">{new Date(record.createdAt).toLocaleString('zh-CN')}</div>
                   </div>
-                  <div className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[#111827]">{record.durationMinutes} 分钟</div>
+                  <div className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[#111827] shadow-sm">{record.durationMinutes} 分钟</div>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {record.dimensionResults.map((item) => (
@@ -390,7 +591,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
                     </span>
                   ))}
                 </div>
-              </div>
+              </button>
             )) : (
               <div className="rounded-[20px] bg-[#f7f8fb] px-4 py-6 text-center text-sm text-[#9ca3af]">
                 还没有关键结果记录。后续接入时间轴后，点击某个任务即可填写并体现在这里。

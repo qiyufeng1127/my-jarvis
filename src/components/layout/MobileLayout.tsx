@@ -293,9 +293,10 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         backgroundColor: 'transparent',
         fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
         overflow: 'hidden',
-        height: '100dvh',
-        minHeight: '100dvh',
+        height: 'calc(100dvh + 32px)',
+        minHeight: 'calc(100dvh + 32px)',
         width: '100vw',
+        bottom: '-32px',
       }}
     >
       {/* 通知容器 */}
@@ -330,7 +331,7 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         className="flex-1 overflow-y-auto overflow-x-hidden"
         style={{ 
           WebkitOverflowScrolling: 'touch', // iOS 平滑滚动
-          paddingBottom: '76px',
+          paddingBottom: 'calc(76px + 32px)',
           backgroundColor: '#fefaf0',
           minHeight: 0,
         }}
