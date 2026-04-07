@@ -109,7 +109,7 @@ function formatLoopDate(value?: string) {
 }
 
 function getLoopStage(goal: LongTermGoal | null, taskStatus?: string, hasContribution?: boolean): LoopStage {
-  if (taskStatus === 'completed') return 'done';
+  if (taskStatus === 'completed' && hasContribution) return 'done';
   if (hasContribution) return 'kr';
   if (taskStatus) return 'task';
   if (goal) return 'goal';

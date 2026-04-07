@@ -163,11 +163,6 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
     );
   }, [liveGoal, taskHistoryRecords]);
 
-  const totalContributionValue = useMemo(
-    () => contributionRecords.reduce((sum, record) => sum + record.dimensionResults.reduce((acc, item) => acc + item.value, 0), 0),
-    [contributionRecords]
-  );
-
   const totalIncome = useMemo(() => {
     if (!liveGoal.targetIncome || !liveGoal.targetValue) return liveGoal.currentIncome || 0;
     const income = contributionRecords.reduce((sum, record) => {
@@ -307,7 +302,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
         idealCumulative: filledEntries.length > 1 ? Number((((index + 1) / filledEntries.length) * finalCumulative).toFixed(2)) : finalCumulative,
       };
     });
-  }, [contributionRecords, matchedHistory, liveGoal.estimatedTotalHours, liveGoal.targetIncome, liveGoal.targetValue]);
+  }, [contributionRecords, matchedHistory, goal.estimatedTotalHours, liveGoal.targetIncome, liveGoal.targetValue]);
 
   const maxActual = Math.max(...chartPoints.map((item) => item.actual), 1);
   const maxDuration = Math.max(...chartPoints.map((item) => item.duration), 1);
@@ -361,10 +356,15 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
   ];
 
   const handleNavigateLoopTask = () => {
-    if (!activeLoop?.taskId) return;
     eventBus.emit('dashboard:navigate-module', {
       module: 'timeline',
-      taskId: activeLoop.taskId,
+      taskId: activeLoop?.taskId,
+      createRectificationTask: !activeLoop?.taskId,
+      goalId: activeLoop?.goalId,
+      goalName: liveGoal.name,
+      painLabel: activeLoop?.painLabel,
+      taskTitle: activeLoop?.taskTitle,
+      promise: activeLoop?.promise,
     });
   };
 
@@ -757,7 +757,6 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
                     const x = chartPoints.length === 1 ? 160 : (index / (chartPoints.length - 1)) * 320;
                     const y = 160 - (point.cumulativeActual / maxCumulative) * 160;
                     const incomeY = 160 - (point.cumulativeIncome / maxCumulative) * 160;
-                    const idealY = 160 - (point.idealCumulative / maxCumulative) * 160;
                     return (
                       <g key={`${point.date}-node`}>
                         {point.incomeIncrement > 0 && (

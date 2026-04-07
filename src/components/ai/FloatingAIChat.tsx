@@ -45,7 +45,7 @@ import { useTaskStore } from '@/stores/taskStore';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
 import type { Task, TaskType, TaskPriority } from '@/types';
 import AIConfigModal from './AIConfigModal';
-import UnifiedTaskEditor from '@/components/shared/UnifiedTaskEditor';
+import GoalForm, { type GoalFormData } from '@/components/growth/GoalForm';
 import { 
   useLocalStorage, 
   useColorTheme, 
@@ -420,8 +420,32 @@ const buildGoalCreatedReply = (draft: GoalDraftData, goalName: string) => {
     : '';
   const progressText = dimensionText ? `\n📈 客观进度：${dimensionText}` : '';
 
-  return beautifyAssistantReply(`好呀，我已经把新目标放进目标组件里啦 ✨\n\n🎯 目标：${goalName}${dateText}${timeText}${progressText}${tagText}\n\n我已经顺手帮你打开目标编辑页了，你现在可以继续补细节，我也还陪着你 🤍`);
+  return beautifyAssistantReply(`好呀，我已经把目标草稿整理好了 ✨\n\n🎯 目标：${goalName}${dateText}${timeText}${progressText}${tagText}\n\n我现在会直接帮你打开目标编辑器，你可以再顺手改一下，点保存后它就会正式进目标组件，后面的任务联动也能接上啦 🤍`);
 };
+
+const draftToGoalFormData = (draft: GoalDraftData) => ({
+  name: draft.name,
+  description: draft.description,
+  type: 'numeric' as const,
+  startDate: draft.startDate ? new Date(draft.startDate).toISOString().split('T')[0] : '',
+  endDate: draft.endDate ? new Date(draft.endDate).toISOString().split('T')[0] : '',
+  estimatedTotalHours: draft.estimatedTotalHours,
+  targetIncome: draft.targetIncome || 0,
+  dimensions: draft.dimensions.length > 0 ? draft.dimensions : [
+    {
+      id: `metric-${Date.now()}`,
+      name: draft.name || '关键结果',
+      unit: '项',
+      targetValue: 1,
+      currentValue: 0,
+      weight: 100,
+    },
+  ],
+  projectBindings: draft.projectBindings,
+  theme: draft.theme,
+  showInFuture30Chart: draft.showInFuture30Chart,
+  relatedDimensions: draft.relatedDimensions,
+});
 
 
 
@@ -430,12 +454,12 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
   const { isConfigured } = useAIStore();
   const { createTask, updateTask, deleteTask, tasks, getTodayTasks } = useTaskStore();
   const { createSideHustle, addIncome, addExpense } = useSideHustleStore();
-  const { createGoal } = useGoalStore();
+  const { createGoal, updateGoal, goals } = useGoalStore();
   const { getAllTags } = useTagStore();
   const { personality, addMessage: addChatMessage } = useAIPersonalityStore();
   
   // 上下文模式状态
-  const [contextMode, setContextMode] = useState<'normal' | 'income' | 'goal' | 'mutter'>('normal');
+  const [contextMode, setContextMode] = useState<'normal' | 'income' | 'goal' | 'mutter' | 'task_breakdown'>('normal');
   
   // 性格设置弹窗
   const [showPersonalitySettings, setShowPersonalitySettings] = useState(false);
@@ -528,6 +552,131 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
   // 任务编辑器状态
   const [showTaskEditor, setShowTaskEditor] = useState(false);
   const [editingTasks, setEditingTasks] = useState<DecomposedTask[]>([]);
+  const [showGoalEditor, setShowGoalEditor] = useState(false);
+  const [goalEditorDraft, setGoalEditorDraft] = useState<GoalFormData | null>(null);
+  const [goalEditorGoalId, setGoalEditorGoalId] = useState<string | null>(null);
+
+  const openGoalIntakeMode = () => {
+    setContextMode('goal');
+    setGoalConversation(null);
+
+    const modeMessage: Message = {
+      id: `ai-${Date.now()}`,
+      role: 'assistant',
+      content: beautifyAssistantReply('🎯 目标收集模式已开启\n\n你接下来发给我的内容，我都会当成要写进目标组件的信息。\n\n你可以先直接用口语说目标，比如：\n• 十天之后把下一套文创卖出去\n• 这个月把插画接单流程跑顺\n• 两周内做完 12 条内容并拿到 5 个意向客户\n\n我会按目标组件真正需要的字段继续追问你，比如：\n✅ 截止时间\n✅ 每天愿意投入多久\n✅ 关键结果 / 客观进度\n✅ 预计总时长\n\n等我们问答补齐后，我会直接帮你打开目标编辑器，你再改一下就能保存。'),
+      timestamp: new Date(),
+    };
+
+    setMessages(prev => [...prev, modeMessage]);
+  };
+
+  const openTaskBreakdownMode = () => {
+    setContextMode('task_breakdown');
+
+    const modeMessage: Message = {
+      id: `ai-${Date.now()}`,
+      role: 'assistant',
+      content: beautifyAssistantReply('🧩 任务分解模式已开启\n\n你接下来发给我的内容，我都会当成要拆开的任务文案。\n\n比如你可以直接说：\n• 把明天直播前准备的事情拆一下\n• 我要做一个新页面，帮我拆成执行步骤\n• 把这周副业推进计划分解一下\n\n我拆完之后会直接帮你打开任务编辑器，你只要顺手改一改就能保存。'),
+      timestamp: new Date(),
+    };
+
+    setMessages(prev => [...prev, modeMessage]);
+  };
+
+  const buildTasksFromGoalForm = (formData: GoalFormData): DecomposedTask[] => {
+    const startDate = formData.startDate ? new Date(formData.startDate) : new Date();
+    startDate.setHours(9, 0, 0, 0);
+
+    const metrics = formData.dimensions.length > 0 ? formData.dimensions : [{
+      id: `metric-${Date.now()}`,
+      name: formData.name || '关键结果',
+      unit: '项',
+      targetValue: 1,
+      currentValue: 0,
+      weight: 100,
+    }];
+
+    const totalHours = Math.max(formData.estimatedTotalHours || 0, metrics.length);
+    const totalMinutes = Math.max(60, Math.round(totalHours * 60));
+    const baseMinutes = Math.max(30, Math.round(totalMinutes / Math.max(metrics.length, 1)));
+
+    return metrics.map((metric, index) => {
+      const start = new Date(startDate.getTime() + index * baseMinutes * 60000);
+      const end = new Date(start.getTime() + baseMinutes * 60000);
+      const taskTitle = `${metric.name}${metric.targetValue ? `：做到 ${metric.targetValue}${metric.unit || '项'}` : ''}`;
+
+      return {
+        sequence: index + 1,
+        title: taskTitle,
+        description: `${formData.name} · ${taskTitle}`,
+        estimated_duration: baseMinutes,
+        scheduled_start: start.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        scheduled_end: end.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        scheduled_start_iso: start.toISOString(),
+        task_type: 'work',
+        category: '目标推进',
+        location: '工作区',
+        tags: ['目标推进', formData.name].filter(Boolean),
+        goal: formData.name,
+        gold: Math.max(30, Math.round(baseMinutes * 1.2)),
+        color: formData.theme?.color || '#0A84FF',
+        priority: 'medium',
+      };
+    });
+  };
+
+  const handleGoalEditorSave = (formData: GoalFormData) => {
+    const payload = {
+      name: formData.name,
+      description: formData.description,
+      goalType: formData.type,
+      startDate: formData.startDate ? new Date(formData.startDate) : undefined,
+      endDate: formData.endDate ? new Date(formData.endDate) : undefined,
+      deadline: formData.endDate ? new Date(formData.endDate) : undefined,
+      estimatedTotalHours: formData.estimatedTotalHours,
+      estimatedDailyHours: formData.startDate && formData.endDate && formData.estimatedTotalHours
+        ? Number((formData.estimatedTotalHours / (Math.ceil((new Date(formData.endDate).getTime() - new Date(formData.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1)).toFixed(1))
+        : 0,
+      targetIncome: formData.targetIncome,
+      dimensions: formData.dimensions,
+      projectBindings: formData.projectBindings,
+      theme: formData.theme,
+      showInFuture30Chart: formData.showInFuture30Chart,
+      relatedDimensions: formData.relatedDimensions,
+      targetValue: formData.dimensions.reduce((sum, item) => sum + item.targetValue, 0),
+      currentValue: formData.dimensions.reduce((sum, item) => sum + item.currentValue, 0),
+      unit: formData.dimensions[0]?.unit || '',
+    };
+
+    const savedGoal = goalEditorGoalId
+      ? (updateGoal(goalEditorGoalId, payload), goals.find((item) => item.id === goalEditorGoalId) || { id: goalEditorGoalId, name: formData.name })
+      : createGoal(payload);
+
+    const generatedTasks = buildTasksFromGoalForm(formData);
+
+    eventBus.emit('dashboard:navigate-module', {
+      module: 'goals',
+      goalId: savedGoal.id,
+      action: 'view',
+    });
+
+    setShowGoalEditor(false);
+    setGoalEditorDraft(null);
+    setGoalEditorGoalId(null);
+    setGoalConversation(null);
+    setContextMode('normal');
+    setEditingTasks(generatedTasks);
+    setShowTaskEditor(true);
+
+    const aiMessage: Message = {
+      id: `ai-${Date.now()}`,
+      role: 'assistant',
+      content: beautifyAssistantReply(`好啦，目标已经正式保存进目标组件了 ✨\n\n🎯 ${formData.name}\n📅 ${formData.startDate || '未设置开始时间'} → ${formData.endDate || '未设置结束时间'}\n⏳ 预计总时长：${formData.estimatedTotalHours || 0} 小时\n\n我也顺手把和这个目标直接相关的任务草稿给你铺好了，任务编辑器已经打开，你现在就可以继续改完再保存。`),
+      timestamp: new Date(),
+    };
+
+    setMessages(prev => [...prev, aiMessage]);
+  };
 
   // 监控编辑器状态变化
   useEffect(() => {
@@ -1515,6 +1664,143 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
     }
   };
 
+  // 处理任务分解输入
+  const handleTaskBreakdownInput = async (message: string) => {
+    try {
+      addThinkingStep('🧩 进入任务分解模式...');
+
+      const goals = useGoalStore.getState().goals;
+      const hasAI = isConfigured();
+
+      if (hasAI) {
+        try {
+          addThinkingStep('🤖 正在智能拆分任务步骤...');
+
+          const currentTime = new Date();
+          const decomposeResult = await aiService.decomposeTask(message, currentTime);
+
+          if (decomposeResult.success && decomposeResult.tasks && decomposeResult.tasks.length > 0) {
+            const tasksWithMetadata: DecomposedTask[] = decomposeResult.tasks.map((task, index) => {
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+
+              const [hours, minutes] = (task.startTime || '00:00').split(':').map(Number);
+              const startTime = new Date(today);
+              startTime.setHours(hours || 0, minutes || 0, 0, 0);
+
+              const endTime = new Date(startTime.getTime() + task.duration * 60000);
+
+              const goldReward = task.goldReward || (() => {
+                const { smartCalculateGoldReward } = require('@/utils/goldCalculator');
+                return smartCalculateGoldReward(task.duration, task.category, task.tags, task.title);
+              })();
+
+              return {
+                sequence: index + 1,
+                title: task.title,
+                description: task.title,
+                estimated_duration: task.duration,
+                scheduled_start: task.startTime || startTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+                scheduled_end: endTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+                scheduled_start_iso: startTime.toISOString(),
+                task_type: task.category || 'life',
+                category: task.category || '生活事务',
+                location: task.location || '未指定',
+                tags: task.tags || ['任务分解'],
+                goal: null,
+                gold: goldReward,
+                color: '#6A7334',
+                priority: task.priority || 'medium',
+              };
+            });
+
+            if (goals.length > 0) {
+              const matches = matchTaskToGoals(
+                { title: message, description: '' },
+                goals
+              );
+              if (matches.length > 0 && matches[0]) {
+                tasksWithMetadata.forEach(task => {
+                  task.goal = matches[0].goalName;
+                });
+              }
+            }
+
+            const responseContent = beautifyAssistantReply(`好，我已经先帮你拆开啦 ✨\n\n我把它整理成 ${tasksWithMetadata.length} 个更好执行的小任务，任务编辑器也已经帮你打开了，你直接改一改就能保存。`);
+
+            const aiMessage: Message = {
+              id: `ai-${Date.now()}`,
+              role: 'assistant',
+              content: responseContent,
+              timestamp: new Date(),
+              decomposedTasks: tasksWithMetadata,
+              showTaskEditor: true,
+              thinkingProcess: [...thinkingSteps],
+              isThinkingExpanded: false,
+            };
+
+            setMessages(prev => [...prev, aiMessage]);
+            setEditingTasks(tasksWithMetadata);
+            setShowTaskEditor(true);
+            setContextMode('normal');
+            return;
+          }
+        } catch (error) {
+          console.error('任务分解模式 AI 处理失败:', error);
+          addThinkingStep('⚠️ 智能分解没接稳，先用简单模式帮你打开编辑器');
+        }
+      }
+
+      const fallbackTasks = parseDecomposedTasksFromContent(
+        `1. ${message}`
+      );
+
+      const tasks = fallbackTasks.length > 0 ? fallbackTasks : [{
+        sequence: 1,
+        title: message,
+        description: message,
+        estimated_duration: 30,
+        scheduled_start: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        scheduled_end: new Date(Date.now() + 30 * 60000).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        scheduled_start_iso: new Date().toISOString(),
+        task_type: 'life',
+        category: '任务分解',
+        location: '全屋',
+        tags: ['任务分解'],
+        goal: null,
+        gold: 0,
+        color: '#6A7334',
+        priority: 'medium' as const,
+      }];
+
+      const aiMessage: Message = {
+        id: `ai-${Date.now()}`,
+        role: 'assistant',
+        content: beautifyAssistantReply('我先帮你接住了，这次先按一个草稿给你铺开，任务编辑器已经打开，你可以直接继续细改。'),
+        timestamp: new Date(),
+        decomposedTasks: tasks,
+        showTaskEditor: true,
+        thinkingProcess: [...thinkingSteps],
+        isThinkingExpanded: false,
+      };
+
+      setMessages(prev => [...prev, aiMessage]);
+      setEditingTasks(tasks);
+      setShowTaskEditor(true);
+      setContextMode('normal');
+    } catch (error) {
+      console.error('处理任务分解失败:', error);
+      setContextMode('normal');
+      const errorMessage: Message = {
+        id: `ai-${Date.now()}`,
+        role: 'assistant',
+        content: beautifyAssistantReply('刚刚这次任务分解我没接稳，你再发我一次，我继续帮你拆。'),
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    }
+  };
+
   // 处理目标相关的输入
   const handleGoalInput = async (message: string) => {
     try {
@@ -1549,40 +1835,15 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
           return;
         }
 
-        const totalTargetValue = updatedDraft.dimensions.reduce((sum, item) => sum + item.targetValue, 0);
-        const goal = createGoal({
-          name: updatedDraft.name,
-          description: updatedDraft.description,
-          goalType: 'numeric',
-          startDate: updatedDraft.startDate,
-          endDate: updatedDraft.endDate,
-          deadline: updatedDraft.endDate,
-          estimatedTotalHours: updatedDraft.estimatedTotalHours,
-          estimatedDailyHours: updatedDraft.estimatedDailyHours,
-          targetIncome: updatedDraft.targetIncome,
-          dimensions: updatedDraft.dimensions,
-          projectBindings: updatedDraft.projectBindings,
-          theme: updatedDraft.theme,
-          showInFuture30Chart: updatedDraft.showInFuture30Chart,
-          relatedDimensions: updatedDraft.relatedDimensions,
-          targetValue: totalTargetValue,
-          currentValue: 0,
-          unit: updatedDraft.dimensions[0]?.unit || '',
-          milestones: [],
-        });
-
-        eventBus.emit('dashboard:navigate-module', {
-          module: 'goals',
-          goalId: goal.id,
-          action: 'edit',
-        });
+        setGoalEditorDraft(draftToGoalFormData(updatedDraft));
+        setGoalEditorGoalId(null);
+        setShowGoalEditor(true);
         setGoalConversation(null);
-        setContextMode('normal');
 
         const aiMessage: Message = {
           id: `ai-${Date.now()}`,
           role: 'assistant',
-          content: buildGoalCreatedReply(updatedDraft, goal.name),
+          content: buildGoalCreatedReply(updatedDraft, updatedDraft.name),
           timestamp: new Date(),
           thinkingProcess: [...thinkingSteps],
           isThinkingExpanded: false,
@@ -1619,40 +1880,16 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
         return;
       }
 
-      const totalTargetValue = draft.dimensions.reduce((sum, item) => sum + item.targetValue, 0);
-      const goal = createGoal({
-        name: draft.name,
-        description: draft.description,
-        goalType: 'numeric',
-        startDate: draft.startDate,
-        endDate: draft.endDate,
-        deadline: draft.endDate,
-        estimatedTotalHours: draft.estimatedTotalHours,
-        estimatedDailyHours: draft.estimatedDailyHours,
-        targetIncome: draft.targetIncome,
-        dimensions: draft.dimensions,
-        projectBindings: draft.projectBindings,
-        theme: draft.theme,
-        showInFuture30Chart: draft.showInFuture30Chart,
-        relatedDimensions: draft.relatedDimensions,
-        targetValue: totalTargetValue,
-        currentValue: 0,
-        unit: draft.dimensions[0]?.unit || '',
-        milestones: [],
-      });
-
-      eventBus.emit('dashboard:navigate-module', {
-        module: 'goals',
-        goalId: goal.id,
-        action: 'edit',
-      });
+      setGoalEditorDraft(draftToGoalFormData(draft));
+      setGoalEditorGoalId(null);
+      setShowGoalEditor(true);
       setGoalConversation(null);
-      setContextMode('normal');
+      setContextMode('goal');
 
       const aiMessage: Message = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        content: buildGoalCreatedReply(draft, goal.name),
+        content: buildGoalCreatedReply(draft, draft.name),
         timestamp: new Date(),
         thinkingProcess: [...thinkingSteps],
         isThinkingExpanded: false,
@@ -1693,6 +1930,39 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
     setMessages(prev => [...prev, userMessage]);
     setInputValue(''); // 立即清空输入框
     setIsProcessing(true);
+
+    // 优先处理上下文模式，避免被通用意图识别打断
+    if (contextMode === 'income') {
+      clearThinkingSteps();
+      await handleIncomeInput(message);
+      setIsProcessing(false);
+      clearThinkingSteps();
+      return;
+    }
+
+    if (contextMode === 'goal' || goalConversation) {
+      clearThinkingSteps();
+      await handleGoalInput(message);
+      setIsProcessing(false);
+      clearThinkingSteps();
+      return;
+    }
+
+    if (contextMode === 'task_breakdown') {
+      clearThinkingSteps();
+      await handleTaskBreakdownInput(message);
+      setIsProcessing(false);
+      clearThinkingSteps();
+      return;
+    }
+
+    if (contextMode === 'mutter') {
+      clearThinkingSteps();
+      await handleMutterInput(message);
+      setIsProcessing(false);
+      clearThinkingSteps();
+      return;
+    }
     
     // 🧠 ==================== 智能AI指挥中枢 ==================== 🧠
     // 使用真正的AI语义理解，而不是关键词匹配
@@ -1806,30 +2076,6 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
     // 🧠 ==================== 智能AI指挥中枢结束 ==================== 🧠
     
     // 检查上下文模式
-    if (contextMode === 'income') {
-      clearThinkingSteps();
-      await handleIncomeInput(message);
-      setIsProcessing(false);
-      clearThinkingSteps();
-      return;
-    }
-    
-    if (contextMode === 'goal' || goalConversation) {
-      clearThinkingSteps();
-      await handleGoalInput(message);
-      setIsProcessing(false);
-      clearThinkingSteps();
-      return;
-    }
-    
-    if (contextMode === 'mutter') {
-      clearThinkingSteps();
-      await handleMutterInput(message);
-      setIsProcessing(false);
-      clearThinkingSteps();
-      return;
-    }
-
     // 添加超时保护（30秒）
     sendTimeoutRef.current = setTimeout(() => {
       console.error('⚠️ [发送超时] 处理时间超过30秒');
@@ -2760,12 +3006,13 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
           ) : (
             <>
               <div className="px-3 py-2">
-                <div className="flex items-center space-x-2 overflow-x-auto">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs whitespace-nowrap text-gray-500">快速：</span>
                   {[
                     { label: '帮我安排', icon: '🎯', action: 'smart_schedule', title: '学习你的习惯，智能推荐当前适合做的任务' },
                     { label: '关于收入', icon: '💰', action: 'income_mode', title: '记录副业收入，自动同步到副业追踪和时间轴' },
                     { label: '关于目标', icon: '🎯', action: 'goal_mode', title: '设置长期或短期目标，AI智能解析' },
+                    { label: '任务分解', icon: '🧩', action: 'task_breakdown_mode', title: '把你接下来输入的内容当成要拆解的任务，并在完成后自动打开任务编辑器' },
                     { label: '心情碎碎念', icon: '💭', action: 'mutter_quick', title: '快速记录心情碎碎念' },
                   ].map((cmd) => (
                     <button
@@ -2784,11 +3031,13 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
                           };
                           setMessages(prev => [...prev, modeMessage]);
                         } else if (cmd.action === 'goal_mode') {
-                          setContextMode('goal');
+                          openGoalIntakeMode();
+                        } else if (cmd.action === 'task_breakdown_mode') {
+                          setContextMode('task_breakdown');
                           const modeMessage: Message = {
                             id: `ai-${Date.now()}`,
                             role: 'assistant',
-                            content: '🎯 **目标设置模式已开启**\n\n现在你可以用口语化的方式描述目标，例如：\n\n• "我希望在三个月之内赚10万块钱"\n• "一个星期之内发布新网站"\n• "今年要读完50本书"\n• "半年内减重20斤"\n\nAI会智能识别：\n✅ 目标内容\n✅ 时间期限\n✅ 数值目标\n✅ 自动分类\n\n💡 输入完成后会自动退出此模式',
+                            content: '🧩 **任务分解模式已开启**\n\n你接下来发给我的内容，我都会当成要拆开的任务文案。\n\n比如你可以直接说：\n\n• "把明天直播前准备的事情拆一下"\n• "我要做一个新页面，帮我拆成执行步骤"\n• "把这周副业推进计划分解一下"\n\n我拆完之后会直接帮你打开任务编辑器，你只要顺手改一改就能保存。',
                             timestamp: new Date(),
                           };
                           setMessages(prev => [...prev, modeMessage]);
@@ -2824,6 +3073,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
                       className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap hover:scale-105 ${
                         contextMode === 'income' && cmd.action === 'income_mode' ? 'bg-green-500 text-white' :
                         contextMode === 'goal' && cmd.action === 'goal_mode' ? 'bg-blue-500 text-white' :
+                        contextMode === 'task_breakdown' && cmd.action === 'task_breakdown_mode' ? 'bg-violet-500 text-white' :
                         'bg-neutral-100 text-gray-700 active:bg-neutral-200'
                       }`}
                       title={cmd.title}
@@ -2842,7 +3092,17 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="对我说点什么..."
+                    placeholder={
+                      contextMode === 'goal'
+                        ? '继续告诉我目标信息，比如每天投入多久、关键结果是什么...'
+                        : contextMode === 'task_breakdown'
+                          ? '把你想拆开的任务直接发给我...'
+                          : contextMode === 'income'
+                            ? '直接输入收入内容，比如今天接单赚了 500...'
+                            : contextMode === 'mutter'
+                              ? '把此刻想说的碎碎念发给我...'
+                              : '对我说点什么...'
+                    }
                     className="flex-1 px-3 py-2 rounded-lg resize-none focus:outline-none text-sm border border-gray-300 focus:border-blue-500 overflow-y-auto bg-white"
                     style={{
                       minHeight: '40px',
@@ -3187,7 +3447,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
                       )}
 
                       {/* 显示分解的任务列表 */}
-                      {message.decomposedTasks && message.decomposedTasks.length > 0 && !message.showTaskEditor && (
+                      {message.decomposedTasks && message.decomposedTasks.length > 0 && (
                         <div className="mt-3 pt-3 border-t" style={{ borderColor: theme.borderColor }}>
                           <div className="text-xs font-semibold mb-2" style={{ color: theme.accentColor }}>
                             📋 分解的任务：
@@ -3262,14 +3522,45 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
                 )}
               </div>
 
+              {/* 当前模式提示 */}
+              {contextMode !== 'normal' && !isProcessing && (
+                <div className="px-3 pt-2">
+                  <div
+                    className="rounded-2xl px-3 py-2 text-xs font-medium"
+                    style={{
+                      backgroundColor: contextMode === 'goal'
+                        ? 'rgba(59,130,246,0.12)'
+                        : contextMode === 'task_breakdown'
+                          ? 'rgba(139,92,246,0.12)'
+                          : contextMode === 'income'
+                            ? 'rgba(16,185,129,0.12)'
+                            : 'rgba(236,72,153,0.12)',
+                      color: contextMode === 'goal'
+                        ? '#2563eb'
+                        : contextMode === 'task_breakdown'
+                          ? '#7c3aed'
+                          : contextMode === 'income'
+                            ? '#059669'
+                            : '#db2777',
+                    }}
+                  >
+                    {contextMode === 'goal' && '当前：目标收集模式｜你现在说的内容会被当成目标组件字段来追问和整理'}
+                    {contextMode === 'task_breakdown' && '当前：任务分解模式｜你现在说的内容会被直接拆成任务并打开任务编辑器'}
+                    {contextMode === 'income' && '当前：收入记录模式｜你现在说的内容会被记录为收入'}
+                    {contextMode === 'mutter' && '当前：碎碎念模式｜你现在说的内容会被记录进记忆和时间轴'}
+                  </div>
+                </div>
+              )}
+
               {/* 快速指令 */}
               <div className="px-3 py-2 border-t" style={{ backgroundColor: theme.bgColor, borderColor: theme.borderColor }}>
-                <div className="flex items-center space-x-2 overflow-x-auto">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs whitespace-nowrap" style={{ color: theme.accentColor }}>快速：</span>
                   {[
                     { label: '帮我安排', icon: '🎯', action: 'smart_schedule', title: '学习你的习惯，智能推荐当前适合做的任务' },
                     { label: '关于收入', icon: '💰', action: 'income_mode', title: '记录副业收入，自动同步到副业追踪和时间轴' },
                     { label: '关于目标', icon: '🎯', action: 'goal_mode', title: '设置长期或短期目标，AI智能解析' },
+                    { label: '任务分解', icon: '🧩', action: 'task_breakdown_mode', title: '把你接下来输入的内容当成要拆解的任务，并在完成后自动打开任务编辑器' },
                     { label: '心情碎碎念', icon: '💭', action: 'mutter_quick', title: '快速记录心情碎碎念' },
                   ].map((cmd) => (
                     <button
@@ -3288,14 +3579,9 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
                           };
                           setMessages(prev => [...prev, modeMessage]);
                         } else if (cmd.action === 'goal_mode') {
-                          setContextMode('goal');
-                          const modeMessage: Message = {
-                            id: `ai-${Date.now()}`,
-                            role: 'assistant',
-                            content: '🎯 **目标设置模式已开启**\n\n现在你可以用口语化的方式描述目标，例如：\n\n• "我希望在三个月之内赚10万块钱"\n• "一个星期之内发布新网站"\n• "今年要读完50本书"\n• "半年内减重20斤"\n\nAI会智能识别：\n✅ 目标内容\n✅ 时间期限\n✅ 数值目标\n✅ 自动分类\n\n💡 输入完成后会自动退出此模式',
-                            timestamp: new Date(),
-                          };
-                          setMessages(prev => [...prev, modeMessage]);
+                          openGoalIntakeMode();
+                        } else if (cmd.action === 'task_breakdown_mode') {
+                          openTaskBreakdownMode();
                         } else if (cmd.action === 'mutter_quick') {
                           // 快速添加心情碎碎念记录
                           const now = new Date();
@@ -3333,9 +3619,11 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
                       style={{ 
                         backgroundColor: contextMode === 'income' && cmd.action === 'income_mode' ? '#10b981' :
                                        contextMode === 'goal' && cmd.action === 'goal_mode' ? '#3b82f6' :
+                                       contextMode === 'task_breakdown' && cmd.action === 'task_breakdown_mode' ? '#8b5cf6' :
                                        theme.buttonBg, 
                         color: contextMode === 'income' && cmd.action === 'income_mode' ? '#ffffff' :
                                contextMode === 'goal' && cmd.action === 'goal_mode' ? '#ffffff' :
+                               contextMode === 'task_breakdown' && cmd.action === 'task_breakdown_mode' ? '#ffffff' :
                                theme.textColor 
                       }}
                       title={cmd.title}
@@ -3418,6 +3706,28 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
             setEditingTasks([]);
           }}
           onConfirm={handlePushToTimeline}
+        />
+      )}
+
+      {/* 目标编辑器 */}
+      {showGoalEditor && goalEditorDraft && (
+        <GoalForm
+          initialData={goalEditorDraft}
+          dimensions={[
+            { id: 'growth', name: '成长', icon: '🌱', color: '#34C759' },
+            { id: 'career', name: '事业', icon: '💼', color: '#0A84FF' },
+            { id: 'health', name: '健康', icon: '💪', color: '#FF9F0A' },
+            { id: 'creation', name: '创作', icon: '🎨', color: '#BF5AF2' },
+          ]}
+          onSave={handleGoalEditorSave}
+          onCancel={() => {
+            setShowGoalEditor(false);
+            setGoalEditorDraft(null);
+            setGoalEditorGoalId(null);
+            setGoalConversation(null);
+            setContextMode('normal');
+          }}
+          bgColor={bgColor}
         />
       )}
 
