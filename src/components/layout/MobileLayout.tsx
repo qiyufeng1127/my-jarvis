@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import eventBus from '@/utils/eventBus';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
 import { useGoldStore } from '@/stores/goldStore';
@@ -126,6 +127,7 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
   });
   
   const [activeTab, setActiveTab] = useState<TabType>('home'); // 默认显示首页
+  const [bridgePulse, setBridgePulse] = useState<{ module: TabType; label: string } | null>(null);
   
   // 当 activeTab 改变时，通知父组件 - 使用 useRef 避免无限循环
   const onModuleChangeRef = useRef(onModuleChange);
@@ -139,6 +141,27 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
       onModuleChangeRef.current(activeTab);
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    const handleNavigate = (payload?: { module?: string }) => {
+      if (!payload?.module) return;
+      const nextTab = payload.module as TabType;
+      setActiveTab(nextTab);
+      setBridgePulse({
+        module: nextTab,
+        label: nextTab === 'memory' ? '总部' : nextTab === 'goals' ? '目标' : nextTab === 'timeline' ? '时间轴' : nextTab,
+      });
+
+      window.setTimeout(() => {
+        setBridgePulse((current) => (current?.module === nextTab ? null : current));
+      }, 2200);
+    };
+
+    eventBus.on('dashboard:navigate-module', handleNavigate);
+    return () => {
+      eventBus.off('dashboard:navigate-module', handleNavigate);
+    };
+  }, []);
   const [showMoreModal, setShowMoreModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingItems, setEditingItems] = useState<NavItem[]>([]);
@@ -284,19 +307,6 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
 
   return (
     <>
-    <div
-      aria-hidden="true"
-      style={{
-        position: 'fixed',
-        left: 0,
-        right: 0,
-        bottom: 0,
-        height: 'env(safe-area-inset-bottom, 0px)',
-        backgroundColor: '#ffffff',
-        zIndex: 2147483646,
-        pointerEvents: 'none',
-      }}
-    />
     <div 
       className="fixed inset-0 flex flex-col" 
       style={{ 
@@ -306,9 +316,10 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         backgroundColor: 'transparent',
         fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
         overflow: 'hidden',
-        height: '100dvh',
-        minHeight: '100dvh',
+        height: 'calc(100dvh + 64px)',
+        minHeight: 'calc(100dvh + 64px)',
         width: '100vw',
+        bottom: '64px',
       }}
     >
       {/* 通知容器 */}
@@ -343,11 +354,38 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         className="flex-1 overflow-y-auto overflow-x-hidden"
         style={{ 
           WebkitOverflowScrolling: 'touch', // iOS 平滑滚动
-          paddingBottom: '76px',
+          paddingBottom: 'calc(76px + 64px)',
           backgroundColor: '#fefaf0',
           minHeight: 0,
         }}
       >
+        {bridgePulse && ['memory', 'goals', 'timeline'].includes(activeTab) && (
+          <div className="sticky top-0 z-20 px-3 pt-3">
+            <div
+              className="flex items-center justify-between rounded-[20px] px-4 py-3 shadow-[0_10px_25px_rgba(84,41,22,0.12)]"
+              style={{
+                background: 'linear-gradient(135deg, rgba(255,250,240,0.96), rgba(255,244,231,0.98))',
+                border: '1px solid rgba(84, 41, 22, 0.12)',
+              }}
+            >
+              <div>
+                <div className="text-[11px] font-black tracking-[0.18em]" style={{ color: '#9a6b37' }}>
+                  闭环跳转
+                </div>
+                <div className="mt-1 text-sm font-semibold" style={{ color: '#542916' }}>
+                  已直达{bridgePulse.label}模块，继续处理当前闭环动作
+                </div>
+              </div>
+              <button
+                onClick={() => setBridgePulse(null)}
+                className="rounded-full px-3 py-1 text-xs font-bold"
+                style={{ backgroundColor: 'rgba(84,41,22,0.08)', color: '#542916' }}
+              >
+                我知道了
+              </button>
+            </div>
+          </div>
+        )}
         {renderActiveModule()}
       </div>
 

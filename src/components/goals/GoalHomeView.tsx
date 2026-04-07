@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, ChevronRight, Copy, Pencil, Plus, Sparkles, Trash2, TrendingUp } from 'lucide-react';
+import eventBus from '@/utils/eventBus';
 import { useGoalStore } from '@/stores/goalStore';
 import { useGoalContributionStore } from '@/stores/goalContributionStore';
 import GoalAnalyticsView from '@/components/goals/GoalAnalyticsView';
@@ -122,10 +123,29 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
   const [showForm, setShowForm] = useState(false);
   const [editingGoal, setEditingGoal] = useState<LongTermGoal | null>(null);
   const [selectedGoal, setSelectedGoal] = useState<LongTermGoal | null>(null);
+  const [linkedGoalId, setLinkedGoalId] = useState<string | null>(null);
 
   useEffect(() => {
     loadGoals();
   }, [loadGoals]);
+
+  useEffect(() => {
+    const handleNavigate = (payload?: { module?: string; goalId?: string }) => {
+      if (payload?.module && payload.module !== 'goals') return;
+      if (!payload?.goalId) return;
+
+      setLinkedGoalId(payload.goalId);
+      const matchedGoal = useGoalStore.getState().goals.find((goal) => goal.id === payload.goalId);
+      if (matchedGoal) {
+        setSelectedGoal(matchedGoal);
+      }
+    };
+
+    eventBus.on('dashboard:navigate-module', handleNavigate);
+    return () => {
+      eventBus.off('dashboard:navigate-module', handleNavigate);
+    };
+  }, []);
 
   const activeGoals = useMemo(() => goals.filter((goal) => getGoalSegment(goal) === 'active'), [goals]);
   const plannedGoals = useMemo(() => goals.filter((goal) => getGoalSegment(goal) === 'planned'), [goals]);
@@ -489,6 +509,14 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
                       className="relative flex h-[68px] w-[68px] items-center justify-center rounded-full"
                       style={{ background: `conic-gradient(${goal.theme.color} ${progress * 3.6}deg, #f1f2f6 0deg)` }}
                     >
+                      {linkedGoalId === goal.id && (
+                        <div
+                          className="absolute -right-1 -top-1 rounded-full px-2 py-1 text-[10px] font-black tracking-[0.14em] text-white"
+                          style={{ backgroundColor: '#111827' }}
+                        >
+                          联动焦点
+                        </div>
+                      )}
                       <div className="flex h-[56px] w-[56px] items-center justify-center rounded-full bg-white text-xs font-semibold text-[#111827]">
                         {progress}%
                       </div>
@@ -511,6 +539,14 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
                       </div>
 
                       <div className="mt-3 rounded-[18px] px-3 py-3" style={{ background: subSurface }}>
+                        {linkedGoalId === goal.id && (
+                          <div
+                            className="mb-3 rounded-[16px] px-3 py-2 text-xs font-semibold"
+                            style={{ backgroundColor: `${goal.theme.color}14`, color: goal.theme.color }}
+                          >
+                            这是总部刚刚点名的目标，建议先点进去看分析，再回时间轴执行。
+                          </div>
+                        )}
                         <div className="flex items-center justify-between text-sm">
                           <span style={{ color: textSecondary }}>当前进度</span>
                           <span style={{ color: textPrimary }}>

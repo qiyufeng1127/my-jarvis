@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { X, ChevronUp, ChevronDown, Clock, Coins, Plus, MapPin, Settings, ArrowUp, ArrowDown, Calendar } from 'lucide-react';
 import { useGoalStore } from '@/stores/goalStore';
 import { useWorkflowStore } from '@/stores/workflowStore';
-import { useTagStore } from '@/stores/tagStore';
+import { useTagStore, type TagData } from '@/stores/tagStore';
 import { TagLearningService } from '@/services/tagLearningService';
 import { AISmartProcessor } from '@/services/aiSmartService';
 
@@ -12,6 +12,29 @@ interface UnifiedTaskEditorProps {
   onConfirm: (tasks: any[]) => void;
   isDark?: boolean;
 }
+
+const NOTE_SEPARATORS = ['：', ':'];
+
+const splitTaskTitleAndNote = (input: string) => {
+  const text = (input || '').trim();
+
+  for (const separator of NOTE_SEPARATORS) {
+    const index = text.indexOf(separator);
+    if (index > 0) {
+      return {
+        title: text.slice(0, index).trim(),
+        note: text.slice(index + 1).trim(),
+      };
+    }
+  }
+
+  return {
+    title: text,
+    note: '',
+  };
+};
+
+const dedupeTags = (tags: string[]) => Array.from(new Set(tags.filter(Boolean)));
 
 /**
  * 统一任务编辑器
@@ -23,6 +46,72 @@ export default function UnifiedTaskEditor({
   onConfirm,
   isDark = false 
 }: UnifiedTaskEditorProps) {
+  const { addTag, getTagByName, addTagToFolder, getAllFolders, getAllTags } = useTagStore();
+
+  const pickSmartTags = (taskTitle: string, existingTags: string[] = []) => {
+    const allTags = getAllTags()
+      .filter((tag: TagData) => !tag.isDisabled)
+      .sort((a: TagData, b: TagData) => b.usageCount - a.usageCount);
+
+    const normalizedTitle = taskTitle.toLowerCase();
+    const matches = allTags.filter((tag: TagData) => {
+      const normalizedTag = tag.name.toLowerCase();
+      return normalizedTitle.includes(normalizedTag) || normalizedTag.includes(normalizedTitle);
+    });
+
+    const fallbackKeywordMap: Array<{ keyword: string; tags: string[] }> = [
+      { keyword: '洗', tags: ['洗漱', '清洁', '家务'] },
+      { keyword: '刷牙', tags: ['洗漱', '清洁'] },
+      { keyword: '洗澡', tags: ['洗漱', '清洁'] },
+      { keyword: '衣', tags: ['洗衣', '家务'] },
+      { keyword: '收拾', tags: ['整理', '家务'] },
+      { keyword: '整理', tags: ['整理', '家务'] },
+      { keyword: '打扫', tags: ['清洁', '家务'] },
+      { keyword: '厨房', tags: ['做饭', '日常'] },
+      { keyword: '做饭', tags: ['做饭', '日常'] },
+      { keyword: '吃饭', tags: ['吃饭', '日常'] },
+      { keyword: '工作', tags: ['工作'] },
+      { keyword: '写', tags: ['工作', '创作'] },
+      { keyword: '画', tags: ['创作', '插画'] },
+      { keyword: '拍', tags: ['拍摄', '工作'] },
+      { keyword: '学习', tags: ['学习'] },
+      { keyword: '运动', tags: ['运动', '健康'] },
+      { keyword: '睡', tags: ['休息', '睡眠'] },
+      { keyword: '吃药', tags: ['健康'] },
+    ];
+
+    const keywordTags = fallbackKeywordMap
+      .filter(({ keyword }) => normalizedTitle.includes(keyword))
+      .flatMap(({ tags }) => tags)
+      .filter(tagName => allTags.some((tag: TagData) => tag.name === tagName));
+
+    const preferredTags = [...matches.map((tag: TagData) => tag.name), ...keywordTags, ...existingTags];
+    const smartTags = dedupeTags(preferredTags).slice(0, 3);
+
+    if (smartTags.length >= 2) {
+      return smartTags;
+    }
+
+    const highUsageTags = allTags.slice(0, 6).map((tag: TagData) => tag.name);
+    return dedupeTags([...smartTags, ...highUsageTags, ...existingTags]).slice(0, 3);
+  };
+
+  const normalizeTaskDraft = (task: any, fallbackIndex: number) => {
+    const { title, note } = splitTaskTitleAndNote(task.title || task.description || '');
+    const smartTitle = title || `任务${fallbackIndex + 1}`;
+    const noteText = note || (task.note || '').trim();
+    const smartTags = pickSmartTags(smartTitle, Array.isArray(task.tags) ? task.tags : []);
+
+    return {
+      ...task,
+      title: smartTitle,
+      description: noteText,
+      note: noteText,
+      tags: smartTags.length > 0 ? smartTags : ['日常'],
+      color: AISmartProcessor.getTaskColor(smartTags.length > 0 ? smartTags : ['日常']),
+    };
+  };
+
   // 智能识别跨凌晨任务并自动调整日期
   const smartAdjustTaskDates = (tasks: any[]) => {
     const now = new Date();
@@ -54,7 +143,9 @@ export default function UnifiedTaskEditor({
     });
   };
   
-  const [editingTasks, setEditingTasks] = useState<any[]>(smartAdjustTaskDates(tasks));
+  const [editingTasks, setEditingTasks] = useState<any[]>(
+    smartAdjustTaskDates(tasks.map((task, index) => normalizeTaskDraft(task, index)))
+  );
   const [editingField, setEditingField] = useState<{taskIndex: number, field: string} | null>(null);
   const [showWorkflowSettings, setShowWorkflowSettings] = useState(false);
   const [showAddLocationModal, setShowAddLocationModal] = useState(false);
@@ -69,7 +160,6 @@ export default function UnifiedTaskEditor({
     addLocation,
     deleteLocation
   } = useWorkflowStore();
-  const { addTag, getTagByName, addTagToFolder, getAllFolders } = useTagStore();
 
   // 按动线排序任务
   const sortTasksByLocation = () => {
@@ -202,16 +292,22 @@ export default function UnifiedTaskEditor({
     if (field === 'title') {
       console.log(`✏️ 修改任务${index + 1}的名称为: ${value}`);
       
+      const { title, note } = splitTaskTitleAndNote(String(value || ''));
+      const safeTitle = title || `任务${index + 1}`;
+      newTasks[index].title = safeTitle;
+      newTasks[index].description = note || newTasks[index].description || '';
+      newTasks[index].note = note || newTasks[index].note || '';
+      
       // 重新推断所有属性
-      newTasks[index].location = AISmartProcessor.inferLocation(value);
-      newTasks[index].tags = AISmartProcessor.generateTags(value);
-      newTasks[index].task_type = AISmartProcessor.inferTaskType(value);
-      newTasks[index].category = AISmartProcessor.inferCategory(value);
-      newTasks[index].goal = AISmartProcessor.identifyGoal(value);
+      newTasks[index].location = AISmartProcessor.inferLocation(safeTitle);
+      newTasks[index].tags = pickSmartTags(safeTitle, newTasks[index].tags);
+      newTasks[index].task_type = AISmartProcessor.inferTaskType(safeTitle);
+      newTasks[index].category = AISmartProcessor.inferCategory(safeTitle);
+      newTasks[index].goal = AISmartProcessor.identifyGoal(safeTitle);
       newTasks[index].color = AISmartProcessor.getTaskColor(newTasks[index].tags);
       
       // 重新估算时长
-      const newDuration = AISmartProcessor.estimateTaskDuration(value);
+      const newDuration = AISmartProcessor.estimateTaskDuration(safeTitle);
       newTasks[index].estimated_duration = newDuration;
       
       // 重新计算金币
@@ -220,7 +316,7 @@ export default function UnifiedTaskEditor({
       console.log(`🔄 自动更新: 位置=${newTasks[index].location}, 标签=${newTasks[index].tags.join(',')}, 颜色=${newTasks[index].color}, 时长=${newDuration}分钟, 金币=${newTasks[index].gold}`);
       
       // 🎓 标签学习：记录用户修改后的标签
-      TagLearningService.learnFromUserChoice(value, newTasks[index].tags);
+      TagLearningService.learnFromUserChoice(safeTitle, newTasks[index].tags);
       
       // 🏷️ 自动同步标签到标签管理系统
       syncTagsToStore(newTasks[index].tags);

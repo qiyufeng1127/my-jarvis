@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Camera, Check, ChevronDown, ChevronUp, Edit2, Trash2, GripVertical, Star, Clock, FileText, Upload, X } from 'lucide-react';
+import eventBus from '@/utils/eventBus';
 import type { Task, LongTermGoal } from '@/types';
 import { 
   generateVerificationKeywords, 
@@ -36,7 +37,6 @@ import {
 import { baiduImageRecognition } from '@/services/baiduImageRecognition';
 import { notificationService } from '@/services/notificationService';
 import TaskVerificationExtension from './TaskVerificationExtension';
-import eventBus from '@/utils/eventBus';
 import TaskVerificationCountdownContent from './TaskVerificationCountdownContent';
 import GoldDetailsModal from '@/components/gold/GoldDetailsModal';
 import TaskCompletionEfficiencyModal from './TaskCompletionEfficiencyModal';
@@ -164,6 +164,7 @@ export default function NewTimelineView({
   const [taskFinishTimeouts, setTaskFinishTimeouts] = useState<Record<string, boolean>>({}); // 完成验证超时标记
   const [taskActualStartTimes, setTaskActualStartTimes] = useState<Record<string, Date>>({}); // 任务实际启动时间
   const [goalContributionTaskId, setGoalContributionTaskId] = useState<string | null>(null);
+  const [linkedTaskId, setLinkedTaskId] = useState<string | null>(null);
   const [goalContributionDrafts, setGoalContributionDrafts] = useState<Record<string, {
     goalId: string;
     note: string;
@@ -181,6 +182,21 @@ export default function NewTimelineView({
   const [showGoldModal, setShowGoldModal] = useState(false); // 金币详情弹窗
   const [isSmartAssigning, setIsSmartAssigning] = useState(false); // 智能分配加载状态
   
+  useEffect(() => {
+    const handleNavigate = (payload?: { module?: string; taskId?: string }) => {
+      if (payload?.module && payload.module !== 'timeline') return;
+      if (!payload?.taskId) return;
+
+      setLinkedTaskId(payload.taskId);
+      setExpandedCards((prev) => new Set([...prev, payload.taskId as string]));
+    };
+
+    eventBus.on('dashboard:navigate-module', handleNavigate);
+    return () => {
+      eventBus.off('dashboard:navigate-module', handleNavigate);
+    };
+  }, []);
+
   // 🔄 从任务对象恢复验证设置和照片
   useEffect(() => {
     const newVerifications: Record<string, TaskVerification> = {};
@@ -2898,6 +2914,22 @@ export default function NewTimelineView({
                 {/* 未展开：横向长条形布局 - 完全按照设计图，手机版缩小并压缩空白 */}
                 {!isExpanded && (
                   <div className={`${isMobile ? 'p-1.5' : 'p-2.5'} text-white`} style={{ color: getTextColor(block.color) }}>
+                    {linkedTaskId === block.id && (
+                      <div
+                        className="mb-2 rounded-full px-3 py-1 text-[10px] font-black tracking-[0.14em]"
+                        style={{ backgroundColor: 'rgba(255,255,255,0.22)', color: '#fff7ed' }}
+                      >
+                        总部刚刚把你带到这条任务，先把它处理掉。
+                      </div>
+                    )}
+                    {linkedTaskId === block.id && (
+                      <div
+                        className="mb-2 rounded-full px-3 py-1 text-[10px] font-black tracking-[0.14em]"
+                        style={{ backgroundColor: 'rgba(255,255,255,0.22)', color: '#fff7ed' }}
+                      >
+                        总部刚刚把你带到这条任务，先把它处理掉。
+                      </div>
+                    )}
                     {/* 第一行：拖拽手柄 + 标签 + 时长 + 编辑按钮 - 减少下边距 */}
                     <div className={`flex items-center justify-between ${isMobile ? 'mb-0.5' : 'mb-1'}`}>
                       <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-1.5'}`}>

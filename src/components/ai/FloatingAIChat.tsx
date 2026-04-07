@@ -113,6 +113,21 @@ interface Message {
   isSelected?: boolean;
 }
 
+const beautifyAssistantReply = (content: string) => {
+  return content
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .replace(/^###\s*/gm, '✨ ')
+    .replace(/^##\s*/gm, '💫 ')
+    .replace(/^#\s*/gm, '🌟 ')
+    .replace(/^---+$/gm, '────────')
+    .replace(/^\s*[-*]\s+/gm, '• ')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+};
+
+
 export default function FloatingAIChat({ isFullScreen = false, onClose, currentModule = 'timeline' }: FloatingAIChatProps = {}) {
   const { addMemory, addJournal } = useMemoryStore();
   const { isConfigured } = useAIStore();
@@ -1802,12 +1817,21 @@ ${message}
               responseContent += `AI帮你智能分解了 ${tasksWithMetadata.length} 个任务：\n\n`;
               
               tasksWithMetadata.forEach((task, index) => {
+                const parsedTitle = task.title || task.description || '';
+                const splitIndex = Math.max(parsedTitle.indexOf('：'), parsedTitle.indexOf(':'));
+                const cleanTitle = splitIndex > 0 ? parsedTitle.slice(0, splitIndex).trim() : parsedTitle.trim();
+                const note = splitIndex > 0 ? parsedTitle.slice(splitIndex + 1).trim() : '';
+
                 const priorityEmoji = getPriorityEmoji(task.priority);
                 const locationEmoji = LOCATION_ICONS[task.location || ''] || '📍';
                 
-                responseContent += `${index + 1}. ${priorityEmoji} **${task.title}**\n`;
+                responseContent += `${index + 1}. ${priorityEmoji} **${cleanTitle}**\n`;
                 responseContent += `   ${locationEmoji} ${task.location} | ⏱️ ${task.estimated_duration} 分钟 | 🕐 ${task.scheduled_start}\n`;
-                responseContent += `   🏷️ ${task.tags.join(', ')}\n\n`;
+                responseContent += `   🏷️ ${task.tags.join(', ')}\n`;
+                if (note) {
+                  responseContent += `   📝 备注：${note}\n`;
+                }
+                responseContent += `\n`;
               });
 
               responseContent += '💡 点击下方按钮打开编辑器，可以调整任务、添加标签和关联目标！';

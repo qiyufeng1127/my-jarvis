@@ -209,6 +209,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
         date: formatDateLabel(entry.date),
         actual: entry.actual,
         duration: entry.duration,
+        incomeIncrement: Number(incomeIncrement.toFixed(2)),
         cumulativeActual: runningActual,
         cumulativeIncome: Number(runningIncome.toFixed(2)),
         idealCumulative: filledEntries.length > 1 ? Number((((index + 1) / filledEntries.length) * finalCumulative).toFixed(2)) : finalCumulative,
@@ -239,6 +240,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
     const actualCoordinates = chartPoints.map((point, index) => `${getX(index)},${getY(point.cumulativeActual)}`);
     const idealCoordinates = chartPoints.map((point, index) => `${getX(index)},${getY(point.idealCumulative)}`);
     const incomeCoordinates = chartPoints.map((point, index) => `${getX(index)},${getY(point.cumulativeIncome)}`);
+    const incomeLinePoints = incomeCoordinates.length > 0 ? [`0,${chartHeight}`, ...incomeCoordinates].join(' ') : '';
 
     const areaPath = actualCoordinates.length > 0
       ? `M 0 ${chartHeight} L ${actualCoordinates.join(' L ')} L ${getX(chartPoints.length - 1)} ${chartHeight} Z`
@@ -247,7 +249,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
     return {
       actualLine: actualCoordinates.join(' '),
       idealLine: idealCoordinates.join(' '),
-      incomeLine: incomeCoordinates.join(' '),
+      incomeLine: incomeLinePoints,
       areaPath,
     };
   }, [chartPoints, maxCumulative]);
@@ -519,7 +521,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
 
                 <svg
                   viewBox="0 0 320 160"
-                  className="pointer-events-none absolute left-0 right-0 top-1 mx-auto h-[160px] w-[calc(100%-8px)] overflow-visible"
+                  className="pointer-events-none absolute bottom-6 left-0 right-0 mx-auto h-[calc(100%-24px)] w-[calc(100%-8px)] overflow-visible"
                   preserveAspectRatio="none"
                 >
                   <defs>
@@ -562,6 +564,18 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
                     const incomeY = 160 - (point.cumulativeIncome / maxCumulative) * 160;
                     return (
                       <g key={`${point.date}-node`}>
+                        {point.incomeIncrement > 0 && (
+                          <text
+                            x={x}
+                            y={Math.max(14, incomeY - 10)}
+                            textAnchor="middle"
+                            fontSize="10"
+                            fontWeight="700"
+                            fill="#0f766e"
+                          >
+                            +¥{Math.round(point.incomeIncrement)}
+                          </text>
+                        )}
                         <circle cx={x} cy={incomeY} r="4.5" fill="#ffffff" stroke="#14b8a6" strokeWidth="2.5" />
                         <circle cx={x} cy={y} r="5.5" fill="#ffffff" stroke="#ff5a5f" strokeWidth="3" />
                       </g>

@@ -13,6 +13,7 @@ import {
   GripVertical,
   Calendar
 } from 'lucide-react';
+import eventBus from '@/utils/eventBus';
 import {
   GoalsModule,
   GoldModule,
@@ -247,9 +248,10 @@ const moduleSpecificSizes: Record<string, { width?: number; height?: number }> =
 
 interface CustomizableDashboardProps {
   onOpenAISmart?: () => void;
+  onModuleChange?: (module: string) => void;
 }
 
-export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDashboardProps = {}) {
+export default function CustomizableDashboard({ onOpenAISmart, onModuleChange }: CustomizableDashboardProps = {}) {
   const [modules, setModules] = useState<Module[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [draggingModule, setDraggingModule] = useState<string | null>(null);
@@ -281,6 +283,7 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
   
   // 宠物商店状态
   const [showPetShop, setShowPetShop] = useState(false);
+  const [activeBridgeModule, setActiveBridgeModule] = useState<string>('timeline');
 
   // 从副业追踪器获取余额数据
   const { getTotalProfit, loadSideHustles } = useSideHustleStore();
@@ -442,6 +445,46 @@ export default function CustomizableDashboard({ onOpenAISmart }: CustomizableDas
     const timer = setTimeout(saveModules, 1000);
     return () => clearTimeout(timer);
   }, [modules, isLoading]);
+
+  // 加载保存的头像
+  useEffect(() => {
+    const handleBridgeNavigate = (payload?: { module?: string }) => {
+      if (!payload?.module) return;
+      setActiveBridgeModule(payload.module);
+      onModuleChange?.(payload.module);
+
+      const existingVisibleModule = modules.find((item) => item.type === payload.module && item.isVisible);
+      if (existingVisibleModule) return;
+
+      const existingHiddenModule = modules.find((item) => item.type === payload.module);
+      if (existingHiddenModule) {
+        setModules((prev) => prev.map((item) => item.type === payload.module ? { ...item, isVisible: true } : item));
+        return;
+      }
+
+      const moduleDefinition = availableModules.find((item) => item.type === payload.module);
+      if (!moduleDefinition || ['tags', 'pet', 'image-widget'].includes(moduleDefinition.type)) return;
+
+      setModules((prev) => ([
+        ...prev,
+        {
+          id: `${moduleDefinition.type}-${Date.now()}`,
+          type: moduleDefinition.type,
+          title: moduleDefinition.title,
+          icon: moduleDefinition.icon,
+          position: { x: 120 + (prev.length % 3) * 48, y: 120 + (prev.length % 4) * 48 },
+          size: 'medium',
+          color: moduleDefinition.defaultColor,
+          isVisible: true,
+        },
+      ]));
+    };
+
+    eventBus.on('dashboard:navigate-module', handleBridgeNavigate);
+    return () => {
+      eventBus.off('dashboard:navigate-module', handleBridgeNavigate);
+    };
+  }, [modules, onModuleChange]);
 
   // 加载保存的头像
   useEffect(() => {

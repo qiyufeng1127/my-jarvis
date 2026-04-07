@@ -7,6 +7,7 @@ import {
   RadarChart,
   ResponsiveContainer,
 } from 'recharts';
+import eventBus from '@/utils/eventBus';
 import { useGoalStore } from '@/stores/goalStore';
 import { useTaskStore } from '@/stores/taskStore';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
@@ -71,6 +72,22 @@ type CommitmentSyncResult = {
   taskId: string;
   goalName: string;
   taskTitle: string;
+};
+
+type QuickBridgeCard = {
+  id: string;
+  title: string;
+  subtitle: string;
+  metric: string;
+  detail: string;
+  accent: string;
+  module: 'memory' | 'goals' | 'timeline';
+  event: 'dashboard:navigate-module';
+  payload: {
+    module: 'memory' | 'goals' | 'timeline';
+    goalId?: string;
+    taskId?: string;
+  };
 };
 
 const STORAGE_KEY = 'hq-report-session-v1';
@@ -607,6 +624,89 @@ ${reportData.painFocus.question}`;
   const currentSummary = reportSummary || fallbackSummary;
   const ringPercent = Math.max(0, Math.min(100, Number(reportData.monthRate.toFixed(0))));
   const reportTitle = `【${reportData.now.getFullYear()}年${reportData.now.getMonth() + 1}月${reportData.now.getDate()}日】AI总部述职报告`;
+  const quickBridgeCards = useMemo<QuickBridgeCard[]>(() => {
+    const topGoal = goals.find((goal) => goal.isActive && !goal.isCompleted) || goals[0];
+    const topTask = reportData.delayedTasks[0] || tasks.find((task) => task.status !== 'completed') || tasks[0];
+    const promiseText = currentSummary.promise || reportData.painFocus.detail;
+
+    return [
+      {
+        id: 'memory-bridge',
+        title: '总部结论',
+        subtitle: reportData.painFocus.label,
+        metric: conversationAssessment.resolved ? '已形成承诺' : '继续追问中',
+        detail: promiseText,
+        accent: '#23160d',
+        module: 'memory',
+        event: 'dashboard:navigate-module',
+        payload: { module: 'memory', goalId: commitmentSyncResult?.goalId, taskId: commitmentSyncResult?.taskId },
+      },
+      {
+        id: 'goal-bridge',
+        title: '目标落点',
+        subtitle: topGoal?.name || '等待导入整改目标',
+        metric: topGoal ? `${Math.round(((topGoal.targetValue || 0) > 0 ? ((topGoal.currentValue || 0) / (topGoal.targetValue || 1)) * 100 : 0))}%` : `${reportData.monthRate.toFixed(0)}%`,
+        detail: topGoal ? `进度 ${topGoal.currentValue}/${topGoal.targetValue || 0}${topGoal.unit || ''}` : `月度缺口 ${reportData.monthGap}`,
+        accent: '#0f766e',
+        module: 'goals',
+        event: 'dashboard:navigate-module',
+        payload: { module: 'goals', goalId: commitmentSyncResult?.goalId || topGoal?.id },
+      },
+      {
+        id: 'timeline-bridge',
+        title: '时间轴动作',
+        subtitle: topTask?.title || commitmentSyncResult?.taskTitle || '等待生成整改动作',
+        metric: topTask?.scheduledStart ? formatDate(new Date(topTask.scheduledStart)) : '待安排',
+        detail: topTask?.scheduledStart ? `计划 ${formatTimeLabel(new Date(topTask.scheduledStart))} 开始` : '还没有可执行时间块',
+        accent: '#8b5cf6',
+        module: 'timeline',
+        event: 'dashboard:navigate-module',
+        payload: { module: 'timeline', taskId: commitmentSyncResult?.taskId || topTask?.id },
+      },
+    ];
+  }, [commitmentSyncResult, conversationAssessment.resolved, currentSummary.promise, goals, reportData, tasks]);
+  const loopStatusCards = useMemo(() => {
+    const hasCommitment = userAnswers.length > 0;
+    const hasGoalLinked = Boolean(commitmentSyncResult?.goalId || goals.find((goal) => goal.name.includes('总部整改')));
+    const hasTaskLinked = Boolean(commitmentSyncResult?.taskId || tasks.find((task) => (task.tags || []).includes('总部承诺')));
+    const linkedTask = commitmentSyncResult?.taskId
+      ? tasks.find((task) => task.id === commitmentSyncResult.taskId)
+      : tasks.find((task) => (task.tags || []).includes('总部承诺'));
+    const taskDone = linkedTask?.status === 'completed';
+
+    return [
+      {
+        id: 'hq',
+        label: '总部锁定问题',
+        done: stage !== 'loading',
+        hint: reportData.painFocus.label,
+      },
+      {
+        id: 'commitment',
+        label: '形成整改承诺',
+        done: hasCommitment,
+        hint: hasCommitment ? `${userAnswers.length} 轮问答` : '等待问答',
+      },
+      {
+        id: 'goal',
+        label: '导入目标组件',
+        done: hasGoalLinked,
+        hint: hasGoalLinked ? '已挂到目标' : '尚未挂载',
+      },
+      {
+        id: 'timeline',
+        label: '安排时间轴动作',
+        done: hasTaskLinked,
+        hint: hasTaskLinked ? '已进入时间轴' : '尚未安排',
+      },
+      {
+        id: 'done',
+        label: '执行并收口',
+        done: Boolean(taskDone),
+        hint: taskDone ? '动作已完成' : '等待执行',
+      },
+    ];
+  }, [commitmentSyncResult, goals, reportData.painFocus.label, stage, tasks, userAnswers.length]);
   
   return (
     <>
@@ -776,6 +876,132 @@ ${reportData.painFocus.question}`;
               </div>
 
               <div className="space-y-4">
+                <div
+                  className="rounded-[28px] border p-4 md:p-5"
+                  style={{
+                    background: 'rgba(255,255,255,0.92)',
+                    borderColor: 'rgba(86, 62, 39, 0.12)',
+                    boxShadow: '0 18px 38px rgba(72, 46, 22, 0.08)',
+                  }}
+                >
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-base font-black" style={{ color: '#23160d' }}>
+                        闭环进度时间轴
+                      </div>
+                      <div className="mt-1 text-xs leading-5" style={{ color: '#7a6654' }}>
+                        从总部发现问题，到挂目标、排时间、真正执行，当前走到了哪一步，一屏就能看懂。
+                      </div>
+                    </div>
+                    <div className="rounded-full px-3 py-1 text-[11px] font-black tracking-[0.16em]" style={{ backgroundColor: '#f2e8d9', color: '#8b6740' }}>
+                      可视化闭环
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3">
+                    {loopStatusCards.map((item, index) => (
+                      <div key={item.id} className="flex items-start gap-3">
+                        <div className="flex flex-col items-center">
+                          <div
+                            className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-black"
+                            style={{
+                              backgroundColor: item.done ? '#23160d' : '#eadfcd',
+                              color: item.done ? '#f7efe1' : '#8b6740',
+                            }}
+                          >
+                            {index + 1}
+                          </div>
+                          {index < loopStatusCards.length - 1 && (
+                            <div
+                              className="mt-2 w-[2px] flex-1 rounded-full"
+                              style={{ backgroundColor: item.done ? 'rgba(35,22,13,0.26)' : 'rgba(139,103,64,0.18)', minHeight: 34 }}
+                            />
+                          )}
+                        </div>
+                        <div
+                          className="flex-1 rounded-[20px] border px-4 py-3"
+                          style={{
+                            backgroundColor: item.done ? '#fcf8f1' : '#f6efe4',
+                            borderColor: item.done ? 'rgba(35,22,13,0.12)' : 'rgba(139,103,64,0.10)',
+                          }}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="text-sm font-black" style={{ color: '#23160d' }}>{item.label}</div>
+                            <div
+                              className="rounded-full px-3 py-1 text-[11px] font-black"
+                              style={{
+                                backgroundColor: item.done ? 'rgba(35,22,13,0.08)' : 'rgba(139,103,64,0.08)',
+                                color: item.done ? '#23160d' : '#8b6740',
+                              }}
+                            >
+                              {item.done ? '已完成' : '待推进'}
+                            </div>
+                          </div>
+                          <div className="mt-2 text-xs leading-5" style={{ color: '#6b5642' }}>
+                            {item.hint}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div
+                  className="rounded-[28px] border p-4 md:p-5"
+                  style={{
+                    background: 'rgba(255,255,255,0.92)',
+                    borderColor: 'rgba(86, 62, 39, 0.12)',
+                    boxShadow: '0 18px 38px rgba(72, 46, 22, 0.08)',
+                  }}
+                >
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-base font-black" style={{ color: '#23160d' }}>
+                        总部-目标-时间轴联动
+                      </div>
+                      <div className="mt-1 text-xs leading-5" style={{ color: '#7a6654' }}>
+                        一眼看到总部结论、落地目标、执行时间块。点哪张卡，就跳哪一个模块继续处理。
+                      </div>
+                    </div>
+                    <div className="rounded-full px-3 py-1 text-[11px] font-black tracking-[0.16em]" style={{ backgroundColor: '#efe4d3', color: '#6a4a2d' }}>
+                      快速闭环
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3">
+                    {quickBridgeCards.map((card) => (
+                      <button
+                        key={card.id}
+                        onClick={() => eventBus.emit(card.event, card.payload)}
+                        className="rounded-[22px] border px-4 py-4 text-left transition-transform duration-150 hover:-translate-y-[2px]"
+                        style={{
+                          background: `linear-gradient(135deg, ${card.accent}14, rgba(255,255,255,0.94))`,
+                          borderColor: `${card.accent}33`,
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-black" style={{ color: '#23160d' }}>{card.title}</div>
+                            <div className="mt-1 text-sm" style={{ color: '#6b5642' }}>{card.subtitle}</div>
+                          </div>
+                          <div
+                            className="rounded-full px-3 py-1 text-xs font-black"
+                            style={{ backgroundColor: `${card.accent}22`, color: card.accent }}
+                          >
+                            {card.metric}
+                          </div>
+                        </div>
+                        <div className="mt-3 text-sm leading-6" style={{ color: '#4d3927' }}>
+                          {card.detail}
+                        </div>
+                        <div className="mt-3 text-xs font-bold tracking-[0.16em]" style={{ color: card.accent }}>
+                          点击直达 {card.module === 'memory' ? '总部' : card.module === 'goals' ? '目标' : '时间轴'}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div
                   className="rounded-[28px] border p-4 md:p-5"
                   style={{
@@ -1397,6 +1623,14 @@ function severityLabel(level: 'light' | 'medium' | 'heavy') {
 
 function formatDate(date: Date) {
   return `${date.getMonth() + 1}月${date.getDate()}日`;
+}
+
+function formatTimeLabel(date: Date) {
+  return date.toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
 }
 
 function toDateKey(date: Date) {
