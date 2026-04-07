@@ -43,7 +43,7 @@ import { useAIStore } from '@/stores/aiStore';
 import { aiService } from '@/services/aiService';
 import { useTaskStore } from '@/stores/taskStore';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
-import type { TaskType, TaskPriority } from '@/types';
+import type { Task, TaskType, TaskPriority } from '@/types';
 import AIConfigModal from './AIConfigModal';
 import UnifiedTaskEditor from '@/components/shared/UnifiedTaskEditor';
 import { 
@@ -114,6 +114,32 @@ interface GoalConversationState {
   lastAskedField?: string;
 }
 
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+  goalMatches?: Array<{ goalId: string; goalName: string; confidence: number }>;
+  tags?: {
+    emotions: string[];
+    categories: string[];
+    type?: 'mood' | 'thought' | 'todo' | 'success' | 'gratitude';
+  };
+  rewards?: {
+    gold: number;
+    growth: number;
+  };
+  decomposedTasks?: DecomposedTask[];
+  pendingAction?: {
+    type: 'create_tasks' | 'update_task' | 'query_tasks';
+    data: any;
+  };
+  showTaskEditor?: boolean;
+  thinkingProcess?: string[];
+  isThinkingExpanded?: boolean;
+  isSelected?: boolean;
+}
+
 
 const beautifyAssistantReply = (content: string) => {
   return content
@@ -129,6 +155,275 @@ const beautifyAssistantReply = (content: string) => {
     .trim();
 };
 
+const GOAL_THEME = { color: '#0A84FF', label: '海蓝' };
+
+const normalizeGoalText = (input: string) =>
+  input
+    .replace(/[，。！!？?]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const extractRelativeDeadline = (message: string) => {
+  const base = new Date();
+  const patterns = [
+    { regex: /(\d+)\s*天(?:之后|以后|内)?/, unit: 'day' as const },
+    { regex: /(\d+)\s*周(?:之后|以后|内)?/, unit: 'week' as const },
+    { regex: /(\d+)\s*个?月(?:之后|以后|内)?/, unit: 'month' as const },
+  ];
+
+  for (const { regex, unit } of patterns) {
+    const match = message.match(regex);
+    if (!match) continue;
+    const value = parseInt(match[1], 10);
+    if (!Number.isFinite(value) || value <= 0) continue;
+
+    const endDate = new Date(base);
+    if (unit === 'day') endDate.setDate(endDate.getDate() + value);
+    if (unit === 'week') endDate.setDate(endDate.getDate() + value * 7);
+    if (unit === 'month') endDate.setMonth(endDate.getMonth() + value);
+
+    return { value, unit, endDate };
+  }
+
+  return null;
+};
+
+const inferGoalNameFromMessage = (message: string) => {
+  const cleaned = normalizeGoalText(message)
+    .replace(/^(我想|我希望|我要|帮我|想要|希望|计划在|打算在)/, '')
+    .replace(/(十|\d+)天(?:之后|以后|内).*/, '')
+    .replace(/(一|二|两|三|四|五|六|七|八|九|十|\d+)周(?:之后|以后|内).*/, '')
+    .replace(/(一|二|两|三|四|五|六|七|八|九|十|\d+)个?月(?:之后|以后|内).*/, '')
+    .replace(/^(把|将)/, '')
+    .trim();
+
+  return cleaned || normalizeGoalText(message).slice(0, 24) || '新的目标';
+};
+
+const parseDailyHoursFromMessage = (message: string): number | null => {
+  const normalized = message.replace(/半小时/g, '0.5小时');
+  const hourMatch = normalized.match(/(\d+(?:\.\d+)?)\s*(?:个)?小时/);
+  if (hourMatch) return Number(hourMatch[1]);
+
+  const minuteMatch = normalized.match(/(\d+(?:\.\d+)?)\s*分钟/);
+  if (minuteMatch) {
+    return Number((parseFloat(minuteMatch[1]) / 60).toFixed(1));
+  }
+
+  if (/半天/.test(message)) return 4;
+  if (/一整天|全天/.test(message)) return 8;
+
+  return null;
+};
+
+function splitGoalItems(message: string) {
+  return message
+    .split(/[，,；;、\n]/)
+    .map((item) => item.replace(/^(还有|以及|然后|再|想要|做到|实现|分别是|比如|例如)/, '').trim())
+    .filter((item) => item.length > 0);
+}
+
+function inferGoalUnit(text: string) {
+  if (/套|卖出|成交/.test(text)) return '套';
+  if (/条|篇|内容|笔记|视频|作品|发布/.test(text)) return '条';
+  if (/个|人|客户|线索|私域|加微|意向/.test(text)) return '个';
+  if (/元|收入|销售额|营收|回款/.test(text)) return '元';
+  return '项';
+}
+
+function inferGoalDimensionName(text: string) {
+  if (/卖出|成交|出单|转化/.test(text)) return '成交转化';
+  if (/内容|笔记|视频|作品|发布/.test(text)) return '内容发布';
+  if (/客户|线索|私域|加微|意向/.test(text)) return '私域线索';
+  if (/收入|销售额|营收|回款/.test(text)) return '目标收入';
+
+  const cleaned = text
+    .replace(/\d+(?:\.\d+)?\s*(套|单|个|篇|条|位|人|次|万|元)/g, '')
+    .replace(/^(卖出|发布|新增|积累|做到|实现)/, '')
+    .trim();
+
+  return cleaned || '关键结果';
+}
+
+function parseSingleGoalDimension(text: string, index: number): GoalDraftDimension | null {
+  const amountMatch = text.match(/(\d+(?:\.\d+)?)\s*(套|单|个|篇|条|位|人|次|万|元)/);
+  const inferredUnit = amountMatch?.[2] || inferGoalUnit(text);
+  let targetValue = amountMatch ? parseFloat(amountMatch[1]) : 1;
+  let unit = inferredUnit;
+
+  if (unit === '万') {
+    targetValue = targetValue * 10000;
+    unit = '元';
+  }
+
+  const name = inferGoalDimensionName(text);
+  if (!name) return null;
+
+  return {
+    id: `metric-${Date.now()}-${index}`,
+    name,
+    unit,
+    targetValue,
+    currentValue: 0,
+    weight: 0,
+  };
+}
+
+const parseGoalDimensions = (message: string, existingTagNames: string[]): GoalDraftDimension[] => {
+  const items = splitGoalItems(message);
+  const matchedTags = existingTagNames.filter((tag) => message.includes(tag)).slice(0, 3);
+
+  const dimensionCandidates = items
+    .map((item, index) => parseSingleGoalDimension(item, index))
+    .filter(Boolean) as GoalDraftDimension[];
+
+  const inferredFromTags = matchedTags
+    .filter((tag) => !dimensionCandidates.some((dimension) => dimension.name.includes(tag) || tag.includes(dimension.name)))
+    .map((tag, index) => ({
+      id: `metric-tag-${Date.now()}-${index}`,
+      name: tag,
+      unit: '项',
+      targetValue: 1,
+      currentValue: 0,
+      weight: 0,
+    }));
+
+  const uniqueMap = new Map<string, GoalDraftDimension>();
+  [...dimensionCandidates, ...inferredFromTags].forEach((item) => {
+    if (!uniqueMap.has(item.name)) {
+      uniqueMap.set(item.name, item);
+    }
+  });
+
+  const result = Array.from(uniqueMap.values()).slice(0, 3);
+  if (result.length === 0) return [];
+
+  const baseWeight = Math.floor(100 / result.length);
+  return result.map((item, index) => ({
+    ...item,
+    weight: index === result.length - 1
+      ? 100 - baseWeight * (result.length - 1)
+      : baseWeight,
+  }));
+};
+
+const buildGoalDraftFromMessage = (message: string, existingTagNames: string[]): GoalDraftData => {
+  const timeInfo = extractRelativeDeadline(message);
+  const startDate = new Date();
+  startDate.setHours(0, 0, 0, 0);
+
+  const endDate = timeInfo?.endDate;
+  if (endDate) endDate.setHours(0, 0, 0, 0);
+
+  const estimatedDailyHours = parseDailyHoursFromMessage(message) || 0;
+  const durationDays = endDate
+    ? Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1)
+    : 0;
+  const estimatedTotalHours = estimatedDailyHours && durationDays
+    ? Number((estimatedDailyHours * durationDays).toFixed(1))
+    : 0;
+
+  const dimensions = parseGoalDimensions(message, existingTagNames);
+  const extractedTags = existingTagNames.filter((tag) => message.includes(tag)).slice(0, 3);
+  const incomeMatch = message.match(/(\d+(?:\.\d+)?)\s*(万|元)/);
+  const targetIncome = incomeMatch
+    ? (incomeMatch[2] === '万' ? parseFloat(incomeMatch[1]) * 10000 : parseFloat(incomeMatch[1]))
+    : undefined;
+
+  const missingFields = [];
+  if (!estimatedDailyHours) missingFields.push('dailyHours');
+  if (dimensions.length === 0) missingFields.push('keyResults');
+
+  return {
+    name: inferGoalNameFromMessage(message),
+    description: normalizeGoalText(message),
+    startDate,
+    endDate,
+    estimatedTotalHours,
+    estimatedDailyHours,
+    targetIncome,
+    projectBindings: extractedTags.map((tag, index) => ({ id: `tag-binding-${Date.now()}-${index}`, name: tag })),
+    dimensions,
+    theme: GOAL_THEME,
+    showInFuture30Chart: true,
+    relatedDimensions: [],
+    extractedTags,
+    missingFields,
+  };
+};
+
+const mergeGoalDraftWithAnswer = (
+  draft: GoalDraftData,
+  field: string,
+  answer: string,
+  existingTagNames: string[]
+): GoalDraftData => {
+  const nextDraft = { ...draft };
+
+  if (field === 'dailyHours') {
+    const dailyHours = parseDailyHoursFromMessage(answer);
+    if (dailyHours) {
+      nextDraft.estimatedDailyHours = dailyHours;
+      if (nextDraft.startDate && nextDraft.endDate) {
+        const durationDays = Math.max(1, Math.ceil((nextDraft.endDate.getTime() - nextDraft.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+        nextDraft.estimatedTotalHours = Number((dailyHours * durationDays).toFixed(1));
+      }
+    }
+  }
+
+  if (field === 'keyResults') {
+    const dimensions = parseGoalDimensions(answer, existingTagNames);
+    if (dimensions.length > 0) {
+      nextDraft.dimensions = dimensions;
+      const tags = existingTagNames.filter((tag) => answer.includes(tag)).slice(0, 3);
+      if (tags.length > 0) {
+        nextDraft.extractedTags = tags;
+        nextDraft.projectBindings = tags.map((tag, index) => ({ id: `tag-binding-${Date.now()}-${index}`, name: tag }));
+      }
+    }
+  }
+
+  nextDraft.missingFields = nextDraft.missingFields.filter((item) => item !== field);
+  return nextDraft;
+};
+
+const getNextGoalQuestion = (draft: GoalDraftData) => {
+  const nextField = draft.missingFields[0];
+  if (!nextField) return null;
+
+  if (nextField === 'dailyHours') {
+    return {
+      field: nextField,
+      text: '我先帮你把这个目标种下啦 🌱 那你每天大概愿意投入多久呢？比如 1 小时、2 小时，或者 40 分钟都可以～',
+    };
+  }
+
+  if (nextField === 'keyResults') {
+    return {
+      field: nextField,
+      text: '那我们再把关键结果说清一点呀 🤍 你希望它具体落成哪 2 到 3 个结果？比如 卖出多少套、发多少篇内容、加多少个意向客户。',
+    };
+  }
+
+  return null;
+};
+
+const buildGoalCreatedReply = (draft: GoalDraftData, goalName: string) => {
+  const dimensionText = draft.dimensions
+    .map((item) => `${item.name} ${item.targetValue}${item.unit}`)
+    .join('、');
+
+  const tagText = draft.extractedTags.length > 0 ? `\n🏷️ 我顺手给它挂上了：${draft.extractedTags.join('、')}` : '';
+  const dateText = draft.endDate ? `\n📅 截止时间：${draft.endDate.toLocaleDateString('zh-CN')}` : '';
+  const timeText = draft.estimatedTotalHours > 0
+    ? `\n⏳ 预计总时长：${draft.estimatedTotalHours} 小时（约 ${draft.estimatedDailyHours} 小时/天）`
+    : '';
+  const progressText = dimensionText ? `\n📈 客观进度：${dimensionText}` : '';
+
+  return beautifyAssistantReply(`好呀，我已经把新目标放进目标组件里啦 ✨\n\n🎯 目标：${goalName}${dateText}${timeText}${progressText}${tagText}\n\n我已经顺手帮你打开目标编辑页了，你现在可以继续补细节，我也还陪着你 🤍`);
+};
+
+
 
 export default function FloatingAIChat({ isFullScreen = false, onClose, currentModule = 'timeline' }: FloatingAIChatProps = {}) {
   const { addMemory, addJournal } = useMemoryStore();
@@ -136,7 +431,8 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
   const { createTask, updateTask, deleteTask, tasks, getTodayTasks } = useTaskStore();
   const { createSideHustle, addIncome, addExpense } = useSideHustleStore();
   const { createGoal } = useGoalStore();
-  const { personality, addMessage: addChatMessage, chatHistory } = useAIPersonalityStore();
+  const { getAllTags } = useTagStore();
+  const { personality, addMessage: addChatMessage } = useAIPersonalityStore();
   
   // 上下文模式状态
   const [contextMode, setContextMode] = useState<'normal' | 'income' | 'goal' | 'mutter'>('normal');
@@ -162,6 +458,7 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
   const [isVoiceControlOpen, setIsVoiceControlOpen] = useState(false);
   const [isVoiceListening, setIsVoiceListening] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [goalConversation, setGoalConversation] = useState<GoalConversationState | null>(null);
   
   // 获取默认欢迎消息
   const getWelcomeMessage = (): Message => ({
@@ -1222,100 +1519,150 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
   const handleGoalInput = async (message: string) => {
     try {
       addThinkingStep('🎯 识别为目标设置...');
-      
-      // 使用 AI 或正则提取时间和目标
-      let deadline: Date | undefined;
-      let goalDescription = message;
-      
-      // 提取时间信息
-      const timePatterns = [
-        { pattern: /(\d+)\s*个?月/, unit: 'month' },
-        { pattern: /(\d+)\s*周/, unit: 'week' },
-        { pattern: /(\d+)\s*天/, unit: 'day' },
-        { pattern: /(\d+)\s*年/, unit: 'year' },
-      ];
-      
-      let timeText = '';
-      for (const { pattern, unit } of timePatterns) {
-        const match = message.match(pattern);
-        if (match) {
-          const value = parseInt(match[1]);
-          deadline = new Date();
-          if (unit === 'month') {
-            deadline.setMonth(deadline.getMonth() + value);
-            timeText = `${value}个月`;
-          } else if (unit === 'week') {
-            deadline.setDate(deadline.getDate() + value * 7);
-            timeText = `${value}周`;
-          } else if (unit === 'day') {
-            deadline.setDate(deadline.getDate() + value);
-            timeText = `${value}天`;
-          } else if (unit === 'year') {
-            deadline.setFullYear(deadline.getFullYear() + value);
-            timeText = `${value}年`;
-          }
-          
-          addThinkingStep(`⏰ 识别期限: ${timeText}`);
-          break;
+
+      const existingTagNames = getAllTags().map((tag) => tag.name);
+
+      if (goalConversation) {
+        const askedField = goalConversation.lastAskedField;
+        const updatedDraft = askedField
+          ? mergeGoalDraftWithAnswer(goalConversation.draft, askedField, message, existingTagNames)
+          : goalConversation.draft;
+
+        const nextQuestion = getNextGoalQuestion(updatedDraft);
+        if (nextQuestion) {
+          setGoalConversation({
+            draft: updatedDraft,
+            askedFields: [...goalConversation.askedFields, nextQuestion.field],
+            lastAskedField: nextQuestion.field,
+          });
+
+          const aiMessage: Message = {
+            id: `ai-${Date.now()}`,
+            role: 'assistant',
+            content: beautifyAssistantReply(nextQuestion.text),
+            timestamp: new Date(),
+            thinkingProcess: [...thinkingSteps],
+            isThinkingExpanded: false,
+          };
+
+          setMessages(prev => [...prev, aiMessage]);
+          return;
         }
+
+        const totalTargetValue = updatedDraft.dimensions.reduce((sum, item) => sum + item.targetValue, 0);
+        const goal = createGoal({
+          name: updatedDraft.name,
+          description: updatedDraft.description,
+          goalType: 'numeric',
+          startDate: updatedDraft.startDate,
+          endDate: updatedDraft.endDate,
+          deadline: updatedDraft.endDate,
+          estimatedTotalHours: updatedDraft.estimatedTotalHours,
+          estimatedDailyHours: updatedDraft.estimatedDailyHours,
+          targetIncome: updatedDraft.targetIncome,
+          dimensions: updatedDraft.dimensions,
+          projectBindings: updatedDraft.projectBindings,
+          theme: updatedDraft.theme,
+          showInFuture30Chart: updatedDraft.showInFuture30Chart,
+          relatedDimensions: updatedDraft.relatedDimensions,
+          targetValue: totalTargetValue,
+          currentValue: 0,
+          unit: updatedDraft.dimensions[0]?.unit || '',
+          milestones: [],
+        });
+
+        eventBus.emit('dashboard:navigate-module', {
+          module: 'goals',
+          goalId: goal.id,
+          action: 'edit',
+        });
+        setGoalConversation(null);
+        setContextMode('normal');
+
+        const aiMessage: Message = {
+          id: `ai-${Date.now()}`,
+          role: 'assistant',
+          content: buildGoalCreatedReply(updatedDraft, goal.name),
+          timestamp: new Date(),
+          thinkingProcess: [...thinkingSteps],
+          isThinkingExpanded: false,
+        };
+
+        setMessages(prev => [...prev, aiMessage]);
+        return;
       }
-      
-      // 提取数值目标
-      const numberMatch = message.match(/(\d+(?:\.\d+)?)\s*(?:元|块|万|个|次)?/);
-      const targetValue = numberMatch ? parseFloat(numberMatch[1]) : undefined;
-      
-      if (targetValue) {
-        addThinkingStep(`🎯 识别目标值: ${targetValue}`);
+
+      const draft = buildGoalDraftFromMessage(message, existingTagNames);
+      const nextQuestion = getNextGoalQuestion(draft);
+
+      if (nextQuestion) {
+        setGoalConversation({
+          draft,
+          askedFields: [nextQuestion.field],
+          lastAskedField: nextQuestion.field,
+        });
+        setContextMode('goal');
+
+        const previewTags = draft.extractedTags.length > 0 ? `\n🏷️ 我先识别到这些标签：${draft.extractedTags.join('、')}` : '';
+        const previewDate = draft.endDate ? `\n📅 我先理解成截止到：${draft.endDate.toLocaleDateString('zh-CN')}` : '';
+
+        const aiMessage: Message = {
+          id: `ai-${Date.now()}`,
+          role: 'assistant',
+          content: beautifyAssistantReply(`收到啦，我知道你想推进这个目标：${draft.name}${previewDate}${previewTags}\n\n${nextQuestion.text}`),
+          timestamp: new Date(),
+          thinkingProcess: [...thinkingSteps],
+          isThinkingExpanded: false,
+        };
+
+        setMessages(prev => [...prev, aiMessage]);
+        return;
       }
-      
-      // 创建目标
-      const newGoal = createGoal({
-        name: goalDescription.slice(0, 50),
-        description: goalDescription,
-        goalType: targetValue ? 'numeric' : 'boolean',
-        targetValue,
+
+      const totalTargetValue = draft.dimensions.reduce((sum, item) => sum + item.targetValue, 0);
+      const goal = createGoal({
+        name: draft.name,
+        description: draft.description,
+        goalType: 'numeric',
+        startDate: draft.startDate,
+        endDate: draft.endDate,
+        deadline: draft.endDate,
+        estimatedTotalHours: draft.estimatedTotalHours,
+        estimatedDailyHours: draft.estimatedDailyHours,
+        targetIncome: draft.targetIncome,
+        dimensions: draft.dimensions,
+        projectBindings: draft.projectBindings,
+        theme: draft.theme,
+        showInFuture30Chart: draft.showInFuture30Chart,
+        relatedDimensions: draft.relatedDimensions,
+        targetValue: totalTargetValue,
         currentValue: 0,
-        deadline,
-        relatedDimensions: [],
+        unit: draft.dimensions[0]?.unit || '',
         milestones: [],
       });
-      
-      addThinkingStep('✅ 目标已创建');
-      
-      // 在时间轴上创建醒目的目标记录卡片
-      const now = new Date();
-      await createTask({
-        title: `🎯🌟✨ 新目标设定`,
-        description: `🚀 ${goalDescription}\n\n${targetValue ? `📊 目标值: ${targetValue}\n` : ''}${deadline ? `⏰ 期限: ${timeText}后 (${deadline.toLocaleDateString('zh-CN')})\n` : ''}🎉 加油，你一定可以的！`,
-        taskType: 'life' as TaskType,
-        priority: 1,
-        durationMinutes: 1,
-        scheduledStart: now,
-        scheduledEnd: new Date(now.getTime() + 60000),
-        tags: ['🎯目标记录', '🌟梦想', '🚀成长'],
-        color: '#B4E7CE', // 复古糖果薄荷绿
-        status: 'completed',
-        isRecord: true,
+
+      eventBus.emit('dashboard:navigate-module', {
+        module: 'goals',
+        goalId: goal.id,
+        action: 'edit',
       });
-      
-      const responseContent = beautifyAssistantReply(`好耶，这个目标我已经帮你种下啦 🌱\n\n🎯 目标：${newGoal.name}\n${targetValue ? `📊 目标值：${targetValue}\n` : ''}${deadline ? `⏰ 期限：${deadline.toLocaleDateString('zh-CN')}\n` : ''}\n✨ 我已经把它放进长期目标里了\n\n你之后随时都可以去目标模块看看，我会陪你慢慢往前走的 🤍`);
-      
+      setGoalConversation(null);
+      setContextMode('normal');
+
       const aiMessage: Message = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        content: responseContent,
+        content: buildGoalCreatedReply(draft, goal.name),
         timestamp: new Date(),
         thinkingProcess: [...thinkingSteps],
         isThinkingExpanded: false,
       };
-      
+
       setMessages(prev => [...prev, aiMessage]);
-      
-      // 退出目标模式
-      setContextMode('normal');
-      
     } catch (error) {
       console.error('处理目标设置失败:', error);
+      setGoalConversation(null);
+      setContextMode('normal');
       const errorMessage: Message = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
@@ -1366,6 +1713,10 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
       
       // 让AI理解用户意图
       addThinkingStep('🧠 正在理解你的意图...');
+      const shouldForceGoalFlow = /(目标|十天|\d+天之后|\d+天以后|卖出去|关键结果|客观进度|预计耗费|预计总时长)/.test(message);
+      if (shouldForceGoalFlow) {
+        throw new Error('force-goal-flow');
+      }
       const intent = await aiCommandCenter.processUserInput(message, context);
       
       addThinkingStep(`✅ 理解：${intent.understanding}`);
@@ -1444,8 +1795,12 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
       return; // 🎯 使用智能AI处理后直接返回
       
     } catch (error) {
-      console.error('🧠 [智能AI] 处理失败，降级到传统模式:', error);
-      addThinkingStep('⚠️ AI智能处理失败，使用传统模式');
+      if (error instanceof Error && error.message === 'force-goal-flow') {
+        addThinkingStep('🎯 识别为目标对话，转入目标联动模式');
+      } else {
+        console.error('🧠 [智能AI] 处理失败，降级到传统模式:', error);
+        addThinkingStep('⚠️ AI智能处理失败，使用传统模式');
+      }
       // 继续执行下面的传统处理逻辑
     }
     // 🧠 ==================== 智能AI指挥中枢结束 ==================== 🧠
@@ -1459,7 +1814,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
       return;
     }
     
-    if (contextMode === 'goal') {
+    if (contextMode === 'goal' || goalConversation) {
       clearThinkingSteps();
       await handleGoalInput(message);
       setIsProcessing(false);
@@ -1496,7 +1851,14 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
       console.log('🎯 [意图识别]', intentResult);
       
       // 根据意图类型路由到不同的处理函数
-      if (intentResult.intent === 'delete_tasks' && intentResult.confidence > 0.8) {
+      if (intentResult.intent === 'set_goal' && intentResult.confidence > 0.55) {
+        clearThinkingSteps();
+        setContextMode('goal');
+        await handleGoalInput(message);
+        if (sendTimeoutRef.current) clearTimeout(sendTimeoutRef.current);
+        setIsProcessing(false);
+        return;
+      } else if (intentResult.intent === 'delete_tasks' && intentResult.confidence > 0.8) {
         // 删除任务操作
       const handled = await handleTimelineOperation(message);
         if (sendTimeoutRef.current) clearTimeout(sendTimeoutRef.current);

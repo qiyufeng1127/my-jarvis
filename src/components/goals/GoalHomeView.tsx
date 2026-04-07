@@ -95,6 +95,43 @@ function getDeadlineLabel(goal: LongTermGoal) {
   return `剩余 ${diffDays} 天`;
 }
 
+function formatLoopDate(value?: string) {
+  if (!value) return '刚刚同步';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '刚刚同步';
+  return date.toLocaleString('zh-CN', {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
+
+function getLoopStage(goal: LongTermGoal | null, taskStatus?: string, hasContribution?: boolean): LoopStage {
+  if (taskStatus === 'completed') return 'done';
+  if (hasContribution) return 'kr';
+  if (taskStatus) return 'task';
+  if (goal) return 'goal';
+  return 'locked';
+}
+
+function getLoopStageMeta(stage: LoopStage) {
+  if (stage === 'done') {
+    return { label: '已执行收口', accent: '#34C759', description: '总部整改动作已经完成，这轮闭环已经真正落地。' };
+  }
+  if (stage === 'kr') {
+    return { label: '已补关键结果', accent: '#14b8a6', description: '时间轴产出已经写回目标，当前主要看是否完成最终收口。' };
+  }
+  if (stage === 'task') {
+    return { label: '已排入时间轴', accent: '#8b5cf6', description: '整改动作已经进入时间轴，现在最重要的是按时执行并补 KR。' };
+  }
+  if (stage === 'goal') {
+    return { label: '已挂整改目标', accent: '#0A84FF', description: '总部已经点名并挂上目标，下一步要把整改动作真正排进时间轴。' };
+  }
+  return { label: '仅总部锁题', accent: '#FF9500', description: '问题已经被总部锁定，但还没有形成完整整改闭环。' };
+}
+
 function normalizeFormData(goal?: LongTermGoal | null): GoalFormData | undefined {
   if (!goal) return undefined;
   return {
@@ -124,6 +161,7 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
   const { goals, loadGoals, createGoal, updateGoal, deleteGoal } = useGoalStore();
   const addContributionRecord = useGoalContributionStore((state) => state.addRecord);
   const activeLoop = useHQBridgeStore((state) => state.activeLoop);
+  const tasks = useTaskStore((state) => state.tasks);
   const [segment, setSegment] = useState<GoalSegment>('active');
   const [showForm, setShowForm] = useState(false);
   const [editingGoal, setEditingGoal] = useState<LongTermGoal | null>(null);
@@ -135,16 +173,23 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
   }, [loadGoals]);
 
   useEffect(() => {
-    const handleNavigate = (payload?: { module?: string; goalId?: string }) => {
+    const handleNavigate = (payload?: { module?: string; goalId?: string; action?: 'view' | 'edit' }) => {
       if (payload?.module && payload.module !== 'goals') return;
       if (!payload?.goalId) return;
 
       setLinkedGoalId(payload.goalId);
       const matchedGoal = useGoalStore.getState().goals.find((goal) => goal.id === payload.goalId)
         || (activeLoop?.goalId === payload.goalId ? goals.find((goal) => goal.id === activeLoop.goalId) : undefined);
-      if (matchedGoal) {
-        setSelectedGoal(matchedGoal);
+      if (!matchedGoal) return;
+
+      if (payload.action === 'edit') {
+        setSelectedGoal(null);
+        setEditingGoal(matchedGoal);
+        setShowForm(true);
+        return;
       }
+
+      setSelectedGoal(matchedGoal);
     };
 
     eventBus.on('dashboard:navigate-module', handleNavigate);
@@ -156,6 +201,20 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
   const activeGoals = useMemo(() => goals.filter((goal) => getGoalSegment(goal) === 'active'), [goals]);
   const plannedGoals = useMemo(() => goals.filter((goal) => getGoalSegment(goal) === 'planned'), [goals]);
   const expiredGoals = useMemo(() => goals.filter((goal) => getGoalSegment(goal) === 'expired'), [goals]);
+  const loopGoal = useMemo(() => {
+    if (!activeLoop?.goalId) return null;
+    return goals.find((goal) => goal.id === activeLoop.goalId) || null;
+  }, [activeLoop?.goalId, goals]);
+  const loopTask = useMemo(() => {
+    if (!activeLoop?.taskId) return null;
+    return tasks.find((task) => task.id === activeLoop.taskId) || null;
+  }, [activeLoop?.taskId, tasks]);
+  const loopHasContribution = useMemo(() => {
+    if (!activeLoop?.goalId || !activeLoop?.taskId) return false;
+    return useGoalContributionStore.getState().records.some((record) => record.goalId === activeLoop.goalId && record.taskId === activeLoop.taskId);
+  }, [activeLoop?.goalId, activeLoop?.taskId]);
+  const loopStage = getLoopStage(loopGoal, loopTask?.status, loopHasContribution);
+  const loopStageMeta = getLoopStageMeta(loopStage);
 
   const groupedGoals: GoalCardGroup[] = [
     { key: 'active', title: '正在进行', emptyText: '还没有正在推进的目标，先创建一个开始吧。', goals: activeGoals },
@@ -234,6 +293,28 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
     });
 
     setSegment(getGoalSegment(duplicatedGoal));
+  };
+
+  const handleOpenLoopGoal = () => {
+    if (!loopGoal) return;
+    setLinkedGoalId(loopGoal.id);
+    setSelectedGoal(loopGoal);
+  };
+
+  const handleNavigateLoopTask = () => {
+    if (!activeLoop?.taskId) return;
+    eventBus.emit('dashboard:navigate-module', {
+      module: 'timeline',
+      taskId: activeLoop.taskId,
+    });
+  };
+
+  const handleNavigateHQ = () => {
+    eventBus.emit('dashboard:navigate-module', {
+      module: 'memory',
+      goalId: activeLoop?.goalId,
+      taskId: activeLoop?.taskId,
+    });
   };
 
   const handleInjectPreviewGoal = () => {
@@ -445,6 +526,95 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
               </button>
             </div>
           </div>
+
+          {activeLoop && (
+            <div
+              className="mb-4 overflow-hidden rounded-[28px] border"
+              style={{
+                background: 'linear-gradient(135deg, rgba(17,24,39,0.98), rgba(37,99,235,0.94) 55%, rgba(20,184,166,0.88))',
+                borderColor: 'rgba(255,255,255,0.14)',
+                boxShadow: '0 18px 36px rgba(15,23,42,0.16)',
+              }}
+            >
+              <div className="px-4 py-4 text-white">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-[11px] font-black tracking-[0.24em] text-white/70">RECTIFICATION LOOP</div>
+                    <div className="mt-1 text-[22px] font-semibold tracking-[-0.04em]">整改推进面板</div>
+                    <div className="mt-2 inline-flex items-center rounded-full px-3 py-1 text-xs font-black"
+                      style={{ backgroundColor: `${loopStageMeta.accent}33`, color: '#ffffff' }}
+                    >
+                      {loopStageMeta.label}
+                    </div>
+                  </div>
+                  <div className="rounded-[18px] border px-3 py-2 text-right" style={{ borderColor: 'rgba(255,255,255,0.16)', backgroundColor: 'rgba(255,255,255,0.08)' }}>
+                    <div className="text-[11px] text-white/65">最近同步</div>
+                    <div className="mt-1 text-sm font-semibold text-white">{formatLoopDate(activeLoop.lastUpdatedAt)}</div>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-[22px] border px-4 py-4" style={{ borderColor: 'rgba(255,255,255,0.14)', backgroundColor: 'rgba(255,255,255,0.07)' }}>
+                  <div className="flex items-center gap-2 text-sm font-semibold text-white/85">
+                    <Target className="h-4 w-4" /> 总部锁定问题
+                  </div>
+                  <div className="mt-2 text-lg font-semibold text-white">{activeLoop.painLabel || '整改主线待确认'}</div>
+                  <div className="mt-2 text-sm leading-6 text-white/72">{loopStageMeta.description}</div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="rounded-[20px] px-4 py-4" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
+                    <div className="text-xs font-semibold text-white/62">整改目标</div>
+                    <div className="mt-2 text-sm font-semibold text-white">{activeLoop.goalName || '尚未挂载目标'}</div>
+                    <div className="mt-2 text-xs text-white/65">{loopGoal ? `当前进度 ${getGoalProgress(loopGoal)}%` : '等待总部挂到目标组件'}</div>
+                  </div>
+                  <div className="rounded-[20px] px-4 py-4" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
+                    <div className="text-xs font-semibold text-white/62">整改任务</div>
+                    <div className="mt-2 text-sm font-semibold text-white">{activeLoop.taskTitle || '尚未排入时间轴'}</div>
+                    <div className="mt-2 text-xs text-white/65">{loopTask?.scheduledStart ? `计划 ${new Date(loopTask.scheduledStart).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}` : '等待形成动作安排'}</div>
+                  </div>
+                  <div className="rounded-[20px] px-4 py-4" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
+                    <div className="text-xs font-semibold text-white/62">执行状态</div>
+                    <div className="mt-2 text-sm font-semibold text-white">{loopTask?.status === 'completed' ? '已完成' : loopTask?.status === 'in_progress' ? '执行中' : loopHasContribution ? '已补 KR' : loopTask ? '待执行' : '未安排'}</div>
+                    <div className="mt-2 text-xs text-white/65">{loopHasContribution ? '关键结果已沉淀到目标分析' : '完成后记得补 KR，避免只做不收口'}</div>
+                  </div>
+                </div>
+
+                <div className="mt-3 rounded-[22px] px-4 py-4" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
+                  <div className="flex items-center gap-2 text-sm font-semibold text-white/85">
+                    <Clock3 className="h-4 w-4" /> 最近承诺
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-white/78">
+                    {activeLoop.promise || '这轮整改还没有沉淀出明确承诺文案。'}
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    onClick={handleOpenLoopGoal}
+                    disabled={!loopGoal}
+                    className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#111827] transition active:scale-95 disabled:opacity-45"
+                  >
+                    查看目标分析 <ArrowRight className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={handleNavigateLoopTask}
+                    disabled={!activeLoop.taskId}
+                    className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold text-white transition active:scale-95 disabled:opacity-45"
+                    style={{ borderColor: 'rgba(255,255,255,0.24)', backgroundColor: 'rgba(255,255,255,0.06)' }}
+                  >
+                    去时间轴执行 <ArrowRight className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={handleNavigateHQ}
+                    className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold text-white transition active:scale-95"
+                    style={{ borderColor: 'rgba(255,255,255,0.18)', backgroundColor: 'transparent' }}
+                  >
+                    回总部复盘 <ArrowRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-3 gap-2 rounded-[22px] p-1" style={{ background: subSurface }}>
             {groupedGoals.map((group) => {
