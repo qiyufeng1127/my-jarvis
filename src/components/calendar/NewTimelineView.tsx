@@ -493,12 +493,34 @@ export default function NewTimelineView({
   };
 
   // 根据任务获取关联目标文本
-  const getGoalText = (title: string, description?: string): string => {
-    if (title.includes('起床')) return '@挑战早起30天';
-    if (title.includes('ins') || title.includes('穿搭')) return '@ins穿搭账号100天1w粉丝';
-    if (title.includes('照相馆') || title.includes('小红书')) return '@坚持100天每天发照相馆小红书 @月入5w';
-    if (description) return `@${description}`;
+  const getGoalText = (task: Task): string => {
+    const linkedGoalIds = Object.keys(task.longTermGoals || {}).filter((goalId) => (task.longTermGoals?.[goalId] || 0) > 0);
+    const linkedGoal = linkedGoalIds
+      .map((goalId) => goals.find((goal) => goal.id === goalId))
+      .find(Boolean);
+
+    if (linkedGoal?.name) return `@${linkedGoal.name}`;
+    if ((task.tags || []).includes('总部承诺')) return '@总部整改闭环';
+    if (task.title.includes('起床')) return '@挑战早起30天';
+    if (task.title.includes('ins') || task.title.includes('穿搭')) return '@ins穿搭账号100天1w粉丝';
+    if (task.title.includes('照相馆') || task.title.includes('小红书')) return '@坚持100天每天发照相馆小红书 @月入5w';
+    if (task.description) return `@${task.description}`;
     return '@完成目标';
+  };
+
+  const getTaskSourceBadges = (task: Task): string[] => {
+    const badges: string[] = [];
+
+    if ((task.tags || []).includes('总部承诺')) {
+      badges.push('总部联动');
+    }
+
+    const linkedGoalIds = Object.keys(task.longTermGoals || {}).filter((goalId) => (task.longTermGoals?.[goalId] || 0) > 0);
+    if (linkedGoalIds.length > 0) {
+      badges.push('目标挂载');
+    }
+
+    return badges;
   };
 
   // 转换任务为时间块（使用合并后的任务列表）
@@ -530,6 +552,7 @@ export default function NewTimelineView({
       // 使用任务自带的颜色、标签、金币，如果没有则使用智能分配
       const taskColor = task.color || getTaskColor(task);
       const taskTags = task.tags && task.tags.length > 0 ? task.tags : getTaskTags(task.taskType, task.title);
+      const sourceBadges = getTaskSourceBadges(task);
       // 使用新的金币计算器：站立15金币/分钟，坐着10金币/分钟
       const taskGold = task.goldReward || (() => {
         const duration = task.durationMinutes || 60;
@@ -557,7 +580,8 @@ export default function NewTimelineView({
         isCompleted: task.status === 'completed',
         goldReward: taskGold, // 使用任务的金币
         tags: taskTags, // 使用任务的标签
-        goalText: getGoalText(task.title, task.description),
+        sourceBadges,
+        goalText: getGoalText(task),
         emoji: getTaskEmoji(task.title),
         subtasks: task.subtasks?.map(st => st.title) || defaultSubtasks,
       };
@@ -2922,14 +2946,6 @@ export default function NewTimelineView({
                         总部刚刚把你带到这条任务，先把它处理掉。
                       </div>
                     )}
-                    {linkedTaskId === block.id && (
-                      <div
-                        className="mb-2 rounded-full px-3 py-1 text-[10px] font-black tracking-[0.14em]"
-                        style={{ backgroundColor: 'rgba(255,255,255,0.22)', color: '#fff7ed' }}
-                      >
-                        总部刚刚把你带到这条任务，先把它处理掉。
-                      </div>
-                    )}
                     {/* 第一行：拖拽手柄 + 标签 + 时长 + 编辑按钮 - 减少下边距 */}
                     <div className={`flex items-center justify-between ${isMobile ? 'mb-0.5' : 'mb-1'}`}>
                       <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
@@ -2943,9 +2959,9 @@ export default function NewTimelineView({
                         </div>
                         
                         <div className={`flex ${isMobile ? 'gap-1' : 'gap-1'} flex-wrap`}>
-                          {block.tags.map((tag, idx) => (
+                          {[...block.tags, ...(block.sourceBadges || [])].map((tag, idx) => (
                             <span 
-                              key={idx}
+                              key={`${tag}-${idx}`}
                               className={`${isMobile ? 'text-[9px]' : 'text-[10px]'} font-semibold ${isMobile ? 'px-1.5 py-0.5' : 'px-2 py-0.5'} rounded-full`}
                               style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
                             >
@@ -3056,6 +3072,11 @@ export default function NewTimelineView({
                         
                         <div className={`${isMobile ? 'text-[9px]' : 'text-xs'} opacity-90`}>
                           {block.goalText}
+                          {block.isCompleted && (block.sourceBadges || []).includes('总部联动') && (
+                            <span className="ml-2 inline-flex rounded-full bg-white/20 px-2 py-0.5 text-[9px] font-bold tracking-[0.08em] text-white/95">
+                              已向总部回写完成
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>

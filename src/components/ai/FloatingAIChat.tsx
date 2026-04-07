@@ -165,7 +165,7 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
   const getWelcomeMessage = (): Message => ({
     id: 'welcome',
     role: 'assistant',
-    content: `你好！我是${personality.name}，你的AI助手${personality.toxicity > 60 ? '兼毒舌教练' : ''}。\n\n我能帮你：\n\n• 📅 智能分解任务和安排时间\n• 💰 自动分配金币和成长值\n• 🏷️ 自动打标签分类（AI智能理解）\n• 🕒 直接创建和修改时间轴任务\n• 🎯 智能关联长期目标\n• 📝 记录心情、想法、感恩、成功\n• 💡 收集创业想法到副业追踪器\n• 🔍 查询任务进度和统计\n• 🏠 智能动线优化（根据家里格局排序）\n• ✨ 万能收集：支持批量智能分析并分配\n• 🗑️ 时间轴操作：删除任务、移动任务\n\n**重要更新：**\n• 💬 我现在会真正和你对话，不只是执行命令\n• 👀 我会监督你的行为习惯（吃饭、睡觉、任务完成）\n• ${personality.toxicity > 60 ? '😏 该夸你的时候夸，该骂的时候绝不手软' : '🤗 该鼓励时鼓励，该提醒时提醒'}\n• 🎨 点击右上角头像可以设置我的性格\n\n直接输入文字开始对话吧！`,
+    content: beautifyAssistantReply(`你好！我是${personality.name}，你的AI助手${personality.toxicity > 60 ? '兼毒舌教练' : ''}。\n\n我能帮你：\n\n• 📅 智能分解任务和安排时间\n• 💰 自动分配金币和成长值\n• 🏷️ 自动打标签分类（AI智能理解）\n• 🕒 直接创建和修改时间轴任务\n• 🎯 智能关联长期目标\n• 📝 记录心情、想法、感恩、成功\n• 💡 收集创业想法到副业追踪器\n• 🔍 查询任务进度和统计\n• 🏠 智能动线优化（根据家里格局排序）\n• ✨ 万能收集：支持批量智能分析并分配\n• 🗑️ 时间轴操作：删除任务、移动任务\n\n**重要更新：**\n• 💬 我现在会真正和你对话，不只是执行命令\n• 👀 我会监督你的行为习惯（吃饭、睡觉、任务完成）\n• ${personality.toxicity > 60 ? '😏 该夸你的时候夸，该骂的时候绝不手软' : '🤗 该鼓励时鼓励，该提醒时提醒'}\n• 🎨 点击右上角头像可以设置我的性格\n\n直接输入文字开始对话吧！`),
     timestamp: new Date(),
   });
   
@@ -1088,7 +1088,7 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
       const errorMessage: Message = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        content: '❌ 抱歉，设置目标失败了。请稍后再试。',
+        content: beautifyAssistantReply('❌ 抱歉呀，设置目标失败了，稍后我们再试一次～'),
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -1285,7 +1285,7 @@ ${message}
         isRecord: true,
       });
       
-      const responseContent = `✅ **目标设置成功！**\n\n🎯🌟 目标: ${newGoal.name}\n${targetValue ? `📊 目标值: ${targetValue}\n` : ''}${deadline ? `⏰ 期限: ${deadline.toLocaleDateString('zh-CN')}\n` : ''}\n✨🚀 已添加到长期目标！\n\n💡 你可以在目标模块查看和管理这个目标。`;
+      const responseContent = `✅ 目标设置成功啦！\n\n🎯 目标：${newGoal.name}\n${targetValue ? `📊 目标值：${targetValue}\n` : ''}${deadline ? `⏰ 期限：${deadline.toLocaleDateString('zh-CN')}\n` : ''}\n✨ 已添加到长期目标里啦\n\n💡 你可以去目标模块里继续查看和管理它～`;
       
       const aiMessage: Message = {
         id: `ai-${Date.now()}`,
@@ -1396,7 +1396,7 @@ ${message}
       const aiMessage: Message = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        content: intent.reply,
+        content: beautifyAssistantReply(intent.reply),
         timestamp: new Date(),
         thinkingProcess: [...thinkingSteps],
         isThinkingExpanded: false,
@@ -1412,7 +1412,7 @@ ${message}
       });
       addChatMessage({
         role: 'assistant',
-        content: intent.reply,
+        content: beautifyAssistantReply(intent.reply),
         actions: intent.actions.map(a => ({
           type: a.type,
           description: a.description,
@@ -1469,7 +1469,7 @@ ${message}
       const errorMessage: Message = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        content: '❌ 抱歉，处理时间过长，请尝试：\n\n1. 减少输入内容的长度\n2. 分批次输入任务\n3. 检查网络连接\n\n如果问题持续，请刷新页面重试。',
+        content: beautifyAssistantReply('❌ 抱歉，处理时间过长，请试试这些办法：\n\n• 缩短一点输入内容\n• 分几次发任务给我\n• 看看网络是不是卡住了\n\n如果还是不行，再刷新页面试试呀～'),
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -1501,15 +1501,15 @@ ${message}
         const todayTasks = getTodayTasks();
         const completedTasks = todayTasks.filter(t => t.status === 'completed');
         
-        let responseContent = `📊 **今日任务概览**\n\n`;
+        let responseContent = `📊 今日任务概览\n\n`;
         responseContent += `✅ 已完成：${completedTasks.length}/${todayTasks.length}\n`;
         responseContent += `⏱️ 总时长：${todayTasks.reduce((sum, t) => sum + t.durationMinutes, 0)} 分钟\n\n`;
 
         if (todayTasks.length === 0) {
-          responseContent += '💡 今天还没有安排任务哦！\n\n';
-          responseContent += '你可以告诉我你想做什么，我来帮你创建任务～';
+          responseContent += '💡 今天还没有安排任务哦～\n\n';
+          responseContent += '你可以直接告诉我你想做什么，我来帮你安排呀';
         } else {
-          responseContent += '**任务列表**：\n';
+          responseContent += '📝 任务列表：\n';
           todayTasks.forEach((task, index) => {
             const statusEmoji = task.status === 'completed' ? '✅' : task.status === 'in_progress' ? '⏳' : '⏸️';
             responseContent += `${index + 1}. ${statusEmoji} ${task.title} (${task.durationMinutes}分钟)\n`;
@@ -1519,7 +1519,7 @@ ${message}
         const aiMessage: Message = {
           id: `ai-${Date.now()}`,
           role: 'assistant',
-          content: responseContent,
+          content: beautifyAssistantReply(responseContent),
           timestamp: new Date(),
         };
         setMessages(prev => [...prev, aiMessage]);
@@ -1617,7 +1617,7 @@ ${message}
           gratitude: '感恩日记',
         };
 
-        responseContent += `✨ 已识别为：**${typeNames[analysis.type]}**`;
+        responseContent += `✨ 已识别为：${typeNames[analysis.type]}`;
         
         // 显示识别方式
         if (analysis.isAI) {
@@ -1629,7 +1629,7 @@ ${message}
 
         // 显示情绪标签
         if (analysis.emotions.length > 0) {
-          responseContent += '🏷️ **情绪标签**：';
+          responseContent += '🏷️ 情绪标签：';
           analysis.emotions.forEach(emotionId => {
             const tag = EMOTION_TAGS.find(t => t.id === emotionId);
             const label = TAG_LABELS[emotionId] || tag?.label || emotionId;
@@ -1640,7 +1640,7 @@ ${message}
 
         // 显示分类标签
         if (analysis.categories.length > 0) {
-          responseContent += '📂 **分类标签**：';
+          responseContent += '📂 分类标签：';
           analysis.categories.forEach(categoryId => {
             const tag = CATEGORY_TAGS.find(t => t.id === categoryId);
             const label = TAG_LABELS[categoryId] || tag?.label || categoryId;
@@ -1651,7 +1651,7 @@ ${message}
 
         // 显示奖励
         if (analysis.rewards.gold > 0 || analysis.rewards.growth > 0) {
-          responseContent += `🎁 **获得奖励**：`;
+          responseContent += `🎁 获得奖励：`;
           if (analysis.rewards.gold > 0) responseContent += `💰 ${analysis.rewards.gold} 金币  `;
           if (analysis.rewards.growth > 0) responseContent += `⭐ ${analysis.rewards.growth} 成长值`;
           responseContent += '\n\n';
@@ -1825,7 +1825,7 @@ ${message}
                 const priorityEmoji = getPriorityEmoji(task.priority);
                 const locationEmoji = LOCATION_ICONS[task.location || ''] || '📍';
                 
-                responseContent += `${index + 1}. ${priorityEmoji} **${cleanTitle}**\n`;
+                responseContent += `${index + 1}. ${priorityEmoji} ${cleanTitle}\n`;
                 responseContent += `   ${locationEmoji} ${task.location} | ⏱️ ${task.estimated_duration} 分钟 | 🕐 ${task.scheduled_start}\n`;
                 responseContent += `   🏷️ ${task.tags.join(', ')}\n`;
                 if (note) {
@@ -1895,13 +1895,13 @@ ${message}
         }
         
         if (matches.length > 0) {
-          responseContent += '🎯 **智能目标关联**\n';
+          responseContent += '🎯 智能目标关联\n';
           responseContent += '我发现这个任务可以关联到以下长期目标：\n\n';
           
           matches.forEach((match, index) => {
             const percentage = Math.round(match.confidence * 100);
             const bars = '█'.repeat(Math.floor(percentage / 10));
-            responseContent += `${index + 1}. **${match.goalName}** (${percentage}%)\n`;
+            responseContent += `${index + 1}. ${match.goalName} (${percentage}%)\n`;
             responseContent += `   ${bars} ${match.reason}\n\n`;
           });
           
@@ -2011,12 +2011,12 @@ ${message}
             addThinkingStep('📅 已在时间轴标记');
             
             // 显示AI的个性化回复
-            const mutterResponseContent = `✅ **已记录你的碎碎念**\n\n${mutterResult.moodEmoji} **心情**: ${mutterResult.mood}\n📂 **分类**: ${mutterResult.category}\n🏷️ **标签**: ${mutterResult.tags.join('、')}\n\n---\n\n${mutterResult.aiReply}`;
+            const mutterResponseContent = `✅ 已记录你的碎碎念\n\n${mutterResult.moodEmoji} 心情：${mutterResult.mood}\n📂 分类：${mutterResult.category}\n🏷️ 标签：${mutterResult.tags.join('、')}\n\n────────\n\n${mutterResult.aiReply}`;
             
             const aiMessage: Message = {
               id: `ai-${Date.now()}`,
               role: 'assistant',
-              content: mutterResponseContent,
+              content: beautifyAssistantReply(mutterResponseContent),
               timestamp: new Date(),
               thinkingProcess: [...thinkingSteps],
               isThinkingExpanded: false,
@@ -2027,7 +2027,7 @@ ${message}
             // 保存到聊天记录
             addChatMessage({
               role: 'assistant',
-              content: mutterResponseContent,
+              content: beautifyAssistantReply(mutterResponseContent),
               actions: [{
                 type: 'add_memory',
                 description: '记录碎碎念',
@@ -2054,7 +2054,7 @@ ${message}
         const aiMessage: Message = {
           id: `ai-${Date.now()}`,
           role: 'assistant',
-          content: responseContent,
+          content: beautifyAssistantReply(responseContent),
           timestamp: new Date(),
           tags: aiTags,
           rewards: aiRewards,
@@ -2065,7 +2065,7 @@ ${message}
         const aiMessage: Message = {
           id: `ai-${Date.now()}`,
           role: 'assistant',
-          content: '收到！我正在处理你的请求...\n\n💡 提示：你可以：\n• 直接输入心情、想法或待办事项\n• 说"查看今天的任务"查询进度\n• 描述一串任务让我帮你分解和优化动线\n• 例如："5分钟后去洗漱，然后洗碗，倒猫粮，洗衣服，工作30分钟，收拾卧室、客厅和拍摄间"',
+          content: beautifyAssistantReply('收到啦～我正在帮你处理一下 💭\n\n你可以直接跟我说：\n• 心情、想法或者待办\n• “查看今天的任务”\n• 一串任务让我帮你拆分和排顺序\n\n比如：\n“5分钟后去洗漱，然后洗碗，倒猫粮，洗衣服，工作30分钟，收拾卧室、客厅和拍摄间”'),
           timestamp: new Date(),
         };
         setMessages(prev => [...prev, aiMessage]);
@@ -2075,7 +2075,7 @@ ${message}
       const aiMessage: Message = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        content: `❌ 抱歉，处理请求时出现了问题：\n\n${error instanceof Error ? error.message : '未知错误'}\n\n💡 建议：\n• 检查输入内容是否过长\n• 尝试分批次输入\n• 刷新页面重试`,
+        content: beautifyAssistantReply(`❌ 抱歉呀，刚刚处理你的请求时出了点问题\n\n${error instanceof Error ? error.message : '未知错误'}\n\n你可以试试：\n• 把内容说短一点\n• 分几次发给我\n• 刷新页面再试一次`),
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, aiMessage]);

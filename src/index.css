@@ -127,9 +127,9 @@ input, textarea, select {
     -webkit-transform: none !important;
     translate: 0 0 !important;
     z-index: 2147483647 !important;
-    height: var(--mobile-bottom-nav-total-height) !important;
-    min-height: var(--mobile-bottom-nav-total-height) !important;
-    max-height: var(--mobile-bottom-nav-total-height) !important;
+    height: 76px !important;
+    min-height: 76px !important;
+    max-height: 76px !important;
   }
 }
 

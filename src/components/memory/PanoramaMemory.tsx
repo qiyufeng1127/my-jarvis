@@ -74,6 +74,53 @@ type CommitmentSyncResult = {
   taskTitle: string;
 };
 
+type SampleStatus = {
+  isEnough: boolean;
+  reason: string;
+  hint: string;
+};
+
+type HQReportData = {
+  now: Date;
+  yearGoalName: string;
+  yearlyGoalValue: number;
+  yearlyCurrentValue: number;
+  yearlyRate: number;
+  monthGoalValue: number;
+  monthCurrentValue: number;
+  monthRate: number;
+  monthGap: number;
+  weekTaskCount: number;
+  completedWeek: number;
+  todayTaskCount: number;
+  completedToday: number;
+  delayedTasks: any[];
+  delayedTaskNames: string[];
+  procrastinationCount: number;
+  lowEfficiencyCount: number;
+  monthIncome: number;
+  activeSideHustles: number;
+  delaySeverity: 'light' | 'medium' | 'heavy';
+  painFocus: PainFocus;
+  goalSummary: {
+    total: number;
+    active: number;
+    completed: number;
+    weakGoalNames: string[];
+  };
+  timelineSummary: {
+    totalTasks: number;
+    completedTasks: number;
+    timeoutTaskNames: string[];
+    lowEfficiencyTaskNames: string[];
+    delayedTaskNames: string[];
+    recentCompletedTaskNames: string[];
+    upcomingTaskNames: string[];
+  };
+  painPoints: string[];
+  sampleStatus: SampleStatus;
+};
+
 type QuickBridgeCard = {
   id: string;
   title: string;
@@ -112,7 +159,7 @@ export default function PanoramaMemory({ bgColor = '#ffffff' }: PanoramaMemoryPr
   const [reportSummary, setReportSummary] = useState<HQReportSummary | null>(null);
   const [commitmentSyncResult, setCommitmentSyncResult] = useState<CommitmentSyncResult | null>(null);
 
-  const reportData = useMemo(() => {
+  const reportData = useMemo<HQReportData>(() => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const weekStart = new Date(todayStart);
@@ -242,6 +289,14 @@ export default function PanoramaMemory({ bgColor = '#ffffff' }: PanoramaMemoryPr
               question: `总部现在盯住的是时间轴执行失控：滞后任务 ${delayedTaskNames.join('、') || '暂无'}，拖延/超时 ${procrastinationCount} 次，低效率 ${lowEfficiencyCount} 次。你为什么会连续把任务执行搞成这样？`,
             };
 
+    const sampleStatus = getSampleStatus({
+      totalTasks: tasks.length,
+      completedTasks: completedTasks.length,
+      scheduledTasks: plannedTasks.length,
+      activeGoals: activeGoals.length,
+      completedWeek,
+    });
+
     return {
       now,
       yearGoalName: yearGoal?.name || '暂无年度主线目标',
@@ -280,10 +335,20 @@ export default function PanoramaMemory({ bgColor = '#ffffff' }: PanoramaMemoryPr
         upcomingTaskNames,
       },
       painPoints,
+      sampleStatus,
     };
   }, [goals, incomeRecords, sideHustles, tasks]);
 
   const baseFirstQuestion = useMemo(() => {
+    if (!reportData.sampleStatus.isEnough) {
+      return `【AI总部】
+先停一下，这轮我不准备追着你问。
+
+现在样本还不够，没资格下结论，更不该乱点名任务。
+${reportData.sampleStatus.reason}。
+${reportData.sampleStatus.hint}`;
+    }
+
     const weakGoalsText = reportData.goalSummary.weakGoalNames.length
       ? reportData.goalSummary.weakGoalNames.join('、')
       : '暂无明显掉队目标';
@@ -561,7 +626,7 @@ ${reportData.painFocus.question}`;
 
   const handleSubmit = async () => {
     const value = inputValue.trim();
-    if (!value || isSubmitting || stage === 'loading' || stage === 'report') return;
+    if (!value || isSubmitting || stage === 'loading' || stage === 'report' || !reportData.sampleStatus.isEnough) return;
 
     if (!isConfigured()) {
       setShowConfigModal(true);
@@ -624,9 +689,16 @@ ${reportData.painFocus.question}`;
   const currentSummary = reportSummary || fallbackSummary;
   const ringPercent = Math.max(0, Math.min(100, Number(reportData.monthRate.toFixed(0))));
   const reportTitle = `【${reportData.now.getFullYear()}年${reportData.now.getMonth() + 1}月${reportData.now.getDate()}日】AI总部述职报告`;
+  const linkedCommitmentTask = useMemo(() => {
+    if (commitmentSyncResult?.taskId) {
+      return tasks.find((task) => task.id === commitmentSyncResult.taskId) || null;
+    }
+    return tasks.find((task) => (task.tags || []).includes('总部承诺')) || null;
+  }, [commitmentSyncResult, tasks]);
+  const isCommitmentTaskCompleted = linkedCommitmentTask?.status === 'completed';
   const quickBridgeCards = useMemo<QuickBridgeCard[]>(() => {
     const topGoal = goals.find((goal) => goal.isActive && !goal.isCompleted) || goals[0];
-    const topTask = reportData.delayedTasks[0] || tasks.find((task) => task.status !== 'completed') || tasks[0];
+    const topTask = linkedCommitmentTask || reportData.delayedTasks[0] || tasks.find((task) => task.status !== 'completed') || tasks[0];
     const promiseText = currentSummary.promise || reportData.painFocus.detail;
 
     return [
@@ -656,23 +728,26 @@ ${reportData.painFocus.question}`;
         id: 'timeline-bridge',
         title: '时间轴动作',
         subtitle: topTask?.title || commitmentSyncResult?.taskTitle || '等待生成整改动作',
-        metric: topTask?.scheduledStart ? formatDate(new Date(topTask.scheduledStart)) : '待安排',
-        detail: topTask?.scheduledStart ? `计划 ${formatTimeLabel(new Date(topTask.scheduledStart))} 开始` : '还没有可执行时间块',
+        metric: isCommitmentTaskCompleted ? '已收口' : topTask?.scheduledStart ? formatDate(new Date(topTask.scheduledStart)) : '待安排',
+        detail: isCommitmentTaskCompleted
+          ? '总部整改动作已经完成，这一轮闭环已真正落地。'
+          : topTask?.scheduledStart
+            ? `计划 ${formatTimeLabel(new Date(topTask.scheduledStart))} 开始`
+            : '还没有可执行时间块',
         accent: '#8b5cf6',
         module: 'timeline',
         event: 'dashboard:navigate-module',
         payload: { module: 'timeline', taskId: commitmentSyncResult?.taskId || topTask?.id },
       },
     ];
-  }, [commitmentSyncResult, conversationAssessment.resolved, currentSummary.promise, goals, reportData, tasks]);
+  }, [commitmentSyncResult, conversationAssessment.resolved, currentSummary.promise, goals, isCommitmentTaskCompleted, linkedCommitmentTask, reportData, tasks]);
   const loopStatusCards = useMemo(() => {
     const hasCommitment = userAnswers.length > 0;
-    const hasGoalLinked = Boolean(commitmentSyncResult?.goalId || goals.find((goal) => goal.name.includes('总部整改')));
-    const hasTaskLinked = Boolean(commitmentSyncResult?.taskId || tasks.find((task) => (task.tags || []).includes('总部承诺')));
-    const linkedTask = commitmentSyncResult?.taskId
-      ? tasks.find((task) => task.id === commitmentSyncResult.taskId)
-      : tasks.find((task) => (task.tags || []).includes('总部承诺'));
-    const taskDone = linkedTask?.status === 'completed';
+    const linkedGoal = commitmentSyncResult?.goalId
+      ? goals.find((goal) => goal.id === commitmentSyncResult.goalId)
+      : goals.find((goal) => goal.name.includes('总部整改'));
+    const hasGoalLinked = Boolean(linkedGoal);
+    const hasTaskLinked = Boolean(linkedCommitmentTask);
 
     return [
       {
@@ -691,22 +766,24 @@ ${reportData.painFocus.question}`;
         id: 'goal',
         label: '导入目标组件',
         done: hasGoalLinked,
-        hint: hasGoalLinked ? '已挂到目标' : '尚未挂载',
+        hint: hasGoalLinked ? linkedGoal?.name || '已挂到目标' : '尚未挂载',
       },
       {
         id: 'timeline',
         label: '安排时间轴动作',
         done: hasTaskLinked,
-        hint: hasTaskLinked ? '已进入时间轴' : '尚未安排',
+        hint: hasTaskLinked
+          ? `${linkedCommitmentTask?.title || '已进入时间轴'}${isCommitmentTaskCompleted ? ' · 已完成' : ''}`
+          : '尚未安排',
       },
       {
         id: 'done',
         label: '执行并收口',
-        done: Boolean(taskDone),
-        hint: taskDone ? '动作已完成' : '等待执行',
+        done: Boolean(isCommitmentTaskCompleted),
+        hint: isCommitmentTaskCompleted ? '总部整改动作已完成' : '等待执行',
       },
     ];
-  }, [commitmentSyncResult, goals, reportData.painFocus.label, stage, tasks, userAnswers.length]);
+  }, [commitmentSyncResult, goals, isCommitmentTaskCompleted, linkedCommitmentTask, reportData.painFocus.label, stage, userAnswers.length]);
   
   return (
     <>
@@ -751,13 +828,13 @@ ${reportData.painFocus.question}`;
                     {stage === 'report' && '述职报告'}
                   </div>
                 </div>
-                <button
+        <button
                   onClick={handleReset}
                   className="rounded-full px-3 py-1 text-xs font-bold"
                   style={{ backgroundColor: '#e9dcc8', color: '#5e4326' }}
                 >
                   重开本轮述职
-                </button>
+        </button>
               </div>
             </div>
           </div>
@@ -782,7 +859,7 @@ ${reportData.painFocus.question}`;
               >
                 配置 AI Key
         </button>
-            </div>
+      </div>
           )}
 
           {stage === 'loading' && (
@@ -797,7 +874,7 @@ ${reportData.painFocus.question}`;
               <div className="mx-auto mb-5 h-14 w-14 animate-pulse rounded-full" style={{ backgroundColor: '#23160d' }} />
               <div className="text-lg font-black" style={{ color: '#23160d' }}>
                 总部正在全自动核查你的全量数据，请勿退出...
-              </div>
+          </div>
               <div className="mt-3 text-sm" style={{ color: '#7a6654' }}>
                 正在遍历目标、时间轴、历史任务与收益数据
               </div>
@@ -821,7 +898,7 @@ ${reportData.painFocus.question}`;
                   <span className="rounded-full px-3 py-1 text-xs font-bold" style={{ backgroundColor: '#ede1cd', color: '#6b4b29' }}>
                     {isConfigured() ? '已接入网站 AI' : '本地兜底'}
                   </span>
-                </div>
+      </div>
 
                 <div className="space-y-3">
                   {messages.map((message) => (
@@ -838,7 +915,7 @@ ${reportData.painFocus.question}`;
                         {message.role === 'ai' && (
                           <div className="mb-1 text-[11px] font-black tracking-[0.18em]" style={{ color: '#8b6740' }}>
                             AI总部
-                          </div>
+    </div>
                         )}
                         {message.content}
                       </div>
@@ -848,11 +925,24 @@ ${reportData.painFocus.question}`;
 
                 {stage !== 'report' && (
                   <div className="mt-4 border-t pt-4" style={{ borderColor: 'rgba(86, 62, 39, 0.12)' }}>
+                    {!reportData.sampleStatus.isEnough && (
+                      <div
+                        className="mb-3 rounded-[18px] border px-4 py-3 text-sm leading-6"
+                        style={{
+                          backgroundColor: '#fff4e7',
+                          borderColor: '#e7c79d',
+                          color: '#6d4823',
+                        }}
+                      >
+                        样本不足，先别汇报。{reportData.sampleStatus.reason}。{reportData.sampleStatus.hint}
+                      </div>
+                    )}
                     <textarea
                       value={inputValue}
                       onChange={(event) => setInputValue(event.target.value)}
-                      placeholder="直接回答，不要绕。"
-                      className="min-h-[108px] w-full resize-none rounded-[20px] border px-4 py-3 text-sm outline-none"
+                      placeholder={reportData.sampleStatus.isEnough ? '直接回答，不要绕。' : '样本不足时无需作答，先去完成任务。'}
+                      disabled={!reportData.sampleStatus.isEnough}
+                      className="min-h-[108px] w-full resize-none rounded-[20px] border px-4 py-3 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-60"
                       style={{
                         backgroundColor: '#fcfaf6',
                         borderColor: 'rgba(86, 62, 39, 0.16)',
@@ -861,15 +951,15 @@ ${reportData.painFocus.question}`;
                     />
         <button
                       onClick={handleSubmit}
-                      disabled={!inputValue.trim() || isSubmitting}
+                      disabled={!reportData.sampleStatus.isEnough || !inputValue.trim() || isSubmitting}
                       className="mt-3 w-full rounded-[18px] px-4 py-3 text-sm font-black transition-opacity"
                       style={{
                         backgroundColor: '#23160d',
                         color: '#f7efe1',
-                        opacity: !inputValue.trim() || isSubmitting ? 0.5 : 1,
+                        opacity: !reportData.sampleStatus.isEnough || !inputValue.trim() || isSubmitting ? 0.5 : 1,
                       }}
                     >
-                      {isSubmitting ? '总部生成中...' : '提交回答'}
+                      {reportData.sampleStatus.isEnough ? (isSubmitting ? '总部生成中...' : '提交回答') : '样本不足，先去执行'}
         </button>
                   </div>
                 )}
@@ -1105,8 +1195,8 @@ ${reportData.painFocus.question}`;
                   <div className="grid gap-3 text-sm">
                     <JudgeLine label="异常等级" value={severityLabel(reportData.delaySeverity)} />
                     <JudgeLine label="最近回答态度" value={toneLabel(answerTone)} />
-                    <JudgeLine label="述职状态" value={conversationAssessment.resolved ? '可以收口' : '继续追问'} />
-                    <JudgeLine label="问答轮次" value={`${userAnswers.length} 轮`} />
+                    <JudgeLine label="述职状态" value={reportData.sampleStatus.isEnough ? (conversationAssessment.resolved ? '可以收口' : '继续追问') : '样本不足'} />
+                    <JudgeLine label="问答轮次" value={reportData.sampleStatus.isEnough ? `${userAnswers.length} 轮` : '暂不开放'} />
                   </div>
                 </div>
               </div>
@@ -1167,10 +1257,11 @@ ${reportData.painFocus.question}`;
 
 async function generateOpeningMessage(
   fallback: string,
-  reportData: ReturnType<typeof buildPromptData>,
+  reportData: HQReportData,
   enabled: boolean,
   chat: ReturnType<typeof useAIStore.getState>['chat']
 ) {
+  if (!reportData.sampleStatus.isEnough) return fallback;
   if (!enabled) return fallback;
 
   try {
@@ -1219,13 +1310,14 @@ async function generateStageReply({
   currentStage: SessionStage;
   answer: string;
   answers: string[];
-  reportData: ReturnType<typeof buildPromptData> extends string ? never : any;
+  reportData: HQReportData;
   isAIEnabled: boolean;
   chat: ReturnType<typeof useAIStore.getState>['chat'];
   resolved: boolean;
   assessment: ReturnType<typeof assessConversation>;
 }) {
   const fallback = getFallbackReply(currentStage, answer, reportData, resolved, assessment);
+  if (!reportData.sampleStatus.isEnough) return fallback;
   if (!isAIEnabled) return fallback;
 
   try {
@@ -1256,7 +1348,7 @@ async function generateStageReply({
 }
 
 async function generateReportSummary(
-  reportData: any,
+  reportData: HQReportData,
   userAnswers: string[],
   fallback: HQReportSummary,
   enabled: boolean,
@@ -1297,7 +1389,11 @@ async function generateReportSummary(
   return fallback;
 }
 
-function getFallbackReply(currentStage: SessionStage, answer: string, reportData: any, resolved = false, assessment?: ReturnType<typeof assessConversation>) {
+function getFallbackReply(currentStage: SessionStage, answer: string, reportData: HQReportData, resolved = false, assessment?: ReturnType<typeof assessConversation>) {
+  if (!reportData.sampleStatus.isEnough) {
+    return `【AI总部】样本还不够，这轮不追问。${reportData.sampleStatus.reason}。${reportData.sampleStatus.hint}`;
+  }
+
   const tone = analyzeTone(answer);
   const focusLabel = reportData.painFocus?.label || '执行异常';
 
@@ -1349,7 +1445,7 @@ function getFallbackReply(currentStage: SessionStage, answer: string, reportData
   return '【AI总部】行，话记下了。总部开始出报告。';
 }
 
-function buildPromptData(reportData: any) {
+function buildPromptData(reportData: HQReportData) {
   return [
     `日期: ${reportData.now.toISOString()}`,
     `年度主线目标: ${reportData.yearGoalName}`,
@@ -1379,6 +1475,58 @@ function buildPromptData(reportData: any) {
     `当前主抓矛盾说明: ${reportData.painFocus.detail}`,
     `当前主抓问题: ${reportData.painFocus.question}`,
   ].join('\n');
+}
+
+function getSampleStatus({
+  totalTasks,
+  completedTasks,
+  scheduledTasks,
+  activeGoals,
+  completedWeek,
+}: {
+  totalTasks: number;
+  completedTasks: number;
+  scheduledTasks: number;
+  activeGoals: number;
+  completedWeek: number;
+}): SampleStatus {
+  if (totalTasks < 3) {
+    return {
+      isEnough: false,
+      reason: `当前总任务数只有 ${totalTasks} 条`,
+      hint: '先去时间轴补几条真实任务，至少完成 1 条、排好 3 条以上任务，再来总部汇报。',
+    };
+  }
+
+  if (scheduledTasks < 3) {
+    return {
+      isEnough: false,
+      reason: `当前真正排进时间轴的任务只有 ${scheduledTasks} 条`,
+      hint: '先把任务排进时间轴，形成连续样本，再来让总部判断。',
+    };
+  }
+
+  if (completedTasks < 1 && completedWeek < 1) {
+    return {
+      isEnough: false,
+      reason: '这周还没有足够的已完成任务记录',
+      hint: '先完成至少 1 条真实任务，再回来汇报，不然总部只会看到空数据。',
+    };
+  }
+
+  if (activeGoals < 1) {
+    return {
+      isEnough: false,
+      reason: '当前没有正在推进的目标',
+      hint: '先去目标组件挂上主线目标，再回来做总部述职。',
+    };
+  }
+
+  return {
+    isEnough: true,
+    reason: '样本充足',
+    hint: '可以开始总部问答。',
+  };
 }
 
 function RadarPanel({
@@ -1521,7 +1669,7 @@ async function syncCommitmentPlan({
   createTask,
 }: {
   answers: string[];
-  reportData: any;
+  reportData: HQReportData;
   goals: ReturnType<typeof useGoalStore.getState>['goals'];
   createGoal: ReturnType<typeof useGoalStore.getState>['createGoal'];
   createTask: ReturnType<typeof useTaskStore.getState>['createTask'];
@@ -1582,7 +1730,7 @@ async function syncCommitmentPlan({
   }
 }
 
-function buildCommitmentPlan(answers: string[], reportData: any): CommitmentPlan {
+function buildCommitmentPlan(answers: string[], reportData: HQReportData): CommitmentPlan {
   const latestAnswer = answers[answers.length - 1] || '';
   const focusLabel = reportData.painFocus?.label || '执行整改';
   return {

@@ -29,6 +29,12 @@ function formatHours(minutes: number) {
   return `${(minutes / 60).toFixed(1)} h`;
 }
 
+function getComparisonTone(current: number, target: number) {
+  if (current >= target) return '#34c759';
+  if (target - current >= 5) return '#ff3b30';
+  return '#ff9500';
+}
+
 interface ContributionEditorDraft {
   durationMinutes: number;
   note: string;
@@ -240,6 +246,8 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
     const actualCoordinates = chartPoints.map((point, index) => `${getX(index)},${getY(point.cumulativeActual)}`);
     const idealCoordinates = chartPoints.map((point, index) => `${getX(index)},${getY(point.idealCumulative)}`);
     const incomeCoordinates = chartPoints.map((point, index) => `${getX(index)},${getY(point.cumulativeIncome)}`);
+    const actualLinePoints = actualCoordinates.length > 0 ? [`0,${chartHeight}`, ...actualCoordinates].join(' ') : '';
+    const idealLinePoints = idealCoordinates.length > 0 ? [`0,${chartHeight}`, ...idealCoordinates].join(' ') : '';
     const incomeLinePoints = incomeCoordinates.length > 0 ? [`0,${chartHeight}`, ...incomeCoordinates].join(' ') : '';
 
     const areaPath = actualCoordinates.length > 0
@@ -247,22 +255,23 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
       : '';
 
     return {
-      actualLine: actualCoordinates.join(' '),
-      idealLine: idealCoordinates.join(' '),
+      actualLine: actualLinePoints,
+      idealLine: idealLinePoints,
       incomeLine: incomeLinePoints,
       areaPath,
     };
   }, [chartPoints, maxCumulative]);
 
+  const progressTone = getComparisonTone(progress, idealProgress);
+  const currentEfficiency = totalMinutes > 0 ? Number((progress / Math.max(totalMinutes / 60, 1)).toFixed(2)) : 0;
+  const idealEfficiency = totalMinutes > 0 ? Number((idealProgress / Math.max(totalMinutes / 60, 1)).toFixed(2)) : 0;
+  const efficiencyTone = getComparisonTone(currentEfficiency, idealEfficiency);
+
   const metricCards = [
-    { label: '当前进度', value: `${progress}%`, tone: '#ff3b30' },
-    { label: '理想进度', value: `${idealProgress}%`, tone: '#34c759' },
-    { label: '总投入时间', value: `${(totalMinutes / 60).toFixed(1)} h`, tone: '#5856d6' },
-    {
-      label: '当前投产比',
-      value: totalMinutes > 0 ? `${(progress / Math.max(totalMinutes / 60, 1)).toFixed(2)}%/h` : '--',
-      tone: '#ff9500',
-    },
+    { label: '当前进度', value: `${progress}%`, tone: progressTone },
+    { label: '理想进度', value: `${idealProgress}%`, tone: progressTone },
+    { label: '当前投产比', value: totalMinutes > 0 ? `${currentEfficiency.toFixed(2)}%/h` : '--', tone: efficiencyTone },
+    { label: '理想投产比', value: totalMinutes > 0 ? `${idealEfficiency.toFixed(2)}%/h` : '--', tone: efficiencyTone },
   ];
 
   if (selectedRecord && editorDraft) {
@@ -562,6 +571,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
                     const x = chartPoints.length === 1 ? 160 : (index / (chartPoints.length - 1)) * 320;
                     const y = 160 - (point.cumulativeActual / maxCumulative) * 160;
                     const incomeY = 160 - (point.cumulativeIncome / maxCumulative) * 160;
+                    const idealY = 160 - (point.idealCumulative / maxCumulative) * 160;
                     return (
                       <g key={`${point.date}-node`}>
                         {point.incomeIncrement > 0 && (
