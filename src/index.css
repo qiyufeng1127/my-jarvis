@@ -6,6 +6,11 @@
   --mobile-bottom-nav-height: 76px;
   --mobile-bottom-nav-safe-area: env(safe-area-inset-bottom, 0px);
   --mobile-bottom-nav-total-height: calc(var(--mobile-bottom-nav-height) + var(--mobile-bottom-nav-safe-area));
+  --app-safe-area-top: env(safe-area-inset-top, 0px);
+  --app-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --app-visible-viewport-height: 100dvh;
+  --app-viewport-offset-top: 0px;
+  --app-keyboard-offset: 0px;
 }
 
 /* 全局重置 - 确保没有任何多余空白 */
@@ -47,6 +52,35 @@ html::after {
 body {
   overscroll-behavior: none;
   -webkit-overflow-scrolling: touch;
+}
+
+.keyboard-safe-area-top {
+  padding-top: max(16px, calc(var(--app-safe-area-top) + 12px));
+}
+
+.keyboard-safe-area-bottom {
+  padding-bottom: max(16px, calc(var(--app-safe-area-bottom) + 12px));
+}
+
+.keyboard-aware-modal-shell {
+  padding-top: max(28px, calc(var(--app-safe-area-top) + 24px));
+  padding-bottom: max(88px, calc(var(--app-safe-area-bottom) + var(--app-keyboard-offset) + 24px));
+}
+
+.keyboard-aware-modal-card {
+  max-height: min(82dvh, calc(var(--app-visible-viewport-height) - var(--app-safe-area-top) - 24px));
+  margin-top: calc(var(--app-viewport-offset-top) * 0.5);
+}
+
+.keyboard-aware-scroll {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scroll-padding-top: calc(var(--app-safe-area-top) + 16px);
+  scroll-padding-bottom: calc(var(--app-keyboard-offset) + var(--app-safe-area-bottom) + 24px);
+}
+
+.keyboard-aware-composer {
+  padding-bottom: calc(var(--app-keyboard-offset) + var(--app-safe-area-bottom));
 }
 
 /* 自定义滚动条样式 */

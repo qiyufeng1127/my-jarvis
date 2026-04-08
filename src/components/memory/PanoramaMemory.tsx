@@ -10,7 +10,7 @@ import {
 import eventBus from '@/utils/eventBus';
 import { useGoalStore } from '@/stores/goalStore';
 import { useTaskStore } from '@/stores/taskStore';
-import { useHQBridgeStore } from '@/stores/hqBridgeStore';
+import { useHQBridgeStore, type HQLoopBridgeState } from '@/stores/hqBridgeStore';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
 import { useAIStore } from '@/stores/aiStore';
 import AIConfigModal from '@/components/ai/AIConfigModal';
@@ -58,6 +58,39 @@ type PainFocus = {
   detail: string;
   question: string;
 };
+
+function buildHQBridgeContext(activeLoop: HQLoopBridgeState | null) {
+  if (!activeLoop?.accountabilityForm) return '';
+
+  const answers = activeLoop.accountabilityForm.answers
+    .map((item) => item.answer?.trim())
+    .filter(Boolean)
+    .slice(0, 3);
+
+  const answerText = answers.length > 0 ? answers.map((item, index) => `${index + 1}. ${item}`).join('\n') : '暂无已提交答案';
+
+  return [
+    `最近一次追责任务: ${activeLoop.taskTitle || '未绑定任务'}`,
+    `最近一次追责目标: ${activeLoop.goalName || '未绑定目标'}`,
+    `追责触发原因: ${activeLoop.accountabilityForm.trigger === 'start_delay' ? '启动拖延' : '低效率失控'}`,
+    `总部当前痛点标签: ${activeLoop.painLabel || '整改追问'}`,
+    `总部要求动作: ${activeLoop.promise || '立即整改并形成闭环'}`,
+    `最近一次追责回答:\n${answerText}`,
+  ].join('\n');
+}
+
+function buildHQBridgeInlineSummary(activeLoop: HQLoopBridgeState | null) {
+  if (!activeLoop?.accountabilityForm) return '';
+
+  const answers = activeLoop.accountabilityForm.answers
+    .map((item) => item.answer?.trim())
+    .filter(Boolean)
+    .slice(0, 2);
+
+  const latestAnswerText = answers.length > 0 ? answers.join('；') : '暂无已提交细节';
+
+  return `最近刚触发过一轮总部追责：任务「${activeLoop.taskTitle || '未绑定任务'}」，原因是${activeLoop.accountabilityForm.trigger === 'start_delay' ? '启动拖延' : '低效率失控'}，总部给出的纠偏要求是“${activeLoop.promise || '立即整改'}”。用户刚写下的追责回答包括：${latestAnswerText}。`; 
+}
 
 type CommitmentPlan = {
   goalName: string;
@@ -342,6 +375,9 @@ export default function PanoramaMemory({ bgColor = '#ffffff' }: PanoramaMemoryPr
     };
   }, [goals, incomeRecords, sideHustles, tasks]);
 
+  const hqBridgeContext = useMemo(() => buildHQBridgeContext(activeLoop), [activeLoop]);
+  const hqBridgeInlineSummary = useMemo(() => buildHQBridgeInlineSummary(activeLoop), [activeLoop]);
+
   const baseFirstQuestion = useMemo(() => {
     if (!reportData.sampleStatus.isEnough) {
       return `【AI总部】
@@ -366,15 +402,22 @@ ${reportData.sampleStatus.hint}`;
           ? '时间轴组件'
           : '目标和时间轴';
 
+    const bridgeReminder = hqBridgeInlineSummary
+      ? `
+
+补充提醒：${hqBridgeInlineSummary}`
+      : '';
+
     return `【AI总部】
 先说结论：这次最严重的问题不在态度口号，在${focusSourceLabel}。
 
 目标：月进度 ${reportData.monthRate.toFixed(2)}%，偏弱目标 ${weakGoalsText}。
 时间轴：拖延/超时 ${reportData.procrastinationCount} 次，滞后任务 ${delayedTasksText}。
+${bridgeReminder}
 
 最刺眼的是：${reportData.painFocus.label}。
 ${reportData.painFocus.question}`;
-  }, [reportData]);
+  }, [hqBridgeInlineSummary, reportData]);
 
   const radarMetrics = useMemo(() => {
     const completedTasks = tasks.filter((task) => task.status === 'completed');
@@ -562,13 +605,13 @@ ${reportData.painFocus.question}`;
     if (messages.length > 0) return;
 
     const loadingTimer = window.setTimeout(async () => {
-      const firstMessage = await generateOpeningMessage(baseFirstQuestion, reportData, isConfigured(), chat);
+      const firstMessage = await generateOpeningMessage(baseFirstQuestion, reportData, isConfigured(), chat, hqBridgeContext);
       setMessages([{ id: 'ai-stage1', role: 'ai', content: firstMessage, stage: 'stage1' }]);
       setStage('stage1');
     }, 1400);
 
     return () => window.clearTimeout(loadingTimer);
-  }, [baseFirstQuestion, chat, isConfigured, isHydrated, messages.length, reportData]);
+  }, [baseFirstQuestion, chat, hqBridgeContext, isConfigured, isHydrated, messages.length, reportData]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -599,7 +642,7 @@ ${reportData.painFocus.question}`;
     let cancelled = false;
 
     const run = async () => {
-      const summary = await generateReportSummary(reportData, userAnswers, fallbackSummary, isConfigured(), chat);
+      const summary = await generateReportSummary(reportData, userAnswers, fallbackSummary, isConfigured(), chat, hqBridgeContext);
       if (!cancelled) {
         setReportSummary(summary);
       }
@@ -610,7 +653,7 @@ ${reportData.painFocus.question}`;
     return () => {
       cancelled = true;
     };
-  }, [chat, fallbackSummary, isConfigured, reportData, stage, userAnswers]);
+  }, [chat, fallbackSummary, hqBridgeContext, isConfigured, reportData, stage, userAnswers]);
 
   const answerTone = useMemo(() => {
     const latest = userAnswers[userAnswers.length - 1] || '';
@@ -663,6 +706,7 @@ ${reportData.painFocus.question}`;
       chat,
       resolved,
       assessment,
+      hqBridgeContext,
     });
 
     const aiMessage: ChatMessage = {
@@ -701,18 +745,30 @@ ${reportData.painFocus.question}`;
     return tasks.find((task) => (task.tags || []).includes('总部承诺')) || null;
   }, [activeLoop?.taskId, commitmentSyncResult?.taskId, tasks]);
   const isCommitmentTaskCompleted = linkedCommitmentTask?.status === 'completed';
+  const isAccountabilitySubmitted = Boolean(activeLoop?.accountabilityForm?.submittedAt);
+  const isGoalContributionSynced = Boolean(activeLoop?.goalContributionRecordedAt);
+  const isReviewClosed = Boolean(activeLoop?.reviewCompletedAt) || (isCommitmentTaskCompleted && isGoalContributionSynced);
+  const closureProgressCount = [isAccountabilitySubmitted, Boolean(activeLoop?.goalId), isGoalContributionSynced, isReviewClosed].filter(Boolean).length;
   const quickBridgeCards = useMemo<QuickBridgeCard[]>(() => {
     const topGoal = goals.find((goal) => goal.isActive && !goal.isCompleted) || goals[0];
     const topTask = linkedCommitmentTask || reportData.delayedTasks[0] || tasks.find((task) => task.status !== 'completed') || tasks[0];
     const promiseText = currentSummary.promise || reportData.painFocus.detail;
+    const accountabilityQuestionCount = activeLoop?.accountabilityForm?.answers?.length || 0;
+    const accountabilityPreview = activeLoop?.accountabilityForm?.answers
+      ?.filter((item) => item.answer?.trim())
+      .slice(0, 2)
+      .map((item) => item.answer.trim())
+      .join('；');
 
     return [
       {
         id: 'memory-bridge',
         title: '总部结论',
         subtitle: reportData.painFocus.label,
-        metric: conversationAssessment.resolved ? '已形成承诺' : '继续追问中',
-        detail: promiseText,
+        metric: isReviewClosed ? '已复盘收口' : accountabilityQuestionCount > 0 ? `${accountabilityQuestionCount} 条追责` : (conversationAssessment.resolved ? '已形成承诺' : '继续追问中'),
+        detail: isReviewClosed
+          ? activeLoop?.closureNote || '本轮问题已经完成追责、桥接、记录与复盘。'
+          : accountabilityPreview || promiseText,
         accent: '#23160d',
         module: 'memory',
         event: 'dashboard:navigate-module',
@@ -722,8 +778,12 @@ ${reportData.painFocus.question}`;
         id: 'goal-bridge',
         title: '目标落点',
         subtitle: topGoal?.name || '等待导入整改目标',
-        metric: topGoal ? `${Math.round(((topGoal.targetValue || 0) > 0 ? ((topGoal.currentValue || 0) / (topGoal.targetValue || 1)) * 100 : 0))}%` : `${reportData.monthRate.toFixed(0)}%`,
-        detail: topGoal ? `进度 ${topGoal.currentValue}/${topGoal.targetValue || 0}${topGoal.unit || ''}` : `月度缺口 ${reportData.monthGap}`,
+        metric: isGoalContributionSynced ? 'KR 已回写' : topGoal ? `${Math.round(((topGoal.targetValue || 0) > 0 ? ((topGoal.currentValue || 0) / (topGoal.targetValue || 1)) * 100 : 0))}%` : `${reportData.monthRate.toFixed(0)}%`,
+        detail: isGoalContributionSynced
+          ? `目标贡献记录已写入，${activeLoop?.goalContributionRecordedAt ? new Date(activeLoop.goalContributionRecordedAt).toLocaleString('zh-CN') : '等待总部复盘确认'}。`
+          : accountabilityPreview
+            ? `追责摘要：${accountabilityPreview}`
+            : topGoal ? `进度 ${topGoal.currentValue}/${topGoal.targetValue || 0}${topGoal.unit || ''}` : `月度缺口 ${reportData.monthGap}`,
         accent: '#0f766e',
         module: 'goals',
         event: 'dashboard:navigate-module',
@@ -733,19 +793,23 @@ ${reportData.painFocus.question}`;
         id: 'timeline-bridge',
         title: '时间轴动作',
         subtitle: topTask?.title || activeLoop?.taskTitle || commitmentSyncResult?.taskTitle || '等待生成整改动作',
-        metric: isCommitmentTaskCompleted ? '已收口' : topTask?.scheduledStart ? formatDate(new Date(topTask.scheduledStart)) : '待安排',
-        detail: isCommitmentTaskCompleted
-          ? '总部整改动作已经完成，这一轮闭环已真正落地。'
-          : topTask?.scheduledStart
-            ? `计划 ${formatTimeLabel(new Date(topTask.scheduledStart))} 开始`
-            : '还没有可执行时间块',
+        metric: isReviewClosed ? '已闭环' : isCommitmentTaskCompleted ? '已收口' : topTask?.scheduledStart ? formatDate(new Date(topTask.scheduledStart)) : '待安排',
+        detail: isReviewClosed
+          ? '整改任务完成、目标贡献已回写，总部复盘已进入闭环态。'
+          : isCommitmentTaskCompleted
+            ? '总部整改动作已经完成，这一轮闭环已真正落地。'
+            : accountabilityPreview
+              ? `先把这条任务做完，再回总部复盘：${accountabilityPreview}`
+              : topTask?.scheduledStart
+                ? `计划 ${formatTimeLabel(new Date(topTask.scheduledStart))} 开始`
+                : '还没有可执行时间块',
         accent: '#8b5cf6',
         module: 'timeline',
         event: 'dashboard:navigate-module',
         payload: { module: 'timeline', taskId: commitmentSyncResult?.taskId || activeLoop?.taskId || topTask?.id },
       },
     ];
-  }, [activeLoop?.goalId, activeLoop?.taskId, activeLoop?.taskTitle, commitmentSyncResult, conversationAssessment.resolved, currentSummary.promise, goals, isCommitmentTaskCompleted, linkedCommitmentTask, reportData, tasks]);
+  }, [activeLoop?.goalContributionRecordedAt, activeLoop?.goalId, activeLoop?.reviewCompletedAt, activeLoop?.taskId, activeLoop?.taskTitle, commitmentSyncResult, conversationAssessment.resolved, currentSummary.promise, goals, isCommitmentTaskCompleted, isGoalContributionSynced, isReviewClosed, linkedCommitmentTask, reportData, tasks]);
   const loopStatusCards = useMemo(() => {
     const hasCommitment = userAnswers.length > 0;
     const linkedGoal = (commitmentSyncResult?.goalId || activeLoop?.goalId)
@@ -774,6 +838,14 @@ ${reportData.painFocus.question}`;
         hint: hasGoalLinked ? linkedGoal?.name || '已挂到目标' : '尚未挂载',
       },
       {
+        id: 'contribution',
+        label: '补写目标贡献',
+        done: isGoalContributionSynced,
+        hint: isGoalContributionSynced
+          ? `${activeLoop?.goalContributionRecordedAt ? new Date(activeLoop.goalContributionRecordedAt).toLocaleString('zh-CN') : '已写入 KR'}`
+          : '等待记录目标贡献',
+      },
+      {
         id: 'timeline',
         label: '安排时间轴动作',
         done: hasTaskLinked,
@@ -783,12 +855,12 @@ ${reportData.painFocus.question}`;
       },
       {
         id: 'done',
-        label: '执行并收口',
-        done: Boolean(isCommitmentTaskCompleted),
-        hint: isCommitmentTaskCompleted ? '总部整改动作已完成' : '等待执行',
+        label: '总部复盘收口',
+        done: isReviewClosed,
+        hint: isReviewClosed ? '总部已确认本轮闭环完成' : (isCommitmentTaskCompleted ? '等待总部确认复盘' : '等待执行'),
       },
     ];
-  }, [commitmentSyncResult, goals, isCommitmentTaskCompleted, linkedCommitmentTask, reportData.painFocus.label, stage, userAnswers.length]);
+  }, [activeLoop?.goalId, activeLoop?.goalContributionRecordedAt, activeLoop?.reviewCompletedAt, activeLoop?.taskId, commitmentSyncResult, goals, isCommitmentTaskCompleted, linkedCommitmentTask, reportData.painFocus.label, stage, userAnswers.length]);
   
   return (
     <>
@@ -833,6 +905,26 @@ ${reportData.painFocus.question}`;
                     {stage === 'report' && '述职报告'}
                   </div>
                 </div>
+                {activeLoop && (
+                  <div
+                    className="rounded-2xl border px-4 py-3 text-right"
+                    style={{
+                      background: isReviewClosed
+                        ? 'linear-gradient(135deg, rgba(15,118,110,0.96), rgba(17,94,89,0.92))'
+                        : 'linear-gradient(135deg, rgba(250,245,235,0.96), rgba(239,228,211,0.96))',
+                      borderColor: isReviewClosed ? 'rgba(167,243,208,0.45)' : 'rgba(139,103,64,0.14)',
+                      color: isReviewClosed ? '#ecfdf5' : '#5e4326',
+                    }}
+                  >
+                    <div className="text-[11px] font-black tracking-[0.18em] opacity-80">闭环状态</div>
+                    <div className="mt-1 text-sm font-bold">
+                      {isReviewClosed ? '已完成总部闭环' : `已完成 ${closureProgressCount}/4 步`}
+                    </div>
+                    <div className="mt-1 text-xs leading-5 opacity-90">
+                      {activeLoop.closureNote || (isReviewClosed ? '追责表单 → HQ桥接 → 目标贡献记录 → 总部复盘 已全部打通。' : '继续推进目标贡献记录与总部复盘。')}
+                    </div>
+                  </div>
+                )}
         <button
                   onClick={handleReset}
                   className="rounded-full px-3 py-1 text-xs font-bold"
@@ -974,24 +1066,52 @@ ${reportData.painFocus.question}`;
                 <div
                   className="rounded-[28px] border p-4 md:p-5"
                   style={{
-                    background: 'rgba(255,255,255,0.92)',
-                    borderColor: 'rgba(86, 62, 39, 0.12)',
+                    background: isReviewClosed
+                      ? 'linear-gradient(135deg, rgba(220,252,231,0.95), rgba(236,253,245,0.95))'
+                      : 'rgba(255,255,255,0.92)',
+                    borderColor: isReviewClosed ? 'rgba(22,101,52,0.16)' : 'rgba(86, 62, 39, 0.12)',
                     boxShadow: '0 18px 38px rgba(72, 46, 22, 0.08)',
                   }}
                 >
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div>
-                      <div className="text-base font-black" style={{ color: '#23160d' }}>
+                      <div className="text-base font-black" style={{ color: isReviewClosed ? '#166534' : '#23160d' }}>
                         闭环进度时间轴
                       </div>
-                      <div className="mt-1 text-xs leading-5" style={{ color: '#7a6654' }}>
+                      <div className="mt-1 text-xs leading-5" style={{ color: isReviewClosed ? '#166534' : '#7a6654' }}>
                         从总部发现问题，到挂目标、排时间、真正执行，当前走到了哪一步，一屏就能看懂。
                       </div>
                     </div>
-                    <div className="rounded-full px-3 py-1 text-[11px] font-black tracking-[0.16em]" style={{ backgroundColor: '#f2e8d9', color: '#8b6740' }}>
-                      可视化闭环
+                    <div className="rounded-full px-3 py-1 text-[11px] font-black tracking-[0.16em]" style={{ backgroundColor: isReviewClosed ? '#166534' : '#f2e8d9', color: isReviewClosed ? '#ecfdf5' : '#8b6740' }}>
+                      {isReviewClosed ? '已闭环' : '可视化闭环'}
                     </div>
                   </div>
+
+                  {activeLoop && (
+                    <div
+                      className="mb-3 rounded-[20px] border px-4 py-3"
+                      style={{
+                        background: isReviewClosed
+                          ? 'linear-gradient(135deg, rgba(22,101,52,0.1), rgba(236,253,245,0.7))'
+                          : 'linear-gradient(135deg, rgba(250,245,235,0.85), rgba(255,255,255,0.92))',
+                        borderColor: isReviewClosed ? 'rgba(22,101,52,0.18)' : 'rgba(139,103,64,0.12)',
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-black" style={{ color: isReviewClosed ? '#166534' : '#23160d' }}>
+                            {isReviewClosed ? '总部闭环已确认完成' : '闭环推进中'}
+                          </div>
+                          <div className="mt-1 text-xs leading-5" style={{ color: isReviewClosed ? '#166534' : '#6b5642' }}>
+                            {activeLoop.closureNote || '继续把目标贡献记录和总部复盘补完整。'}
+                          </div>
+                        </div>
+                        <div className="rounded-full px-3 py-1 text-[11px] font-black" style={{ backgroundColor: isReviewClosed ? '#166534' : 'rgba(35,22,13,0.08)', color: isReviewClosed ? '#ecfdf5' : '#23160d' }}>
+                          {closureProgressCount}/4
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="grid gap-3">
                     {loopStatusCards.map((item, index) => (
@@ -1264,7 +1384,8 @@ async function generateOpeningMessage(
   fallback: string,
   reportData: HQReportData,
   enabled: boolean,
-  chat: ReturnType<typeof useAIStore.getState>['chat']
+  chat: ReturnType<typeof useAIStore.getState>['chat'],
+  hqBridgeContext: string
 ) {
   if (!reportData.sampleStatus.isEnough) return fallback;
   if (!enabled) return fallback;
@@ -1287,8 +1408,9 @@ async function generateOpeningMessage(
 6. 语气要像真人在当场追责，要有情绪和压迫感，但不能辱骂
 7. 不要输出 JSON
 8. 禁止虚构经营数据、行业数据或企业汇报口径
+9. 如果最近已经有追责表单，就要自然接住那次追责，不要像重新开一个话题
 
-${buildPromptData(reportData)}`,
+${buildPromptData(reportData, hqBridgeContext)}`,
       },
     ]);
 
@@ -1311,6 +1433,7 @@ async function generateStageReply({
   chat,
   resolved,
   assessment,
+  hqBridgeContext,
 }: {
   currentStage: SessionStage;
   answer: string;
@@ -1320,6 +1443,7 @@ async function generateStageReply({
   chat: ReturnType<typeof useAIStore.getState>['chat'];
   resolved: boolean;
   assessment: ReturnType<typeof assessConversation>;
+  hqBridgeContext: string;
 }) {
   const fallback = getFallbackReply(currentStage, answer, reportData, resolved, assessment);
   if (!reportData.sampleStatus.isEnough) return fallback;
@@ -1338,7 +1462,7 @@ async function generateStageReply({
       },
       {
         role: 'user',
-        content: `${stageInstruction}\n\n以下是总部从目标组件与时间轴组件提取的真实数据，请严格围绕这些事实追问：\n${buildPromptData(reportData)}\n\n历史回答：\n${answers.map((item, index) => `${index + 1}. ${item}`).join('\n')}\n\n用户刚刚的新回答：${answer}`,
+        content: `${stageInstruction}\n\n以下是总部从目标组件与时间轴组件提取的真实数据，请严格围绕这些事实追问：\n${buildPromptData(reportData, hqBridgeContext)}\n\n历史回答：\n${answers.map((item, index) => `${index + 1}. ${item}`).join('\n')}\n\n用户刚刚的新回答：${answer}`,
       },
     ]);
 
@@ -1357,7 +1481,8 @@ async function generateReportSummary(
   userAnswers: string[],
   fallback: HQReportSummary,
   enabled: boolean,
-  chat: ReturnType<typeof useAIStore.getState>['chat']
+  chat: ReturnType<typeof useAIStore.getState>['chat'],
+  hqBridgeContext: string
 ): Promise<HQReportSummary> {
   if (!enabled || userAnswers.length === 0) return fallback;
 
@@ -1370,7 +1495,7 @@ async function generateReportSummary(
       },
       {
         role: 'user',
-        content: `请根据以下目标组件与时间轴组件的真实数据，以及述职对话生成报告摘要：\n\n数据：\n${buildPromptData(reportData)}\n\n回答：\n${userAnswers.map((item, index) => `${index + 1}. ${item}`).join('\n')}`,
+        content: `请根据以下目标组件与时间轴组件的真实数据，以及述职对话生成报告摘要：\n\n数据：\n${buildPromptData(reportData, hqBridgeContext)}\n\n回答：\n${userAnswers.map((item, index) => `${index + 1}. ${item}`).join('\n')}`,
       },
     ]);
 
@@ -1450,7 +1575,7 @@ function getFallbackReply(currentStage: SessionStage, answer: string, reportData
   return '【AI总部】行，话记下了。总部开始出报告。';
 }
 
-function buildPromptData(reportData: HQReportData) {
+function buildPromptData(reportData: HQReportData, hqBridgeContext = '') {
   return [
     `日期: ${reportData.now.toISOString()}`,
     `年度主线目标: ${reportData.yearGoalName}`,
@@ -1479,7 +1604,8 @@ function buildPromptData(reportData: HQReportData) {
     `当前主抓矛盾标签: ${reportData.painFocus.label}`,
     `当前主抓矛盾说明: ${reportData.painFocus.detail}`,
     `当前主抓问题: ${reportData.painFocus.question}`,
-  ].join('\n');
+    hqBridgeContext ? `最近总部追责上下文:\n${hqBridgeContext}` : '',
+  ].filter(Boolean).join('\n');
 }
 
 function getSampleStatus({

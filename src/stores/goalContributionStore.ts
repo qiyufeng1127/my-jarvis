@@ -20,6 +20,15 @@ export interface GoalContributionRecord {
   qualityScore?: number;
   note?: string;
   source: 'manual' | 'timeline' | 'history';
+  accountabilitySnapshot?: {
+    trigger: 'start_delay' | 'low_efficiency';
+    painLabel?: string;
+    answers: Array<{
+      question: string;
+      answer: string;
+    }>;
+    submittedAt?: string;
+  };
   dimensionResults: GoalContributionMetricResult[];
   createdAt: Date;
   updatedAt: Date;

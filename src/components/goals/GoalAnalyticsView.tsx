@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { BarChart3, CalendarClock, ChevronLeft, Clock3, Flame, TrendingUp } from 'lucide-react';
+import { AlertTriangle, BarChart3, CalendarClock, ChevronLeft, Clock3, Flame, TrendingUp } from 'lucide-react';
 import { useGoalContributionStore, type GoalContributionRecord } from '@/stores/goalContributionStore';
 import { useTaskHistoryStore } from '@/stores/taskHistoryStore';
 import { useGoalStore } from '@/stores/goalStore';
+import { useHQBridgeStore } from '@/stores/hqBridgeStore';
 import type { LongTermGoal } from '@/types';
 
 interface GoalAnalyticsViewProps {
@@ -51,6 +52,11 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
   const updateContributionRecord = useGoalContributionStore((state) => state.updateRecord);
   const taskHistoryRecords = useTaskHistoryStore((state) => state.records);
   const updateGoal = useGoalStore((state) => state.updateGoal);
+  const activeLoop = useHQBridgeStore((state) => state.activeLoop);
+  const currentLoopAnswers = useMemo(
+    () => (activeLoop?.goalId === liveGoal.id ? activeLoop.accountabilityForm?.answers?.filter((item) => item.answer?.trim()) || [] : []),
+    [activeLoop, liveGoal.id]
+  );
   const [selectedRecord, setSelectedRecord] = useState<GoalContributionRecord | null>(null);
   const [editorDraft, setEditorDraft] = useState<ContributionEditorDraft | null>(null);
 
@@ -85,6 +91,69 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
     () => contributionRecords.reduce((sum, record) => sum + record.dimensionResults.reduce((acc, item) => acc + item.value, 0), 0),
     [contributionRecords]
   );
+
+  const accountabilityRecords = useMemo(
+    () => contributionRecords.filter((record) => record.accountabilitySnapshot?.answers?.length),
+    [contributionRecords]
+  );
+
+  const closureStatus = useMemo(() => {
+    const currentLoopGoalMatched = activeLoop?.goalId === liveGoal.id;
+    const relatedRecords = contributionRecords.filter((record) => {
+      const sameTask = activeLoop?.taskId ? record.taskId === activeLoop.taskId : false;
+      const hasAccountability = Boolean(record.accountabilitySnapshot?.submittedAt);
+      return sameTask || hasAccountability;
+    });
+    const latestRelatedRecord = relatedRecords[0] || null;
+    const formDone = Boolean(activeLoop?.accountabilityForm?.submittedAt) || accountabilityRecords.length > 0;
+    const bridgeDone = currentLoopGoalMatched || relatedRecords.length > 0;
+    const contributionDone = Boolean(activeLoop?.goalContributionRecordedAt) || relatedRecords.length > 0;
+    const reviewDone = Boolean(activeLoop?.reviewCompletedAt) || (contributionDone && Boolean(activeLoop?.timelineTaskCompletedAt));
+    const completedSteps = [formDone, bridgeDone, contributionDone, reviewDone].filter(Boolean).length;
+
+    return {
+      currentLoopGoalMatched,
+      relatedRecords,
+      latestRelatedRecord,
+      formDone,
+      bridgeDone,
+      contributionDone,
+      reviewDone,
+      completedSteps,
+      summaryText: reviewDone
+        ? '追责表单、HQ桥接、目标贡献记录、总部复盘都已经闭环。'
+        : contributionDone
+          ? '目标贡献记录已补齐，正在等待总部复盘收口。'
+          : bridgeDone
+            ? 'HQ 已桥接到目标，下一步补写关键结果记录。'
+            : formDone
+              ? '追责表单已提交，等待 HQ 桥接到目标。'
+              : '本目标暂未进入闭环流程。',
+    };
+  }, [accountabilityRecords.length, activeLoop?.accountabilityForm?.submittedAt, activeLoop?.goalContributionRecordedAt, activeLoop?.goalId, activeLoop?.reviewCompletedAt, activeLoop?.taskId, activeLoop?.timelineTaskCompletedAt, contributionRecords, liveGoal.id]);
+
+  const accountabilityInsight = useMemo(() => {
+    const records = contributionRecords.filter((record) => record.accountabilitySnapshot);
+    const startDelayCount = records.filter((record) => record.accountabilitySnapshot?.trigger === 'start_delay').length;
+    const lowEfficiencyCount = records.filter((record) => record.accountabilitySnapshot?.trigger === 'low_efficiency').length;
+    const totalTrackedMinutes = records.reduce((sum, record) => sum + record.durationMinutes, 0);
+    const totalTrackedValue = records.reduce(
+      (sum, record) => sum + record.dimensionResults.reduce((acc, item) => acc + item.value, 0),
+      0
+    );
+    const latestRecord = records[0] || null;
+    const latestAnswers = latestRecord?.accountabilitySnapshot?.answers?.map((item) => item.answer?.trim()).filter(Boolean) || [];
+
+    return {
+      records,
+      startDelayCount,
+      lowEfficiencyCount,
+      totalTrackedMinutes,
+      totalTrackedValue,
+      latestRecord,
+      latestAnswers,
+    };
+  }, [contributionRecords]);
 
   const totalIncome = useMemo(() => {
     if (!liveGoal.targetIncome || !liveGoal.targetValue) return liveGoal.currentIncome || 0;
@@ -621,6 +690,161 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
           ))}
         </div>
 
+        {accountabilityInsight.records.length > 0 && (
+          <div className="rounded-[30px] bg-white px-4 py-5 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+            <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-[#111827]">
+              <AlertTriangle className="h-4 w-4" /> 拖延 / 低效根因统计
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-[22px] bg-[#fff7ed] px-4 py-4">
+                <div className="text-xs uppercase tracking-[0.14em] text-[#9a3412]">启动拖延</div>
+                <div className="mt-2 text-[28px] font-semibold text-[#c2410c]">{accountabilityInsight.startDelayCount}</div>
+                <div className="mt-1 text-xs text-[#9a3412]">进入总部追责记录的拖延次数</div>
+              </div>
+              <div className="rounded-[22px] bg-[#fff1f2] px-4 py-4">
+                <div className="text-xs uppercase tracking-[0.14em] text-[#9f1239]">低效失控</div>
+                <div className="mt-2 text-[28px] font-semibold text-[#be123c]">{accountabilityInsight.lowEfficiencyCount}</div>
+                <div className="mt-1 text-xs text-[#9f1239]">进入总部追责记录的低效率次数</div>
+              </div>
+              <div className="rounded-[22px] bg-[#f8fafc] px-4 py-4">
+                <div className="text-xs uppercase tracking-[0.14em] text-[#64748b]">已纳入复盘时长</div>
+                <div className="mt-2 text-[24px] font-semibold text-[#111827]">{accountabilityInsight.totalTrackedMinutes} min</div>
+                <div className="mt-1 text-xs text-[#64748b]">这些问题不是空口描述，已经落到真实任务时长</div>
+              </div>
+              <div className="rounded-[22px] bg-[#ecfeff] px-4 py-4">
+                <div className="text-xs uppercase tracking-[0.14em] text-[#155e75]">追回产出</div>
+                <div className="mt-2 text-[24px] font-semibold text-[#0f766e]">{accountabilityInsight.totalTrackedValue}</div>
+                <div className="mt-1 text-xs text-[#155e75]">被追责后的关键结果累计产出</div>
+              </div>
+            </div>
+
+            {(accountabilityInsight.latestRecord || accountabilityInsight.latestAnswers.length > 0) && (
+              <div className="mt-4 rounded-[22px] border border-[#fecdd3] bg-[#fff7f8] px-4 py-4">
+                <div className="text-sm font-semibold text-[#111827]">最近一次根因线索</div>
+                {accountabilityInsight.latestRecord && (
+                  <div className="mt-2 text-xs text-[#6b7280]">
+                    {accountabilityInsight.latestRecord.taskTitle} · {accountabilityInsight.latestRecord.accountabilitySnapshot?.trigger === 'start_delay' ? '启动拖延' : '低效率追责'}
+                  </div>
+                )}
+                <div className="mt-3 space-y-2 text-sm text-[#7f1d1d]">
+                  {accountabilityInsight.latestAnswers.slice(0, 3).map((item, index) => (
+                    <div key={`accountability-insight-${index}`}>• {item}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {(activeLoop?.goalId === liveGoal.id || accountabilityRecords.length > 0) && (
+          <div className="rounded-[30px] bg-white px-4 py-5 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-[#111827]">
+              <CalendarClock className="h-4 w-4" /> 总部追责联动
+            </div>
+
+            <div className="mb-4 overflow-hidden rounded-[24px] border border-[#d1fae5] bg-[linear-gradient(135deg,#ecfdf5_0%,#f0fdf4_45%,#ffffff_100%)]">
+              <div className="flex items-center justify-between gap-3 border-b border-[#bbf7d0] px-4 py-3">
+                <div>
+                  <div className="text-sm font-semibold text-[#065f46]">闭环状态总览</div>
+                  <div className="mt-1 text-xs text-[#047857]">{closureStatus.summaryText}</div>
+                </div>
+                <div className="rounded-full bg-[#065f46] px-3 py-1 text-[11px] font-semibold text-white">
+                  {closureStatus.completedSteps}/4 已闭环
+                </div>
+              </div>
+              <div className="grid gap-2 px-4 py-4">
+                {[
+                  { id: 'form', label: '追责表单', done: closureStatus.formDone, hint: activeLoop?.accountabilityForm?.submittedAt ? `已于 ${new Date(activeLoop.accountabilityForm.submittedAt).toLocaleString('zh-CN')} 提交` : '等待提交追责表单' },
+                  { id: 'bridge', label: 'HQ桥接', done: closureStatus.bridgeDone, hint: closureStatus.currentLoopGoalMatched ? `已桥接到目标「${liveGoal.name}」` : '等待桥接到当前目标' },
+                  { id: 'record', label: '目标贡献记录', done: closureStatus.contributionDone, hint: activeLoop?.goalContributionRecordedAt ? `已于 ${new Date(activeLoop.goalContributionRecordedAt).toLocaleString('zh-CN')} 写入 KR` : '等待记录关键结果' },
+                  { id: 'review', label: '总部复盘', done: closureStatus.reviewDone, hint: activeLoop?.reviewCompletedAt ? `总部已于 ${new Date(activeLoop.reviewCompletedAt).toLocaleString('zh-CN')} 确认收口` : '等待总部确认本轮复盘' },
+                ].map((item) => (
+                  <div key={item.id} className="flex items-center justify-between gap-3 rounded-[18px] border border-white/80 bg-white/80 px-4 py-3">
+                    <div>
+                      <div className="text-sm font-semibold text-[#111827]">{item.label}</div>
+                      <div className="mt-1 text-xs text-[#6b7280]">{item.hint}</div>
+                    </div>
+                    <div className={`rounded-full px-3 py-1 text-[11px] font-semibold ${item.done ? 'bg-[#dcfce7] text-[#166534]' : 'bg-[#f3f4f6] text-[#6b7280]'}`}>
+                      {item.done ? '已闭环' : '处理中'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {activeLoop?.goalId === liveGoal.id && activeLoop.accountabilityForm ? (
+              <div className="rounded-[22px] border border-[#fecaca] bg-[#fff1f2] px-4 py-4 text-[#881337]">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold">当前总部焦点：{activeLoop.painLabel || '整改追问'}</div>
+                    <div className="mt-2 text-xs leading-6">{activeLoop.promise || '请立刻完成整改动作。'}</div>
+                  </div>
+                  {closureStatus.reviewDone && (
+                    <div className="rounded-full bg-[#166534] px-3 py-1 text-[11px] font-semibold text-white">
+                      总部已复盘收口
+                    </div>
+                  )}
+                </div>
+                <div className="mt-3 space-y-2 text-sm">
+                  {activeLoop.accountabilityForm.answers.slice(0, 3).map((item, index) => (
+                    <div key={`${item.question}-${index}`}>
+                      <div className="font-medium">Q{index + 1}：{item.question}</div>
+                      <div className="mt-1 text-[#9f1239]">{item.answer}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {currentLoopAnswers.length > 0 && (
+              <div className="mt-3 rounded-[20px] border border-[#fda4af] bg-[#fff7f8] px-4 py-3 text-sm text-[#7f1d1d]">
+                <div className="font-semibold">当前问答可直接追问的线索</div>
+                <div className="mt-2 space-y-1.5">
+                  {currentLoopAnswers.slice(0, 3).map((item, index) => (
+                    <div key={`current-loop-answer-${index}`}>• {item.answer.trim()}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {accountabilityRecords.length > 0 && (
+              <div className="mt-3 space-y-3">
+                {accountabilityRecords.slice(0, 3).map((record) => {
+                  const isCurrentLoopRecord = activeLoop?.taskId && record.taskId === activeLoop.taskId;
+                  const isClosedRecord = isCurrentLoopRecord ? closureStatus.reviewDone : Boolean(record.accountabilitySnapshot?.submittedAt && record.dimensionResults.length > 0);
+
+                  return (
+                  <div key={record.id} className="rounded-[20px] bg-[#f8fafc] px-4 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-[#111827]">{record.taskTitle}</div>
+                        <div className="mt-1 text-xs text-[#6b7280]">
+                          {record.accountabilitySnapshot?.trigger === 'start_delay' ? '启动拖延追责' : '低效率追责'}
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        <div className="rounded-full bg-[#fff1f2] px-2.5 py-1 text-[11px] font-semibold text-[#be123c]">
+                          {record.durationMinutes} 分钟
+                        </div>
+                        <div className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${isClosedRecord ? 'bg-[#dcfce7] text-[#166534]' : 'bg-[#ede9fe] text-[#6d28d9]'}`}>
+                          {isClosedRecord ? '已完成闭环' : '闭环处理中'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-2 text-sm text-[#374151] line-clamp-3">
+                      {(record.accountabilitySnapshot?.answers || []).map((item) => item.answer).filter(Boolean).join('；') || '暂无详细记录'}
+                    </div>
+                    {record.note && (
+                      <div className="mt-2 text-xs leading-5 text-[#6b7280]">
+                        KR备注：{record.note}
+                      </div>
+                    )}
+                  </div>
+                )})}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="rounded-[30px] bg-white px-4 py-5 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-[#111827]">
             <BarChart3 className="h-4 w-4" /> 客观量进度
@@ -644,9 +868,30 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
         </div>
 
         <div className="rounded-[30px] bg-white px-4 py-5 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-          <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-[#111827]">
-            <CalendarClock className="h-4 w-4" /> 时间轴贡献记录
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-[#111827]">
+              <CalendarClock className="h-4 w-4" /> 时间轴贡献记录
+            </div>
+            <div className={`rounded-full px-3 py-1 text-[11px] font-semibold ${closureStatus.contributionDone ? 'bg-[#dcfce7] text-[#166534]' : 'bg-[#f3f4f6] text-[#6b7280]'}`}>
+              {closureStatus.contributionDone ? 'KR 已补齐' : '等待 KR'}
+            </div>
           </div>
+          {closureStatus.latestRelatedRecord && (
+            <div className="mb-4 rounded-[20px] border border-[#bfdbfe] bg-[#eff6ff] px-4 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-[#1d4ed8]">当前闭环记录</div>
+                  <div className="mt-1 text-xs text-[#475569]">{closureStatus.latestRelatedRecord.taskTitle}</div>
+                </div>
+                <div className={`rounded-full px-3 py-1 text-[11px] font-semibold ${closureStatus.reviewDone ? 'bg-[#dcfce7] text-[#166534]' : 'bg-white text-[#1d4ed8]'}`}>
+                  {closureStatus.reviewDone ? '总部已复盘' : '待总部复盘'}
+                </div>
+              </div>
+              <div className="mt-2 text-xs leading-5 text-[#475569]">
+                {closureStatus.latestRelatedRecord.note || closureStatus.summaryText}
+              </div>
+            </div>
+          )}
           <div className="space-y-3">
             {contributionRecords.length > 0 ? contributionRecords.map((record) => (
               <button
@@ -661,12 +906,22 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
                       <div className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#0A84FF] shadow-sm">
                         可编辑
                       </div>
+                      {record.accountabilitySnapshot?.submittedAt && (
+                        <div className="rounded-full bg-[#fff1f2] px-2.5 py-1 text-[11px] font-semibold text-[#be123c] shadow-sm">
+                          HQ 闭环链路
+                        </div>
+                      )}
                       <div className="text-xs text-[#9ca3af]">点击进入编辑态</div>
                     </div>
                     <div className="mt-2 font-medium text-[#111827]">{record.taskTitle}</div>
                     <div className="mt-1 text-xs text-[#6b7280]">{new Date(record.createdAt).toLocaleString('zh-CN')}</div>
                   </div>
-                  <div className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[#111827] shadow-sm">{record.durationMinutes} 分钟</div>
+                  <div className="flex flex-col items-end gap-2">
+                    <div className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[#111827] shadow-sm">{record.durationMinutes} 分钟</div>
+                    <div className={`rounded-full px-3 py-1 text-[11px] font-semibold ${record.accountabilitySnapshot?.submittedAt ? (closureStatus.reviewDone && activeLoop?.taskId === record.taskId ? 'bg-[#dcfce7] text-[#166534]' : 'bg-[#ede9fe] text-[#6d28d9]') : 'bg-[#f3f4f6] text-[#6b7280]'}`}>
+                      {record.accountabilitySnapshot?.submittedAt ? (closureStatus.reviewDone && activeLoop?.taskId === record.taskId ? '已闭环' : '待复盘') : '普通 KR'}
+                    </div>
+                  </div>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {record.dimensionResults.map((item) => (

@@ -4,6 +4,7 @@ import { useUserStore } from '@/stores/userStore';
 import { useThemeStore } from '@/stores/themeStore';
 import { migrateStorage, shouldMigrate } from '@/utils/migrateStorage';
 import { notificationService } from '@/services/notificationService';
+import { useGlobalMobileViewportVars } from '@/hooks';
 
 // 页面组件
 import Dashboard from '@/pages/Dashboard';
@@ -12,7 +13,6 @@ import BaiduAITest from '@/pages/BaiduAITest';
 import DesignSystemDemo from '@/pages/DesignSystemDemo';
 import DiarySystemTest from '@/pages/DiarySystemTest';
 import SOPLibrary from '@/components/sop/SOPLibrary';
-import HabitPage from '@/pages/HabitPage';
 
 // 通知系统
 import NotificationToast from '@/components/notifications/NotificationToast';
@@ -29,6 +29,8 @@ import ErrorBoundary from '@/components/shared/ErrorBoundary';
 function App() {
   const { initializeUser } = useUserStore();
   const { effectiveTheme, updateEffectiveTheme } = useThemeStore();
+
+  useGlobalMobileViewportVars();
 
   // 初始化主题
   useEffect(() => {
@@ -325,7 +327,7 @@ function App() {
             <Route path="/sop" element={<SOPLibrary />} />
             
             {/* 习惯追踪 */}
-            <Route path="/habit" element={<HabitPage />} />
+            <Route path="/habit" element={<Dashboard />} />
             
             {/* 欢迎页 */}
             <Route path="/welcome" element={<Welcome />} />

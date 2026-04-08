@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import { Minus, Plus } from 'lucide-react';
+import { useKeyboardAvoidance } from '@/hooks';
 import type { GoalMetric, GoalProjectBinding, GoalTheme, GoalType } from '@/types';
 
 export interface GoalFormData {
@@ -58,6 +59,9 @@ export default function GoalForm({
   onCancel,
   bgColor = '#efeff4',
 }: GoalFormProps) {
+  const scrollRef = useRef<HTMLFormElement>(null);
+  const { handleFocusCapture } = useKeyboardAvoidance(scrollRef);
+
   const [formData, setFormData] = useState<GoalFormData>(
     initialData || {
       name: '',
@@ -167,9 +171,14 @@ export default function GoalForm({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-[#e9e9ee]">
-      <form onSubmit={handleSubmit} className="mx-auto min-h-full max-w-xl px-4 pb-16 pt-4">
-        <div className="rounded-[32px] bg-white/85 px-4 py-4 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-[#e9e9ee] keyboard-aware-modal-shell">
+      <form
+        ref={scrollRef}
+        onFocusCapture={handleFocusCapture}
+        onSubmit={handleSubmit}
+        className="mx-auto min-h-full max-w-xl px-4 pb-16 keyboard-aware-scroll"
+      >
+        <div className="rounded-[32px] bg-white/85 px-4 py-4 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur keyboard-aware-modal-card">
           <div className="mb-5 flex items-center justify-between">
             <button type="button" onClick={onCancel} className="rounded-full bg-[#f5f5f8] px-4 py-2 text-[17px] font-medium text-[#3a3a3c]">
               取消

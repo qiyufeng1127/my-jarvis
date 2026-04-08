@@ -479,7 +479,6 @@ class AICommandCenter {
    * 降级处理（当AI不可用时）
    */
   private getFallbackIntent(userInput: string): AIIntent {
-    // 简单的关键词匹配作为降级方案
     if (/删除|清空/.test(userInput)) {
       return {
         intent: 'delete_task',
@@ -488,6 +487,17 @@ class AICommandCenter {
         actions: [],
         reply: '我理解你想删除任务，但AI服务暂时不可用。请稍后再试。',
         needsConfirmation: true,
+      };
+    }
+
+    if (/任务分解：|然后|接着|最后|洗漱|洗头|刷牙|洗澡|打扫|整理|收拾|倒垃圾|洗衣服/.test(userInput)) {
+      return {
+        intent: 'create_task',
+        confidence: 0.72,
+        understanding: '你想把这段安排拆分成多个任务',
+        actions: [],
+        reply: '我理解你想让我把这段安排拆成任务。你可以直接发送，我会优先尝试拆分并打开任务编辑器。',
+        needsConfirmation: false,
       };
     }
     

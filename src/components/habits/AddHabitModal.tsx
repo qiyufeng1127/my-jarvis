@@ -161,11 +161,15 @@ export default function AddHabitModal({ open, onClose }: AddHabitModalProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+            style={{ zIndex: 2147483648 }}
           />
           
           {/* 弹窗内容 */}
-          <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
+          <div
+            className="fixed inset-0 flex items-end md:items-center justify-center p-0 md:p-4"
+            style={{ zIndex: 2147483649 }}
+          >
             <motion.div
               initial={{ y: '100%', opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}

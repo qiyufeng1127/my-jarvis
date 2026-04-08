@@ -11,6 +11,7 @@ interface TaskCompletionEfficiencyModalProps {
   isDark: boolean;
   accentColor: string;
   goldReward?: number; // 🔧 新增：金币奖励数量
+  forceMandatoryReflection?: boolean;
 }
 
 export default function TaskCompletionEfficiencyModal({
@@ -23,6 +24,7 @@ export default function TaskCompletionEfficiencyModal({
   isDark,
   accentColor,
   goldReward = 0, // 🔧 新增：金币奖励数量
+  forceMandatoryReflection = false,
 }: TaskCompletionEfficiencyModalProps) {
   const [efficiency, setEfficiency] = useState(100);
   const [isDragging, setIsDragging] = useState(false);
@@ -78,7 +80,8 @@ export default function TaskCompletionEfficiencyModal({
         {/* 关闭按钮 - 固定在顶部 */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-full transition-all z-10 hover:scale-110"
+          disabled={forceMandatoryReflection}
+          className="absolute top-4 right-4 p-2 rounded-full transition-all z-10 hover:scale-110 disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ backgroundColor: palette.rose, color: 'white' }}
         >
           <X className="w-5 h-5" />
@@ -113,6 +116,14 @@ export default function TaskCompletionEfficiencyModal({
             {taskTitle}
           </p>
         </div>
+
+        {forceMandatoryReflection && (
+          <div className="mb-6 p-4 rounded-2xl border-2" style={{ backgroundColor: palette.brick + '16', borderColor: palette.brick }}>
+            <p className="text-sm font-bold" style={{ color: palette.brick }}>
+              该任务已触发强制追责流程。你必须完成当前填写，任务才可以被正式完成，且当前不能取消、不能退出、不能删除。
+            </p>
+          </div>
+        )}
 
         {/* 图片统计 */}
         <div className="mb-6 p-4 rounded-2xl border-2" style={{ backgroundColor: palette.sage + '14', borderColor: palette.sage }}>
@@ -250,7 +261,8 @@ export default function TaskCompletionEfficiencyModal({
           <div className="flex gap-3">
             <button
               onClick={onClose}
-              className="flex-1 py-3 rounded-2xl font-bold transition-all hover:scale-105 shadow-md"
+              disabled={forceMandatoryReflection}
+              className="flex-1 py-3 rounded-2xl font-bold transition-all hover:scale-105 shadow-md disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
               style={{ 
                 backgroundColor: palette.plum + '22',
                 color: palette.plum

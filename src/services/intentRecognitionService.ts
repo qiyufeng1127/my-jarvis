@@ -10,12 +10,24 @@ export interface IntentResult {
   action: string; // 建议的操作
 }
 
+const TASK_DECOMPOSE_PREFIX = '任务分解：';
+const TIMELINE_OPERATION_PREFIX = '时间轴操作：';
+const TIMELINE_OPERATION_SPLIT_REGEX = /(?:，然后|然后|再把|再将|再|并且|并|接着)/;
+
 export class IntentRecognitionService {
   /**
    * 识别用户意图
    */
   static recognizeIntent(message: string): IntentResult {
     const normalizedMessage = message.toLowerCase().trim();
+
+    if (message.trim().startsWith(TASK_DECOMPOSE_PREFIX)) {
+      return this.parseTaskCreationIntent(message, true);
+    }
+
+    if (message.trim().startsWith(TIMELINE_OPERATION_PREFIX)) {
+      return this.parseTimelineOperationIntent(message);
+    }
     
     // 1. 时间轴删除操作 - 优先级最高
     if (this.isDeleteIntent(normalizedMessage)) {
@@ -52,11 +64,73 @@ export class IntentRecognitionService {
   }
   
   /**
+   * 解析时间轴操作意图
+   */
+  private static parseTimelineOperationIntent(message: string): IntentResult {
+    const cleanMessage = message.trim().startsWith(TIMELINE_OPERATION_PREFIX)
+      ? message.trim().slice(TIMELINE_OPERATION_PREFIX.length).trim()
+      : message.trim();
+
+    const operationSegments = cleanMessage
+      .split(TIMELINE_OPERATION_SPLIT_REGEX)
+      .map(segment => segment.trim())
+      .filter(Boolean);
+
+    if (operationSegments.length > 1) {
+      return {
+        intent: 'timeline_operation',
+        confidence: 0.99,
+        params: {
+          rawMessage: cleanMessage,
+          operations: operationSegments,
+          viaPrefix: true,
+        },
+        action: 'execute_timeline_operation',
+      };
+    }
+
+    if (this.isDeleteIntent(cleanMessage)) {
+      const result = this.parseDeleteIntent(cleanMessage);
+      return {
+        ...result,
+        params: {
+          ...result.params,
+          rawMessage: cleanMessage,
+          viaPrefix: true,
+        },
+      };
+    }
+
+    if (this.isMoveIntent(cleanMessage)) {
+      const result = this.parseMoveIntent(cleanMessage);
+      return {
+        ...result,
+        params: {
+          ...result.params,
+          rawMessage: cleanMessage,
+          viaPrefix: true,
+        },
+      };
+    }
+
+    return {
+      intent: 'timeline_operation',
+      confidence: 0.98,
+      params: {
+        rawMessage: cleanMessage,
+        operations: operationSegments,
+        viaPrefix: true,
+      },
+      action: 'execute_timeline_operation',
+    };
+  }
+
+  /**
    * 判断是否是删除意图
    */
   private static isDeleteIntent(message: string): boolean {
-    const hasDeleteWord = /删除|清空|移除/.test(message);
-    const hasTaskWord = /任务/.test(message);
+    const hasDeleteWord = /删除|清空|移除|删掉|去掉/.test(message);
+    const hasTaskWord = /任务|时间轴/.test(message);
     return hasDeleteWord && hasTaskWord;
   }
   
@@ -113,8 +187,8 @@ export class IntentRecognitionService {
    * 判断是否是移动意图
    */
   private static isMoveIntent(message: string): boolean {
-    const hasMoveWord = /挪到|移到|改到|调到|移动/.test(message);
-    const hasDateNumber = /\d+号/.test(message);
+    const hasMoveWord = /挪到|移到|改到|调到|移动|顺移|往后顺移|往前顺移|延后|提前|推迟/.test(message);
+    const hasDateNumber = /\d+号|\d+月\d+[日号]?|今天|今日|明天|明日|后天|昨天|昨日|未完成|还未做|没做|已完成/.test(message);
     return hasMoveWord && hasDateNumber;
   }
   
@@ -191,40 +265,57 @@ export class IntentRecognitionService {
    * 判断是否是任务创建意图
    */
   private static isTaskCreationIntent(message: string): boolean {
-    // 包含动作词
-    const hasActionWord = /创建|添加|新建|安排|计划|做|完成|学习|工作|运动|分解|拆解/.test(message);
-    
-    // 包含任务关键词
-    const hasTaskKeyword = /洗漱|洗碗|猫粮|洗衣服|收拾|吃饭|垃圾|打扫|整理/.test(message);
-    
-    // 包含时间词
-    const hasTimeWord = /分钟后|小时后|之后|然后|接着|再/.test(message);
-    
-    // 长文本（可能是任务描述）
-    const isLongText = message.length > 10;
-    
-    return hasActionWord || hasTaskKeyword || hasTimeWord || isLongText;
+    const normalizedMessage = message.trim();
+
+    if (normalizedMessage.startsWith(TASK_DECOMPOSE_PREFIX)) {
+      return true;
+    }
+
+    const actionChainCount = (normalizedMessage.match(/然后|接着|再|之后|随后|最后/g) || []).length;
+    const commaChainCount = (normalizedMessage.match(/[，、；;]/g) || []).length;
+    const hasExplicitTaskVerb = /创建|添加|新建|安排|计划|待办|待会|一会|等下|准备去|要去|需要|记得|提醒我|分解|拆解/.test(normalizedMessage);
+    const hasScenarioTaskKeyword = /洗漱|洗头|刷牙|洗澡|护肤|化妆|洗碗|倒垃圾|扔垃圾|收拾|整理|打扫|扫地|拖地|做饭|吃饭|洗衣服|晾衣服|叠衣服|出门|上班|学习|工作|开会|运动|锻炼|睡觉/.test(normalizedMessage);
+    const hasTimeWord = /分钟后|小时后|之后|待会|一会|等下|马上|晚点|今天|明天|先|再/.test(normalizedMessage);
+    const isLongTaskSentence = normalizedMessage.length >= 14;
+    const looksLikeTaskList = actionChainCount >= 1 || commaChainCount >= 2;
+
+    return (
+      hasExplicitTaskVerb ||
+      hasScenarioTaskKeyword ||
+      (hasTimeWord && hasScenarioTaskKeyword) ||
+      (looksLikeTaskList && hasScenarioTaskKeyword) ||
+      (isLongTaskSentence && actionChainCount >= 1)
+    );
   }
   
   /**
    * 解析任务创建意图
    */
-  private static parseTaskCreationIntent(message: string): IntentResult {
+  private static parseTaskCreationIntent(message: string, forceDecompose: boolean = false): IntentResult {
+    const cleanMessage = message.trim().startsWith(TASK_DECOMPOSE_PREFIX)
+      ? message.trim().slice(TASK_DECOMPOSE_PREFIX.length).trim()
+      : message;
+
     const params: Record<string, any> = {
-      content: message,
+      content: cleanMessage,
     };
     
-    // 判断是否需要分解
+    const sequenceSignals = (cleanMessage.match(/然后|接着|再|之后|随后|最后|第一|第二|第三|先/g) || []).length;
+    const punctuationSignals = (cleanMessage.match(/[，、；;]/g) || []).length;
+
     const needsDecompose = 
+      forceDecompose ||
       /分解|拆解|详细安排|具体步骤/.test(message) || 
-      message.length > 10 || 
-      /然后|接着|再|之后|，|、/.test(message);
+      sequenceSignals >= 1 ||
+      punctuationSignals >= 2 ||
+      cleanMessage.length > 18;
     
     params.needsDecompose = needsDecompose;
+    params.forceDecompose = forceDecompose;
     
     return {
       intent: 'create_task',
-      confidence: 0.8,
+      confidence: needsDecompose ? 0.92 : 0.8,
       params,
       action: needsDecompose ? 'decompose_task' : 'create_simple_task',
     };

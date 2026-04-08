@@ -3,8 +3,8 @@
  * 显示任务的超时、低效率等状态标记
  */
 
-import React, { useState } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { AlertTriangle, ShieldAlert } from 'lucide-react';
 
 interface TaskStatusBadgeProps {
   taskId: string;
@@ -15,6 +15,11 @@ interface TaskStatusBadgeProps {
   completeTimeoutCount?: number; // 完成超时次数
   efficiencyLevel?: 'excellent' | 'good' | 'average' | 'poor'; // 效率等级
   completionEfficiency?: number; // 完成效率
+  mandatoryReflection?: {
+    required: boolean;
+    resolved: boolean;
+    trigger: 'start_delay' | 'low_efficiency';
+  };
   position?: 'top-right' | 'inline'; // 显示位置
   size?: 'small' | 'medium'; // 尺寸
 }
@@ -28,17 +33,41 @@ export default function TaskStatusBadge({
   completeTimeoutCount = 0,
   efficiencyLevel,
   completionEfficiency,
+  mandatoryReflection,
   position = 'top-right',
   size = 'medium',
 }: TaskStatusBadgeProps) {
   const [showHistory, setShowHistory] = useState(false);
-  
-  // 计算总次数
   const totalTimeouts = startTimeoutCount + completeTimeoutCount;
   const hasLowEfficiency = efficiencyLevel === 'poor' || efficiencyLevel === 'average' || (completionEfficiency !== undefined && completionEfficiency < 60);
+  const hasMandatoryReflection = mandatoryReflection?.required && !mandatoryReflection?.resolved;
+  const badgeTone = useMemo(() => {
+    if (hasMandatoryReflection) {
+      return {
+        bg: 'rgba(185, 28, 28, 0.95)',
+        icon: '⛔',
+        text: '必填',
+        title: '必须先填写追责表单',
+      };
+    }
+    if (totalTimeouts > 0) {
+      return {
+        bg: 'rgba(255, 193, 7, 0.9)',
+        icon: '⚠️',
+        text: String(totalTimeouts),
+        title: '查看坏习惯历史',
+      };
+    }
+    return {
+      bg: 'rgba(156, 163, 175, 0.9)',
+      icon: '🐢',
+      text: '',
+      title: '查看坏习惯历史',
+    };
+  });
   
   // 如果没有任何标记，不显示
-  if (totalTimeouts === 0 && !hasLowEfficiency) {
+  if (totalTimeouts === 0 && !hasLowEfficiency && !hasMandatoryReflection) {
     return null;
   }
 
@@ -57,19 +86,17 @@ export default function TaskStatusBadge({
           }}
           className="flex items-center gap-1 px-2 py-1 rounded-lg shadow-sm hover:scale-105 transition-all"
           style={{
-            backgroundColor: totalTimeouts > 0 ? 'rgba(255, 193, 7, 0.9)' : 'rgba(156, 163, 175, 0.9)',
+            backgroundColor: badgeTone.bg,
             border: '1px solid rgba(255, 255, 255, 0.3)',
           }}
-          title="查看坏习惯历史"
+          title={badgeTone.title}
         >
-          {/* 图标 */}
           <span className={size === 'small' ? 'text-base' : 'text-lg'}>
-            {totalTimeouts > 0 ? '⚠️' : '🐢'}
+            {badgeTone.icon}
           </span>
           
-          {/* 次数 */}
           <span className={`font-bold text-white ${size === 'small' ? 'text-xs' : 'text-sm'}`}>
-            {totalTimeouts > 0 ? totalTimeouts : ''}
+            {badgeTone.text}
           </span>
         </button>
       </div>
@@ -105,6 +132,20 @@ export default function TaskStatusBadge({
             </div>
             
             <div className="space-y-3">
+              {hasMandatoryReflection && (
+                <div className="p-3 bg-red-50 border-2 border-red-300 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <ShieldAlert className="w-5 h-5 text-red-700" />
+                    <span className="font-semibold text-red-800">强制追责表单未完成</span>
+                  </div>
+                  <div className="text-sm text-red-900 space-y-1">
+                    <p>• 当前任务已被锁定，必须先提交表单。</p>
+                    <p>• 未提交前：不能完成任务、不能删除任务、不能关闭追责表单。</p>
+                    <p>• 触发原因：{mandatoryReflection?.trigger === 'start_delay' ? '启动拖延次数过多' : '任务低效率超时'}</p>
+                  </div>
+                </div>
+              )}
+
               {/* 启动拖延记录 */}
               {startTimeoutCount > 0 && (
                 <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">

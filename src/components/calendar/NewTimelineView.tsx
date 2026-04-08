@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, Camera, Check, ChevronDown, ChevronUp, Edit2, Trash2, GripVertical, Star, Clock, FileText, Upload, X } from 'lucide-react';
+import { Plus, Camera, Check, ChevronDown, ChevronUp, Edit2, Trash2, GripVertical, Star, Clock, FileText, Upload, X, ShieldAlert } from 'lucide-react';
 import eventBus from '@/utils/eventBus';
 import type { Task, LongTermGoal } from '@/types';
 import { 
@@ -88,6 +88,23 @@ export default function NewTimelineView({
   const addTaskHistoryRecord = useTaskHistoryStore(state => state.addRecord);
   const activeLoop = useHQBridgeStore((state) => state.activeLoop);
   const setActiveLoop = useHQBridgeStore((state) => state.setActiveLoop);
+
+  const START_DELAY_FORM_THRESHOLD = 5;
+  const LOW_EFFICIENCY_DELAY_MINUTES = 60;
+  const MANDATORY_REFLECTION_QUESTIONS: Record<'start_delay' | 'low_efficiency', string[]> = {
+    start_delay: [
+      '你已经连续多次在启动窗口内没有开始。你刚才究竟在逃避什么？',
+      '此刻你实际正在做什么，与当前任务冲突的诱因是什么？',
+      '如果总部现在追问，你最不能自圆其说的借口是什么？',
+      '你准备立刻做出的纠偏动作是什么？请写可执行动作。',
+    ],
+    low_efficiency: [
+      '任务已经严重超时。真正拖慢你的关键障碍到底是什么？',
+      '这段时间你在反复想什么、刷什么、耗在什么地方？',
+      '如果继续这样低效下去，最直接损失的是哪一个目标或承诺？',
+      '你接下来准备如何止损，并避免下一次再次失控？',
+    ],
+  };
   
   // 使用任务store
   const updateTaskEfficiency = useTaskStore(state => state.updateTaskEfficiency);
@@ -101,7 +118,10 @@ export default function NewTimelineView({
     actualImageCount: number;
     actualEndTime: Date;
     goldReward?: number; // 🔧 新增：金币奖励数量
+    forceMandatoryReflection?: boolean;
   } | null>(null);
+  const [mandatoryReflectionTaskId, setMandatoryReflectionTaskId] = useState<string | null>(null);
+  const [mandatoryReflectionDraft, setMandatoryReflectionDraft] = useState<Record<string, string>>({});
   
 
 
@@ -315,6 +335,68 @@ export default function NewTimelineView({
   // 庆祝效果状态
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationGold, setCelebrationGold] = useState(0);
+
+  const isMandatoryReflectionPending = (task?: Task | null) => !!task?.mandatoryReflection?.required && !task?.mandatoryReflection?.resolved;
+
+  const syncReflectionToHQ = (
+    task: Task,
+    trigger: 'start_delay' | 'low_efficiency',
+    answers: Array<{ question: string; answer: string }>
+  ) => {
+    const matchedGoals = getMatchedGoalsForTask(task);
+    const primaryGoal = matchedGoals[0];
+
+    setActiveLoop({
+      ...(activeLoop || {}),
+      goalId: primaryGoal?.id || activeLoop?.goalId,
+      goalName: primaryGoal?.name || activeLoop?.goalName,
+      taskId: task.id,
+      taskTitle: task.title,
+      painLabel: trigger === 'start_delay' ? '启动拖延失控' : '严重低效率',
+      promise: trigger === 'start_delay' ? '立即进入启动动作，不再拖延启动窗口。' : '立即止损，收束分心，恢复目标推进效率。',
+      accountabilityForm: {
+        trigger,
+        triggeredAt: task.mandatoryReflection?.triggeredAt || new Date().toISOString(),
+        submittedAt: new Date().toISOString(),
+        answers,
+      },
+    });
+  };
+
+  const openMandatoryReflection = (taskId: string, trigger: 'start_delay' | 'low_efficiency') => {
+    const task = allTasks.find((item) => item.id === taskId);
+    if (!task) return;
+
+    const existingAnswers = task.mandatoryReflection?.answers || [];
+    const questions = MANDATORY_REFLECTION_QUESTIONS[trigger];
+    const nextDraft = questions.reduce<Record<string, string>>((acc, question, index) => {
+      acc[question] = existingAnswers[index]?.answer || '';
+      return acc;
+    }, {});
+
+    setMandatoryReflectionDraft(nextDraft);
+    setMandatoryReflectionTaskId(taskId);
+  };
+
+  const ensureMandatoryReflection = (taskId: string, trigger: 'start_delay' | 'low_efficiency') => {
+    const task = allTasks.find((item) => item.id === taskId);
+    if (!task) return;
+    if (isMandatoryReflectionPending(task)) {
+      openMandatoryReflection(taskId, task.mandatoryReflection?.trigger || trigger);
+      return;
+    }
+
+    onTaskUpdate(taskId, {
+      mandatoryReflection: {
+        required: true,
+        resolved: false,
+        trigger,
+        triggeredAt: new Date().toISOString(),
+        answers: [],
+      },
+    });
+    openMandatoryReflection(taskId, trigger);
+  };
   
   // 判断颜色是否为深色
   const isColorDark = (color: string): boolean => {
@@ -333,6 +415,15 @@ export default function NewTimelineView({
   
   // 使用真实任务（不再需要示范任务）
   const allTasks = tasks;
+  const isHistoricalGapRecordTask = (task?: Task | null) => {
+    if (!task) return false;
+    const hasInternalBackfillFlag = (task.identityTags || []).includes('system:backfill-record');
+    const hasLegacyGapTag = (task.tags || []).includes('间隔补录记录');
+    const hasBackfillTitle = task.title === '补录记录';
+    const isBackfillRecord = hasInternalBackfillFlag || hasLegacyGapTag || hasBackfillTitle;
+    if (!isBackfillRecord || !task.scheduledStart) return false;
+    return new Date(task.scheduledStart).getTime() < Date.now();
+  };
 
   // 根据任务内容智能分配颜色 - 优化版，避免重复
   const getTaskColor = (task: Task): string => {
@@ -1803,6 +1894,15 @@ export default function NewTimelineView({
       }))
       .filter((dimension) => dimension.value > 0);
 
+    const accountabilitySnapshot = task.mandatoryReflection?.resolved
+      ? {
+          trigger: task.mandatoryReflection.trigger,
+          painLabel: task.mandatoryReflection.trigger === 'start_delay' ? '启动拖延失控' : '严重低效率',
+          answers: task.mandatoryReflection.answers || [],
+          submittedAt: task.mandatoryReflection.submittedAt,
+        }
+      : undefined;
+
     if (dimensionResults.length === 0) {
       setGoalContributionError('请至少填写一个大于 0 的关键结果。');
       return;
@@ -1812,6 +1912,10 @@ export default function NewTimelineView({
     setGoalContributionError(null);
 
     const existingRecord = existingGoalContributionRecords.find((record) => record.taskId === task.id && record.goalId === goal.id);
+    const contributionRecordedAt = new Date().toISOString();
+    const closureNote = accountabilitySnapshot
+      ? `追责表单、HQ桥接、目标贡献记录已完成，等待总部复盘确认。`
+      : activeLoop?.closureNote;
 
     if (existingRecord) {
       useGoalContributionStore.getState().updateRecord(existingRecord.id, {
@@ -1820,6 +1924,7 @@ export default function NewTimelineView({
         startTime: task.scheduledStart ? new Date(task.scheduledStart) : undefined,
         endTime: task.scheduledEnd ? new Date(task.scheduledEnd) : undefined,
         dimensionResults,
+        accountabilitySnapshot,
       });
     } else {
       addGoalContributionRecord({
@@ -1831,6 +1936,7 @@ export default function NewTimelineView({
         durationMinutes: effectiveDuration,
         note: draft.note,
         source: 'timeline',
+        accountabilitySnapshot,
         dimensionResults,
       });
     }
@@ -1863,6 +1969,8 @@ export default function NewTimelineView({
         goalName: goal.name,
         taskId: task.id,
         taskTitle: task.title,
+        goalContributionRecordedAt: contributionRecordedAt,
+        closureNote,
       });
     }
 
@@ -2245,6 +2353,138 @@ export default function NewTimelineView({
                   className="flex-1 rounded-full bg-[#0A84FF] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
                 >
                   {goalContributionSaving ? '保存中...' : '写入分析'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 强制追责表单 */}
+      {mandatoryReflectionTaskId && (() => {
+        const task = allTasks.find((item) => item.id === mandatoryReflectionTaskId);
+        if (!task?.mandatoryReflection) return null;
+
+        const trigger = task.mandatoryReflection.trigger;
+        const questions = MANDATORY_REFLECTION_QUESTIONS[trigger];
+        const isReady = questions.every((question) => (mandatoryReflectionDraft[question] || '').trim().length > 0);
+
+        return (
+          <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 px-3 pt-6 backdrop-blur-sm">
+            <div
+              className="w-full max-w-md overflow-y-auto rounded-t-[28px] bg-[#fffaf7] p-4 shadow-[0_30px_80px_rgba(15,23,42,0.28)]"
+              style={{
+                maxHeight: 'calc(100vh - 24px)',
+                paddingBottom: 'calc(148px + env(safe-area-inset-bottom))',
+              }}
+            >
+              <div className="flex items-start gap-3 rounded-[24px] border border-red-300 bg-red-50 px-4 py-4 text-red-900">
+                <ShieldAlert className="mt-1 h-5 w-5 shrink-0" />
+                <div>
+                  <div className="text-base font-bold">总部追责记录 · 必填</div>
+                  <div className="mt-1 text-sm leading-6">
+                    该任务已经触发{trigger === 'start_delay' ? '启动拖延' : '严重低效率'}追责。你必须如实填写，提交后任务才允许继续完成；当前不允许退出、不允许跳过、不允许删除任务。
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-[22px] bg-white p-4 shadow-sm">
+                <div className="text-xs uppercase tracking-[0.18em] text-[#9ca3af]">任务</div>
+                <div className="mt-2 text-lg font-semibold text-[#111827]">{task.title}</div>
+                <div className="mt-2 text-sm text-[#b42318]">
+                  触发时间：{new Date(task.mandatoryReflection.triggeredAt).toLocaleString('zh-CN')}
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-4">
+                {questions.map((question, index) => (
+                  <div key={question} className="rounded-[22px] bg-white p-4 shadow-sm">
+                    <div className="text-sm font-semibold text-[#111827]">{index + 1}. {question}</div>
+                    <textarea
+                      value={mandatoryReflectionDraft[question] || ''}
+                      onChange={(e) => setMandatoryReflectionDraft((prev) => ({ ...prev, [question]: e.target.value }))}
+                      rows={4}
+                      className="mt-3 w-full rounded-[18px] border border-[#f0d5d0] bg-[#fff7f5] px-4 py-3 text-sm text-[#111827] outline-none"
+                      placeholder="必须如实填写。总部后续会据此问责。"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div
+                className="fixed left-1/2 z-[81] flex w-[calc(100%-24px)] max-w-md -translate-x-1/2 gap-3 rounded-t-[24px] bg-white/96 px-4 pt-3 shadow-[0_-12px_30px_rgba(15,23,42,0.08)] backdrop-blur"
+                style={{
+                  bottom: 'calc(88px + env(safe-area-inset-bottom))',
+                  paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
+                }}
+              >
+                <button
+                  onClick={() => {
+                    if (!isReady) {
+                      alert('所有问题都必须填写完成，才允许提交。');
+                      return;
+                    }
+
+                    const answers = questions.map((question) => ({
+                      question,
+                      answer: (mandatoryReflectionDraft[question] || '').trim(),
+                    }));
+                    const matchedGoals = getMatchedGoalsForTask(task);
+                    const primaryGoal = matchedGoals[0];
+
+                    onTaskUpdate(task.id, {
+                      mandatoryReflection: {
+                        ...task.mandatoryReflection,
+                        required: true,
+                        resolved: true,
+                        submittedAt: new Date().toISOString(),
+                        answers,
+                      },
+                    });
+
+                    syncReflectionToHQ(task, trigger, answers);
+
+                    if (primaryGoal) {
+                      const existingRecord = existingGoalContributionRecords.find((record) => record.taskId === task.id && record.goalId === primaryGoal.id);
+                      if (existingRecord) {
+                        useGoalContributionStore.getState().updateRecord(existingRecord.id, {
+                          accountabilitySnapshot: {
+                            trigger,
+                            painLabel: trigger === 'start_delay' ? '启动拖延失控' : '严重低效率',
+                            answers,
+                            submittedAt: new Date().toISOString(),
+                          },
+                        });
+                      } else {
+                        addGoalContributionRecord({
+                          goalId: primaryGoal.id,
+                          taskId: task.id,
+                          taskTitle: task.title,
+                          startTime: task.scheduledStart ? new Date(task.scheduledStart) : undefined,
+                          endTime: task.scheduledEnd ? new Date(task.scheduledEnd) : undefined,
+                          durationMinutes: task.durationMinutes || 0,
+                          note: `【追责记录】${trigger === 'start_delay' ? '启动拖延' : '低效率超时'}已提交`,
+                          source: 'timeline',
+                          accountabilitySnapshot: {
+                            trigger,
+                            painLabel: trigger === 'start_delay' ? '启动拖延失控' : '严重低效率',
+                            answers,
+                            submittedAt: new Date().toISOString(),
+                          },
+                          dimensionResults: [],
+                        });
+                      }
+                    }
+                    setMandatoryReflectionTaskId(null);
+                    setMandatoryReflectionDraft({});
+
+                    if (efficiencyModalTask?.id === task.id && efficiencyModalTask.forceMandatoryReflection) {
+                      setEfficiencyModalTask((prev) => prev ? { ...prev, forceMandatoryReflection: false } : prev);
+                    }
+                  }}
+                  className="flex-1 rounded-full bg-[#b42318] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                >
+                  提交追责记录
                 </button>
               </div>
             </div>
@@ -2843,6 +3083,7 @@ export default function NewTimelineView({
                   completeTimeoutCount={allTasks.find(t => t.id === block.id)?.completeTimeoutCount || 0}
                   efficiencyLevel={block.efficiencyLevel}
                   completionEfficiency={block.completionEfficiency}
+                  mandatoryReflection={allTasks.find(t => t.id === block.id)?.mandatoryReflection}
                   position="top-right"
                   size={isMobile ? 'small' : 'medium'}
                 />
@@ -2855,8 +3096,9 @@ export default function NewTimelineView({
                   const isInProgress = block.status === 'in_progress';
                   const isCompleted = block.isCompleted;
                   
-                  // 显示条件：预设时间已到达 且 未完成
-                  const shouldShow = hasReachedStartTime && !isCompleted;
+                  // 显示条件：预设时间已到达 且 未完成，且不是“间隔补录记录”任务
+                  const taskRecord = allTasks.find((item) => item.id === block.id);
+                  const shouldShow = hasReachedStartTime && !isCompleted && !isHistoricalGapRecordTask(taskRecord);
                   
                   return shouldShow;
                 })() && (
@@ -2886,16 +3128,51 @@ export default function NewTimelineView({
                        console.log(`  预设结束: ${new Date(block.endTime).toLocaleTimeString()}`);
                        console.log(`  实际结束: ${actualEndTime.toLocaleTimeString()}`);
                        
+                       const taskRecord = allTasks.find((item) => item.id === block.id);
+                       if (isMandatoryReflectionPending(taskRecord)) {
+                         openMandatoryReflection(block.id, taskRecord?.mandatoryReflection?.trigger || 'low_efficiency');
+                         return;
+                       }
+
+                       if (taskRecord && activeLoop?.taskId === taskRecord.id) {
+                         setActiveLoop({
+                           ...activeLoop,
+                           taskId: taskRecord.id,
+                           taskTitle: taskRecord.title,
+                           timelineTaskCompletedAt: actualEndTime.toISOString(),
+                           closureNote: activeLoop?.goalContributionRecordedAt
+                             ? '追责动作与目标贡献都已补齐，等待总部复盘确认。'
+                             : '整改任务已执行完成，下一步补写目标贡献记录。',
+                         });
+                       }
+
                        // 🎯 更新任务的实际结束时间
                        onTaskUpdate(block.id, {
                          endTime: actualEndTime.toISOString(),
                          status: 'completed'
                        });
                        
-                       // 🎯 所有任务完成时都显示效率评估模态框
+                       const isHistoricalGapTask = isHistoricalGapRecordTask(taskRecord);
+
+                       // 🎯 所有普通任务完成时都显示效率评估模态框；过去的间隔补录记录任务不进入该流程
+                       if (isHistoricalGapTask) {
+                         onTaskUpdate(block.id, {
+                           scheduledEnd: actualEndTime.toISOString(),
+                           endTime: actualEndTime.toISOString(),
+                           isCompleted: true,
+                           status: 'completed'
+                         });
+                         return;
+                       }
+                       
+                       // 🎯 所有普通任务完成时都显示效率评估模态框
                        const verification = taskVerifications[block.id];
                        const plannedImageCount = verification?.plannedImageCount || 0;
                        const actualImageCount = taskImages[block.id]?.length || 0;
+                       const actualDurationMinutes = taskRecord?.scheduledStart
+                         ? Math.max(0, Math.floor((actualEndTime.getTime() - new Date(taskRecord.scheduledStart).getTime()) / 60000))
+                         : 0;
+                       const isLowEfficiencyOvertime = actualDurationMinutes >= ((taskRecord?.durationMinutes || block.duration || 0) + LOW_EFFICIENCY_DELAY_MINUTES);
                        
                        // 馃敡 璁＄畻閲戝竵濂栧姳锛堟彁鍓嶅畬鎴愬鍔?0%锛塦r
                        const scheduledEndTime = new Date(block.endTime);
@@ -2904,12 +3181,15 @@ export default function NewTimelineView({
                        
                        // 判断是否为补录历史任务（任务开始时间早于当前时间）
                        const isHistoricalTask = scheduledStartTime < now;
+                       const isBackfillRecord = isHistoricalGapRecordTask(taskRecord);
                        
                        const isEarly = actualEndTime < scheduledEndTime;
-                       // 如果是补录历史任务，给予全额金币；否则按提前完成计算
-                       const goldReward = isHistoricalTask 
-                         ? (block.goldReward || 0) 
-                         : (isEarly ? Math.floor((block.goldReward || 0) * 0.5) : 0);
+                       // 如果是补录历史任务，不发金币；否则按提前完成计算
+                       const goldReward = isBackfillRecord
+                         ? 0
+                         : (isHistoricalTask 
+                           ? (block.goldReward || 0) 
+                           : (isEarly ? Math.floor((block.goldReward || 0) * 0.5) : 0));
                        
                        setEfficiencyModalTask({
                          id: block.id,
@@ -2918,6 +3198,7 @@ export default function NewTimelineView({
                          actualImageCount,
                          actualEndTime,
                          goldReward,
+                         forceMandatoryReflection: isLowEfficiencyOvertime,
                        });
                        setEfficiencyModalOpen(true);
                      }}
@@ -2931,6 +3212,10 @@ export default function NewTimelineView({
                          completionTimeout: completeTimeoutCount > 0,
                          completeTimeoutCount: completeTimeoutCount,
                        });
+
+                       if (startTimeoutCount >= START_DELAY_FORM_THRESHOLD) {
+                         ensureMandatoryReflection(block.id, 'start_delay');
+                       }
                        
                        if (startTimeoutCount > 0) {
                          setTaskStartTimeouts(prev => ({ ...prev, [block.id]: true }));
@@ -3123,6 +3408,13 @@ export default function NewTimelineView({
                             </span>
                           )}
                         </div>
+
+                        {block.isLinkedHQTask && (
+                          <div className="mt-1 rounded-xl bg-white/12 px-2 py-1 text-[10px] leading-4 text-white/95">
+                            <div className="font-bold tracking-[0.08em]">总部即时纠偏</div>
+                            <div className="mt-0.5">{activeLoop?.promise || '先止损，再按总部要求回到主线。'}</div>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -3855,6 +4147,28 @@ export default function NewTimelineView({
                           </div>
                         </div>
                       )}
+
+                      {block.isLinkedHQTask && activeLoop?.accountabilityForm?.answers?.length ? (
+                        <div className="space-y-1.5">
+                          <div className="text-xs font-medium opacity-80">🧭 总部即时纠偏建议</div>
+                          <div
+                            className="rounded-lg p-3 text-xs leading-relaxed"
+                            style={{
+                              backgroundColor: 'rgba(255,255,255,0.15)',
+                              border: '1px solid rgba(255,255,255,0.2)'
+                            }}
+                          >
+                            <div className="font-bold">先做什么</div>
+                            <div className="mt-1">{activeLoop.promise || '立刻止损，把注意力拉回这条总部整改任务。'}</div>
+                            <div className="mt-2 font-bold">刚才你自己承认的问题</div>
+                            <div className="mt-1 space-y-1">
+                              {activeLoop.accountabilityForm.answers.slice(0, 2).map((item, index) => (
+                                <div key={`linked-hq-answer-${block.id}-${index}`}>• {item.answer}</div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
                       
                       {/* 效率评分 */}
                       {block.completionEfficiency !== undefined && (
@@ -4038,20 +4352,42 @@ export default function NewTimelineView({
         <TaskCompletionEfficiencyModal
           isOpen={efficiencyModalOpen}
           onClose={() => {
+            if (efficiencyModalTask.forceMandatoryReflection) {
+              ensureMandatoryReflection(efficiencyModalTask.id, 'low_efficiency');
+              return;
+            }
             setEfficiencyModalOpen(false);
             setEfficiencyModalTask(null);
           }}
           onConfirm={(efficiency, notes) => {
+            const task = allTasks.find((item) => item.id === efficiencyModalTask.id);
+            const actualDuration = task?.scheduledStart
+              ? Math.max(0, Math.floor((efficiencyModalTask.actualEndTime.getTime() - new Date(task.scheduledStart).getTime()) / 60000))
+              : (task?.durationMinutes || 0);
+            const shouldRequireLowEfficiencyReflection = !!efficiencyModalTask.forceMandatoryReflection;
+
+            if (shouldRequireLowEfficiencyReflection) {
+              onTaskUpdate(efficiencyModalTask.id, {
+                scheduledEnd: efficiencyModalTask.actualEndTime.toISOString(),
+                endTime: efficiencyModalTask.actualEndTime.toISOString(),
+                completionEfficiency: efficiency,
+                efficiencyLevel: efficiency >= 80 ? 'excellent' : efficiency >= 60 ? 'good' : efficiency >= 40 ? 'average' : 'poor',
+                completionNotes: notes,
+                actualDuration,
+                startVerificationTimeout: taskStartTimeouts[efficiencyModalTask.id],
+                completionTimeout: taskFinishTimeouts[efficiencyModalTask.id],
+              });
+
+              setEfficiencyModalOpen(false);
+              ensureMandatoryReflection(efficiencyModalTask.id, 'low_efficiency');
+              return;
+            }
+
             updateTaskEfficiency(
               efficiencyModalTask.id,
               efficiency,
               efficiencyModalTask.actualImageCount
             );
-
-            const task = allTasks.find((item) => item.id === efficiencyModalTask.id);
-            const actualDuration = task?.scheduledStart
-              ? Math.max(0, Math.floor((efficiencyModalTask.actualEndTime.getTime() - new Date(task.scheduledStart).getTime()) / 60000))
-              : (task?.durationMinutes || 0);
 
             onTaskUpdate(efficiencyModalTask.id, {
               scheduledEnd: efficiencyModalTask.actualEndTime.toISOString(),
@@ -4089,6 +4425,7 @@ export default function NewTimelineView({
           isDark={isDark}
           accentColor={accentColor}
           goldReward={efficiencyModalTask.goldReward || 0}
+          forceMandatoryReflection={!!efficiencyModalTask.forceMandatoryReflection}
         />
       )}
       
@@ -4100,12 +4437,26 @@ export default function NewTimelineView({
         return (
           <CompactTaskEditModal
             task={task}
-            onClose={() => setEditingTask(null)}
+            onClose={() => {
+              const currentTask = allTasks.find((item) => item.id === editingTask);
+              if (isMandatoryReflectionPending(currentTask)) {
+                alert('该任务已触发强制追责表单，提交前不能直接关闭。');
+                openMandatoryReflection(editingTask, currentTask?.mandatoryReflection?.trigger || 'low_efficiency');
+                return;
+              }
+              setEditingTask(null);
+            }}
             onSave={(updates) => {
               onTaskUpdate(editingTask, updates);
               setEditingTask(null);
             }}
             onDelete={(taskId) => {
+              const currentTask = allTasks.find((item) => item.id === taskId);
+              if (isMandatoryReflectionPending(currentTask)) {
+                alert('该任务已触发强制追责表单，提交前禁止删除任务。');
+                openMandatoryReflection(taskId, currentTask?.mandatoryReflection?.trigger || 'low_efficiency');
+                return;
+              }
               if (onTaskDelete) {
                 onTaskDelete(taskId);
               }
@@ -4192,7 +4543,7 @@ export default function NewTimelineView({
                   placeholder="30"
                   min="1"
                   max={creatingGapTask.maxDuration}
-                  defaultValue="30"
+                  defaultValue={creatingGapTask.maxDuration}
                   className="w-full px-4 py-2 rounded-lg border-2 focus:outline-none focus:border-pink-500"
                   style={{ 
                     backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#ffffff',
@@ -4221,7 +4572,7 @@ export default function NewTimelineView({
                     
                     const title = titleInput?.value.trim() || '新任务';
                     const duration = Math.min(
-                      parseInt(durationInput?.value) || 30,
+                      parseInt(durationInput?.value) || creatingGapTask.maxDuration,
                       creatingGapTask.maxDuration
                     );
                     
@@ -4236,6 +4587,7 @@ export default function NewTimelineView({
                       durationMinutes: duration,
                       taskType: 'work',
                       status: 'pending' as const,
+                      tags: ['间隔补录记录'],
                     });
                     
                     setCreatingGapTask(null);

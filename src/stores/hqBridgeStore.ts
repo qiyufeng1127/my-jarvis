@@ -8,6 +8,19 @@ export interface HQLoopBridgeState {
   taskTitle?: string;
   painLabel?: string;
   promise?: string;
+  accountabilityForm?: {
+    trigger: 'start_delay' | 'low_efficiency';
+    triggeredAt: string;
+    submittedAt?: string;
+    answers: Array<{
+      question: string;
+      answer: string;
+    }>;
+  };
+  timelineTaskCompletedAt?: string;
+  goalContributionRecordedAt?: string;
+  reviewCompletedAt?: string;
+  closureNote?: string;
   lastUpdatedAt?: string;
 }
 

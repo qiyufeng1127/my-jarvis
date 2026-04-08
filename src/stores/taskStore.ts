@@ -62,11 +62,24 @@ export const useTaskStore = create<TaskState>()(
         : taskData.scheduledEnd instanceof Date 
         ? taskData.scheduledEnd.toISOString() 
         : undefined;
+
+      const scheduledStartDate = scheduledStartStr ? new Date(scheduledStartStr) : undefined;
+      const isBackfillRecord = !!scheduledStartDate
+        && scheduledStartDate.getTime() < Date.now()
+        && (taskData.title === '新任务' || taskData.title === '补录记录');
+      const identityTags = isBackfillRecord
+        ? Array.from(new Set([...(taskData.identityTags || []), 'system:backfill-record']))
+        : (taskData.identityTags || []);
+      const taskTitle = isBackfillRecord ? '补录记录' : (taskData.title || '');
+      const taskTags = isBackfillRecord
+        ? []
+        : (taskData.tags || []);
+      const taskGoldReward = isBackfillRecord ? 0 : (taskData.goldReward || 0);
       
       const newTask: Task = {
         id: crypto.randomUUID(),
         userId,
-        title: taskData.title || '',
+        title: taskTitle,
         description: taskData.description,
         taskType: taskData.taskType || 'work',
         priority: taskData.priority || 2,
@@ -75,16 +88,16 @@ export const useTaskStore = create<TaskState>()(
         scheduledEnd: scheduledEndStr ? new Date(scheduledEndStr) : undefined,
         growthDimensions: taskData.growthDimensions || {},
         longTermGoals: taskData.longTermGoals || {},
-        identityTags: taskData.identityTags || [],
+        identityTags,
         enableProgressCheck: taskData.enableProgressCheck || false,
         progressChecks: [],
         penaltyGold: 0,
         status: taskData.status || 'pending',
         goldEarned: 0,
-        tags: taskData.tags || [],
+        tags: taskTags,
         color: taskData.color,
         location: taskData.location,
-        goldReward: taskData.goldReward || 0,
+        goldReward: taskGoldReward,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -231,8 +244,34 @@ export const useTaskStore = create<TaskState>()(
   completeTask: async (taskId) => {
     const task = get().tasks.find(t => t.id === taskId);
     if (!task) return;
-    
+
+    const isBackfillRecord = (task.identityTags || []).includes('system:backfill-record') || task.title === '补录记录';
     const now = new Date();
+
+    if (isBackfillRecord) {
+      const completedTask = {
+        ...task,
+        status: 'completed' as TaskStatus,
+        actualEnd: now,
+        goldEarned: 0,
+        penaltyGold: 0,
+      };
+
+      set((state) => ({
+        tasks: state.tasks.map((t) => 
+          t.id === taskId ? completedTask : t
+        ),
+      }));
+
+      console.log('📝 补录记录完成，不发金币、不记拖延税:', taskId);
+
+      return {
+        goldEarned: 0,
+        multiplier: 1,
+        delayTax: 0,
+      };
+    }
+    
     const actualStart = task.actualStart || now;
     const actualMinutes = Math.round((now.getTime() - actualStart.getTime()) / 60000);
     

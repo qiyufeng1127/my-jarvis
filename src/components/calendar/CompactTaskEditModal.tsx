@@ -1,8 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
-import { X, Plus, Search, Trash2, Check } from 'lucide-react';
+import { useState, useRef, useMemo } from 'react';
+import { X, Plus, Search, Trash2, Check, ChevronRight, ShieldAlert } from 'lucide-react';
 import { useGoalStore } from '@/stores/goalStore';
 import { useGoldStore } from '@/stores/goldStore';
-import type { Task } from '@/types';
+import { useTaskStore } from '@/stores/taskStore';
+import { useTagStore } from '@/stores/tagStore';
+import { useKeyboardAvoidance } from '@/hooks';
+import { smartCalculateGoldReward } from '@/utils/goldCalculator';
+import type { Task, LongTermGoal, TaskType } from '@/types';
 import type { SubTask } from '@/services/taskVerificationService';
 
 interface CompactTaskEditModalProps {
@@ -20,10 +24,13 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
   console.log('🎨 CompactTaskEditModal 已渲染 - 智能分配按钮应该可见');
   console.log('📝 任务数据:', task);
   
-  const { goals, createGoal } = useGoalStore();
+  const { goals, createGoal, findMatchingGoals } = useGoalStore();
   const { deductGold, balance } = useGoldStore();
+  const { tasks } = useTaskStore();
+  const { getAllTags, getTagDurationRecords } = useTagStore();
   
   const [title, setTitle] = useState(task.title || '');
+  const [isTitleAutoFilled, setIsTitleAutoFilled] = useState(false);
   const [description, setDescription] = useState(task.description || '');
   const [startTime, setStartTime] = useState(() => {
     if (task.scheduledStart) {
@@ -54,8 +61,11 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
   const [goalSearchQuery, setGoalSearchQuery] = useState('');
   const [showNewGoalInput, setShowNewGoalInput] = useState(false);
   const [newGoalName, setNewGoalName] = useState('');
+  const [showGoalResultSelector, setShowGoalResultSelector] = useState(false);
+  const hasMandatoryReflection = !!task.mandatoryReflection?.required && !task.mandatoryReflection?.resolved;
   
   // 用于自动滚动的引用
+  const modalContentRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const startTimeRef = useRef<HTMLInputElement>(null);
@@ -63,34 +73,372 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
   const goldRef = useRef<HTMLInputElement>(null);
   const goalRef = useRef<HTMLDivElement>(null);
   const locationRef = useRef<HTMLInputElement>(null);
-  
-  // 自动滚动到编辑项的函数
-  const scrollToElement = (element: HTMLElement | null) => {
-    if (!element) return;
-    
-    element.scrollIntoView({
-      behavior: 'smooth',
-      block: 'center',
-    });
-    
-    // 延迟聚焦，确保滚动完成
-    setTimeout(() => {
-      if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
-        element.focus();
-      }
-    }, 300);
+  const { handleFocusCapture, scrollIntoSafeView } = useKeyboardAvoidance(modalContentRef);
+  const scrollFieldIntoView = (element: HTMLElement | null) => {
+    scrollIntoSafeView(element);
   };
+
+  const smartAssignment = useMemo(() => {
+    const normalizedTitle = title.trim().toLowerCase();
+    const normalizedDescription = description.trim().toLowerCase();
+    const availableTags = getAllTags().filter(tag => !tag.isDisabled);
+    const availableTagNames = new Set(availableTags.map(tag => tag.name));
+    const otherTasks = tasks.filter(item => item.id !== task.id);
+
+    const titleTokens = Array.from(new Set(
+      title
+        .trim()
+        .split(/[\s\-_/，。！？、：:（）()【】\[\]]+/)
+        .map(token => token.trim().toLowerCase())
+        .filter(token => token.length >= 2)
+    ));
+
+    const keywordTagMap: Array<{ keyword: string; tags: string[] }> = [
+      { keyword: '家务', tags: ['家务', '清洁', '整理'] },
+      { keyword: '打扫', tags: ['清洁', '家务', '整理'] },
+      { keyword: '整理', tags: ['整理', '家务', '清洁'] },
+      { keyword: '收拾', tags: ['整理', '家务', '清洁'] },
+      { keyword: '做饭', tags: ['做饭', '日常', '生活'] },
+      { keyword: '吃饭', tags: ['吃饭', '日常', '生活'] },
+      { keyword: '厕所', tags: ['日常', '生活', '清洁'] },
+      { keyword: '上厕所', tags: ['日常', '生活', '清洁'] },
+      { keyword: '洗澡', tags: ['清洁', '日常', '生活'] },
+      { keyword: '洗漱', tags: ['清洁', '日常', '生活'] },
+      { keyword: '画画', tags: ['创作', '绘画', '艺术'] },
+      { keyword: '绘画', tags: ['创作', '绘画', '艺术'] },
+      { keyword: '插画', tags: ['创作', '绘画', '艺术'] },
+      { keyword: '写作', tags: ['创作', '写作', '工作'] },
+      { keyword: '学习', tags: ['学习', '成长', '阅读'] },
+      { keyword: '阅读', tags: ['阅读', '学习', '成长'] },
+      { keyword: '运动', tags: ['运动', '健康', '健身'] },
+      { keyword: '跑步', tags: ['运动', '跑步', '健康'] },
+      { keyword: '工作', tags: ['工作', '专注', '输出'] },
+      { keyword: '会议', tags: ['会议', '工作', '沟通'] },
+      { keyword: '拍摄', tags: ['拍摄', '创作', '工作'] },
+      { keyword: '摄影', tags: ['拍摄', '创作', '艺术'] },
+    ];
+
+    const inferTaskType = (text: string): TaskType => {
+      if (/(运动|跑步|健身|瑜伽|散步)/.test(text)) return 'health';
+      if (/(画画|绘画|创作|拍摄|摄影|写作|设计)/.test(text)) return 'creative';
+      if (/(家务|打扫|整理|做饭|吃饭|厕所|洗澡|洗漱|购物)/.test(text)) return 'life';
+      if (/(学习|阅读|课程|复习)/.test(text)) return 'study';
+      if (/(休息|睡觉|午睡)/.test(text)) return 'rest';
+      return task.taskType || 'work';
+    };
+
+    const taskCategoryRules: Array<{ key: string; keywords: string[]; tags: string[] }> = [
+      { key: 'meal', keywords: ['吃饭', '吃早饭', '吃午饭', '吃晚饭', '早餐', '午餐', '晚餐', '用餐', '煮面', '做饭', '做菜'], tags: ['吃饭', '做饭', '日常', '生活'] },
+      { key: 'toilet', keywords: ['上厕所', '厕所', '卫生间', '洗手间', '便意'], tags: ['日常', '生活', '清洁'] },
+      { key: 'shower', keywords: ['洗澡', '冲澡', '沐浴'], tags: ['清洁', '日常', '生活'] },
+      { key: 'wash', keywords: ['洗漱', '刷牙', '洗脸', '护肤'], tags: ['清洁', '日常', '生活'] },
+      { key: 'housework', keywords: ['家务', '打扫', '收拾', '整理', '清洁', '洗衣', '拖地'], tags: ['家务', '清洁', '整理'] },
+      { key: 'drawing', keywords: ['画画', '绘画', '插画', '临摹', '速写'], tags: ['创作', '绘画', '艺术'] },
+      { key: 'writing', keywords: ['写作', '写文章', '写稿', '文案', '写东西'], tags: ['创作', '写作', '工作'] },
+      { key: 'study', keywords: ['学习', '复习', '刷题', '阅读', '看书', '课程'], tags: ['学习', '阅读', '成长'] },
+      { key: 'exercise', keywords: ['运动', '健身', '跑步', '散步', '瑜伽'], tags: ['运动', '健康', '健身'] },
+      { key: 'meeting', keywords: ['会议', '开会', '沟通', '讨论'], tags: ['会议', '工作', '沟通'] },
+      { key: 'shooting', keywords: ['拍摄', '摄影', '拍照', '录视频'], tags: ['拍摄', '创作', '艺术'] },
+    ];
+
+    const detectTaskCategory = (taskTitle: string, taskDescription = '', taskTags: string[] = []) => {
+      const text = `${taskTitle} ${taskDescription} ${taskTags.join(' ')}`.toLowerCase();
+      const matchedRule = taskCategoryRules.find(rule =>
+        rule.keywords.some(keyword => text.includes(keyword.toLowerCase())) ||
+        taskTags.some(tag => rule.tags.includes(tag))
+      );
+
+      return matchedRule?.key || inferTaskType(text);
+    };
+
+    const currentTaskCategory = detectTaskCategory(title, description, tags);
+
+    const getTextSimilarityScore = (baseText: string, candidateTask: Task) => {
+      const candidateText = `${candidateTask.title || ''} ${candidateTask.description || ''}`.toLowerCase();
+      if (!candidateText.trim()) return 0;
+
+      let score = 0;
+      if (baseText && candidateText.includes(baseText)) score += 8;
+      if (candidateText && baseText.includes(candidateText)) score += 6;
+
+      titleTokens.forEach(token => {
+        if (candidateText.includes(token)) {
+          score += token.length >= 4 ? 4 : 2;
+        }
+      });
+
+      if (candidateTask.tags?.some(tag => normalizedTitle.includes(tag.toLowerCase()) || tag.toLowerCase().includes(normalizedTitle))) {
+        score += 5;
+      }
+
+      if (detectTaskCategory(candidateTask.title || '', candidateTask.description || '', candidateTask.tags || []) === currentTaskCategory) {
+        score += 10;
+      }
+
+      return score;
+    };
+
+    const matchedHistoryTasks = otherTasks
+      .map(historyTask => ({
+        task: historyTask,
+        score: getTextSimilarityScore(normalizedTitle, historyTask),
+      }))
+      .filter(item => item.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 12)
+      .map(item => item.task);
+
+    const categoryMatchedTasks = otherTasks
+      .filter(historyTask => detectTaskCategory(historyTask.title || '', historyTask.description || '', historyTask.tags || []) === currentTaskCategory)
+      .slice(0, 24);
+
+    const durationSamples = matchedHistoryTasks
+      .map(item => item.durationMinutes)
+      .filter((value): value is number => typeof value === 'number' && value > 0);
+
+    const categoryDurationSamples = categoryMatchedTasks
+      .map(item => item.durationMinutes)
+      .filter((value): value is number => typeof value === 'number' && value > 0);
+
+    const durationFromTags = availableTags
+      .filter(tag => normalizedTitle.includes(tag.name.toLowerCase()))
+      .flatMap(tag => getTagDurationRecords(tag.name).map(record => record.duration))
+      .filter(value => value > 0);
+
+    const allDurationSamples = [...durationSamples, ...categoryDurationSamples, ...durationFromTags].filter(value => value > 0);
+    const averageDuration = allDurationSamples.length > 0
+      ? Math.round(allDurationSamples.reduce((sum, value) => sum + value, 0) / allDurationSamples.length)
+      : task.durationMinutes || 30;
+    const suggestedDuration = Math.min(240, Math.max(5, Math.round(averageDuration / 5) * 5));
+
+    const tagScoreMap = new Map<string, number>();
+    const pushTagScore = (tagName: string, score: number) => {
+      if (!availableTagNames.has(tagName)) return;
+      tagScoreMap.set(tagName, (tagScoreMap.get(tagName) || 0) + score);
+    };
+
+    matchedHistoryTasks.forEach((historyTask, historyIndex) => {
+      historyTask.tags?.forEach(tagName => pushTagScore(tagName, Math.max(1, 8 - historyIndex)));
+    });
+
+    categoryMatchedTasks.forEach((historyTask) => {
+      historyTask.tags?.forEach(tagName => pushTagScore(tagName, 4));
+    });
+
+    availableTags.forEach(tag => {
+      const tagLower = tag.name.toLowerCase();
+      if (normalizedTitle.includes(tagLower) || tagLower.includes(normalizedTitle)) {
+        pushTagScore(tag.name, 12);
+      }
+      titleTokens.forEach(token => {
+        if (tagLower.includes(token) || token.includes(tagLower)) {
+          pushTagScore(tag.name, token.length >= 4 ? 8 : 5);
+        }
+      });
+    });
+
+    keywordTagMap.forEach(({ keyword, tags }) => {
+      if (normalizedTitle.includes(keyword)) {
+        tags.forEach(tagName => pushTagScore(tagName, 9));
+      }
+    });
+
+    const categoryRule = taskCategoryRules.find(rule => rule.key === currentTaskCategory);
+    categoryRule?.tags.forEach(tagName => pushTagScore(tagName, 7));
+
+    const suggestedTags = Array.from(tagScoreMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([tagName]) => tagName)
+      .slice(0, 3);
+
+    const historicalGoldSamples = matchedHistoryTasks
+      .filter(item => typeof item.goldReward === 'number' && item.goldReward >= 0)
+      .map((item, index) => {
+        const recencyTime = item.updatedAt || item.createdAt;
+        const daysAgo = recencyTime
+          ? Math.max(0, Math.floor((Date.now() - new Date(recencyTime).getTime()) / (1000 * 60 * 60 * 24)))
+          : 30;
+        const recencyWeight = Math.max(0.45, 1.35 - Math.min(daysAgo, 90) / 100);
+        const rankWeight = Math.max(0.35, 1.2 - index * 0.08);
+        const durationWeight = item.durationMinutes > 0
+          ? Math.max(0.55, 1 - Math.abs(item.durationMinutes - suggestedDuration) / Math.max(suggestedDuration, 15))
+          : 0.7;
+
+        return {
+          gold: item.goldReward as number,
+          durationMinutes: item.durationMinutes || suggestedDuration,
+          weight: Number((recencyWeight * rankWeight * durationWeight).toFixed(3)),
+        };
+      });
+
+    const categoryGoldSamples = categoryMatchedTasks
+      .filter(item => typeof item.goldReward === 'number' && item.goldReward >= 0)
+      .slice(0, 24)
+      .map(item => ({
+        gold: item.goldReward as number,
+        durationMinutes: item.durationMinutes || suggestedDuration,
+        weight: 0.7,
+      }));
+
+    const tagMatchedTasks = otherTasks
+      .filter(item => item.tags?.some(tagName => suggestedTags.includes(tagName)))
+      .filter(item => typeof item.goldReward === 'number' && item.goldReward >= 0)
+      .slice(0, 18)
+      .map(item => ({
+        gold: item.goldReward as number,
+        durationMinutes: item.durationMinutes || suggestedDuration,
+        weight: 0.55,
+      }));
+
+    const inferredTaskType = inferTaskType(`${normalizedTitle} ${normalizedDescription}`);
+    const fallbackGold = smartCalculateGoldReward(suggestedDuration, inferredTaskType, suggestedTags, title);
+
+    const weightedGoldPerMinuteFromHistory = historicalGoldSamples.reduce(
+      (sum, item) => sum + item.weight * (item.gold / Math.max(item.durationMinutes, 1)),
+      0
+    );
+    const totalHistoryWeight = historicalGoldSamples.reduce((sum, item) => sum + item.weight, 0);
+    const historicalGoldPerMinute = totalHistoryWeight > 0
+      ? weightedGoldPerMinuteFromHistory / totalHistoryWeight
+      : 0;
+
+    const weightedGoldPerMinuteFromCategory = categoryGoldSamples.reduce(
+      (sum, item) => sum + item.weight * (item.gold / Math.max(item.durationMinutes, 1)),
+      0
+    );
+    const totalCategoryWeight = categoryGoldSamples.reduce((sum, item) => sum + item.weight, 0);
+    const categoryGoldPerMinute = totalCategoryWeight > 0
+      ? weightedGoldPerMinuteFromCategory / totalCategoryWeight
+      : 0;
+
+    const weightedGoldPerMinuteFromTags = tagMatchedTasks.reduce(
+      (sum, item) => sum + item.weight * (item.gold / Math.max(item.durationMinutes, 1)),
+      0
+    );
+    const totalTagWeight = tagMatchedTasks.reduce((sum, item) => sum + item.weight, 0);
+    const tagGoldPerMinute = totalTagWeight > 0
+      ? weightedGoldPerMinuteFromTags / totalTagWeight
+      : 0;
+
+    const fallbackGoldPerMinute = fallbackGold / Math.max(suggestedDuration, 1);
+    const blendedGoldPerMinute = totalHistoryWeight > 0
+      ? (historicalGoldPerMinute * 0.5) + (categoryGoldPerMinute * 0.28) + (tagGoldPerMinute * 0.14) + (fallbackGoldPerMinute * 0.08)
+      : totalCategoryWeight > 0
+        ? (categoryGoldPerMinute * 0.62) + (tagGoldPerMinute * 0.2) + (fallbackGoldPerMinute * 0.18)
+        : totalTagWeight > 0
+          ? (tagGoldPerMinute * 0.72) + (fallbackGoldPerMinute * 0.28)
+          : fallbackGoldPerMinute;
+
+    const suggestedGold = Math.max(
+      0,
+      Math.round((blendedGoldPerMinute * suggestedDuration) / 5) * 5
+    );
+
+    const goalKeywords = Array.from(new Set([
+      ...titleTokens,
+      ...suggestedTags,
+      ...normalizedTitle.split(/[\s\-_/，。！？、：:（）()【】\[\]]+/).filter(Boolean),
+    ])).slice(0, 12);
+
+    const matchingGoals = findMatchingGoals(title, goalKeywords);
+
+    const getGoalScore = (goal: LongTermGoal) => {
+      const goalText = `${goal.name} ${goal.description} ${(goal.projectBindings || []).map(item => item.name).join(' ')}`.toLowerCase();
+      let score = 0;
+
+      titleTokens.forEach(token => {
+        if (goalText.includes(token)) {
+          score += token.length >= 4 ? 5 : 2;
+        }
+      });
+
+      if (normalizedTitle && goalText.includes(normalizedTitle)) score += 12;
+      if (normalizedDescription && goalText.includes(normalizedDescription)) score += 4;
+
+      return score;
+    };
+
+    const bestGoal = matchingGoals
+      .map(goal => ({ goal, score: getGoalScore(goal) }))
+      .filter(item => item.score >= 4)
+      .sort((a, b) => b.score - a.score)[0]?.goal;
+
+    return {
+      suggestedDuration,
+      suggestedGold,
+      suggestedTags,
+      suggestedGoalId: bestGoal?.id || '',
+      matchedHistoryCount: matchedHistoryTasks.length,
+      categoryLabel: currentTaskCategory,
+      categoryHistoryCount: categoryMatchedTasks.length,
+    };
+  }, [title, description, getAllTags, getTagDurationRecords, tasks, task.id, task.durationMinutes, task.taskType, task.tags, findMatchingGoals]);
+
   
   // 过滤后的目标列表
   const filteredGoals = goals.filter(goal => 
     goal.name.toLowerCase().includes(goalSearchQuery.toLowerCase())
   );
+
+  const selectedGoal = useMemo(
+    () => goals.find(goal => goal.id === selectedGoalId),
+    [goals, selectedGoalId]
+  );
+
+  const selectedGoalResults = useMemo(() => {
+    if (!selectedGoal) return [];
+
+    const dimensionResults = (selectedGoal.dimensions || [])
+      .filter(item => item.name?.trim())
+      .map(item => ({
+        id: `dimension-${item.id}`,
+        title: item.name.trim(),
+        subtitle: item.targetValue
+          ? `目标 ${item.targetValue}${item.unit ? ` ${item.unit}` : ''}`
+          : item.unit ? `单位：${item.unit}` : '客观维度',
+        type: 'dimension' as const,
+      }));
+
+    const milestoneResults = (selectedGoal.milestones || [])
+      .filter(item => item.name?.trim())
+      .map(item => ({
+        id: `milestone-${item.id}`,
+        title: item.name.trim(),
+        subtitle: item.targetValue ? `里程碑 ${item.targetValue}` : '里程碑',
+        type: 'milestone' as const,
+      }));
+
+    const projectBindingResults = (selectedGoal.projectBindings || [])
+      .filter(item => item.name?.trim())
+      .map(item => ({
+        id: `project-${item.id}`,
+        title: item.name.trim(),
+        subtitle: '关联项目',
+        type: 'project' as const,
+      }));
+
+    return [...dimensionResults, ...milestoneResults, ...projectBindingResults];
+  }, [selectedGoal]);
   
   // 处理选择目标
   const handleSelectGoal = (goalId: string) => {
     setSelectedGoalId(goalId);
     setShowGoalSelector(false);
     setGoalSearchQuery('');
+    setShowGoalResultSelector(false);
+  };
+
+  const handleSelectGoalResult = (resultTitle: string, resultTypeLabel: string) => {
+    setTitle(resultTitle);
+    setIsTitleAutoFilled(true);
+
+    const descriptionLines = [
+      selectedGoal ? `关联目标：${selectedGoal.name}` : '',
+      `${resultTypeLabel}：${resultTitle}`,
+    ].filter(Boolean);
+
+    setDescription(descriptionLines.join('\n'));
+    setShowGoalResultSelector(false);
   };
   
   // 处理新增目标
@@ -103,7 +451,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
     const newGoal = createGoal({
       name: newGoalName.trim(),
       description: '',
-      goalType: 'boolean',
+      goalType: 'numeric',
       isActive: true,
     });
     
@@ -112,6 +460,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
     setShowNewGoalInput(false);
     setShowGoalSelector(false);
     setGoalSearchQuery('');
+    setShowGoalResultSelector(false);
   };
 
   const handleSave = () => {
@@ -232,7 +581,13 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
 
   // 删除任务处理
   const handleDelete = () => {
-    const taskGold = task.goldReward || 0;
+    if (hasMandatoryReflection) {
+      alert('该任务已触发强制追责表单，提交完成之前禁止删除任务。');
+      return;
+    }
+
+    const isBackfillRecord = (task.identityTags || []).includes('system:backfill-record') || task.title === '补录记录';
+    const taskGold = isBackfillRecord ? 0 : (task.goldReward || 0);
     
     if (taskGold <= 0) {
       // 如果任务没有金币奖励，直接删除
@@ -277,7 +632,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
     }
   };
 
-  // AI智能分配 - 从SOP模板中选择匹配的任务
+  // 智能分配 - 基于历史记录动态填写时长、金币、标签和关联目标
   const handleAIAssign = async () => {
     if (!title.trim()) {
       alert('请先输入任务标题');
@@ -287,135 +642,65 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
     setIsAIAssigning(true);
 
     try {
-      // 导入SOP store
-      const { useSOPStore } = await import('@/stores/sopStore');
-      const sopStore = useSOPStore.getState();
-      const sopTasks = sopStore.tasks;
-      
-      if (sopTasks.length === 0) {
-        alert('SOP任务库为空，请先在SOP中添加任务模板');
-        setIsAIAssigning(false);
-        return;
-      }
-      
-      console.log('🔍 从SOP模板中匹配任务:', title);
-      console.log('📚 可用SOP模板数量:', sopTasks.length);
-      
-      // 使用AI匹配最相似的SOP任务
-      const { aiService } = await import('@/services/aiService');
-      
-      const prompt = `你是一个任务匹配助手。用户输入了任务标题"${title}"，请从以下SOP任务模板中找出最匹配的1-2个：
+      setDuration(smartAssignment.suggestedDuration);
+      setGold(smartAssignment.suggestedGold);
+      setTags(smartAssignment.suggestedTags);
 
-${sopTasks.map((t, i) => `${i + 1}. ${t.title}${t.description ? ` - ${t.description}` : ''}`).join('\n')}
-
-请返回JSON格式：
-{
-  "matches": [
-    {
-      "index": 任务序号（从1开始）,
-      "similarity": 相似度（0-100）,
-      "reason": "匹配原因"
-    }
-  ]
-}
-
-只返回相似度大于30的任务，按相似度从高到低排序，最多返回2个。如果没有匹配的任务，返回空数组。`;
-
-      const response = await aiService.chat([{ role: 'user', content: prompt }]);
-      
-      if (!response.success || !response.content) {
-        throw new Error('AI匹配失败');
-      }
-      
-      // 解析AI返回的匹配结果
-      let matchResult: { matches: Array<{ index: number; similarity: number; reason: string }> };
-      try {
-        let jsonStr = response.content.trim();
-        const jsonMatch = jsonStr.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-        if (jsonMatch) {
-          jsonStr = jsonMatch[1];
-        }
-        matchResult = JSON.parse(jsonStr);
-      } catch (e) {
-        console.error('解析AI返回失败:', e);
-        throw new Error('AI返回格式错误');
-      }
-      
-      if (!matchResult.matches || matchResult.matches.length === 0) {
-        alert('未找到匹配的SOP模板\n\n建议：\n1. 在SOP中添加类似的任务模板\n2. 或手动填写任务信息');
-        setIsAIAssigning(false);
-        return;
-      }
-      
-      // 如果只有一个匹配，直接应用
-      if (matchResult.matches.length === 1) {
-        const match = matchResult.matches[0];
-        const sopTask = sopTasks[match.index - 1];
-        
-        if (confirm(`找到匹配的SOP模板：\n\n"${sopTask.title}"\n\n相似度：${match.similarity}%\n原因：${match.reason}\n\n是否应用此模板？`)) {
-          applySOPTemplate(sopTask);
-        }
+      if (smartAssignment.suggestedGoalId) {
+        setSelectedGoalId(smartAssignment.suggestedGoalId);
       } else {
-        // 多个匹配，让用户选择
-        const options = matchResult.matches.map((m, i) => {
-          const sopTask = sopTasks[m.index - 1];
-          return `${i + 1}. ${sopTask.title} (相似度${m.similarity}%)`;
-        }).join('\n');
-        
-        const choice = prompt(`找到${matchResult.matches.length}个匹配的SOP模板：\n\n${options}\n\n请输入序号选择（1-${matchResult.matches.length}），或输入0取消：`);
-        
-        if (choice && choice !== '0') {
-          const index = parseInt(choice) - 1;
-          if (index >= 0 && index < matchResult.matches.length) {
-            const match = matchResult.matches[index];
-            const sopTask = sopTasks[match.index - 1];
-            applySOPTemplate(sopTask);
-          }
-        }
+        setSelectedGoalId('');
       }
-      
+
+      const summary = [
+        `已根据你的历史记录完成智能分配。`,
+        `识别类别：${smartAssignment.categoryLabel || '通用任务'}`,
+        `建议时长：${smartAssignment.suggestedDuration} 分钟`,
+        `建议金币：${smartAssignment.suggestedGold}`,
+        `建议标签：${smartAssignment.suggestedTags.join('、') || '未找到合适标签'}`,
+        smartAssignment.suggestedGoalId
+          ? `关联目标：${goals.find(goal => goal.id === smartAssignment.suggestedGoalId)?.name || '已自动关联'}`
+          : '关联目标：未匹配到明确目标，已保持不关联',
+        `标题相似历史数：${smartAssignment.matchedHistoryCount}`,
+        `类别历史数：${smartAssignment.categoryHistoryCount}`,
+      ];
+
+      alert(summary.join('\n'));
     } catch (error) {
-      console.error('智能匹配失败:', error);
-      alert(`智能匹配失败：${error instanceof Error ? error.message : '未知错误'}\n\n请检查AI配置是否正确。`);
+      console.error('智能分配失败:', error);
+      alert(`智能分配失败：${error instanceof Error ? error.message : '未知错误'}`);
     } finally {
       setIsAIAssigning(false);
     }
   };
   
-  // 应用SOP模板
-  const applySOPTemplate = (sopTask: any) => {
-    setDuration(sopTask.durationMinutes || 30);
-    setDescription(sopTask.description || '');
-    setTags(sopTask.tags || []);
-    setLocation(sopTask.location || '');
-    
-    // 计算金币（基于时长）
-    const calculatedGold = Math.floor(sopTask.durationMinutes * 0.8);
-    setGold(calculatedGold);
-    
-    alert(`✅ 已应用SOP模板！\n\n时长：${sopTask.durationMinutes}分钟\n金币：${calculatedGold}\n标签：${(sopTask.tags || []).join('、') || '无'}\n位置：${sopTask.location || '无'}`);
-  };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 z-50" style={{ paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}>
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[calc(100vh-160px)] flex flex-col overflow-hidden border-2 border-purple-200 dark:border-purple-800">
-        {/* 头部 - 紧凑设计 */}
-        <div className="flex-shrink-0 bg-gradient-to-r from-purple-500 to-pink-500 px-4 py-2.5 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">✏️</span>
-            <h3 className="text-base font-bold text-white">编辑任务</h3>
+    <div
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 z-50 keyboard-aware-modal-shell"
+    >
+      <div
+        className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden border-2 border-purple-200 dark:border-purple-800 keyboard-aware-modal-card"
+        onFocusCapture={handleFocusCapture}
+      >
+        {hasMandatoryReflection && (
+          <div className="mx-4 mt-4 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-red-900">
+            <div className="flex items-start gap-2">
+              <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-red-700" />
+              <div>
+                <div className="text-sm font-bold">当前任务处于强制追责状态</div>
+                <div className="mt-1 text-xs leading-5">
+                  你必须先填写并提交拖延 / 低效率表单，当前任务才允许完成。提交前不能删除任务，也不允许直接退出这个流程。
+                </div>
+              </div>
+            </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-white/20 rounded-lg transition-colors"
-            title="关闭"
-          >
-            <X className="w-5 h-5 text-white" />
-          </button>
-        </div>
-
+        )}
         {/* 表单内容 - 紧凑布局，添加更大的底部内边距避免被按钮遮挡 */}
-        <div className="flex-1 overflow-y-auto p-4 pb-4 space-y-3">
+        <div
+          ref={modalContentRef}
+          className="flex-1 overflow-y-auto p-4 pt-5 pb-24 space-y-3 overscroll-contain keyboard-aware-scroll"
+        >
           {/* 任务标题 */}
           <div>
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
@@ -425,11 +710,19 @@ ${sopTasks.map((t, i) => `${i + 1}. ${t.title}${t.description ? ` - ${t.descript
               ref={titleRef}
               type="text"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onFocus={() => scrollToElement(titleRef.current)}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                setIsTitleAutoFilled(false);
+              }}
+              onFocus={() => scrollIntoSafeView(titleRef.current)}
               placeholder="输入任务名称..."
               className="w-full px-3 py-2 text-sm border-2 border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-all"
             />
+            {isTitleAutoFilled && (
+              <div className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">
+                已自动填充标题，确认无误后可直接保存。
+              </div>
+            )}
           </div>
 
           {/* 任务描述 */}
@@ -441,7 +734,7 @@ ${sopTasks.map((t, i) => `${i + 1}. ${t.title}${t.description ? ` - ${t.descript
               ref={descriptionRef}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              onFocus={() => scrollToElement(descriptionRef.current)}
+              onFocus={() => scrollFieldIntoView(descriptionRef.current)}
               placeholder="详细描述任务内容..."
               rows={2}
               className="w-full px-3 py-2 text-sm border-2 border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none transition-all"
@@ -459,7 +752,7 @@ ${sopTasks.map((t, i) => `${i + 1}. ${t.title}${t.description ? ` - ${t.descript
                 type="time"
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
-                onFocus={() => scrollToElement(startTimeRef.current)}
+                onFocus={() => scrollFieldIntoView(startTimeRef.current)}
                 className="w-full px-3 py-2 text-sm border-2 border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-all"
               />
             </div>
@@ -472,7 +765,7 @@ ${sopTasks.map((t, i) => `${i + 1}. ${t.title}${t.description ? ` - ${t.descript
                 type="number"
                 value={duration}
                 onChange={(e) => setDuration(parseInt(e.target.value) || 0)}
-                onFocus={() => scrollToElement(durationRef.current)}
+                onFocus={() => scrollFieldIntoView(durationRef.current)}
                 min="1"
                 className="w-full px-3 py-2 text-sm border-2 border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-all"
               />
@@ -488,8 +781,9 @@ ${sopTasks.map((t, i) => `${i + 1}. ${t.title}${t.description ? ` - ${t.descript
               <button
                 onClick={handleAIAssign}
                 disabled={isAIAssigning || !title.trim()}
-                className="px-2 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-md text-xs font-semibold hover:from-purple-600 hover:to-pink-600 active:scale-95 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                title="AI智能分配金币、标签、目标和位置"
+                className="px-2 py-1 rounded-md text-xs font-semibold active:scale-95 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                style={{ backgroundColor: '#6f8f64', color: '#f8f7f1' }}
+                title="根据历史记录智能分配时长、金币、标签和目标"
               >
                 {isAIAssigning ? (
                   <>
@@ -509,9 +803,9 @@ ${sopTasks.map((t, i) => `${i + 1}. ${t.title}${t.description ? ` - ${t.descript
               type="number"
               value={gold}
               onChange={(e) => setGold(parseInt(e.target.value) || 0)}
-              onFocus={() => scrollToElement(goldRef.current)}
+              onFocus={() => scrollFieldIntoView(goldRef.current)}
               min="0"
-              className="w-full px-3 py-2 text-sm border-2 border-yellow-300 dark:border-yellow-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 text-gray-900 dark:text-white font-semibold transition-all"
+              className="w-full px-3 py-2 text-sm border-2 border-[#e5dccf] dark:border-yellow-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#c8b79e] focus:border-transparent bg-[#faf7ef] dark:from-yellow-900/20 dark:to-amber-900/20 text-gray-900 dark:text-white font-semibold transition-all"
             />
           </div>
 
@@ -524,7 +818,8 @@ ${sopTasks.map((t, i) => `${i + 1}. ${t.title}${t.description ? ` - ${t.descript
               {tags.map((tag, index) => (
                 <span
                   key={index}
-                  className="inline-flex items-center gap-1 px-2 py-1 bg-gradient-to-r from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 text-blue-700 dark:text-blue-300 rounded-md text-xs font-medium shadow-sm"
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium shadow-sm"
+                  style={{ backgroundColor: '#eef2ff', color: '#4f6fb2' }}
                 >
                   {tag}
                   <button
@@ -547,7 +842,8 @@ ${sopTasks.map((t, i) => `${i + 1}. ${t.title}${t.description ? ` - ${t.descript
               />
               <button
                 onClick={addTag}
-                className="px-3 py-1.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg text-xs font-semibold hover:from-purple-600 hover:to-pink-600 active:scale-95 transition-all shadow-sm"
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold active:scale-95 transition-all shadow-sm"
+                style={{ backgroundColor: '#6f8f64', color: '#f8f7f1' }}
               >
                 ➕ 添加
               </button>
@@ -559,19 +855,35 @@ ${sopTasks.map((t, i) => `${i + 1}. ${t.title}${t.description ? ` - ${t.descript
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
               🎯 关联目标
             </label>
-            <div
-              onClick={() => {
-                scrollToElement(goalRef.current);
-                setShowGoalSelector(true);
-              }}
-              className="w-full px-3 py-2 text-sm border-2 border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-all cursor-pointer hover:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
-            >
-              {selectedGoalId ? (
-                <span className="font-medium">
-                  {goals.find(g => g.id === selectedGoalId)?.name || '选择目标...'}
-                </span>
-              ) : (
-                <span className="text-gray-400">点击选择或新增目标...</span>
+            <div className="space-y-2">
+              <div
+                onClick={() => {
+                  scrollIntoSafeView(goalRef.current);
+                  setShowGoalSelector(true);
+                }}
+                className="w-full px-3 py-2 text-sm border-2 border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-all cursor-pointer hover:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                {selectedGoalId ? (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">
+                      {selectedGoal?.name || '选择目标...'}
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                  </div>
+                ) : (
+                  <span className="text-gray-400">点击选择或新增目标...</span>
+                )}
+              </div>
+
+              {selectedGoalId && selectedGoalResults.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowGoalResultSelector(true)}
+                  className="w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50/80 dark:bg-purple-900/20 text-purple-700 dark:text-purple-200 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all"
+                >
+                  <span>选择关键结果</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               )}
             </div>
           </div>
@@ -586,7 +898,7 @@ ${sopTasks.map((t, i) => `${i + 1}. ${t.title}${t.description ? ` - ${t.descript
               type="text"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
-              onFocus={() => scrollToElement(locationRef.current)}
+              onFocus={() => scrollFieldIntoView(locationRef.current)}
               placeholder="例如：厨房、卧室、办公室..."
               className="w-full px-3 py-2 text-sm border-2 border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-all"
             />
@@ -601,7 +913,8 @@ ${sopTasks.map((t, i) => `${i + 1}. ${t.title}${t.description ? ` - ${t.descript
               <button
                 onClick={handleGenerateSubtasks}
                 disabled={isGeneratingSubtasks || !title.trim()}
-                className="px-2 py-1 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-md text-xs font-semibold hover:from-blue-600 hover:to-cyan-600 active:scale-95 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                className="px-2 py-1 rounded-md text-xs font-semibold active:scale-95 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                style={{ backgroundColor: '#7aa7d9', color: '#f8fafc' }}
                 title="AI生成子任务"
               >
                 {isGeneratingSubtasks ? (
@@ -670,7 +983,8 @@ ${sopTasks.map((t, i) => `${i + 1}. ${t.title}${t.description ? ` - ${t.descript
               <button
                 onClick={addSubtask}
                 disabled={!newSubtaskTitle.trim()}
-                className="px-3 py-1.5 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg text-xs font-semibold hover:from-blue-600 hover:to-cyan-600 active:scale-95 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold active:scale-95 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ backgroundColor: '#a8c6e8', color: '#f8fafc' }}
               >
                 ➕ 添加
               </button>
@@ -680,10 +994,13 @@ ${sopTasks.map((t, i) => `${i + 1}. ${t.title}${t.description ? ` - ${t.descript
 
         {/* 关联目标选择弹窗 */}
         {showGoalSelector && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[70vh] flex flex-col overflow-hidden border-2 border-purple-300 dark:border-purple-700">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60] keyboard-aware-modal-shell">
+            <div
+              className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[70vh] flex flex-col overflow-hidden border-2 border-purple-300 dark:border-purple-700 keyboard-aware-modal-card"
+              onFocusCapture={handleFocusCapture}
+            >
               {/* 弹窗头部 */}
-              <div className="flex-shrink-0 bg-gradient-to-r from-purple-500 to-pink-500 px-4 py-3 flex items-center justify-between">
+              <div className="flex-shrink-0 px-4 py-3 flex items-center justify-between" style={{ backgroundColor: '#6f8f64' }}>
                 <h4 className="text-base font-bold text-white">🎯 选择关联目标</h4>
                 <button
                   onClick={() => {
@@ -708,6 +1025,7 @@ ${sopTasks.map((t, i) => `${i + 1}. ${t.title}${t.description ? ` - ${t.descript
                     placeholder="搜索目标..."
                     className="w-full pl-10 pr-3 py-2 text-sm border-2 border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                     autoFocus
+                    onFocus={() => scrollIntoSafeView(goalRef.current)}
                   />
                 </div>
               </div>
@@ -768,11 +1086,13 @@ ${sopTasks.map((t, i) => `${i + 1}. ${t.title}${t.description ? ` - ${t.descript
                       placeholder="输入新目标名称..."
                       className="w-full px-3 py-2 text-sm border-2 border-purple-300 dark:border-purple-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                       autoFocus
+                      onFocus={() => scrollIntoSafeView(goalRef.current)}
                     />
                     <div className="flex gap-2">
                       <button
                         onClick={handleCreateNewGoal}
-                        className="flex-1 px-3 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg text-sm font-semibold hover:from-purple-600 hover:to-pink-600 transition-all"
+                        className="flex-1 px-3 py-2 rounded-lg text-sm font-semibold transition-all"
+                        style={{ backgroundColor: '#6f8f64', color: '#f8f7f1' }}
                       >
                         确认新增
                       </button>
@@ -790,7 +1110,8 @@ ${sopTasks.map((t, i) => `${i + 1}. ${t.title}${t.description ? ` - ${t.descript
                 ) : (
                   <button
                     onClick={() => setShowNewGoalInput(true)}
-                    className="w-full px-3 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg text-sm font-semibold hover:from-green-600 hover:to-emerald-600 transition-all flex items-center justify-center gap-2"
+                    className="w-full px-3 py-2 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2"
+                    style={{ backgroundColor: '#7f9b73', color: '#f8f7f1' }}
                   >
                     <Plus className="w-4 h-4" />
                     <span>新增目标</span>
@@ -801,25 +1122,81 @@ ${sopTasks.map((t, i) => `${i + 1}. ${t.title}${t.description ? ` - ${t.descript
           </div>
         )}
 
+        {/* 目标关键结果选择弹窗 */}
+        {showGoalResultSelector && selectedGoal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[61] keyboard-aware-modal-shell">
+            <div
+              className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[70vh] flex flex-col overflow-hidden border-2 border-purple-300 dark:border-purple-700 keyboard-aware-modal-card"
+              onFocusCapture={handleFocusCapture}
+            >
+              <div className="flex-shrink-0 px-4 py-3 flex items-center justify-between border-b border-gray-200 dark:border-gray-700">
+                <div>
+                  <h4 className="text-base font-bold text-gray-900 dark:text-white">选择关键结果</h4>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">已关联目标：{selectedGoal.name}</p>
+                </div>
+                <button
+                  onClick={() => setShowGoalResultSelector(false)}
+                  className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                {selectedGoalResults.length > 0 ? (
+                  selectedGoalResults.map((result) => (
+                    <button
+                      key={result.id}
+                      type="button"
+                      onClick={() => handleSelectGoalResult(
+                        result.title,
+                        result.type === 'dimension' ? '关键结果' : result.type === 'milestone' ? '里程碑' : '项目'
+                      )}
+                      className="w-full text-left p-3 rounded-xl border-2 border-transparent bg-gray-50 dark:bg-gray-800 hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-white">{result.title}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{result.subtitle}</div>
+                        </div>
+                        <span className="text-[10px] px-2 py-1 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 whitespace-nowrap">
+                          {result.type === 'dimension' ? '维度' : result.type === 'milestone' ? '里程碑' : '项目'}
+                        </span>
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <div className="py-10 text-center text-sm text-gray-400">
+                    这个目标里还没有可复用的关键结果
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 底部按钮 - 固定在弹窗底部 */}
         <div className="flex-shrink-0 border-t-2 border-gray-200 dark:border-gray-700 px-3 py-3 flex gap-2 bg-white dark:bg-gray-800 shadow-2xl">
           <button
             onClick={handleDelete}
-            className="px-4 py-2 rounded-lg font-semibold transition-all active:scale-95 text-sm"
+            disabled={hasMandatoryReflection}
+            className="px-4 py-2 rounded-lg font-semibold transition-all active:scale-95 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ backgroundColor: '#EF4444', color: 'white' }}
-            title={`删除任务将扣除 ${task.goldReward || 0} 金币`}
+            title={hasMandatoryReflection ? '强制追责表单未提交前禁止删除' : `删除任务将扣除 ${task.goldReward || 0} 金币`}
           >
             删除此任务
           </button>
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold transition-all active:scale-95"
+            disabled={hasMandatoryReflection}
+            className="flex-1 px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             取消
           </button>
           <button
             onClick={handleSave}
-            className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white text-sm font-bold transition-all active:scale-95 shadow-lg"
+            className="flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all active:scale-95 shadow-lg"
+            style={{ backgroundColor: '#6f8f64', color: '#f8f7f1' }}
           >
             保存
           </button>

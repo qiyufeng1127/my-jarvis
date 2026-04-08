@@ -10,7 +10,6 @@ import { MoneyTracker } from '@/components/money';
 import MoodWeeklyChart from '@/components/journal/MoodWeeklyChart';
 import FloatingAIChat from '@/components/ai/FloatingAIChat';
 import HabitCanModule from '@/components/habits/HabitCanModule';
-import HabitPage from '@/pages/HabitPage';
 import SOPLibrary from '@/components/sop/SOPLibrary';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
@@ -1630,7 +1629,12 @@ export function MoodWeeklyModule({ isDark = false, bgColor = '#ffffff' }: { isDa
 export function HabitsModule({ isDark = false, bgColor = '#ffffff' }: { isDark?: boolean; bgColor?: string }) {
   return (
     <div className="h-full overflow-auto" style={{ backgroundColor: bgColor }}>
-      <HabitPage />
+      <HabitCanModule
+        isDark={isDark}
+        cardBg={isDark ? 'rgba(28, 28, 30, 0.92)' : '#FFFFFF'}
+        textColor={isDark ? '#FFFFFF' : '#111111'}
+        accentColor={isDark ? 'rgba(255,255,255,0.7)' : '#6B7280'}
+      />
     </div>
   );
 }

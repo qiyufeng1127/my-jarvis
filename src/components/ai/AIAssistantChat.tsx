@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, Settings, Sparkles, X } from 'lucide-react';
 import { useAIAssistant } from '@/hooks/useAIAssistant';
 import { useTaskStore } from '@/stores/taskStore';
+import { useKeyboardAvoidance } from '@/hooks';
 import type { TaskType } from '@/types';
 import eventBus from '@/utils/eventBus';
 import UnifiedTaskEditor from '@/components/shared/UnifiedTaskEditor';
@@ -16,6 +17,8 @@ export default function AIAssistantChat() {
   const [showTaskEditor, setShowTaskEditor] = useState(false);
   const [editingTasks, setEditingTasks] = useState<any[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const { handleFocusCapture } = useKeyboardAvoidance(chatScrollRef);
   const { createTask } = useTaskStore();
   
   const {
@@ -101,7 +104,7 @@ export default function AIAssistantChat() {
   ];
   
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-gray-900">
+    <div className="flex flex-col h-full bg-white dark:bg-gray-900 keyboard-safe-area-top">
       {showTaskEditor && editingTasks.length > 0 && (
         <UnifiedTaskEditor
           tasks={editingTasks}
@@ -151,7 +154,7 @@ export default function AIAssistantChat() {
       )}
       
       {/* 消息列表 */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 keyboard-aware-scroll">
         {chatHistory.length === 0 && (
           <div className="text-center py-8">
             <Sparkles className="w-12 h-12 mx-auto mb-4 text-purple-500" />
@@ -242,7 +245,7 @@ export default function AIAssistantChat() {
       </div>
       
       {/* 输入框 */}
-      <div className="border-t border-gray-200 dark:border-gray-700 p-4">
+      <div className="border-t border-gray-200 dark:border-gray-700 p-4 keyboard-aware-composer" onFocusCapture={handleFocusCapture}>
         <div className="flex items-end gap-2">
           <textarea
             value={input}

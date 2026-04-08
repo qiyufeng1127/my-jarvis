@@ -12,7 +12,6 @@ import FloatingAIChat from '@/components/ai/FloatingAIChat';
 import {
   TimelineModule,
   GoldModule,
-  HabitsModule,
   ReportsModule,
   SettingsModule,
   MoneyModule,
@@ -36,7 +35,6 @@ import { FocusTimer } from '@/components/focus/FocusTimer';
 import { FocusStatsPanel } from '@/components/focus/FocusStatsPanel';
 import { LeaderboardPanel } from '@/components/leaderboard/LeaderboardPanel';
 import SOPLibrary from '@/components/sop/SOPLibrary';
-import RPGHomePage from '@/components/rpg/RPGHomePage';
 
 type TabType = 'timeline' | 'goals' | 'journal' | 'memory' | 'gold' | 'habits' | 'reports' | 'settings' | 'ai' | 'more' | 'money' | 'tags' | 'home' | 'pet' | 'focus' | 'leaderboard';
 
@@ -56,9 +54,9 @@ const GOALS_NAV_ITEM_ID: TabType = 'goals';
 
 function ensureGoalsNavItem(items: NavItem[]) {
   const goalsItem = ALL_NAV_ITEMS.find((item) => item.id === GOALS_NAV_ITEM_ID);
-  if (!goalsItem) return items;
+  if (!goalsItem) return items.filter((item) => item.id !== 'habits');
 
-  const withoutGoals = items.filter((item) => item.id !== GOALS_NAV_ITEM_ID);
+  const withoutGoals = items.filter((item) => item.id !== GOALS_NAV_ITEM_ID && item.id !== 'habits');
   return [
     ...withoutGoals.slice(0, 2),
     goalsItem,
@@ -71,7 +69,6 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { id: 'tags', label: '标签', icon: '🏷️', color: 'purple' }, // 标签管理（特殊处理，不是模块）
   { id: 'goals', label: '目标', icon: '🎯', color: 'blue', component: GoalHomeView },
   { id: 'memory', label: '总部', icon: '🧠', color: 'purple', component: PanoramaMemory },
-  { id: 'habits', label: '习惯', icon: '✅', color: 'green', component: HabitsModule },
   { id: 'money', label: '副业', icon: '💰', color: 'yellow', component: MoneyModule },
   { id: 'journal', label: '日记', icon: '📔', color: 'pink', component: JournalModule },
   { id: 'gold', label: '金币', icon: '🪙', color: 'yellow', component: GoldModule },
@@ -118,15 +115,15 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         const savedIds = JSON.parse(saved) as TabType[];
         return ensureGoalsNavItem(savedIds.map(id => ALL_NAV_ITEMS.find(item => item.id === id)!).filter(Boolean));
       } catch {
-        // 默认显示：时间轴、标签、目标、记忆、习惯
+        // 默认显示：时间轴、标签、目标、记忆、副业
         return ensureGoalsNavItem(ALL_NAV_ITEMS.slice(0, 5));
       }
     }
-    // 默认显示：时间轴、标签、目标、记忆、习惯
+    // 默认显示：时间轴、标签、目标、记忆、副业
     return ensureGoalsNavItem(ALL_NAV_ITEMS.slice(0, 5));
   });
   
-  const [activeTab, setActiveTab] = useState<TabType>('home'); // 默认显示首页
+  const [activeTab, setActiveTab] = useState<TabType>('timeline'); // 默认显示时间轴
   const [bridgePulse, setBridgePulse] = useState<{ module: TabType; label: string } | null>(null);
   
   // 当 activeTab 改变时，通知父组件 - 使用 useRef 避免无限循环
@@ -145,7 +142,7 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
   useEffect(() => {
     const handleNavigate = (payload?: { module?: string }) => {
       if (!payload?.module) return;
-      const nextTab = payload.module as TabType;
+      const nextTab = (payload.module === 'habits' ? 'goals' : payload.module) as TabType;
       setActiveTab(nextTab);
       setBridgePulse({
         module: nextTab,
@@ -212,11 +209,6 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
       isDark: false,
       bgColor: savedNavColor,
     };
-
-    // 首页特殊处理：显示RPG人生系统面板
-    if (activeTab === 'home') {
-      return <RPGHomePage />;
-    }
 
     // 特殊处理设置模块
     if (activeTab === 'settings') {
@@ -488,8 +480,8 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
           setShowLevelCustomize(false);
           
           if (id === 'home') {
-            // 点击首页按钮，切换到home页面
-            setActiveTab('home');
+            // 点击首页按钮，保留入口但暂时回到时间轴
+            setActiveTab('timeline');
             return;
           }
           

@@ -9,4 +9,5 @@ export { useResizable } from './useResizable';
 export { useTaskEditor } from './useTaskEditor';
 export { useThinkingProcess } from './useThinkingProcess';
 export { useAIAssistant } from './useAIAssistant';
+export { useGlobalMobileViewportVars, useKeyboardAvoidance } from './useMobileViewport';
 

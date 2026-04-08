@@ -84,6 +84,19 @@ export interface Task {
   actualStart?: Date;
   actualEnd?: Date;
   
+  // 强制追责表单
+  mandatoryReflection?: {
+    required: boolean;
+    resolved: boolean;
+    trigger: 'start_delay' | 'low_efficiency';
+    triggeredAt: string;
+    submittedAt?: string;
+    answers?: Array<{
+      question: string;
+      answer: string;
+    }>;
+  };
+  
   // 成长关联
   growthDimensions: Record<string, number>; // dimensionId -> points
   longTermGoals: Record<string, number>; // goalId -> contribution percentage

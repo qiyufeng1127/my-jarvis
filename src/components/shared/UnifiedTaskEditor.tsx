@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { X, ChevronUp, ChevronDown, Clock, Coins, Plus, MapPin, Settings, ArrowUp, ArrowDown, Calendar } from 'lucide-react';
 import { useGoalStore } from '@/stores/goalStore';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import { useTagStore, type TagData } from '@/stores/tagStore';
+import { useKeyboardAvoidance } from '@/hooks';
 import { TagLearningService } from '@/services/tagLearningService';
 import { AISmartProcessor } from '@/services/aiSmartService';
 
@@ -47,6 +48,8 @@ export default function UnifiedTaskEditor({
   isDark = false 
 }: UnifiedTaskEditorProps) {
   const { addTag, getTagByName, addTagToFolder, getAllFolders, getAllTags } = useTagStore();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const { handleFocusCapture } = useKeyboardAvoidance(scrollRef);
 
   const pickSmartTags = (taskTitle: string, existingTags: string[] = []) => {
     const allTags = getAllTags()
@@ -478,8 +481,8 @@ export default function UnifiedTaskEditor({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-2 md:p-3" style={{ zIndex: 10000 }}>
-      <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 rounded-2xl shadow-2xl w-full h-full md:max-w-3xl md:h-[96%] flex flex-col overflow-hidden border border-gray-200 dark:border-gray-700">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-2 md:p-3 keyboard-aware-modal-shell" style={{ zIndex: 10000 }}>
+      <div ref={scrollRef} onFocusCapture={handleFocusCapture} className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 rounded-2xl shadow-2xl w-full h-full md:max-w-3xl md:h-[96%] flex flex-col overflow-hidden border border-gray-200 dark:border-gray-700 keyboard-aware-modal-card">
 
         {/* 顶部安全区域占位 - 避免被灵动岛遮挡 */}
         <div className="flex-shrink-0 h-12 md:h-0" style={{ paddingTop: 'env(safe-area-inset-top)' }} />
@@ -659,7 +662,7 @@ export default function UnifiedTaskEditor({
         )}
 
         {/* 任务卡片列表 - 紧凑布局，顶部留出安全距离 */}
-        <div className="flex-1 overflow-y-auto p-2 md:p-3 space-y-1.5">
+        <div className="flex-1 overflow-y-auto p-2 md:p-3 space-y-1.5 keyboard-aware-scroll">
           {editingTasks.map((task, index) => (
             <div
               key={index}
