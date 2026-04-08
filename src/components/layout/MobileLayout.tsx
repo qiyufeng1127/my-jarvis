@@ -353,7 +353,7 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         className="flex-1 overflow-y-auto overflow-x-hidden"
         style={{ 
           WebkitOverflowScrolling: 'touch', // iOS 平滑滚动
-          paddingBottom: '64px',
+          paddingBottom: 'calc(64px + env(safe-area-inset-bottom))',
           backgroundColor: '#fefaf0',
           minHeight: 0,
         }}

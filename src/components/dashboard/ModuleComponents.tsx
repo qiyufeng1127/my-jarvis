@@ -1610,6 +1610,7 @@ export function TimelineModule({ isDark = false, bgColor = '#ffffff', moduleSize
           <FloatingAIChat 
             isFullScreen={true}
             onClose={() => setShowAIChat(false)}
+            currentModule="timeline"
           />
         </div>
       )}

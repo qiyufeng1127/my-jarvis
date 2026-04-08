@@ -90,6 +90,7 @@ export default function NewTimelineView({
   const activeLoop = useHQBridgeStore((state) => state.activeLoop);
   const setActiveLoop = useHQBridgeStore((state) => state.setActiveLoop);
   const patchNextAction = useNextActionStore((state) => state.patchSnapshot);
+  const nextActionSnapshot = useNextActionStore((state) => state.snapshot);
   
   // 使用任务store
   const updateTaskEfficiency = useTaskStore(state => state.updateTaskEfficiency);
@@ -2136,9 +2137,160 @@ export default function NewTimelineView({
 
   const timeUntilEnd = calculateTimeUntilEndOfDay();
   const timePassed = calculateTimePassedToday();
+  const timelineSuggestedTask = useMemo(() => {
+    if (activeLoop?.taskId) {
+      return allTasks.find((task) => task.id === activeLoop.taskId) || null;
+    }
+    if (nextActionSnapshot?.taskId) {
+      return allTasks.find((task) => task.id === nextActionSnapshot.taskId) || null;
+    }
+    return allTasks.find((task) => task.status === 'in_progress')
+      || allTasks.find((task) => task.status === 'pending')
+      || null;
+  }, [activeLoop?.taskId, allTasks, nextActionSnapshot?.taskId]);
+  const timelineSuggestedGoal = useMemo(() => {
+    if (activeLoop?.goalId) {
+      return goals.find((goal) => goal.id === activeLoop.goalId) || null;
+    }
+    if (nextActionSnapshot?.goalId) {
+      return goals.find((goal) => goal.id === nextActionSnapshot.goalId) || null;
+    }
+    if (timelineSuggestedTask?.longTermGoals) {
+      const linkedGoalId = Object.keys(timelineSuggestedTask.longTermGoals)[0];
+      if (linkedGoalId) {
+        return goals.find((goal) => goal.id === linkedGoalId) || null;
+      }
+    }
+    return null;
+  }, [activeLoop?.goalId, goals, nextActionSnapshot?.goalId, timelineSuggestedTask]);
+  const timelineAdvice = nextActionSnapshot?.currentModule === 'timeline' && nextActionSnapshot?.suggestedAction
+    ? nextActionSnapshot.suggestedAction
+    : timelineSuggestedTask
+      ? timelineSuggestedTask.status === 'completed'
+        ? '这条任务已经做完了，先去补关键结果或回看目标推进。'
+        : timelineSuggestedTask.status === 'in_progress'
+          ? `先把「${timelineSuggestedTask.title}」继续往前推，做完后马上检查是否要补关键结果。`
+          : `先处理「${timelineSuggestedTask.title}」，别继续扩散到新的任务线程。`
+      : '先从时间轴里挑出今天最关键的一条任务，真正推进，而不是只做安排。';
 
   return (
     <div className="space-y-3 pb-4 relative">
+      <div
+        className="overflow-hidden rounded-[28px] border"
+        style={{
+          borderColor: isDark ? 'rgba(139,92,246,0.26)' : 'rgba(139,92,246,0.16)',
+          background: isDark
+            ? 'linear-gradient(135deg, rgba(30,41,59,0.94), rgba(91,33,182,0.34) 58%, rgba(15,23,42,0.92))'
+            : 'linear-gradient(135deg, rgba(245,243,255,0.98), rgba(238,242,255,0.96) 58%, rgba(255,255,255,0.98))',
+          boxShadow: isDark
+            ? '0 18px 34px rgba(15,23,42,0.24)'
+            : '0 18px 34px rgba(139,92,246,0.08)',
+        }}
+      >
+        <div className="px-4 py-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[11px] font-black tracking-[0.22em]" style={{ color: '#8B5CF6' }}>AI NEXT MOVE</div>
+              <div className="mt-1 text-[22px] font-semibold tracking-[-0.04em]" style={{ color: textColor }}>时间轴下一步</div>
+              <div className="mt-2 text-sm leading-6" style={{ color: isDark ? 'rgba(255,255,255,0.72)' : 'rgba(17,24,39,0.68)' }}>
+                {timelineAdvice}
+              </div>
+            </div>
+            <div
+              className="flex h-11 w-11 items-center justify-center rounded-full text-white shadow-[0_10px_24px_rgba(139,92,246,0.24)]"
+              style={{ backgroundColor: '#8B5CF6' }}
+            >
+              <Target className="h-5 w-5" />
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div
+              className="rounded-[20px] px-4 py-4"
+              style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.78)' }}
+            >
+              <div className="text-xs font-semibold" style={{ color: accentColor }}>当前焦点任务</div>
+              <div className="mt-2 text-base font-semibold" style={{ color: textColor }}>
+                {timelineSuggestedTask?.title || '先选一条今天真正要推进的任务'}
+              </div>
+              <div className="mt-2 text-sm" style={{ color: isDark ? 'rgba(255,255,255,0.68)' : 'rgba(17,24,39,0.62)' }}>
+                {timelineSuggestedTask
+                  ? `当前状态：${timelineSuggestedTask.status === 'in_progress' ? '执行中' : timelineSuggestedTask.status === 'completed' ? '已完成' : '待开始'}`
+                  : '还没有明确焦点时，先不要继续加新任务。'}
+              </div>
+            </div>
+            <div
+              className="rounded-[20px] px-4 py-4"
+              style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.78)' }}
+            >
+              <div className="text-xs font-semibold" style={{ color: accentColor }}>关联目标 / 收口</div>
+              <div className="mt-2 text-base font-semibold" style={{ color: textColor }}>
+                {timelineSuggestedGoal?.name || '暂无明确目标关联'}
+              </div>
+              <div className="mt-2 text-sm" style={{ color: isDark ? 'rgba(255,255,255,0.68)' : 'rgba(17,24,39,0.62)' }}>
+                {timelineSuggestedTask?.status === 'completed'
+                  ? '如果这条任务刚做完，优先补关键结果，不要只打勾。'
+                  : '执行时记得关注这条任务是不是在推进目标，而不是忙但没沉淀。'}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              onClick={() => {
+                if (!timelineSuggestedTask) return;
+                patchNextAction({
+                  currentModule: 'timeline',
+                  taskId: timelineSuggestedTask.id,
+                  taskTitle: timelineSuggestedTask.title,
+                  goalId: timelineSuggestedGoal?.id,
+                  goalName: timelineSuggestedGoal?.name,
+                  focusLabel: timelineSuggestedTask.title,
+                  suggestedAction: timelineAdvice,
+                  source: 'timeline',
+                });
+                setLinkedTaskId(timelineSuggestedTask.id);
+                setExpandedCards((prev) => new Set([...prev, timelineSuggestedTask.id]));
+              }}
+              disabled={!timelineSuggestedTask}
+              className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-white transition active:scale-95 disabled:opacity-45"
+              style={{ backgroundColor: '#8B5CF6' }}
+            >
+              聚焦这条任务 <Target className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => {
+                patchNextAction({
+                  currentModule: 'goals',
+                  goalId: timelineSuggestedGoal?.id,
+                  goalName: timelineSuggestedGoal?.name,
+                  taskId: timelineSuggestedTask?.id,
+                  taskTitle: timelineSuggestedTask?.title,
+                  focusLabel: timelineSuggestedGoal?.name || timelineSuggestedTask?.title || '目标推进',
+                  suggestedAction: timelineSuggestedTask?.status === 'completed'
+                    ? '回目标里补关键结果和推进结果'
+                    : '确认这条任务到底在推进哪个目标',
+                  source: 'timeline',
+                });
+                eventBus.emit('dashboard:navigate-module', {
+                  module: 'goals',
+                  goalId: timelineSuggestedGoal?.id,
+                  taskId: timelineSuggestedTask?.id,
+                });
+              }}
+              className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition active:scale-95"
+              style={{
+                borderColor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(139,92,246,0.18)',
+                color: isDark ? '#ffffff' : '#6D28D9',
+                backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.8)',
+              }}
+            >
+              去目标收口 <Target className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* 今日已过去提示 - 在第一个任务前 */}
       {timePassed && timePassed.totalMinutes > 0 && (
         <div className="flex items-center gap-3 mb-2">

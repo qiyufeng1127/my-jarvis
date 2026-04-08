@@ -325,6 +325,81 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
     nextActionSnapshot?.currentModule === 'goals' ? nextActionSnapshot.suggestedAction : undefined,
     suggestedFocusGoal?.name || nextActionSnapshot?.focusLabel
   );
+  const suggestedTaskStatusLabel = suggestedFocusTask
+    ? suggestedFocusTask.status === 'completed'
+      ? '已完成，待回写'
+      : suggestedFocusTask.status === 'in_progress'
+        ? '执行中'
+        : '待开始'
+    : '尚未创建';
+  const suggestionSourceLabel = loopGoal
+    ? '总部闭环'
+    : nextActionSnapshot?.source === 'timeline'
+      ? '时间轴回流'
+      : nextActionSnapshot?.source === 'ai'
+        ? 'AI 判断'
+        : nextActionSnapshot?.source === 'hq'
+          ? '总部判断'
+          : '目标页判断';
+
+  const handleOpenSuggestedGoal = () => {
+    if (!suggestedFocusGoal) return;
+    patchNextAction({
+      currentModule: 'goals',
+      goalId: suggestedFocusGoal.id,
+      goalName: suggestedFocusGoal.name,
+      taskId: suggestedFocusTask?.id,
+      taskTitle: suggestedFocusTask?.title,
+      focusLabel: suggestedFocusGoal.name,
+      suggestedAction: goalAdvice,
+      source: 'goals',
+    });
+    setLinkedGoalId(suggestedFocusGoal.id);
+    setSelectedGoal(suggestedFocusGoal);
+  };
+
+  const handleNavigateSuggestedTask = () => {
+    patchNextAction({
+      currentModule: 'timeline',
+      goalId: suggestedFocusGoal?.id,
+      goalName: suggestedFocusGoal?.name,
+      taskId: suggestedFocusTask?.id,
+      taskTitle: suggestedFocusTask?.title,
+      focusLabel: suggestedFocusTask?.title || suggestedFocusGoal?.name || '目标推进动作',
+      suggestedAction: suggestedFocusTask
+        ? suggestedFocusTask.status === 'completed'
+          ? '先补关键结果，再确认这条动作是否真正推进目标'
+          : '先执行这条任务，完成后记得补关键结果'
+        : '把这个目标拆成一条今天就能执行的时间轴任务',
+      source: 'goals',
+    });
+    eventBus.emit('dashboard:navigate-module', {
+      module: 'timeline',
+      taskId: suggestedFocusTask?.id,
+      goalId: suggestedFocusGoal?.id,
+      goalName: suggestedFocusGoal?.name,
+    });
+  };
+
+  const handleNavigateSuggestedHQ = () => {
+    patchNextAction({
+      currentModule: 'memory',
+      goalId: suggestedFocusGoal?.id,
+      goalName: suggestedFocusGoal?.name,
+      taskId: suggestedFocusTask?.id,
+      taskTitle: suggestedFocusTask?.title,
+      focusLabel: activeLoop?.painLabel || suggestedFocusGoal?.name || '目标问题',
+      suggestedAction: suggestedFocusTask?.status === 'completed'
+        ? '回总部确认这轮动作是否已经真正收口'
+        : '回总部确认这条目标链路的问题、承诺和缺失动作',
+      source: 'goals',
+    });
+    eventBus.emit('dashboard:navigate-module', {
+      module: 'memory',
+      goalId: suggestedFocusGoal?.id,
+      taskId: suggestedFocusTask?.id,
+    });
+  };
 
   const handleSaveGoal = (formData: GoalFormData) => {
     const payload = {
@@ -779,6 +854,118 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
             <div className="rounded-[22px] p-3" style={{ background: subSurface }}>
               <div className="text-xs" style={{ color: textSecondary }}>预计投入</div>
               <div className="mt-2 text-xl font-semibold" style={{ color: textPrimary }}>{totalHours}h</div>
+            </div>
+          </div>
+
+          <div
+            className="mt-4 overflow-hidden rounded-[28px] border"
+            style={{
+              borderColor: isDark ? 'rgba(20,184,166,0.22)' : 'rgba(10,132,255,0.16)',
+              background: isDark
+                ? 'linear-gradient(135deg, rgba(17,24,39,0.98), rgba(8,145,178,0.30) 58%, rgba(20,184,166,0.22))'
+                : 'linear-gradient(135deg, rgba(10,132,255,0.10), rgba(20,184,166,0.08) 55%, rgba(255,255,255,0.82))',
+              boxShadow: isDark
+                ? '0 16px 34px rgba(15,23,42,0.18)'
+                : '0 16px 34px rgba(10,132,255,0.08)',
+            }}
+          >
+            <div className="px-4 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-[11px] font-black tracking-[0.22em]" style={{ color: '#0A84FF' }}>AI NEXT MOVE</div>
+                  <div className="mt-1 text-[22px] font-semibold tracking-[-0.04em]" style={{ color: textPrimary }}>目标页下一步</div>
+                  <div className="mt-2 text-sm leading-6" style={{ color: textSecondary }}>{goalAdvice}</div>
+                </div>
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#0A84FF] text-white shadow-[0_10px_24px_rgba(10,132,255,0.22)]">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <div
+                  className="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-black tracking-[0.14em]"
+                  style={{
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.74)',
+                    color: isDark ? 'rgba(255,255,255,0.88)' : '#0A84FF',
+                  }}
+                >
+                  建议来源 · {suggestionSourceLabel}
+                </div>
+                <div
+                  className="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold"
+                  style={{
+                    backgroundColor: suggestedFocusTask?.status === 'completed'
+                      ? 'rgba(52,199,89,0.16)'
+                      : suggestedFocusTask?.status === 'in_progress'
+                        ? 'rgba(255,149,0,0.16)'
+                        : 'rgba(10,132,255,0.12)',
+                    color: suggestedFocusTask?.status === 'completed'
+                      ? '#34C759'
+                      : suggestedFocusTask?.status === 'in_progress'
+                        ? '#FF9500'
+                        : '#0A84FF',
+                  }}
+                >
+                  动作状态 · {suggestedTaskStatusLabel}
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-[20px] px-4 py-4" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.72)' }}>
+                  <div className="text-xs font-semibold" style={{ color: textSecondary }}>建议优先目标</div>
+                  <div className="mt-2 text-base font-semibold" style={{ color: textPrimary }}>
+                    {suggestedFocusGoal?.name || '先选一个当前最重要的目标'}
+                  </div>
+                  <div className="mt-2 text-sm" style={{ color: textSecondary }}>
+                    {suggestedFocusGoal
+                      ? `当前进度 ${getGoalProgress(suggestedFocusGoal)}%，现在更适合围绕它继续收口，而不是再开新目标。`
+                      : '你还没有明确的焦点目标，先创建或点开一个目标更合适。'}
+                  </div>
+                </div>
+                <div className="rounded-[20px] px-4 py-4" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.72)' }}>
+                  <div className="text-xs font-semibold" style={{ color: textSecondary }}>建议落地动作</div>
+                  <div className="mt-2 text-base font-semibold" style={{ color: textPrimary }}>
+                    {suggestedFocusTask?.title || '把目标拆成一条时间轴任务'}
+                  </div>
+                  <div className="mt-2 text-sm" style={{ color: textSecondary }}>
+                    {suggestedFocusTask
+                      ? suggestedFocusTask.status === 'completed'
+                        ? '这条动作已经完成了，下一步不是重做，而是补关键结果并确认是否收口。'
+                        : suggestedFocusTask.status === 'in_progress'
+                          ? '动作已经在推进中，最重要的是继续执行，不要跳走。'
+                          : '动作已经挂上了，建议直接回时间轴把它真正开始。'
+                      : '如果还没排进时间轴，建议现在就创建一条能在今天执行的动作。'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  onClick={handleOpenSuggestedGoal}
+                  disabled={!suggestedFocusGoal}
+                  className="inline-flex items-center gap-2 rounded-full bg-[#111827] px-4 py-2 text-sm font-semibold text-white transition active:scale-95 disabled:opacity-45"
+                >
+                  打开目标分析 <ArrowRight className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={handleNavigateSuggestedTask}
+                  className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition active:scale-95"
+                  style={{ borderColor: 'rgba(10,132,255,0.22)', color: '#0A84FF', backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.72)' }}
+                >
+                  去时间轴推进 <ArrowRight className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={handleNavigateSuggestedHQ}
+                  className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition active:scale-95"
+                  style={{
+                    borderColor: isDark ? 'rgba(255,255,255,0.16)' : 'rgba(17,24,39,0.10)',
+                    color: isDark ? '#ffffff' : '#111827',
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.68)',
+                  }}
+                >
+                  去总部收口 <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
         </div>

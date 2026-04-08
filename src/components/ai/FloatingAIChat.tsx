@@ -157,6 +157,79 @@ const beautifyAssistantReply = (content: string) => {
     .trim();
 };
 
+const MODULE_SCENE_GUIDE: Record<string, { role: string; ask: string }> = {
+  timeline: {
+    role: '你是时间轴执行教练。回答时优先围绕“现在做哪条、先执行还是先补细节、做完后回写什么”，避免空泛规划。',
+    ask: '请基于时间轴视角回答：优先指出现在最该推进的一步，并尽量给出直接可执行的动作。',
+  },
+  goals: {
+    role: '你是目标推进教练。回答时优先围绕“哪个目标最值得推进、缺哪个关键结果、今天该拆哪一步进时间轴”。',
+    ask: '请基于目标视角回答：优先指出最该推进的目标，以及今天最值得落地的一步。',
+  },
+  memory: {
+    role: '你是总部闭环教练。回答时优先围绕“问题是否锁定、承诺是否明确、下一步应该回哪个模块补动作或补收口”。',
+    ask: '请基于总部视角回答：先说明当前闭环卡在哪，再给出最合理的去向和下一步。',
+  },
+  journal: {
+    role: '你是复盘教练。回答时优先帮助用户从记录里提炼重点、情绪与下一步，而不是泛泛安慰。',
+    ask: '请基于复盘视角回答：帮我提炼重点并给出一个最小下一步。',
+  },
+};
+
+const getModuleScenePrompt = (currentModule: string, nextActionSnapshot?: { focusLabel?: string; goalName?: string; taskTitle?: string; suggestedAction?: string } | null) => {
+  const moduleLabelMap: Record<string, string> = {
+    timeline: '时间轴',
+    goals: '目标',
+    memory: '总部',
+    journal: '日记',
+    home: '首页',
+    tags: '标签',
+  };
+
+  const moduleLabel = moduleLabelMap[currentModule] || currentModule;
+  const guide = MODULE_SCENE_GUIDE[currentModule] || {
+    role: '你是当前页面的智能助手。回答时优先围绕当前模块，不要给泛泛建议。',
+    ask: '请优先结合当前页面语境，给出最该推进的一步。',
+  };
+
+  return [
+    `当前页面模块：${moduleLabel}`,
+    `当前联动焦点：${nextActionSnapshot?.focusLabel || '无'}`,
+    `当前关联目标：${nextActionSnapshot?.goalName || '无'}`,
+    `当前关联任务：${nextActionSnapshot?.taskTitle || '无'}`,
+    `建议下一步：${nextActionSnapshot?.suggestedAction || '无'}`,
+    `回答角色：${guide.role}`,
+    `回答要求：${guide.ask}`,
+    '请优先基于当前模块和联动焦点给建议，不要泛泛而谈。',
+  ].join('\n');
+};
+
+const formatStructuredReply = (content: string, nextActionHint?: string) => {
+  const cleaned = beautifyAssistantReply(content)
+    .replace(/^当前判断[:：]\s*/gm, '')
+    .replace(/^现在先做[:：]\s*/gm, '')
+    .replace(/^做完以后[:：]\s*/gm, '')
+    .replace(/^不要做[:：]\s*/gm, '')
+    .trim();
+
+  const sections = cleaned
+    .split(/\n{2,}/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const current = sections[0] || cleaned || '我已经结合当前场景做了判断。';
+  const next = sections[1] || nextActionHint || '先推进当前最明确的一步。';
+  const after = sections[2] || '做完后马上确认是否需要回写、收口或切回上游模块。';
+  const avoid = sections[3] || '不要同时开太多新线程，也不要只规划不落地。';
+
+  return beautifyAssistantReply([
+    `当前判断：${current}`,
+    `现在先做：${next}`,
+    `做完以后：${after}`,
+    `不要做：${avoid}`,
+  ].join('\n\n'));
+};
+
 const GOAL_THEME = { color: '#0A84FF', label: '海蓝' };
 
 const CHINESE_NUMBER_MAP: Record<string, number> = {
@@ -562,14 +635,16 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
     };
 
     const moduleLabel = moduleLabelMap[currentModule] || currentModule;
+    const guide = MODULE_SCENE_GUIDE[currentModule];
     const nextHint = nextActionSnapshot?.suggestedAction
       ? `\n\n📍 当前场景：你现在在${moduleLabel}${nextActionSnapshot.focusLabel ? `，焦点是「${nextActionSnapshot.focusLabel}」` : ''}。\n👉 我建议你下一步先：${nextActionSnapshot.suggestedAction}`
       : `\n\n📍 当前场景：你现在在${moduleLabel}。你可以直接告诉我你想推进哪一步，我会尽量顺着当前页面帮你。`;
+    const moduleHint = guide ? `\n🧭 当前模式：${guide.ask}` : '';
 
     return {
       id: 'welcome',
       role: 'assistant',
-      content: beautifyAssistantReply(`你好！我是${personality.name}，你的AI助手${personality.toxicity > 60 ? '兼毒舌教练' : ''}。\n\n我能帮你：\n\n• 📅 智能分解任务和安排时间\n• 💰 自动分配金币和成长值\n• 🏷️ 自动打标签分类（AI智能理解）\n• 🕒 直接创建和修改时间轴任务\n• 🎯 智能关联长期目标\n• 📝 记录心情、想法、感恩、成功\n• 💡 收集创业想法到副业追踪器\n• 🔍 查询任务进度和统计\n• 🏠 智能动线优化（根据家里格局排序）\n• ✨ 万能收集：支持批量智能分析并分配\n• 🗑️ 时间轴操作：删除任务、移动任务\n\n**重要更新：**\n• 💬 我现在会真正和你对话，不只是执行命令\n• 👀 我会监督你的行为习惯（吃饭、睡觉、任务完成）\n• ${personality.toxicity > 60 ? '😏 该夸你的时候夸，该骂的时候绝不手软' : '🤗 该鼓励时鼓励，该提醒时提醒'}\n• 🎨 点击右上角头像可以设置我的性格${nextHint}\n\n直接输入文字开始对话吧！`),
+      content: beautifyAssistantReply(`你好！我是${personality.name}，你的AI助手${personality.toxicity > 60 ? '兼毒舌教练' : ''}。\n\n我能帮你：\n\n• 📅 智能分解任务和安排时间\n• 💰 自动分配金币和成长值\n• 🏷️ 自动打标签分类（AI智能理解）\n• 🕒 直接创建和修改时间轴任务\n• 🎯 智能关联长期目标\n• 📝 记录心情、想法、感恩、成功\n• 💡 收集创业想法到副业追踪器\n• 🔍 查询任务进度和统计\n• 🏠 智能动线优化（根据家里格局排序）\n• ✨ 万能收集：支持批量智能分析并分配\n• 🗑️ 时间轴操作：删除任务、移动任务\n\n**重要更新：**\n• 💬 我现在会真正和你对话，不只是执行命令\n• 👀 我会监督你的行为习惯（吃饭、睡觉、任务完成）\n• ${personality.toxicity > 60 ? '😏 该夸你的时候夸，该骂的时候绝不手软' : '🤗 该鼓励时鼓励，该提醒时提醒'}\n• 🎨 点击右上角头像可以设置我的性格${nextHint}${moduleHint}\n\n直接输入文字开始对话吧！`),
       timestamp: new Date(),
     };
   };
@@ -2010,18 +2085,8 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
     const message = (forcedMessage ?? inputValue).trim();
     if (!message || isProcessing) return;
 
-    const moduleLabelMap: Record<string, string> = {
-      timeline: '时间轴',
-      goals: '目标',
-      memory: '总部',
-      journal: '日记',
-      home: '首页',
-      tags: '标签',
-    };
-    const moduleLabel = moduleLabelMap[currentModule] || currentModule;
-    const scenePrompt = nextActionSnapshot
-      ? `当前页面模块：${moduleLabel}\n当前联动焦点：${nextActionSnapshot.focusLabel || '无'}\n当前关联目标：${nextActionSnapshot.goalName || '无'}\n当前关联任务：${nextActionSnapshot.taskTitle || '无'}\n建议下一步：${nextActionSnapshot.suggestedAction || '无'}\n请优先基于当前模块和联动焦点给建议，不要泛泛而谈。`
-      : `当前页面模块：${moduleLabel}\n请优先结合当前模块给建议，不要泛泛而谈。`;
+    const scenePrompt = getModuleScenePrompt(currentModule, nextActionSnapshot);
+    const nextActionHint = nextActionSnapshot?.suggestedAction;
 
     // 清除之前的超时定时器
     if (sendTimeoutRef.current) {
@@ -2139,7 +2204,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
       const aiMessage: Message = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        content: beautifyAssistantReply(intent.reply),
+        content: formatStructuredReply(intent.reply, nextActionHint),
         timestamp: new Date(),
         thinkingProcess: [...thinkingSteps],
         isThinkingExpanded: false,
@@ -2155,7 +2220,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
       });
       addChatMessage({
         role: 'assistant',
-        content: beautifyAssistantReply(intent.reply),
+        content: formatStructuredReply(intent.reply, nextActionHint),
         actions: intent.actions.map(a => ({
           type: a.type,
           description: a.description,
@@ -2249,7 +2314,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
         const aiMessage: Message = {
           id: `ai-${Date.now()}`,
           role: 'assistant',
-          content: beautifyAssistantReply(responseContent),
+          content: formatStructuredReply(responseContent, nextActionHint),
           timestamp: new Date(),
         };
         setMessages(prev => [...prev, aiMessage]);
@@ -2571,7 +2636,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
               const aiMessage: Message = {
                 id: `ai-${Date.now()}`,
                 role: 'assistant',
-                content: beautifyAssistantReply(responseContent),
+                content: formatStructuredReply(responseContent, nextActionHint),
                 timestamp: new Date(),
                 decomposedTasks: tasksWithMetadata,
                 showTaskEditor: true,
@@ -2746,7 +2811,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
             const aiMessage: Message = {
               id: `ai-${Date.now()}`,
               role: 'assistant',
-              content: beautifyAssistantReply(mutterResponseContent),
+              content: formatStructuredReply(mutterResponseContent, nextActionHint),
               timestamp: new Date(),
               thinkingProcess: [...thinkingSteps],
               isThinkingExpanded: false,
@@ -2757,7 +2822,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
             // 保存到聊天记录
             addChatMessage({
               role: 'assistant',
-              content: beautifyAssistantReply(mutterResponseContent),
+              content: formatStructuredReply(mutterResponseContent, nextActionHint),
               actions: [{
                 type: 'add_memory',
                 description: '记录碎碎念',
@@ -2784,7 +2849,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
         const aiMessage: Message = {
           id: `ai-${Date.now()}`,
           role: 'assistant',
-          content: beautifyAssistantReply(responseContent),
+          content: formatStructuredReply(responseContent, nextActionHint),
           timestamp: new Date(),
           tags: aiTags,
           rewards: aiRewards,
@@ -2795,7 +2860,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
         const aiMessage: Message = {
           id: `ai-${Date.now()}`,
           role: 'assistant',
-          content: beautifyAssistantReply('收到啦，我在这儿陪你一起看着 💭\n\n你可以直接跟我说：\n• 心情、想法或者待办\n• “查看今天的任务”\n• 一串任务让我帮你拆分和排顺序\n\n比如：\n“5分钟后去洗漱，然后洗碗，倒猫粮，洗衣服，工作30分钟，收拾卧室、客厅和拍摄间”'),
+          content: formatStructuredReply('收到啦，我在这儿陪你一起看着 💭\n\n你可以直接跟我说：\n• 心情、想法或者待办\n• “查看今天的任务”\n• 一串任务让我帮你拆分和排顺序\n\n比如：\n“5分钟后去洗漱，然后洗碗，倒猫粮，洗衣服，工作30分钟，收拾卧室、客厅和拍摄间”', nextActionHint),
           timestamp: new Date(),
         };
         setMessages(prev => [...prev, aiMessage]);
@@ -2805,7 +2870,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
       const aiMessage: Message = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        content: beautifyAssistantReply(`刚刚那一下我没有接稳你这条消息 😢\n\n${error instanceof Error ? error.message : '未知错误'}\n\n你可以试试：\n• 把内容说短一点\n• 分几次发给我\n• 刷新页面再试一次\n\n没关系，我还在，我们慢慢来。`),
+        content: formatStructuredReply(`刚刚那一下我没有接稳你这条消息 😢\n\n${error instanceof Error ? error.message : '未知错误'}\n\n你可以试试：\n• 把内容说短一点\n• 分几次发给我\n• 刷新页面再试一次\n\n没关系，我还在，我们慢慢来。`, nextActionHint),
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, aiMessage]);
@@ -2830,13 +2895,14 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
   // 全屏模式处理
   if (isFullScreen) {
     const selectedCount = messages.filter(m => m.isSelected).length;
-    const fullScreenComposerHeight = isSelectionMode && selectedCount > 0 ? 92 : 188;
-    const fullScreenBottomInset = fullScreenComposerHeight + 188;
+    const fullScreenComposerHeight = isSelectionMode && selectedCount > 0 ? 96 : 212;
+    const fullScreenBottomInset = fullScreenComposerHeight + 172;
+    const scenePrompt = getModuleScenePrompt(currentModule, nextActionSnapshot);
     
     return (
-      <div className="h-full flex flex-col bg-white relative">
+      <div className="h-full min-h-0 flex flex-col bg-white relative">
         {/* 头部 */}
-        <div className="px-4 py-3 flex items-center justify-between border-b border-neutral-200 bg-white">
+        <div className="sticky top-0 z-[1002] border-b border-neutral-200 bg-white/95 backdrop-blur px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-3 flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setShowPersonalitySettings(true)}
@@ -2912,7 +2978,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
         {/* 对话区域 */}
         <div
           ref={conversationRef}
-          className="flex-1 overflow-y-auto p-4 space-y-3 bg-neutral-50"
+          className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 bg-neutral-50"
           style={{ paddingBottom: `calc(${fullScreenBottomInset}px + env(safe-area-inset-bottom))` }}
         >
           {messages.map((message) => {
@@ -3099,7 +3165,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
         {/* 底部操作区 */}
         <div
           className="fixed left-0 right-0 z-[1001] border-t border-neutral-200 bg-white shadow-[0_-8px_24px_rgba(15,23,42,0.08)]"
-          style={{ bottom: 'env(safe-area-inset-bottom)' }}
+          style={{ bottom: 0, paddingBottom: 'env(safe-area-inset-bottom)' }}
         >
           {/* 快速指令或智能分配按钮 */}
           {isSelectionMode && selectedCount > 0 ? (
@@ -3679,8 +3745,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
                       key={cmd.label}
                       onClick={() => {
                         if (cmd.action === 'smart_schedule') {
-                          setInputValue('根据我的习惯和当前时间，帮我智能安排接下来要做的任务');
-                          handleSend();
+                          handleSend(`根据我的习惯、当前时间和当前页面场景，帮我智能安排接下来最适合做的事情。\n${scenePrompt}`);
                         } else if (cmd.action === 'income_mode') {
                           setContextMode('income');
                           const modeMessage: Message = {
