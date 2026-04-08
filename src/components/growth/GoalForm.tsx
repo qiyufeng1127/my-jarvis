@@ -60,7 +60,7 @@ export default function GoalForm({
   bgColor = '#efeff4',
 }: GoalFormProps) {
   const scrollRef = useRef<HTMLFormElement>(null);
-  const { handleFocusCapture } = useKeyboardAvoidance(scrollRef);
+  const { handleFocusCapture, scrollIntoSafeView } = useKeyboardAvoidance(scrollRef);
 
   const [formData, setFormData] = useState<GoalFormData>(
     initialData || {
@@ -195,6 +195,7 @@ export default function GoalForm({
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+                onFocus={() => scrollIntoSafeView(document.activeElement as HTMLElement | null)}
                 placeholder="填写目标名称"
                 className="w-full rounded-[18px] bg-[#f7f7fa] px-4 py-3 text-[18px] text-[#111111] outline-none"
               />
@@ -238,6 +239,7 @@ export default function GoalForm({
                   step="0.5"
                   value={formData.estimatedTotalHours}
                   onChange={(e) => setFormData((prev) => ({ ...prev, estimatedTotalHours: Number(e.target.value || 0) }))}
+                  onFocus={() => scrollIntoSafeView(document.activeElement as HTMLElement | null)}
                   className="w-full rounded-[18px] bg-[#f7f7fa] px-4 py-3 text-[22px] font-semibold text-[#111111] outline-none"
                 />
                 <div className="whitespace-nowrap pb-2 text-[16px] text-[#8e8e93]">约 {estimatedDailyHours || 0} h / 天</div>
@@ -255,6 +257,7 @@ export default function GoalForm({
                   step="100"
                   value={formData.targetIncome}
                   onChange={(e) => setFormData((prev) => ({ ...prev, targetIncome: Number(e.target.value || 0) }))}
+                  onFocus={() => scrollIntoSafeView(document.activeElement as HTMLElement | null)}
                   className="w-full rounded-[18px] bg-[#f7f7fa] px-4 py-3 text-[22px] font-semibold text-[#111111] outline-none"
                 />
                 <div className="whitespace-nowrap pb-2 text-[16px] text-[#8e8e93]">元</div>
@@ -278,6 +281,7 @@ export default function GoalForm({
                         type="text"
                         value={item.name}
                         onChange={(e) => updateMetric(item.id, { name: e.target.value })}
+                        onFocus={() => scrollIntoSafeView(document.activeElement as HTMLElement | null)}
                         placeholder="名称"
                         className="w-full rounded-[14px] border border-[#e4e4ea] bg-white px-3 py-3 text-[16px] outline-none"
                       />
@@ -286,6 +290,7 @@ export default function GoalForm({
                           type="text"
                           value={item.unit}
                           onChange={(e) => updateMetric(item.id, { unit: e.target.value })}
+                          onFocus={() => scrollIntoSafeView(document.activeElement as HTMLElement | null)}
                           placeholder="单位"
                           className="w-full rounded-[14px] border border-[#e4e4ea] bg-white px-3 py-3 text-[16px] outline-none"
                         />

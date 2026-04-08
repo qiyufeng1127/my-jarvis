@@ -49,7 +49,7 @@ export default function UnifiedTaskEditor({
 }: UnifiedTaskEditorProps) {
   const { addTag, getTagByName, addTagToFolder, getAllFolders, getAllTags } = useTagStore();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { handleFocusCapture } = useKeyboardAvoidance(scrollRef);
+  const { handleFocusCapture, scrollIntoSafeView } = useKeyboardAvoidance(scrollRef);
 
   const pickSmartTags = (taskTitle: string, existingTags: string[] = []) => {
     const allTags = getAllTags()
@@ -590,8 +590,8 @@ export default function UnifiedTaskEditor({
 
         {/* 添加自定义区域弹窗 */}
         {showAddLocationModal && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowAddLocationModal(false)}>
-            <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4" onClick={(e) => e.stopPropagation()}>
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 keyboard-aware-modal-shell" onClick={() => setShowAddLocationModal(false)}>
+            <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 keyboard-aware-modal-card" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold text-gray-900">➕ 添加自定义区域</h3>
                 <button
@@ -634,6 +634,7 @@ export default function UnifiedTaskEditor({
                     type="text"
                     value={newLocationName}
                     onChange={(e) => setNewLocationName(e.target.value)}
+                    onFocus={() => scrollIntoSafeView(document.activeElement as HTMLElement | null)}
                     onKeyDown={(e) => e.key === 'Enter' && handleAddLocation()}
                     placeholder="例如：书房、阳台、车库..."
                     className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"

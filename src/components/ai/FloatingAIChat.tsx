@@ -805,6 +805,96 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
     return createSingleTaskDraftFromText(rawMessage);
   };
 
+  const resetTaskEditorState = () => {
+    setShowTaskEditor(false);
+    setEditingTasks([]);
+    setPendingTimelineOperations([]);
+  };
+
+  const buildTimelineOperationReply = (drafts: TimelineOperationDraft[], summaryLines: string[]) => {
+    if (drafts.length === 0) {
+      return '我暂时没有匹配到可操作的时间轴任务，你可以把条件说得再具体一点，比如“把今天下午5点后的任务全部删除”。';
+    }
+
+    return [
+      '我已经帮你把这次时间轴操作整理成预览了。',
+      '',
+      ...summaryLines,
+      '',
+      `下面会自动打开任务编辑器，你确认后我才会真正执行。当前共预览 ${drafts.length} 项。`,
+    ].join('\n');
+  };
+
+  const handleConfirmTaskEditor = async (tasks: DecomposedTask[]) => {
+    if (pendingTimelineOperations.length > 0) {
+      const timelineTasks = tasks as TimelineOperationDraft[];
+      if (timelineTasks.length === 0) {
+        resetTaskEditorState();
+        return;
+      }
+
+      setIsProcessing(true);
+      try {
+        let deletedCount = 0;
+        let movedCount = 0;
+
+        for (const task of timelineTasks) {
+          if (!task.originalTaskId) continue;
+
+          if (task.operationType === 'delete') {
+            await deleteTask(task.originalTaskId);
+            deletedCount += 1;
+            continue;
+          }
+
+          if (task.operationType === 'move') {
+            const start = new Date(task.scheduled_start_iso);
+            const end = new Date(start.getTime() + task.estimated_duration * 60000);
+            await updateTask(task.originalTaskId, {
+              scheduledStart: start,
+              scheduledEnd: end,
+              durationMinutes: task.estimated_duration,
+              title: task.title,
+              description: task.description,
+              tags: task.tags,
+              color: task.color,
+            });
+            movedCount += 1;
+          }
+        }
+
+        const summaryParts: string[] = [];
+        if (deletedCount > 0) summaryParts.push(`删除了 ${deletedCount} 个任务`);
+        if (movedCount > 0) summaryParts.push(`调整了 ${movedCount} 个任务`);
+
+        const aiMessage: Message = {
+          id: `ai-${Date.now()}`,
+          role: 'assistant',
+          content: summaryParts.length > 0
+            ? `✅ 已按你的确认执行时间轴操作：${summaryParts.join('，')}。`
+            : '✅ 已确认，但这次没有需要执行的时间轴变更。',
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, aiMessage]);
+        resetTaskEditorState();
+      } catch (error) {
+        console.error('执行时间轴预览操作失败:', error);
+        const errorMessage: Message = {
+          id: `ai-${Date.now()}`,
+          role: 'assistant',
+          content: `❌ 时间轴操作执行失败：${error instanceof Error ? error.message : '未知错误'}`,
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      } finally {
+        setIsProcessing(false);
+      }
+      return;
+    }
+
+    await handlePushToTimeline(tasks);
+  };
+
   const handlePushToTimeline = async (tasks: DecomposedTask[]) => {
     if (tasks.length === 0) return;
 
@@ -946,7 +1036,6 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
   // 处理时间轴操作指令
   const handleTimelineOperation = async (message: string) => {
     const normalizedMessage = message.replace(TIMELINE_OPERATION_PREFIX, '').trim();
-    const lowerMessage = normalizedMessage.toLowerCase();
     const operationSegments = normalizedMessage
       .split(/(?:，然后|然后|再把|再将|再|并且|并|接着)/)
       .map(segment => segment.trim())
@@ -1026,12 +1115,12 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
           return taskDate ? isSameDay(taskDate, targetDate) : false;
         });
       } else if (/本周|这周/.test(text)) {
-          const now = new Date();
-          const startOfWeek = new Date(now);
-          startOfWeek.setDate(now.getDate() - now.getDay());
-          startOfWeek.setHours(0, 0, 0, 0);
-          const endOfWeek = new Date(startOfWeek);
-          endOfWeek.setDate(startOfWeek.getDate() + 7);
+        const now = new Date();
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay());
+        startOfWeek.setHours(0, 0, 0, 0);
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 7);
         result = result.filter(task => {
           const taskDate = getTaskDate(task);
           return taskDate ? taskDate >= startOfWeek && taskDate < endOfWeek : false;
@@ -1079,95 +1168,137 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
 
       return parts.join('') || '当前筛选条件';
     };
-    const executeSingleOperation = async (operationText: string) => {
+    const executeSingleOperation = (operationText: string) => {
       const operationDesc = describeFilterText(operationText);
 
       if (/删除|清空|移除|删掉|去掉/.test(operationText)) {
         const tasksToDelete = filterTasksByText(tasks, operationText);
         if (tasksToDelete.length === 0) {
-          return `❌ ${operationDesc}没有找到任何任务。`;
+          return {
+            drafts: [] as TimelineOperationDraft[],
+            summary: `❌ ${operationDesc}没有找到任何任务。`,
+          };
         }
 
-        const confirmed = confirm(`⚠️ 确定要删除${operationDesc}的 ${tasksToDelete.length} 个任务吗？`);
-        if (!confirmed) return '❌ 已取消删除操作。';
-
-          for (const task of tasksToDelete) {
-            await deleteTask(task.id);
-          }
-
-        return `✅ 已成功删除${operationDesc}的 ${tasksToDelete.length} 个任务！`;
+        return {
+          drafts: tasksToDelete.map((task, index) =>
+            buildTimelinePreviewTask(task, index, 'delete', {
+              descriptionPrefix: '待删除：',
+              markedForDeletion: true,
+            })
+          ),
+          summary: `🗑️ 已为你筛出 ${operationDesc}的 ${tasksToDelete.length} 个待删除任务，请在编辑器里确认。`,
+        };
       }
 
       if (/挪到|移到|改到|调到|移动|顺移|往后顺移|往前顺移|延后|提前|推迟/.test(operationText)) {
-        let tasksToMove = filterTasksByText(tasks, operationText);
+        const tasksToMove = filterTasksByText(tasks, operationText);
         const shiftMinutes = parseShiftMinutes(operationText);
 
+        if (tasksToMove.length === 0) {
+          return {
+            drafts: [] as TimelineOperationDraft[],
+            summary: '❌ 没有找到符合条件的任务。',
+          };
+        }
+
         if (shiftMinutes !== null) {
-          if (tasksToMove.length === 0) {
-            return '❌ 没有找到可顺移的任务。';
-          }
-
-          const confirmed = confirm(`⚠️ 确定要把${operationDesc}的 ${tasksToMove.length} 个任务${shiftMinutes > 0 ? '往后顺移' : '往前移动'} ${Math.abs(shiftMinutes)} 分钟吗？`);
-          if (!confirmed) return '❌ 已取消顺移操作。';
-
-          for (const task of tasksToMove) {
-            if (!task.scheduledStart) continue;
-            const newStart = new Date(task.scheduledStart);
+          const drafts = tasksToMove.map((task, index) => {
+            const oldStart = task.scheduledStart ? new Date(task.scheduledStart) : new Date();
+            const oldEnd = task.scheduledEnd
+              ? new Date(task.scheduledEnd)
+              : new Date(oldStart.getTime() + task.durationMinutes * 60000);
+            const newStart = new Date(oldStart);
+            const newEnd = new Date(oldEnd);
             newStart.setMinutes(newStart.getMinutes() + shiftMinutes);
-            const newEnd = task.scheduledEnd ? new Date(task.scheduledEnd) : new Date(newStart.getTime() + task.durationMinutes * 60000);
-            if (task.scheduledEnd) {
-              newEnd.setMinutes(newEnd.getMinutes() + shiftMinutes);
-            }
-            await updateTask(task.id, { scheduledStart: newStart, scheduledEnd: newEnd });
-          }
+            newEnd.setMinutes(newEnd.getMinutes() + shiftMinutes);
 
-          return `✅ 已将${operationDesc}的 ${tasksToMove.length} 个任务${shiftMinutes > 0 ? '往后顺移' : '往前移动'} ${Math.abs(shiftMinutes)} 分钟。`;
+            return buildTimelinePreviewTask(task, index, 'move', {
+              scheduledStart: newStart,
+              scheduledEnd: newEnd,
+              descriptionPrefix: `${shiftMinutes > 0 ? '后移' : '前移'}${Math.abs(shiftMinutes)}分钟：`,
+            });
+          });
+
+          return {
+            drafts,
+            summary: `⏱️ 已预览 ${operationDesc}的 ${drafts.length} 个任务${shiftMinutes > 0 ? '往后顺移' : '往前移动'} ${Math.abs(shiftMinutes)} 分钟。`,
+          };
         }
 
         const moveToDateMatch = operationText.match(/(?:移到|挪到|改到|调到|移动到)\s*(今天|今日|明天|明日|后天|昨天|昨日|\d{1,2}月\d{1,2}[日号]?|\d{1,2}[日号])/);
         const targetDate = moveToDateMatch ? parseTargetDate(moveToDateMatch[1]) : null;
         if (!targetDate) {
-          return '❌ 请明确指定要移动到哪一天，例如：“把今天未完成的任务全部移到后天”。';
+          return {
+            drafts: [] as TimelineOperationDraft[],
+            summary: '❌ 请明确指定要移动到哪一天，例如：“把今天未完成的任务全部移到后天”。',
+          };
         }
 
-        if (tasksToMove.length === 0) {
-          return '❌ 没有找到符合条件的任务。';
-        }
-
-        const confirmed = confirm(`⚠️ 确定要把${operationDesc}的 ${tasksToMove.length} 个任务移动到${describeDate(targetDate)}吗？`);
-        if (!confirmed) return '❌ 已取消移动操作。';
-
-          for (const task of tasksToMove) {
-          if (!task.scheduledStart) continue;
-          const oldStart = new Date(task.scheduledStart);
+        const drafts = tasksToMove.map((task, index) => {
+          const oldStart = task.scheduledStart ? new Date(task.scheduledStart) : new Date();
           const newStart = new Date(targetDate);
-            newStart.setHours(oldStart.getHours(), oldStart.getMinutes(), 0, 0);
+          newStart.setHours(oldStart.getHours(), oldStart.getMinutes(), 0, 0);
           const newEnd = new Date(newStart.getTime() + task.durationMinutes * 60000);
-          await updateTask(task.id, { scheduledStart: newStart, scheduledEnd: newEnd });
-        }
 
-        return `✅ 已把${operationDesc}的 ${tasksToMove.length} 个任务移动到${describeDate(targetDate)}。`;
+          return buildTimelinePreviewTask(task, index, 'move', {
+            scheduledStart: newStart,
+            scheduledEnd: newEnd,
+            descriptionPrefix: `移动到${describeDate(targetDate)}：`,
+          });
+        });
+
+        return {
+          drafts,
+          summary: `📦 已预览 ${operationDesc}的 ${drafts.length} 个任务移动到${describeDate(targetDate)}。`,
+        };
       }
 
-      return '❌ 这条时间轴操作我还没识别出来。';
+      return {
+        drafts: [] as TimelineOperationDraft[],
+        summary: '❌ 这条时间轴操作我还没识别出来。',
+      };
     };
 
     try {
-      const results: string[] = [];
       const segmentsToRun = operationSegments.length > 0 ? operationSegments : [normalizedMessage];
+      const allDrafts: TimelineOperationDraft[] = [];
+      const summaryLines: string[] = [];
 
       for (const segment of segmentsToRun) {
-        const result = await executeSingleOperation(segment);
-        results.push(result);
+        const result = executeSingleOperation(segment);
+        if (result.summary) {
+          summaryLines.push(result.summary);
+        }
+        if (result.drafts.length > 0) {
+          result.drafts.forEach((draft) => {
+            allDrafts.push({
+              ...draft,
+              sequence: allDrafts.length + 1,
+            });
+          });
+        }
       }
 
-      if (results.length === 0) return false;
+      if (allDrafts.length === 0) {
+        setMessages(prev => [...prev, {
+          id: `ai-${Date.now()}`,
+          role: 'assistant',
+          content: summaryLines.join('\n\n') || '❌ 我暂时没识别出这条时间轴操作。',
+          timestamp: new Date(),
+        }]);
+        return true;
+      }
+
+      setPendingTimelineOperations(allDrafts);
+      setEditingTasks(allDrafts);
+      setShowTaskEditor(true);
 
       setMessages(prev => [...prev, {
-            id: `ai-${Date.now()}`,
-            role: 'assistant',
-        content: results.join('\n\n'),
-            timestamp: new Date(),
+        id: `ai-${Date.now()}`,
+        role: 'assistant',
+        content: buildTimelineOperationReply(allDrafts, summaryLines),
+        timestamp: new Date(),
       }]);
       return true;
     } catch (error) {
@@ -1554,6 +1685,20 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
       // 执行AI决定的操作
       if (intent.actions.length > 0) {
         addThinkingStep(`⚙️ 正在执行 ${intent.actions.length} 个操作...`);
+
+        const hasDestructiveTimelineAction = intent.actions.some(action =>
+          action.type === 'delete_tasks' || action.type === 'move_task'
+        );
+
+        if (hasDestructiveTimelineAction) {
+          addThinkingStep('🛡️ 检测到时间轴批量操作，切换为确认预览模式');
+          const handled = await handleTimelineOperation(ensureTimelineOperationPrefix(normalizedMessage));
+          if (handled !== false) {
+            setIsProcessing(false);
+            clearThinkingSteps();
+            return;
+          }
+        }
         
         const execution = await aiCommandCenter.executeActions(intent.actions);
         
@@ -2772,6 +2917,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
             backgroundColor: bgColor,
           }}
           onClick={() => setShowColorPicker(false)}
+          onFocusCapture={handleFocusCapture}
         >
           {/* 原有的浮动窗口内容 */}
           {/* 头部 - 可拖拽 */}
@@ -2882,7 +3028,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
           {!isMinimized && (
             <>
               {/* 对话区域 */}
-              <div ref={conversationRef} className="flex-1 overflow-y-auto p-4 space-y-3" style={{ backgroundColor: theme.cardBg }}>
+              <div ref={conversationRef} className="flex-1 overflow-y-auto p-4 space-y-3 keyboard-aware-scroll" style={{ backgroundColor: theme.cardBg }}>
                 {messages.map((message) => {
                   const resolvedDecomposedTasks =
                     message.decomposedTasks && message.decomposedTasks.length > 0
@@ -3107,7 +3253,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
               </div>
 
               {/* 快速指令 */}
-              <div className="px-3 py-2 border-t" style={{ backgroundColor: theme.bgColor, borderColor: theme.borderColor }}>
+              <div className="px-3 py-2 border-t keyboard-aware-composer" style={{ backgroundColor: theme.bgColor, borderColor: theme.borderColor }}>
                 <div className="flex items-center space-x-2 overflow-x-auto">
                   <span className="text-xs whitespace-nowrap" style={{ color: theme.accentColor }}>快速：</span>
                   {[
@@ -3197,13 +3343,14 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
               </div>
 
               {/* 输入区域 */}
-              <div className="p-3 border-t" style={{ backgroundColor: theme.bgColor, borderColor: theme.borderColor }}>
+              <div className="p-3 border-t keyboard-aware-composer" style={{ backgroundColor: theme.bgColor, borderColor: theme.borderColor }}>
                 <div className="flex items-end space-x-2">
                   <textarea
                     ref={textareaRef}
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={handleKeyDown}
+                    onFocus={() => scrollIntoSafeView(textareaRef.current)}
                     placeholder="对我说点什么..."
                     className="flex-1 px-3 py-2 rounded-lg resize-none focus:outline-none text-sm border overflow-y-auto"
                     style={{
@@ -3264,10 +3411,9 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
           tasks={editingTasks}
           onClose={() => {
             console.log('🔍 [编辑器] 关闭编辑器');
-            setShowTaskEditor(false);
-            setEditingTasks([]);
+            resetTaskEditorState();
           }}
-          onConfirm={handlePushToTimeline}
+          onConfirm={handleConfirmTaskEditor}
         />
       )}
 

@@ -18,7 +18,7 @@ export default function AIAssistantChat() {
   const [editingTasks, setEditingTasks] = useState<any[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
-  const { handleFocusCapture } = useKeyboardAvoidance(chatScrollRef);
+  const { handleFocusCapture, scrollIntoSafeView } = useKeyboardAvoidance(chatScrollRef);
   const { createTask } = useTaskStore();
   
   const {
@@ -250,6 +250,7 @@ export default function AIAssistantChat() {
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onFocus={() => scrollIntoSafeView(document.activeElement as HTMLElement | null)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();

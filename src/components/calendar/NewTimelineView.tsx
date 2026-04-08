@@ -1838,6 +1838,33 @@ export default function NewTimelineView({
     };
   };
 
+  const getGoalContributionStep = (dimension: LongTermGoal['dimensions'][number]) => {
+    return Number.isInteger(dimension.targetValue) ? 1 : 0.1;
+  };
+
+  const updateGoalContributionDimensionValue = (taskId: string, dimensionId: string, nextValue: number) => {
+    const safeValue = Math.max(0, Number(nextValue.toFixed(1)));
+
+    handleGoalContributionDraftChange(taskId, {
+      values: {
+        ...(goalContributionDrafts[taskId]?.values || {}),
+        [dimensionId]: safeValue === 0 ? '' : String(safeValue),
+      },
+    });
+  };
+
+  const getGoalContributionDimensionProgress = (goalId: string, taskId: string, dimensionId: string, currentValue: number) => {
+    const historicalTotal = existingGoalContributionRecords
+      .filter((record) => record.goalId === goalId && record.taskId !== taskId)
+      .reduce((sum, record) => {
+        const matchedDimension = record.dimensionResults.find((item) => item.dimensionId === dimensionId);
+        return sum + (matchedDimension?.value || 0);
+      }, 0);
+
+    return historicalTotal + currentValue;
+  };
+
+
   const openGoalContributionModal = (taskId: string) => {
     const task = allTasks.find((item) => item.id === taskId);
     if (!task) return;
@@ -2287,31 +2314,65 @@ export default function NewTimelineView({
                   <div className="rounded-[22px] bg-[#f7f8fb] p-3">
                     <div className="mb-3 text-sm font-medium text-[#111827]">填写本次产出</div>
                     <div className="space-y-3">
-                      {currentGoal.dimensions.map((dimension) => (
-                        <div key={dimension.id} className="flex items-center gap-3">
-                          <div className="min-w-0 flex-1">
-                            <div className="text-sm font-medium text-[#111827]">{dimension.name}</div>
-                            <div className="text-xs text-[#9ca3af]">目标 {dimension.targetValue} {dimension.unit}</div>
+                      {currentGoal.dimensions.map((dimension) => {
+                        const step = getGoalContributionStep(dimension);
+                        const currentValue = Number(draft.values[dimension.id] || 0);
+                        const cumulativeValue = getGoalContributionDimensionProgress(currentGoal.id, currentTask.id, dimension.id, currentValue);
+                        const progressPercent = Math.min(100, (cumulativeValue / Math.max(dimension.targetValue, 1)) * 100);
+
+                        return (
+                          <div key={dimension.id} className="rounded-[20px] bg-white px-3 py-3 shadow-sm">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <div className="text-sm font-medium text-[#111827]">{dimension.name}</div>
+                                <div className="mt-1 text-xs text-[#9ca3af]">目标 {dimension.targetValue} {dimension.unit}</div>
+                              </div>
+                              <div className="rounded-full bg-[#f5f9ff] px-3 py-1 text-sm font-semibold text-[#0A84FF] shadow-sm">
+                                {cumulativeValue}/{dimension.targetValue}
+                              </div>
+                            </div>
+
+                            <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-[#e7eef8]">
+                              <div
+                                className="h-full rounded-full bg-gradient-to-r from-[#67b7ff] via-[#0A84FF] to-[#3b82f6] transition-all duration-300"
+                                style={{ width: `${progressPercent}%` }}
+                              />
+                            </div>
+
+                            <div className="mt-2 flex items-center justify-between text-[11px] text-[#94a3b8]">
+                              <span>本次 +{currentValue} {dimension.unit}</span>
+                              <span>{progressPercent.toFixed(0)}%</span>
+                            </div>
+
+                            <div className="mt-3 flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => updateGoalContributionDimensionValue(goalContributionTaskId, dimension.id, Math.max(0, currentValue - step))}
+                                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-[#eef2ff] text-[24px] font-semibold text-[#4f46e5] shadow-sm active:scale-95"
+                              >
+                                −
+                              </button>
+
+                              <div className="flex flex-1 items-center justify-center rounded-[18px] border border-[#dbe4f0] bg-[#fcfcfd] px-3 py-3 shadow-sm">
+                                <div className="text-center leading-none">
+                                  <div className="text-[24px] font-semibold tracking-[-0.04em] text-[#111827]">
+                                    {draft.values[dimension.id] || '0'}
+                                  </div>
+                                  <div className="mt-1 text-[11px] text-[#6b7280]">本次增加 {dimension.unit}</div>
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => updateGoalContributionDimensionValue(goalContributionTaskId, dimension.id, currentValue + step)}
+                                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-[#e8fff3] text-[24px] font-semibold text-[#16a34a] shadow-sm active:scale-95"
+                              >
+                                +
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex w-[124px] items-center rounded-[16px] bg-white px-3 py-2 shadow-sm">
-                            <input
-                              type="number"
-                              min={0}
-                              step="0.1"
-                              value={draft.values[dimension.id] || ''}
-                              onChange={(e) => handleGoalContributionDraftChange(goalContributionTaskId, {
-                                values: {
-                                  ...draft.values,
-                                  [dimension.id]: e.target.value,
-                                },
-                              })}
-                              className="w-full bg-transparent text-right text-sm font-semibold text-[#111827] outline-none"
-                              placeholder="0"
-                            />
-                            <span className="ml-2 text-xs text-[#6b7280]">{dimension.unit}</span>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -2335,9 +2396,9 @@ export default function NewTimelineView({
               </div>
 
               <div
-                className="fixed left-1/2 z-[60] flex w-[calc(100%-24px)] max-w-md -translate-x-1/2 gap-3 rounded-t-[24px] bg-white/96 px-4 pt-3 shadow-[0_-12px_30px_rgba(15,23,42,0.08)] backdrop-blur"
+                className="fixed left-1/2 z-[60] flex w-[calc(100%-24px)] max-w-md -translate-x-1/2 gap-3 rounded-[24px] bg-white/96 px-4 pt-3 shadow-[0_-12px_30px_rgba(15,23,42,0.08)] backdrop-blur"
                 style={{
-                  bottom: 'calc(88px + env(safe-area-inset-bottom))',
+                  bottom: 'calc(76px + env(safe-area-inset-bottom))',
                   paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
                 }}
               >
