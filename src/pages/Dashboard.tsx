@@ -10,13 +10,6 @@ import ResponsiveLayout from '@/components/layout/ResponsiveLayout';
 import { taskMonitorService } from '@/services/taskMonitorService';
 import { notificationService } from '@/services/notificationService';
 
-const detectMobileDevice = () => {
-  const userAgent = navigator.userAgent.toLowerCase();
-  const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
-  const isSmallScreen = window.innerWidth < 768;
-  return isMobileDevice || isSmallScreen;
-};
-
 export default function Dashboard() {
   const { tasks, loadTasks, updateTask, createTask, deleteTask } = useTaskStore();
   const { loadGrowthData } = useGrowthStore();
@@ -26,7 +19,6 @@ export default function Dashboard() {
   const [currentModule, setCurrentModule] = useState<string>('timeline'); // 跟踪当前模块
   const [showVoiceActivation, setShowVoiceActivation] = useState(false);
   const [voiceActivated, setVoiceActivated] = useState(false);
-  const [isMobile, setIsMobile] = useState(() => detectMobileDevice());
 
   // 检查语音是否已激活
   useEffect(() => {
@@ -36,16 +28,6 @@ export default function Dashboard() {
     } else {
       setVoiceActivated(true);
     }
-  }, []);
-
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(detectMobileDevice());
-    };
-
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   // 激活语音播报
@@ -206,13 +188,13 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* AI 对话框 - 电脑端使用浮窗，手机端交给时间轴模块内的全屏 AI */}
-      {!isMobile && currentModule === 'timeline' && (
+      {/* AI 对话框 - 使用 FloatingAIChat - 只在时间轴界面显示 */}
+      {currentModule === 'timeline' && (
         <FloatingAIChat 
           isFullScreen={isAIChatOpen} 
           onClose={() => setIsAIChatOpen(false)} 
           currentModule={currentModule}
-      />
+        />
       )}
 
       {/* AI 智能输入框 - 临时禁用 */}

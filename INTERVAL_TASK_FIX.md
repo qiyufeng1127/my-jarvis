@@ -156,6 +156,3 @@ const duration = Math.min(
 
 
 
-
-
-

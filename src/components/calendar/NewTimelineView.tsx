@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, Camera, Check, ChevronDown, ChevronUp, Edit2, Trash2, GripVertical, Star, Clock, FileText, Upload, X, Target } from 'lucide-react';
+import { Plus, Camera, Check, ChevronDown, ChevronUp, Edit2, Trash2, GripVertical, Star, Clock, FileText, Upload, X } from 'lucide-react';
 import eventBus from '@/utils/eventBus';
 import type { Task, LongTermGoal } from '@/types';
 import { 
@@ -23,7 +23,6 @@ import { useTagStore } from '@/stores/tagStore';
 import { useGoalStore } from '@/stores/goalStore';
 import { useGoalContributionStore } from '@/stores/goalContributionStore';
 import { useHQBridgeStore } from '@/stores/hqBridgeStore';
-import { useNextActionStore } from '@/stores/nextActionStore';
 import { useTaskHistoryStore } from '@/stores/taskHistoryStore';
 import CelebrationEffect from '@/components/effects/CelebrationEffect';
 import { 
@@ -89,8 +88,6 @@ export default function NewTimelineView({
   const addTaskHistoryRecord = useTaskHistoryStore(state => state.addRecord);
   const activeLoop = useHQBridgeStore((state) => state.activeLoop);
   const setActiveLoop = useHQBridgeStore((state) => state.setActiveLoop);
-  const patchNextAction = useNextActionStore((state) => state.patchSnapshot);
-  const nextActionSnapshot = useNextActionStore((state) => state.snapshot);
   
   // 使用任务store
   const updateTaskEfficiency = useTaskStore(state => state.updateTaskEfficiency);
@@ -165,15 +162,6 @@ export default function NewTimelineView({
     startTime: Date;
     endTime: Date;
     maxDuration: number;
-    title?: string;
-    description?: string;
-    taskType?: Task['taskType'];
-    color?: string;
-    tags?: string[];
-    longTermGoals?: Record<string, number>;
-    location?: string;
-    openEditAfterCreate?: boolean;
-    source?: 'gap' | 'rectification';
   } | null>(null);
   const [taskStartTimeouts, setTaskStartTimeouts] = useState<Record<string, boolean>>({}); // 启动验证超时标记
   const [taskFinishTimeouts, setTaskFinishTimeouts] = useState<Record<string, boolean>>({}); // 完成验证超时标记
@@ -189,12 +177,6 @@ export default function NewTimelineView({
   const [goalContributionError, setGoalContributionError] = useState<string | null>(null);
   const [goalContributionSuccess, setGoalContributionSuccess] = useState<string | null>(null);
   const [goalContributionSaving, setGoalContributionSaving] = useState(false);
-  const [pendingCreatedTaskFocus, setPendingCreatedTaskFocus] = useState<{
-    title: string;
-    startAt: number;
-    shouldOpenEdit: boolean;
-    shouldSyncLoop: boolean;
-  } | null>(null);
   const [editingVerification, setEditingVerification] = useState<string | null>(null);
   const [addingSubTask, setAddingSubTask] = useState<string | null>(null);
   const [newSubTaskTitle, setNewSubTaskTitle] = useState('');
@@ -204,73 +186,9 @@ export default function NewTimelineView({
   const [isSmartAssigning, setIsSmartAssigning] = useState(false); // 智能分配加载状态
   
   useEffect(() => {
-    const handleNavigate = (payload?: {
-      module?: string;
-      taskId?: string;
-      createRectificationTask?: boolean;
-      goalId?: string;
-      goalName?: string;
-      painLabel?: string;
-      taskTitle?: string;
-      promise?: string;
-    }) => {
+    const handleNavigate = (payload?: { module?: string; taskId?: string }) => {
       if (payload?.module && payload.module !== 'timeline') return;
-
-      if (payload?.createRectificationTask) {
-        patchNextAction({
-          currentModule: 'timeline',
-          goalId: payload.goalId,
-          goalName: payload.goalName,
-          focusLabel: payload.painLabel || payload.goalName || '整改动作',
-          suggestedAction: '先把整改动作排进时间轴并补全细节',
-          source: 'timeline',
-        });
-
-        const targetDate = selectedDate ? new Date(selectedDate) : new Date();
-        const now = new Date();
-        const startTime = new Date(targetDate);
-        startTime.setHours(now.getHours(), now.getMinutes(), 0, 0);
-
-        if (
-          targetDate.getFullYear() !== now.getFullYear() ||
-          targetDate.getMonth() !== now.getMonth() ||
-          targetDate.getDate() !== now.getDate()
-        ) {
-          startTime.setHours(9, 0, 0, 0);
-        }
-
-        const endTime = new Date(startTime.getTime() + 45 * 60000);
-        const nextGoalLinks = payload.goalId ? { [payload.goalId]: 100 } : {};
-        const nextTags = ['总部承诺', '整改动作'];
-        if (payload.painLabel) nextTags.push(payload.painLabel);
-
-        setCreatingGapTask({
-          startTime,
-          endTime,
-          maxDuration: 180,
-          title: payload.taskTitle || `整改动作：${payload.painLabel || payload.goalName || '待确认事项'}`,
-          description: payload.promise || payload.painLabel || payload.goalName || '',
-          taskType: 'work',
-          color: '#8B5CF6',
-          tags: nextTags,
-          longTermGoals: nextGoalLinks,
-          openEditAfterCreate: true,
-          source: 'rectification',
-        });
-        return;
-      }
-
       if (!payload?.taskId) return;
-
-      patchNextAction({
-        currentModule: 'timeline',
-        taskId: payload.taskId,
-        goalId: payload.goalId,
-        goalName: payload.goalName,
-        focusLabel: payload.taskTitle || payload.painLabel || '当前焦点任务',
-        suggestedAction: '先展开这条任务，继续执行或补关键结果',
-        source: 'timeline',
-      });
 
       setLinkedTaskId(payload.taskId);
       setExpandedCards((prev) => new Set([...prev, payload.taskId as string]));
@@ -280,44 +198,7 @@ export default function NewTimelineView({
     return () => {
       eventBus.off('dashboard:navigate-module', handleNavigate);
     };
-  }, [selectedDate]);
-
-  useEffect(() => {
-    if (!pendingCreatedTaskFocus) return;
-
-    const createdTask = [...tasks]
-      .slice()
-      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-      .find((task) => task.title === pendingCreatedTaskFocus.title && new Date(task.scheduledStart || 0).getTime() === pendingCreatedTaskFocus.startAt);
-
-    if (!createdTask) return;
-
-    if (pendingCreatedTaskFocus.shouldSyncLoop && activeLoop) {
-      setActiveLoop({
-        ...activeLoop,
-        taskId: createdTask.id,
-        taskTitle: createdTask.title,
-      });
-    }
-
-    patchNextAction({
-      currentModule: 'timeline',
-      taskId: createdTask.id,
-      taskTitle: createdTask.title,
-      goalId: activeLoop?.goalId,
-      goalName: activeLoop?.goalName,
-      focusLabel: createdTask.title,
-      suggestedAction: pendingCreatedTaskFocus.shouldOpenEdit ? '继续补全这条任务细节' : '继续执行这条任务',
-      source: 'timeline',
-    });
-
-    setLinkedTaskId(createdTask.id);
-    setExpandedCards((prev) => new Set([...prev, createdTask.id]));
-    if (pendingCreatedTaskFocus.shouldOpenEdit) {
-      setEditingTask(createdTask.id);
-    }
-    setPendingCreatedTaskFocus(null);
-  }, [activeLoop, pendingCreatedTaskFocus, setActiveLoop, tasks]);
+  }, []);
 
   // 🔄 从任务对象恢复验证设置和照片
   useEffect(() => {
@@ -701,8 +582,6 @@ export default function NewTimelineView({
         description: task.description,
         isCompleted: task.status === 'completed',
         isLinkedHQTask: activeLoop?.taskId === task.id || (task.tags || []).includes('总部承诺'),
-        hasGoalContribution: existingGoalContributionRecords.some((record) => record.taskId === task.id),
-        isLoopClosed: activeLoop?.taskId === task.id && existingGoalContributionRecords.some((record) => record.taskId === task.id),
         goldReward: taskGold, // 使用任务的金币
         tags: taskTags, // 使用任务的标签
         sourceBadges,
@@ -1441,7 +1320,7 @@ export default function NewTimelineView({
           console.log(`⏰ 提前完成: ${savedMinutes} 分钟 (${savedPercentage.toFixed(1)}%)`);
           
           // 完成阶段基础奖励60%金币
-          const completionGold = Math.round(totalGold * 0.6);
+          let completionGold = Math.round(totalGold * 0.6);
           let bonusGold = 0;
           let bonusMessage = '';
           
@@ -1509,43 +1388,6 @@ export default function NewTimelineView({
             isCompleted: true,
             scheduledEnd: now.toISOString(),
           });
-
-          if (activeLoop?.taskId === taskId) {
-            const matchedGoals = getMatchedGoalsForTask(task);
-            const autoDraft = createContributionDraft(task, matchedGoals, {
-              durationMinutes: String(actualDuration),
-              note: task.completionNotes || `已完成整改动作：${task.title}`,
-            });
-
-            setGoalContributionDrafts((prev) => ({
-              ...prev,
-              [taskId]: {
-                ...(prev[taskId] || autoDraft),
-                durationMinutes: prev[taskId]?.durationMinutes || String(actualDuration),
-                note: prev[taskId]?.note || autoDraft.note,
-                goalId: prev[taskId]?.goalId || autoDraft.goalId,
-                values: prev[taskId]?.values || autoDraft.values,
-              },
-            }));
-            setGoalContributionTaskId(taskId);
-            setGoalContributionError(null);
-            setGoalContributionSuccess('整改动作已完成，请补充关键结果回写总部。');
-            setActiveLoop({
-              ...activeLoop,
-              taskId,
-              taskTitle: task.title,
-            });
-            patchNextAction({
-              currentModule: 'timeline',
-              taskId,
-              taskTitle: task.title,
-              goalId: activeLoop.goalId,
-              goalName: activeLoop.goalName,
-              focusLabel: task.title,
-              suggestedAction: '任务已完成，下一步补关键结果回写目标',
-              source: 'timeline',
-            });
-          }
           
           // 发送任务完成通知
           notificationService.notifyTaskEnd(task.title, false).catch(err => 
@@ -1632,42 +1474,21 @@ export default function NewTimelineView({
       });
 
       if (activeLoop?.taskId === taskId) {
-        const matchedGoals = getMatchedGoalsForTask(task);
-        const autoDraft = createContributionDraft(task, matchedGoals, {
-          durationMinutes: String(actualDuration),
-          note: task.completionNotes || `已完成整改动作：${task.title}`,
-        });
-
-        setGoalContributionDrafts((prev) => ({
-          ...prev,
-          [taskId]: {
-            ...(prev[taskId] || autoDraft),
-            durationMinutes: prev[taskId]?.durationMinutes || String(actualDuration),
-            note: prev[taskId]?.note || autoDraft.note,
-            goalId: prev[taskId]?.goalId || autoDraft.goalId,
-            values: prev[taskId]?.values || autoDraft.values,
-          },
-        }));
-        setGoalContributionTaskId(taskId);
-        setGoalContributionError(null);
-        setGoalContributionSuccess('整改动作已完成，请补充关键结果回写总部。');
         setActiveLoop({
           ...activeLoop,
           taskId,
           taskTitle: task.title,
         });
-        patchNextAction({
-          currentModule: 'timeline',
-          taskId,
-          taskTitle: task.title,
-          goalId: activeLoop.goalId,
-          goalName: activeLoop.goalName,
-          focusLabel: task.title,
-          suggestedAction: '任务已完成，下一步补关键结果回写目标',
-          source: 'timeline',
-        });
       }
 
+      if (activeLoop?.taskId === taskId) {
+        setActiveLoop({
+          ...activeLoop,
+          taskId,
+          taskTitle: task.title,
+        });
+      }
+      
       // 记录标签使用时长 - 使用实际时长
       if (task.tags && task.tags.length > 0) {
         task.tags.forEach(tagName => {
@@ -1803,25 +1624,6 @@ export default function NewTimelineView({
       });
 
       if (activeLoop?.taskId === taskId) {
-        const matchedGoals = getMatchedGoalsForTask(task);
-        const autoDraft = createContributionDraft(task, matchedGoals, {
-          durationMinutes: String(actualDuration),
-          note: task.completionNotes || `已完成整改动作：${task.title}`,
-        });
-
-        setGoalContributionDrafts((prev) => ({
-          ...prev,
-          [taskId]: {
-            ...(prev[taskId] || autoDraft),
-            durationMinutes: prev[taskId]?.durationMinutes || String(actualDuration),
-            note: prev[taskId]?.note || autoDraft.note,
-            goalId: prev[taskId]?.goalId || autoDraft.goalId,
-            values: prev[taskId]?.values || autoDraft.values,
-          },
-        }));
-        setGoalContributionTaskId(taskId);
-        setGoalContributionError(null);
-        setGoalContributionSuccess('整改动作已完成，请补充关键结果回写总部。');
         setActiveLoop({
           ...activeLoop,
           taskId,
@@ -1929,15 +1731,15 @@ export default function NewTimelineView({
     return matched.slice(0, 3);
   };
 
-  const createContributionDraft = (task: Task, matchedGoals: LongTermGoal[], overrides?: Partial<{ note: string; durationMinutes: string; values: Record<string, string> }>) => {
+  const createContributionDraft = (task: Task, matchedGoals: LongTermGoal[]) => {
     const primaryGoal = matchedGoals[0];
     const existingRecord = existingGoalContributionRecords.find((record) => record.taskId === task.id && record.goalId === primaryGoal?.id);
 
     return {
       goalId: primaryGoal?.id || '',
-      note: overrides?.note ?? existingRecord?.note ?? '',
-      durationMinutes: overrides?.durationMinutes ?? String(existingRecord?.durationMinutes ?? task.durationMinutes ?? 0),
-      values: overrides?.values ?? (primaryGoal?.dimensions || []).reduce<Record<string, string>>((acc, dimension) => {
+      note: existingRecord?.note || '',
+      durationMinutes: String(existingRecord?.durationMinutes ?? task.durationMinutes ?? 0),
+      values: (primaryGoal?.dimensions || []).reduce<Record<string, string>>((acc, dimension) => {
         const existingValue = existingRecord?.dimensionResults.find((item) => item.dimensionId === dimension.id)?.value;
         acc[dimension.id] = existingValue !== undefined ? String(existingValue) : '';
         return acc;
@@ -2062,21 +1864,9 @@ export default function NewTimelineView({
         taskId: task.id,
         taskTitle: task.title,
       });
-      patchNextAction({
-        currentModule: 'goals',
-        goalId: goal.id,
-        goalName: goal.name,
-        taskId: task.id,
-        taskTitle: task.title,
-        focusLabel: goal.name,
-        suggestedAction: '关键结果已回写，去目标分析里看最新推进',
-        source: 'goals',
-      });
     }
 
-    setGoalContributionSuccess(activeLoop?.taskId === task.id
-      ? `总部闭环已收到《${task.title}》的关键结果，当前链路正式收口。`
-      : `已把 ${task.title} 的关键结果写入 ${goal.name}`);
+    setGoalContributionSuccess(`已把 ${task.title} 的关键结果写入 ${goal.name}`);
     window.setTimeout(() => {
       setGoalContributionTaskId(null);
       setGoalContributionSaving(false);
@@ -2137,160 +1927,9 @@ export default function NewTimelineView({
 
   const timeUntilEnd = calculateTimeUntilEndOfDay();
   const timePassed = calculateTimePassedToday();
-  const timelineSuggestedTask = useMemo(() => {
-    if (activeLoop?.taskId) {
-      return allTasks.find((task) => task.id === activeLoop.taskId) || null;
-    }
-    if (nextActionSnapshot?.taskId) {
-      return allTasks.find((task) => task.id === nextActionSnapshot.taskId) || null;
-    }
-    return allTasks.find((task) => task.status === 'in_progress')
-      || allTasks.find((task) => task.status === 'pending')
-      || null;
-  }, [activeLoop?.taskId, allTasks, nextActionSnapshot?.taskId]);
-  const timelineSuggestedGoal = useMemo(() => {
-    if (activeLoop?.goalId) {
-      return goals.find((goal) => goal.id === activeLoop.goalId) || null;
-    }
-    if (nextActionSnapshot?.goalId) {
-      return goals.find((goal) => goal.id === nextActionSnapshot.goalId) || null;
-    }
-    if (timelineSuggestedTask?.longTermGoals) {
-      const linkedGoalId = Object.keys(timelineSuggestedTask.longTermGoals)[0];
-      if (linkedGoalId) {
-        return goals.find((goal) => goal.id === linkedGoalId) || null;
-      }
-    }
-    return null;
-  }, [activeLoop?.goalId, goals, nextActionSnapshot?.goalId, timelineSuggestedTask]);
-  const timelineAdvice = nextActionSnapshot?.currentModule === 'timeline' && nextActionSnapshot?.suggestedAction
-    ? nextActionSnapshot.suggestedAction
-    : timelineSuggestedTask
-      ? timelineSuggestedTask.status === 'completed'
-        ? '这条任务已经做完了，先去补关键结果或回看目标推进。'
-        : timelineSuggestedTask.status === 'in_progress'
-          ? `先把「${timelineSuggestedTask.title}」继续往前推，做完后马上检查是否要补关键结果。`
-          : `先处理「${timelineSuggestedTask.title}」，别继续扩散到新的任务线程。`
-      : '先从时间轴里挑出今天最关键的一条任务，真正推进，而不是只做安排。';
 
   return (
     <div className="space-y-3 pb-4 relative">
-      <div
-        className="overflow-hidden rounded-[28px] border"
-        style={{
-          borderColor: isDark ? 'rgba(139,92,246,0.26)' : 'rgba(139,92,246,0.16)',
-          background: isDark
-            ? 'linear-gradient(135deg, rgba(30,41,59,0.94), rgba(91,33,182,0.34) 58%, rgba(15,23,42,0.92))'
-            : 'linear-gradient(135deg, rgba(245,243,255,0.98), rgba(238,242,255,0.96) 58%, rgba(255,255,255,0.98))',
-          boxShadow: isDark
-            ? '0 18px 34px rgba(15,23,42,0.24)'
-            : '0 18px 34px rgba(139,92,246,0.08)',
-        }}
-      >
-        <div className="px-4 py-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-[11px] font-black tracking-[0.22em]" style={{ color: '#8B5CF6' }}>AI NEXT MOVE</div>
-              <div className="mt-1 text-[22px] font-semibold tracking-[-0.04em]" style={{ color: textColor }}>时间轴下一步</div>
-              <div className="mt-2 text-sm leading-6" style={{ color: isDark ? 'rgba(255,255,255,0.72)' : 'rgba(17,24,39,0.68)' }}>
-                {timelineAdvice}
-              </div>
-            </div>
-            <div
-              className="flex h-11 w-11 items-center justify-center rounded-full text-white shadow-[0_10px_24px_rgba(139,92,246,0.24)]"
-              style={{ backgroundColor: '#8B5CF6' }}
-            >
-              <Target className="h-5 w-5" />
-            </div>
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div
-              className="rounded-[20px] px-4 py-4"
-              style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.78)' }}
-            >
-              <div className="text-xs font-semibold" style={{ color: accentColor }}>当前焦点任务</div>
-              <div className="mt-2 text-base font-semibold" style={{ color: textColor }}>
-                {timelineSuggestedTask?.title || '先选一条今天真正要推进的任务'}
-              </div>
-              <div className="mt-2 text-sm" style={{ color: isDark ? 'rgba(255,255,255,0.68)' : 'rgba(17,24,39,0.62)' }}>
-                {timelineSuggestedTask
-                  ? `当前状态：${timelineSuggestedTask.status === 'in_progress' ? '执行中' : timelineSuggestedTask.status === 'completed' ? '已完成' : '待开始'}`
-                  : '还没有明确焦点时，先不要继续加新任务。'}
-              </div>
-            </div>
-            <div
-              className="rounded-[20px] px-4 py-4"
-              style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.78)' }}
-            >
-              <div className="text-xs font-semibold" style={{ color: accentColor }}>关联目标 / 收口</div>
-              <div className="mt-2 text-base font-semibold" style={{ color: textColor }}>
-                {timelineSuggestedGoal?.name || '暂无明确目标关联'}
-              </div>
-              <div className="mt-2 text-sm" style={{ color: isDark ? 'rgba(255,255,255,0.68)' : 'rgba(17,24,39,0.62)' }}>
-                {timelineSuggestedTask?.status === 'completed'
-                  ? '如果这条任务刚做完，优先补关键结果，不要只打勾。'
-                  : '执行时记得关注这条任务是不是在推进目标，而不是忙但没沉淀。'}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button
-              onClick={() => {
-                if (!timelineSuggestedTask) return;
-                patchNextAction({
-                  currentModule: 'timeline',
-                  taskId: timelineSuggestedTask.id,
-                  taskTitle: timelineSuggestedTask.title,
-                  goalId: timelineSuggestedGoal?.id,
-                  goalName: timelineSuggestedGoal?.name,
-                  focusLabel: timelineSuggestedTask.title,
-                  suggestedAction: timelineAdvice,
-                  source: 'timeline',
-                });
-                setLinkedTaskId(timelineSuggestedTask.id);
-                setExpandedCards((prev) => new Set([...prev, timelineSuggestedTask.id]));
-              }}
-              disabled={!timelineSuggestedTask}
-              className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-white transition active:scale-95 disabled:opacity-45"
-              style={{ backgroundColor: '#8B5CF6' }}
-            >
-              聚焦这条任务 <Target className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => {
-                patchNextAction({
-                  currentModule: 'goals',
-                  goalId: timelineSuggestedGoal?.id,
-                  goalName: timelineSuggestedGoal?.name,
-                  taskId: timelineSuggestedTask?.id,
-                  taskTitle: timelineSuggestedTask?.title,
-                  focusLabel: timelineSuggestedGoal?.name || timelineSuggestedTask?.title || '目标推进',
-                  suggestedAction: timelineSuggestedTask?.status === 'completed'
-                    ? '回目标里补关键结果和推进结果'
-                    : '确认这条任务到底在推进哪个目标',
-                  source: 'timeline',
-                });
-                eventBus.emit('dashboard:navigate-module', {
-                  module: 'goals',
-                  goalId: timelineSuggestedGoal?.id,
-                  taskId: timelineSuggestedTask?.id,
-                });
-              }}
-              className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition active:scale-95"
-              style={{
-                borderColor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(139,92,246,0.18)',
-                color: isDark ? '#ffffff' : '#6D28D9',
-                backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.8)',
-              }}
-            >
-              去目标收口 <Target className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      </div>
-
       {/* 今日已过去提示 - 在第一个任务前 */}
       {timePassed && timePassed.totalMinutes > 0 && (
         <div className="flex items-center gap-3 mb-2">
@@ -3344,20 +2983,12 @@ export default function NewTimelineView({
                         总部刚刚把你带到这条任务，先把它处理掉。
                       </div>
                     )}
-                    {block.isLinkedHQTask && linkedTaskId !== block.id && !block.hasGoalContribution && (
+                    {block.isLinkedHQTask && linkedTaskId !== block.id && (
                       <div
                         className="mb-2 rounded-full px-3 py-1 text-[10px] font-black tracking-[0.14em]"
                         style={{ backgroundColor: 'rgba(255,255,255,0.16)', color: '#fff7ed' }}
                       >
                         总部整改主任务，建议优先完成并补 KR。
-                      </div>
-                    )}
-                    {block.isLinkedHQTask && block.hasGoalContribution && (
-                      <div
-                        className="mb-2 rounded-full px-3 py-1 text-[10px] font-black tracking-[0.14em]"
-                        style={{ backgroundColor: 'rgba(16,185,129,0.26)', color: '#ecfdf5' }}
-                      >
-                        {block.isLoopClosed ? '总部闭环已回写，当前链路已收口。' : '关键结果已回写总部，等待闭环收口。'}
                       </div>
                     )}
                     {/* 第一行：拖拽手柄 + 标签 + 时长 + 编辑按钮 - 减少下边距 */}
@@ -3486,9 +3117,9 @@ export default function NewTimelineView({
                         
                         <div className={`${isMobile ? 'text-[9px]' : 'text-xs'} opacity-90`}>
                           {block.goalText}
-                          {block.isCompleted && block.hasGoalContribution && (block.sourceBadges || []).includes('总部联动') && (
-                            <span className="ml-2 inline-flex rounded-full bg-emerald-500/30 px-2 py-0.5 text-[9px] font-bold tracking-[0.08em] text-white/95">
-                              {block.isLoopClosed ? '已闭环' : '已回写总部'}
+                          {block.isCompleted && (block.sourceBadges || []).includes('总部联动') && (
+                            <span className="ml-2 inline-flex rounded-full bg-white/20 px-2 py-0.5 text-[9px] font-bold tracking-[0.08em] text-white/95">
+                              已向总部回写完成
                             </span>
                           )}
                         </div>
@@ -4437,10 +4068,7 @@ export default function NewTimelineView({
 
             if (task) {
               const matchedGoals = getMatchedGoalsForTask(task);
-              const baseDraft = createContributionDraft(task, matchedGoals, {
-                durationMinutes: String(actualDuration),
-                note: notes || `已完成整改动作：${task.title}`,
-              });
+              const baseDraft = createContributionDraft(task, matchedGoals);
               setGoalContributionDrafts((prev) => ({
                 ...prev,
                 [task.id]: {
@@ -4449,16 +4077,7 @@ export default function NewTimelineView({
                   note: prev[task.id]?.note || notes || baseDraft.note,
                 },
               }));
-              if (activeLoop?.taskId === task.id) {
-                setGoalContributionError(null);
-                setGoalContributionSuccess('整改动作已完成，请补充关键结果回写总部。');
-                setGoalContributionTaskId(task.id);
-                setActiveLoop({
-                  ...activeLoop,
-                  taskId: task.id,
-                  taskTitle: task.title,
-                });
-              }
+              setGoalContributionTaskId(task.id);
             }
 
             setEfficiencyModalOpen(false);
@@ -4521,7 +4140,7 @@ export default function NewTimelineView({
             style={{ backgroundColor: isDark ? '#1a1a1a' : '#ffffff' }}
           >
             <h3 className="text-xl font-bold mb-4" style={{ color: textColor }}>
-              {creatingGapTask.source === 'rectification' ? '创建整改动作' : '添加任务到间隔时间'}
+              添加任务到间隔时间
             </h3>
             
             <div className="space-y-4">
@@ -4542,25 +4161,6 @@ export default function NewTimelineView({
                   （最多 {creatingGapTask.maxDuration} 分钟）
                 </div>
               </div>
-
-              {creatingGapTask.source === 'rectification' && (
-                <div
-                  className="rounded-2xl border px-4 py-4 text-sm"
-                  style={{
-                    borderColor: isDark ? 'rgba(139,92,246,0.35)' : 'rgba(139,92,246,0.22)',
-                    background: isDark ? 'linear-gradient(135deg, rgba(30,41,59,0.92), rgba(91,33,182,0.32))' : 'linear-gradient(135deg, rgba(238,242,255,0.95), rgba(243,232,255,0.92))',
-                    color: textColor,
-                  }}
-                >
-                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em]" style={{ color: '#8B5CF6' }}>
-                    <Target className="w-4 h-4" /> Rectification
-                  </div>
-                  <div className="mt-2 text-base font-semibold">这条任务会预挂到整改链路</div>
-                  <div className="mt-2 leading-6" style={{ color: isDark ? 'rgba(255,255,255,0.72)' : 'rgba(17,24,39,0.72)' }}>
-                    已自动带入目标关联、总部承诺标签和整改动作默认文案。创建后会继续打开编辑态，方便你补全细节。
-                  </div>
-                </div>
-              )}
               
               {/* 任务标题输入 */}
               <div>
@@ -4571,7 +4171,6 @@ export default function NewTimelineView({
                   type="text"
                   id="gap-task-title"
                   placeholder="例如：打扫卫生"
-                  defaultValue={creatingGapTask.title || ''}
                   className="w-full px-4 py-2 rounded-lg border-2 focus:outline-none focus:border-pink-500"
                   style={{ 
                     backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#ffffff',
@@ -4593,7 +4192,7 @@ export default function NewTimelineView({
                   placeholder="30"
                   min="1"
                   max={creatingGapTask.maxDuration}
-                  defaultValue={Math.min(45, creatingGapTask.maxDuration)}
+                  defaultValue="30"
                   className="w-full px-4 py-2 rounded-lg border-2 focus:outline-none focus:border-pink-500"
                   style={{ 
                     backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#ffffff',
@@ -4620,45 +4219,34 @@ export default function NewTimelineView({
                     const titleInput = document.getElementById('gap-task-title') as HTMLInputElement;
                     const durationInput = document.getElementById('gap-task-duration') as HTMLInputElement;
                     
-                    const title = titleInput?.value.trim() || creatingGapTask.title || '新任务';
+                    const title = titleInput?.value.trim() || '新任务';
                     const duration = Math.min(
-                      parseInt(durationInput?.value) || Math.min(45, creatingGapTask.maxDuration),
+                      parseInt(durationInput?.value) || 30,
                       creatingGapTask.maxDuration
                     );
                     
+                    // 创建任务
                     const startTime = new Date(creatingGapTask.startTime);
                     const endTime = new Date(startTime.getTime() + duration * 60000);
-                    const taskPayload: Partial<Task> = {
+                    
+                    onTaskCreate({
                       title,
-                      description: creatingGapTask.description,
                       scheduledStart: startTime.toISOString(),
                       scheduledEnd: endTime.toISOString(),
                       durationMinutes: duration,
-                      taskType: creatingGapTask.taskType || 'work',
+                      taskType: 'work',
                       status: 'pending' as const,
-                      color: creatingGapTask.color,
-                      tags: creatingGapTask.tags,
-                      longTermGoals: creatingGapTask.longTermGoals,
-                      location: creatingGapTask.location,
-                    };
-
-                    onTaskCreate(taskPayload);
-                    setPendingCreatedTaskFocus({
-                      title,
-                      startAt: startTime.getTime(),
-                      shouldOpenEdit: Boolean(creatingGapTask.openEditAfterCreate),
-                      shouldSyncLoop: creatingGapTask.source === 'rectification',
                     });
                     
                     setCreatingGapTask(null);
                   }}
                   className="flex-1 px-4 py-2 rounded-lg font-bold transition-all hover:scale-105"
                   style={{ 
-                    backgroundColor: creatingGapTask.source === 'rectification' ? '#8B5CF6' : '#C85A7C',
+                    backgroundColor: '#C85A7C',
                     color: 'white' 
                   }}
                 >
-                  {creatingGapTask.source === 'rectification' ? '创建整改动作' : '确定添加'}
+                  确定添加
                 </button>
               </div>
             </div>

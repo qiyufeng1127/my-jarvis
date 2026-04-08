@@ -4,7 +4,6 @@ import eventBus from '@/utils/eventBus';
 import { useGoalStore } from '@/stores/goalStore';
 import { useGoalContributionStore } from '@/stores/goalContributionStore';
 import { useHQBridgeStore } from '@/stores/hqBridgeStore';
-import { useNextActionStore } from '@/stores/nextActionStore';
 import { useTaskStore } from '@/stores/taskStore';
 import GoalAnalyticsView from '@/components/goals/GoalAnalyticsView';
 import GoalForm, { type GoalFormData } from '@/components/growth/GoalForm';
@@ -96,112 +95,6 @@ function getDeadlineLabel(goal: LongTermGoal) {
   return `剩余 ${diffDays} 天`;
 }
 
-function formatLoopDate(value?: string) {
-  if (!value) return '刚刚同步';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '刚刚同步';
-  return date.toLocaleString('zh-CN', {
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-}
-
-function getLoopStage(goal: LongTermGoal | null, taskStatus?: string, hasContribution?: boolean): LoopStage {
-  if (taskStatus === 'completed' && hasContribution) return 'done';
-  if (hasContribution) return 'kr';
-  if (taskStatus) return 'task';
-  if (goal) return 'goal';
-  return 'locked';
-}
-
-function getLoopStageMeta(stage: LoopStage, taskStatus?: string) {
-  if (stage === 'done') {
-    return {
-      label: '已正式闭环',
-      accent: '#34C759',
-      description: '整改动作已经完成，关键结果也已回写总部，这轮闭环已经正式收口。',
-      statusTitle: '已正式闭环',
-      statusHint: '总部已经收到关键结果，这条整改链路当前已完成收口。',
-      timelineAction: '回时间轴复盘',
-      hqAction: '回总部复盘结果',
-    };
-  }
-  if (stage === 'kr') {
-    return {
-      label: '已回写，待收口',
-      accent: '#14b8a6',
-      description: '时间轴产出已经写回目标，总部侧已收到结果，现在只差最终收口确认。',
-      statusTitle: '已回写 KR',
-      statusHint: '关键结果已经沉淀到目标分析，接下来可以回总部确认并完成收口。',
-      timelineAction: '回时间轴看回写',
-      hqAction: '回总部确认收口',
-    };
-  }
-  if (stage === 'task') {
-    return {
-      label: '待补 KR',
-      accent: '#8b5cf6',
-      description: '整改动作已经进入时间轴，现在最重要的是按时执行；做完后记得立刻补 KR。',
-      statusTitle: taskStatusToLabel(taskStatus),
-      statusHint: '任务完成后必须补 KR，避免只执行、不沉淀、不收口。',
-      timelineAction: '去时间轴执行',
-      hqAction: '回总部看问题',
-    };
-  }
-  if (stage === 'goal') {
-    return {
-      label: '待排整改动作',
-      accent: '#0A84FF',
-      description: '总部已经点名并挂上目标，下一步要把整改动作真正排进时间轴。',
-      statusTitle: '未安排',
-      statusHint: '先把动作拆进时间轴，后面才谈执行和回写。',
-      timelineAction: '去时间轴排任务',
-      hqAction: '回总部看问题',
-    };
-  }
-  return {
-    label: '仅总部锁题',
-    accent: '#FF9500',
-    description: '问题已经被总部锁定，但还没有形成完整整改闭环。',
-    statusTitle: '未安排',
-    statusHint: '先挂目标、再排任务，闭环才会真正开始。',
-    timelineAction: '去时间轴排任务',
-    hqAction: '回总部看问题',
-  };
-}
-
-function taskStatusToLabel(taskStatus?: string) {
-  if (taskStatus === 'completed') return '已完成，待补 KR';
-  if (taskStatus === 'in_progress') return '执行中';
-  if (taskStatus) return '待执行';
-  return '未安排';
-}
-
-function buildModuleAdvice(module: string, nextAction?: string, focusLabel?: string) {
-  if (module === 'timeline') {
-    return nextAction || (focusLabel
-      ? `先处理「${focusLabel}」，优先判断它现在是该执行、补细节，还是补关键结果。`
-      : '先看今天时间轴里最靠前且最关键的一条任务，把它真正推进，而不是继续泛泛规划。');
-  }
-
-  if (module === 'goals') {
-    return nextAction || (focusLabel
-      ? `先打开「${focusLabel}」看目标进度，再决定今天要拆哪一个关键结果进时间轴。`
-      : '先选一个最值得推进的目标，把它拆成今天能执行的一步。');
-  }
-
-  if (module === 'memory') {
-    return nextAction || (focusLabel
-      ? `先围绕「${focusLabel}」确认问题、承诺和缺失动作，再决定回哪个模块执行。`
-      : '先确认总部当前锁定的问题，再决定是去目标还是去时间轴补动作。');
-  }
-
-  return nextAction || '先处理当前页面最明确的一步，不要同时开太多线程。';
-}
-
 function normalizeFormData(goal?: LongTermGoal | null): GoalFormData | undefined {
   if (!goal) return undefined;
   return {
@@ -231,8 +124,6 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
   const { goals, loadGoals, createGoal, updateGoal, deleteGoal } = useGoalStore();
   const addContributionRecord = useGoalContributionStore((state) => state.addRecord);
   const activeLoop = useHQBridgeStore((state) => state.activeLoop);
-  const tasks = useTaskStore((state) => state.tasks);
-  const patchNextAction = useNextActionStore((state) => state.patchSnapshot);
   const [segment, setSegment] = useState<GoalSegment>('active');
   const [showForm, setShowForm] = useState(false);
   const [editingGoal, setEditingGoal] = useState<LongTermGoal | null>(null);
@@ -244,32 +135,16 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
   }, [loadGoals]);
 
   useEffect(() => {
-    const handleNavigate = (payload?: { module?: string; goalId?: string; action?: 'view' | 'edit' }) => {
+    const handleNavigate = (payload?: { module?: string; goalId?: string }) => {
       if (payload?.module && payload.module !== 'goals') return;
       if (!payload?.goalId) return;
 
       setLinkedGoalId(payload.goalId);
       const matchedGoal = useGoalStore.getState().goals.find((goal) => goal.id === payload.goalId)
         || (activeLoop?.goalId === payload.goalId ? goals.find((goal) => goal.id === activeLoop.goalId) : undefined);
-      if (!matchedGoal) return;
-
-      patchNextAction({
-        currentModule: 'goals',
-        goalId: payload.goalId,
-        goalName: matchedGoal.name,
-        focusLabel: matchedGoal.name,
-        suggestedAction: payload.action === 'edit' ? '继续补全这个目标配置' : '先看这个目标的进度与关键结果',
-        source: 'goals',
-      });
-
-      if (payload.action === 'edit') {
-        setSelectedGoal(null);
-        setEditingGoal(matchedGoal);
-        setShowForm(true);
-        return;
+      if (matchedGoal) {
+        setSelectedGoal(matchedGoal);
       }
-
-      setSelectedGoal(matchedGoal);
     };
 
     eventBus.on('dashboard:navigate-module', handleNavigate);
@@ -281,20 +156,6 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
   const activeGoals = useMemo(() => goals.filter((goal) => getGoalSegment(goal) === 'active'), [goals]);
   const plannedGoals = useMemo(() => goals.filter((goal) => getGoalSegment(goal) === 'planned'), [goals]);
   const expiredGoals = useMemo(() => goals.filter((goal) => getGoalSegment(goal) === 'expired'), [goals]);
-  const loopGoal = useMemo(() => {
-    if (!activeLoop?.goalId) return null;
-    return goals.find((goal) => goal.id === activeLoop.goalId) || null;
-  }, [activeLoop?.goalId, goals]);
-  const loopTask = useMemo(() => {
-    if (!activeLoop?.taskId) return null;
-    return tasks.find((task) => task.id === activeLoop.taskId) || null;
-  }, [activeLoop?.taskId, tasks]);
-  const loopHasContribution = useMemo(() => {
-    if (!activeLoop?.goalId || !activeLoop?.taskId) return false;
-    return useGoalContributionStore.getState().records.some((record) => record.goalId === activeLoop.goalId && record.taskId === activeLoop.taskId);
-  }, [activeLoop?.goalId, activeLoop?.taskId]);
-  const loopStage = getLoopStage(loopGoal, loopTask?.status, loopHasContribution);
-  const loopStageMeta = getLoopStageMeta(loopStage, loopTask?.status);
 
   const groupedGoals: GoalCardGroup[] = [
     { key: 'active', title: '正在进行', emptyText: '还没有正在推进的目标，先创建一个开始吧。', goals: activeGoals },
@@ -302,104 +163,8 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
     { key: 'expired', title: '已经过去', emptyText: '暂无已过期或已归档目标。', goals: expiredGoals },
   ];
 
-  const nextActionSnapshot = useNextActionStore((state) => state.snapshot);
   const currentGroup = groupedGoals.find((group) => group.key === segment) ?? groupedGoals[0];
   const totalHours = Math.round(goals.reduce((sum, goal) => sum + (goal.estimatedTotalHours || 0), 0) * 10) / 10;
-  const suggestedFocusGoal = useMemo(() => {
-    if (loopGoal) return loopGoal;
-    if (nextActionSnapshot?.goalId) {
-      const matched = goals.find((goal) => goal.id === nextActionSnapshot.goalId);
-      if (matched) return matched;
-    }
-    return activeGoals
-      .slice()
-      .sort((a, b) => getGoalProgress(a) - getGoalProgress(b))[0] || null;
-  }, [activeGoals, goals, loopGoal, nextActionSnapshot?.goalId]);
-  const suggestedFocusTask = useMemo(() => {
-    if (loopTask) return loopTask;
-    if (!suggestedFocusGoal) return null;
-    return tasks.find((task) => task.longTermGoals && task.longTermGoals[suggestedFocusGoal.id]);
-  }, [loopTask, suggestedFocusGoal, tasks]);
-  const goalAdvice = buildModuleAdvice(
-    'goals',
-    nextActionSnapshot?.currentModule === 'goals' ? nextActionSnapshot.suggestedAction : undefined,
-    suggestedFocusGoal?.name || nextActionSnapshot?.focusLabel
-  );
-  const suggestedTaskStatusLabel = suggestedFocusTask
-    ? suggestedFocusTask.status === 'completed'
-      ? '已完成，待回写'
-      : suggestedFocusTask.status === 'in_progress'
-        ? '执行中'
-        : '待开始'
-    : '尚未创建';
-  const suggestionSourceLabel = loopGoal
-    ? '总部闭环'
-    : nextActionSnapshot?.source === 'timeline'
-      ? '时间轴回流'
-      : nextActionSnapshot?.source === 'ai'
-        ? 'AI 判断'
-        : nextActionSnapshot?.source === 'hq'
-          ? '总部判断'
-          : '目标页判断';
-
-  const handleOpenSuggestedGoal = () => {
-    if (!suggestedFocusGoal) return;
-    patchNextAction({
-      currentModule: 'goals',
-      goalId: suggestedFocusGoal.id,
-      goalName: suggestedFocusGoal.name,
-      taskId: suggestedFocusTask?.id,
-      taskTitle: suggestedFocusTask?.title,
-      focusLabel: suggestedFocusGoal.name,
-      suggestedAction: goalAdvice,
-      source: 'goals',
-    });
-    setLinkedGoalId(suggestedFocusGoal.id);
-    setSelectedGoal(suggestedFocusGoal);
-  };
-
-  const handleNavigateSuggestedTask = () => {
-    patchNextAction({
-      currentModule: 'timeline',
-      goalId: suggestedFocusGoal?.id,
-      goalName: suggestedFocusGoal?.name,
-      taskId: suggestedFocusTask?.id,
-      taskTitle: suggestedFocusTask?.title,
-      focusLabel: suggestedFocusTask?.title || suggestedFocusGoal?.name || '目标推进动作',
-      suggestedAction: suggestedFocusTask
-        ? suggestedFocusTask.status === 'completed'
-          ? '先补关键结果，再确认这条动作是否真正推进目标'
-          : '先执行这条任务，完成后记得补关键结果'
-        : '把这个目标拆成一条今天就能执行的时间轴任务',
-      source: 'goals',
-    });
-    eventBus.emit('dashboard:navigate-module', {
-      module: 'timeline',
-      taskId: suggestedFocusTask?.id,
-      goalId: suggestedFocusGoal?.id,
-      goalName: suggestedFocusGoal?.name,
-    });
-  };
-
-  const handleNavigateSuggestedHQ = () => {
-    patchNextAction({
-      currentModule: 'memory',
-      goalId: suggestedFocusGoal?.id,
-      goalName: suggestedFocusGoal?.name,
-      taskId: suggestedFocusTask?.id,
-      taskTitle: suggestedFocusTask?.title,
-      focusLabel: activeLoop?.painLabel || suggestedFocusGoal?.name || '目标问题',
-      suggestedAction: suggestedFocusTask?.status === 'completed'
-        ? '回总部确认这轮动作是否已经真正收口'
-        : '回总部确认这条目标链路的问题、承诺和缺失动作',
-      source: 'goals',
-    });
-    eventBus.emit('dashboard:navigate-module', {
-      module: 'memory',
-      goalId: suggestedFocusGoal?.id,
-      taskId: suggestedFocusTask?.id,
-    });
-  };
 
   const handleSaveGoal = (formData: GoalFormData) => {
     const payload = {
@@ -469,58 +234,6 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
     });
 
     setSegment(getGoalSegment(duplicatedGoal));
-  };
-
-  const handleOpenLoopGoal = () => {
-    if (!loopGoal) return;
-    patchNextAction({
-      currentModule: 'goals',
-      goalId: loopGoal.id,
-      goalName: loopGoal.name,
-      taskId: activeLoop?.taskId,
-      taskTitle: activeLoop?.taskTitle,
-      focusLabel: loopGoal.name,
-      suggestedAction: '查看目标分析，确认这轮整改是否真正推进目标',
-      source: 'goals',
-    });
-    setLinkedGoalId(loopGoal.id);
-    setSelectedGoal(loopGoal);
-  };
-
-  const handleNavigateLoopTask = () => {
-    if (!activeLoop?.taskId) return;
-    patchNextAction({
-      currentModule: 'timeline',
-      goalId: activeLoop.goalId,
-      goalName: activeLoop.goalName,
-      taskId: activeLoop.taskId,
-      taskTitle: activeLoop.taskTitle,
-      focusLabel: activeLoop.taskTitle || activeLoop.goalName || '整改任务',
-      suggestedAction: '回到时间轴继续执行或补关键结果',
-      source: 'goals',
-    });
-    eventBus.emit('dashboard:navigate-module', {
-      module: 'timeline',
-      taskId: activeLoop.taskId,
-    });
-  };
-
-  const handleNavigateHQ = () => {
-    patchNextAction({
-      currentModule: 'memory',
-      goalId: activeLoop?.goalId,
-      goalName: activeLoop?.goalName,
-      taskId: activeLoop?.taskId,
-      taskTitle: activeLoop?.taskTitle,
-      focusLabel: activeLoop?.painLabel || activeLoop?.goalName || '整改问题',
-      suggestedAction: '回总部确认问题、承诺和闭环状态',
-      source: 'goals',
-    });
-    eventBus.emit('dashboard:navigate-module', {
-      module: 'memory',
-      goalId: activeLoop?.goalId,
-      taskId: activeLoop?.taskId,
-    });
   };
 
   const handleInjectPreviewGoal = () => {
@@ -733,95 +446,6 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
             </div>
           </div>
 
-          {activeLoop && (
-            <div
-              className="mb-4 overflow-hidden rounded-[28px] border"
-              style={{
-                background: 'linear-gradient(135deg, rgba(17,24,39,0.98), rgba(37,99,235,0.94) 55%, rgba(20,184,166,0.88))',
-                borderColor: 'rgba(255,255,255,0.14)',
-                boxShadow: '0 18px 36px rgba(15,23,42,0.16)',
-              }}
-            >
-              <div className="px-4 py-4 text-white">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-[11px] font-black tracking-[0.24em] text-white/70">RECTIFICATION LOOP</div>
-                    <div className="mt-1 text-[22px] font-semibold tracking-[-0.04em]">整改推进面板</div>
-                    <div className="mt-2 inline-flex items-center rounded-full px-3 py-1 text-xs font-black"
-                      style={{ backgroundColor: `${loopStageMeta.accent}33`, color: '#ffffff' }}
-                    >
-                      {loopStageMeta.label}
-                    </div>
-                  </div>
-                  <div className="rounded-[18px] border px-3 py-2 text-right" style={{ borderColor: 'rgba(255,255,255,0.16)', backgroundColor: 'rgba(255,255,255,0.08)' }}>
-                    <div className="text-[11px] text-white/65">最近同步</div>
-                    <div className="mt-1 text-sm font-semibold text-white">{formatLoopDate(activeLoop.lastUpdatedAt)}</div>
-                  </div>
-                </div>
-
-                <div className="mt-4 rounded-[22px] border px-4 py-4" style={{ borderColor: 'rgba(255,255,255,0.14)', backgroundColor: 'rgba(255,255,255,0.07)' }}>
-                  <div className="flex items-center gap-2 text-sm font-semibold text-white/85">
-                    <Target className="h-4 w-4" /> 总部锁定问题
-                  </div>
-                  <div className="mt-2 text-lg font-semibold text-white">{activeLoop.painLabel || '整改主线待确认'}</div>
-                  <div className="mt-2 text-sm leading-6 text-white/72">{loopStageMeta.description}</div>
-                </div>
-
-                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <div className="rounded-[20px] px-4 py-4" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
-                    <div className="text-xs font-semibold text-white/62">整改目标</div>
-                    <div className="mt-2 text-sm font-semibold text-white">{activeLoop.goalName || '尚未挂载目标'}</div>
-                    <div className="mt-2 text-xs text-white/65">{loopGoal ? `当前进度 ${getGoalProgress(loopGoal)}%` : '等待总部挂到目标组件'}</div>
-                  </div>
-                  <div className="rounded-[20px] px-4 py-4" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
-                    <div className="text-xs font-semibold text-white/62">整改任务</div>
-                    <div className="mt-2 text-sm font-semibold text-white">{activeLoop.taskTitle || '尚未排入时间轴'}</div>
-                    <div className="mt-2 text-xs text-white/65">{loopTask?.scheduledStart ? `计划 ${new Date(loopTask.scheduledStart).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}` : '等待形成动作安排'}</div>
-                  </div>
-                  <div className="rounded-[20px] px-4 py-4" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
-                    <div className="text-xs font-semibold text-white/62">执行状态</div>
-                    <div className="mt-2 text-sm font-semibold text-white">{loopStageMeta.statusTitle}</div>
-                    <div className="mt-2 text-xs text-white/65">{loopStageMeta.statusHint}</div>
-                  </div>
-                </div>
-
-                <div className="mt-3 rounded-[22px] px-4 py-4" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
-                  <div className="flex items-center gap-2 text-sm font-semibold text-white/85">
-                    <Clock3 className="h-4 w-4" /> 最近承诺
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-white/78">
-                    {activeLoop.promise || '这轮整改还没有沉淀出明确承诺文案。'}
-                  </div>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button
-                    onClick={handleOpenLoopGoal}
-                    disabled={!loopGoal}
-                    className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#111827] transition active:scale-95 disabled:opacity-45"
-                  >
-                    查看目标分析 <ArrowRight className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={handleNavigateLoopTask}
-                    disabled={!activeLoop.taskId}
-                    className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold text-white transition active:scale-95 disabled:opacity-45"
-                    style={{ borderColor: 'rgba(255,255,255,0.24)', backgroundColor: 'rgba(255,255,255,0.06)' }}
-                  >
-                    {loopStageMeta.timelineAction} <ArrowRight className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={handleNavigateHQ}
-                    className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold text-white transition active:scale-95"
-                    style={{ borderColor: 'rgba(255,255,255,0.18)', backgroundColor: 'transparent' }}
-                  >
-                    {loopStageMeta.hqAction} <ArrowRight className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
           <div className="grid grid-cols-3 gap-2 rounded-[22px] p-1" style={{ background: subSurface }}>
             {groupedGoals.map((group) => {
               const active = segment === group.key;
@@ -856,118 +480,6 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
               <div className="mt-2 text-xl font-semibold" style={{ color: textPrimary }}>{totalHours}h</div>
             </div>
           </div>
-
-          <div
-            className="mt-4 overflow-hidden rounded-[28px] border"
-            style={{
-              borderColor: isDark ? 'rgba(20,184,166,0.22)' : 'rgba(10,132,255,0.16)',
-              background: isDark
-                ? 'linear-gradient(135deg, rgba(17,24,39,0.98), rgba(8,145,178,0.30) 58%, rgba(20,184,166,0.22))'
-                : 'linear-gradient(135deg, rgba(10,132,255,0.10), rgba(20,184,166,0.08) 55%, rgba(255,255,255,0.82))',
-              boxShadow: isDark
-                ? '0 16px 34px rgba(15,23,42,0.18)'
-                : '0 16px 34px rgba(10,132,255,0.08)',
-            }}
-          >
-            <div className="px-4 py-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-[11px] font-black tracking-[0.22em]" style={{ color: '#0A84FF' }}>AI NEXT MOVE</div>
-                  <div className="mt-1 text-[22px] font-semibold tracking-[-0.04em]" style={{ color: textPrimary }}>目标页下一步</div>
-                  <div className="mt-2 text-sm leading-6" style={{ color: textSecondary }}>{goalAdvice}</div>
-                </div>
-                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#0A84FF] text-white shadow-[0_10px_24px_rgba(10,132,255,0.22)]">
-                  <Sparkles className="h-5 w-5" />
-                </div>
-              </div>
-
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <div
-                  className="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-black tracking-[0.14em]"
-                  style={{
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.74)',
-                    color: isDark ? 'rgba(255,255,255,0.88)' : '#0A84FF',
-                  }}
-                >
-                  建议来源 · {suggestionSourceLabel}
-                </div>
-                <div
-                  className="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold"
-                  style={{
-                    backgroundColor: suggestedFocusTask?.status === 'completed'
-                      ? 'rgba(52,199,89,0.16)'
-                      : suggestedFocusTask?.status === 'in_progress'
-                        ? 'rgba(255,149,0,0.16)'
-                        : 'rgba(10,132,255,0.12)',
-                    color: suggestedFocusTask?.status === 'completed'
-                      ? '#34C759'
-                      : suggestedFocusTask?.status === 'in_progress'
-                        ? '#FF9500'
-                        : '#0A84FF',
-                  }}
-                >
-                  动作状态 · {suggestedTaskStatusLabel}
-                </div>
-              </div>
-
-              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="rounded-[20px] px-4 py-4" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.72)' }}>
-                  <div className="text-xs font-semibold" style={{ color: textSecondary }}>建议优先目标</div>
-                  <div className="mt-2 text-base font-semibold" style={{ color: textPrimary }}>
-                    {suggestedFocusGoal?.name || '先选一个当前最重要的目标'}
-                  </div>
-                  <div className="mt-2 text-sm" style={{ color: textSecondary }}>
-                    {suggestedFocusGoal
-                      ? `当前进度 ${getGoalProgress(suggestedFocusGoal)}%，现在更适合围绕它继续收口，而不是再开新目标。`
-                      : '你还没有明确的焦点目标，先创建或点开一个目标更合适。'}
-                  </div>
-                </div>
-                <div className="rounded-[20px] px-4 py-4" style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.72)' }}>
-                  <div className="text-xs font-semibold" style={{ color: textSecondary }}>建议落地动作</div>
-                  <div className="mt-2 text-base font-semibold" style={{ color: textPrimary }}>
-                    {suggestedFocusTask?.title || '把目标拆成一条时间轴任务'}
-                  </div>
-                  <div className="mt-2 text-sm" style={{ color: textSecondary }}>
-                    {suggestedFocusTask
-                      ? suggestedFocusTask.status === 'completed'
-                        ? '这条动作已经完成了，下一步不是重做，而是补关键结果并确认是否收口。'
-                        : suggestedFocusTask.status === 'in_progress'
-                          ? '动作已经在推进中，最重要的是继续执行，不要跳走。'
-                          : '动作已经挂上了，建议直接回时间轴把它真正开始。'
-                      : '如果还没排进时间轴，建议现在就创建一条能在今天执行的动作。'}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  onClick={handleOpenSuggestedGoal}
-                  disabled={!suggestedFocusGoal}
-                  className="inline-flex items-center gap-2 rounded-full bg-[#111827] px-4 py-2 text-sm font-semibold text-white transition active:scale-95 disabled:opacity-45"
-                >
-                  打开目标分析 <ArrowRight className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={handleNavigateSuggestedTask}
-                  className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition active:scale-95"
-                  style={{ borderColor: 'rgba(10,132,255,0.22)', color: '#0A84FF', backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.72)' }}
-                >
-                  去时间轴推进 <ArrowRight className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={handleNavigateSuggestedHQ}
-                  className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition active:scale-95"
-                  style={{
-                    borderColor: isDark ? 'rgba(255,255,255,0.16)' : 'rgba(17,24,39,0.10)',
-                    color: isDark ? '#ffffff' : '#111827',
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.68)',
-                  }}
-                >
-                  去总部收口 <ArrowRight className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
 
         <div className="space-y-3">
@@ -996,21 +508,7 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
                   key={goal.id}
                   className="rounded-[30px] px-4 py-4 shadow-[0_14px_40px_rgba(15,23,42,0.06)] cursor-pointer"
                   style={{ background: surface }}
-                  onClick={() => {
-                patchNextAction({
-                  currentModule: 'goals',
-                  goalId: goal.id,
-                  goalName: goal.name,
-                  taskId: activeLoop?.taskId,
-                  taskTitle: activeLoop?.taskTitle,
-                  focusLabel: goal.name,
-                  suggestedAction: linkedGoalId === goal.id
-                    ? '这是当前联动焦点，优先看它的分析与关键结果'
-                    : '查看这个目标的进度与关键结果',
-                  source: 'goals',
-                });
-                setSelectedGoal(goal);
-              }}
+                  onClick={() => setSelectedGoal(goal)}
                 >
                   <div className="flex items-center gap-4">
                     <div

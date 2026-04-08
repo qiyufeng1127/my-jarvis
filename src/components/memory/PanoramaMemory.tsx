@@ -11,7 +11,6 @@ import eventBus from '@/utils/eventBus';
 import { useGoalStore } from '@/stores/goalStore';
 import { useTaskStore } from '@/stores/taskStore';
 import { useHQBridgeStore } from '@/stores/hqBridgeStore';
-import { useNextActionStore } from '@/stores/nextActionStore';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
 import { useAIStore } from '@/stores/aiStore';
 import AIConfigModal from '@/components/ai/AIConfigModal';
@@ -152,8 +151,6 @@ export default function PanoramaMemory({ bgColor = '#ffffff' }: PanoramaMemoryPr
   const { isConfigured, chat } = useAIStore();
   const activeLoop = useHQBridgeStore((state) => state.activeLoop);
   const setActiveLoop = useHQBridgeStore((state) => state.setActiveLoop);
-  const nextActionSnapshot = useNextActionStore((state) => state.snapshot);
-  const patchNextAction = useNextActionStore((state) => state.patchSnapshot);
 
   const [stage, setStage] = useState<SessionStage>('loading');
   const [inputValue, setInputValue] = useState('');
@@ -703,94 +700,7 @@ ${reportData.painFocus.question}`;
     }
     return tasks.find((task) => (task.tags || []).includes('总部承诺')) || null;
   }, [activeLoop?.taskId, commitmentSyncResult?.taskId, tasks]);
-  const linkedCommitmentGoal = useMemo(() => {
-    const preferredGoalId = commitmentSyncResult?.goalId || activeLoop?.goalId || nextActionSnapshot?.goalId;
-    if (preferredGoalId) {
-      return goals.find((goal) => goal.id === preferredGoalId) || null;
-    }
-    return goals.find((goal) => goal.isActive && !goal.isCompleted) || goals[0] || null;
-  }, [activeLoop?.goalId, commitmentSyncResult?.goalId, goals, nextActionSnapshot?.goalId]);
   const isCommitmentTaskCompleted = linkedCommitmentTask?.status === 'completed';
-  const memoryAdvice = activeLoop?.painLabel
-    ? `总部已经锁定「${activeLoop.painLabel}」，现在不要再泛泛聊感受，先把它推进到目标或时间轴。`
-    : linkedCommitmentTask?.status === 'completed'
-      ? '这轮整改动作已经完成，下一步优先回看目标推进和最终收口，不要停在“做完了”。'
-      : linkedCommitmentTask?.status === 'in_progress'
-        ? `整改动作「${linkedCommitmentTask.title}」正在执行中，总部现在最关心的是它能不能真正收口。`
-        : linkedCommitmentTask
-          ? `总部已经看到整改动作「${linkedCommitmentTask.title}」，下一步是盯执行和回写，而不是继续追问。`
-          : linkedCommitmentGoal
-            ? `先把「${linkedCommitmentGoal.name}」拆成一条真正可执行的时间轴动作，否则总部结论只会停在纸面。`
-            : '先从总部当前最严重的问题里，挑出一条真正要推进的主线，不要同时开多个整改线程。';
-  const memorySuggestionSource = activeLoop
-    ? '总部锁题'
-    : nextActionSnapshot?.source === 'goals'
-      ? '目标页回流'
-      : nextActionSnapshot?.source === 'timeline'
-        ? '时间轴回流'
-        : nextActionSnapshot?.source === 'ai'
-          ? 'AI 判断'
-          : '总部判断';
-  const memoryTaskStatus = linkedCommitmentTask
-    ? linkedCommitmentTask.status === 'completed'
-      ? '已完成，待收口'
-      : linkedCommitmentTask.status === 'in_progress'
-        ? '执行中'
-        : '待开始'
-    : '尚未排整改动作';
-  const handleOpenMemoryGoal = () => {
-    patchNextAction({
-      currentModule: 'goals',
-      goalId: linkedCommitmentGoal?.id,
-      goalName: linkedCommitmentGoal?.name,
-      taskId: linkedCommitmentTask?.id,
-      taskTitle: linkedCommitmentTask?.title,
-      focusLabel: linkedCommitmentGoal?.name || activeLoop?.painLabel || '整改目标',
-      suggestedAction: linkedCommitmentTask?.status === 'completed'
-        ? '回目标确认这轮整改到底推进了什么结果'
-        : '先在目标页确认主线目标，再决定整改动作是否足够聚焦',
-      source: 'hq',
-    });
-    eventBus.emit('dashboard:navigate-module', {
-      module: 'goals',
-      goalId: linkedCommitmentGoal?.id,
-      taskId: linkedCommitmentTask?.id,
-    });
-  };
-  const handleOpenMemoryTimeline = () => {
-    patchNextAction({
-      currentModule: 'timeline',
-      goalId: linkedCommitmentGoal?.id,
-      goalName: linkedCommitmentGoal?.name,
-      taskId: linkedCommitmentTask?.id,
-      taskTitle: linkedCommitmentTask?.title,
-      focusLabel: linkedCommitmentTask?.title || linkedCommitmentGoal?.name || activeLoop?.painLabel || '整改动作',
-      suggestedAction: linkedCommitmentTask
-        ? linkedCommitmentTask.status === 'completed'
-          ? '先补关键结果，再回总部确认是否真正收口'
-          : '先把这条整改动作执行完，别继续停留在汇报层'
-        : '现在就把整改动作排进时间轴，不要只停在承诺',
-      source: 'hq',
-    });
-    eventBus.emit('dashboard:navigate-module', {
-      module: 'timeline',
-      goalId: linkedCommitmentGoal?.id,
-      taskId: linkedCommitmentTask?.id,
-    });
-  };
-  const handleFocusCurrentLoop = () => {
-    patchNextAction({
-      currentModule: 'memory',
-      goalId: linkedCommitmentGoal?.id,
-      goalName: linkedCommitmentGoal?.name,
-      taskId: linkedCommitmentTask?.id,
-      taskTitle: linkedCommitmentTask?.title,
-      focusLabel: activeLoop?.painLabel || linkedCommitmentGoal?.name || linkedCommitmentTask?.title || '总部主抓问题',
-      suggestedAction: memoryAdvice,
-      source: 'hq',
-    });
-  };
-
   const quickBridgeCards = useMemo<QuickBridgeCard[]>(() => {
     const topGoal = goals.find((goal) => goal.isActive && !goal.isCompleted) || goals[0];
     const topTask = linkedCommitmentTask || reportData.delayedTasks[0] || tasks.find((task) => task.status !== 'completed') || tasks[0];
@@ -1069,117 +979,6 @@ ${reportData.painFocus.question}`;
                     boxShadow: '0 18px 38px rgba(72, 46, 22, 0.08)',
                   }}
                 >
-                  <div className="mb-3 flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-[11px] font-black tracking-[0.22em]" style={{ color: '#8c6a43' }}>
-                        HQ NEXT MOVE
-                      </div>
-                      <div className="mt-1 text-base font-black" style={{ color: '#23160d' }}>
-                        总部下一步
-                      </div>
-                      <div className="mt-2 text-sm leading-6" style={{ color: '#6b5642' }}>
-                        {memoryAdvice}
-                      </div>
-                    </div>
-                    <div
-                      className="flex h-11 w-11 items-center justify-center rounded-full text-white shadow-[0_10px_24px_rgba(35,22,13,0.18)]"
-                      style={{ backgroundColor: '#23160d' }}
-                    >
-                      <span className="text-lg font-black">HQ</span>
-                    </div>
-                  </div>
-
-                  <div className="mb-4 flex flex-wrap gap-2">
-                    <div
-                      className="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-black tracking-[0.14em]"
-                      style={{ backgroundColor: '#f2e8d9', color: '#8b6740' }}
-                    >
-                      建议来源 · {memorySuggestionSource}
-                    </div>
-                    <div
-                      className="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold"
-                      style={{
-                        backgroundColor: linkedCommitmentTask?.status === 'completed'
-                          ? 'rgba(52,199,89,0.14)'
-                          : linkedCommitmentTask?.status === 'in_progress'
-                            ? 'rgba(255,149,0,0.14)'
-                            : 'rgba(35,22,13,0.08)',
-                        color: linkedCommitmentTask?.status === 'completed'
-                          ? '#34C759'
-                          : linkedCommitmentTask?.status === 'in_progress'
-                            ? '#FF9500'
-                            : '#6b5642',
-                      }}
-                    >
-                      整改动作 · {memoryTaskStatus}
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div
-                      className="rounded-[22px] border px-4 py-4"
-                      style={{ backgroundColor: '#fcf8f1', borderColor: 'rgba(86,62,39,0.10)' }}
-                    >
-                      <div className="text-xs font-semibold" style={{ color: '#8b6740' }}>整改目标</div>
-                      <div className="mt-2 text-base font-black" style={{ color: '#23160d' }}>
-                        {linkedCommitmentGoal?.name || '先确定整改目标'}
-                      </div>
-                      <div className="mt-2 text-sm leading-6" style={{ color: '#6b5642' }}>
-                        {linkedCommitmentGoal
-                          ? '总部建议先围绕这条目标收拢动作，避免问题拆散后失焦。'
-                          : '还没有稳定目标落点时，总部结论无法真正进入执行闭环。'}
-                      </div>
-                    </div>
-                    <div
-                      className="rounded-[22px] border px-4 py-4"
-                      style={{ backgroundColor: '#fcf8f1', borderColor: 'rgba(86,62,39,0.10)' }}
-                    >
-                      <div className="text-xs font-semibold" style={{ color: '#8b6740' }}>整改动作</div>
-                      <div className="mt-2 text-base font-black" style={{ color: '#23160d' }}>
-                        {linkedCommitmentTask?.title || '先排一条时间轴动作'}
-                      </div>
-                      <div className="mt-2 text-sm leading-6" style={{ color: '#6b5642' }}>
-                        {linkedCommitmentTask
-                          ? linkedCommitmentTask.status === 'completed'
-                            ? '动作已经做完了，下一步是确认有没有真正回写和收口。'
-                            : '总部只认动作落地，别让整改停在“我知道了”。'
-                          : '如果总部已经问出承诺，下一步就应该进入时间轴，而不是继续空转。'}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <button
-                      onClick={handleFocusCurrentLoop}
-                      className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-bold transition active:scale-95"
-                      style={{ borderColor: '#d9c4a5', color: '#5e4326', backgroundColor: '#f8f1e6' }}
-                    >
-                      锁定总部主抓问题
-                    </button>
-                    <button
-                      onClick={handleOpenMemoryGoal}
-                      className="inline-flex items-center gap-2 rounded-full bg-[#23160d] px-4 py-2 text-sm font-bold text-[#f7efe1] transition active:scale-95"
-                    >
-                      去目标收主线
-                    </button>
-                    <button
-                      onClick={handleOpenMemoryTimeline}
-                      className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-bold transition active:scale-95"
-                      style={{ borderColor: '#d9c4a5', color: '#5e4326', backgroundColor: '#fffaf2' }}
-                    >
-                      去时间轴落动作
-                    </button>
-                  </div>
-                </div>
-
-                <div
-                  className="rounded-[28px] border p-4 md:p-5"
-                  style={{
-                    background: 'rgba(255,255,255,0.92)',
-                    borderColor: 'rgba(86, 62, 39, 0.12)',
-                    boxShadow: '0 18px 38px rgba(72, 46, 22, 0.08)',
-                  }}
-                >
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div>
                       <div className="text-base font-black" style={{ color: '#23160d' }}>
@@ -1268,29 +1067,7 @@ ${reportData.painFocus.question}`;
                     {quickBridgeCards.map((card) => (
                       <button
                         key={card.id}
-                        onClick={() => {
-                          patchNextAction({
-                            currentModule: card.module,
-                            goalId: card.payload.goalId,
-                            taskId: card.payload.taskId,
-                            goalName: card.module === 'goals' ? (linkedCommitmentGoal?.name || nextActionSnapshot?.goalName) : (linkedCommitmentGoal?.name || nextActionSnapshot?.goalName),
-                            taskTitle: card.module === 'timeline' ? (linkedCommitmentTask?.title || nextActionSnapshot?.taskTitle) : (linkedCommitmentTask?.title || nextActionSnapshot?.taskTitle),
-                            focusLabel: card.module === 'memory'
-                              ? (activeLoop?.painLabel || reportData.painFocus.label)
-                              : card.module === 'goals'
-                                ? (linkedCommitmentGoal?.name || reportData.painFocus.label)
-                                : (linkedCommitmentTask?.title || linkedCommitmentGoal?.name || reportData.painFocus.label),
-                            suggestedAction: card.module === 'memory'
-                              ? memoryAdvice
-                              : card.module === 'goals'
-                                ? '回目标页确认这轮整改到底推进了什么'
-                                : linkedCommitmentTask?.status === 'completed'
-                                  ? '先补关键结果，再回总部确认收口'
-                                  : '先执行这条整改动作，不要只停在汇报',
-                            source: 'hq',
-                          });
-                          eventBus.emit(card.event, card.payload);
-                        }}
+                        onClick={() => eventBus.emit(card.event, card.payload)}
                         className="rounded-[22px] border px-4 py-4 text-left transition-transform duration-150 hover:-translate-y-[2px]"
                         style={{
                           background: `linear-gradient(135deg, ${card.accent}14, rgba(255,255,255,0.94))`,

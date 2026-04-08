@@ -1,12 +1,9 @@
 import { useMemo, useState } from 'react';
-import { ArrowRight, BarChart3, CalendarClock, ChevronLeft, Clock3, Flame, Link2, Target, TrendingUp } from 'lucide-react';
-import eventBus from '@/utils/eventBus';
+import { BarChart3, CalendarClock, ChevronLeft, Clock3, Flame, TrendingUp } from 'lucide-react';
 import { useGoalContributionStore, type GoalContributionRecord } from '@/stores/goalContributionStore';
 import { useTaskHistoryStore } from '@/stores/taskHistoryStore';
 import { useGoalStore } from '@/stores/goalStore';
-import { useHQBridgeStore } from '@/stores/hqBridgeStore';
-import { useTaskStore } from '@/stores/taskStore';
-import type { LongTermGoal, TaskStatus } from '@/types';
+import type { LongTermGoal } from '@/types';
 
 interface GoalAnalyticsViewProps {
   goal: LongTermGoal;
@@ -48,69 +45,12 @@ interface ContributionEditorDraft {
   values: Record<string, number>;
 }
 
-type AnalyticsLoopStage = 'locked' | 'goal' | 'task' | 'kr' | 'done';
-
-function getAnalyticsLoopStage(taskStatus?: TaskStatus, hasContribution?: boolean): AnalyticsLoopStage {
-  if (taskStatus === 'completed') return 'done';
-  if (hasContribution) return 'kr';
-  if (taskStatus) return 'task';
-  return 'goal';
-}
-
-function getAnalyticsLoopMeta(stage: AnalyticsLoopStage) {
-  if (stage === 'done') {
-    return {
-      label: '已执行收口',
-      accent: '#34c759',
-      description: '整改动作已经执行完成，这一轮闭环已经进入收口阶段。',
-      actionLabel: '回总部复盘',
-    };
-  }
-  if (stage === 'kr') {
-    return {
-      label: '已补关键结果',
-      accent: '#14b8a6',
-      description: '时间轴产出已经沉淀回目标，下一步重点是确认是否完成最终收口。',
-      actionLabel: '去时间轴核对',
-    };
-  }
-  if (stage === 'task') {
-    return {
-      label: '已排入时间轴',
-      accent: '#8b5cf6',
-      description: '整改动作已经进入时间轴，当前要盯执行进度并提醒补 KR。',
-      actionLabel: '去时间轴执行',
-    };
-  }
-  return {
-    label: '已挂整改目标',
-    accent: '#0A84FF',
-    description: '总部已经把问题挂到了目标上，现在要尽快形成具体整改动作。',
-    actionLabel: '去时间轴排动作',
-  };
-}
-
-function formatLoopSyncLabel(value?: string) {
-  if (!value) return '刚刚同步';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '刚刚同步';
-  return date.toLocaleString('zh-CN', {
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-}
-
 export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewProps) {
   const liveGoal = useGoalStore((state) => state.getGoalById(goal.id) ?? goal);
   const contributionRecords = useGoalContributionStore((state) => state.getRecordsByGoalId(goal.id));
   const updateContributionRecord = useGoalContributionStore((state) => state.updateRecord);
   const taskHistoryRecords = useTaskHistoryStore((state) => state.records);
   const updateGoal = useGoalStore((state) => state.updateGoal);
-  const activeLoop = useHQBridgeStore((state) => state.activeLoop);
-  const tasks = useTaskStore((state) => state.tasks);
   const [selectedRecord, setSelectedRecord] = useState<GoalContributionRecord | null>(null);
   const [editorDraft, setEditorDraft] = useState<ContributionEditorDraft | null>(null);
 
@@ -129,28 +69,6 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
 
   const idealProgress = useMemo(() => getIdealProgress(liveGoal), [liveGoal]);
 
-  const loopTask = useMemo(() => {
-    if (!activeLoop?.taskId) return null;
-    return tasks.find((task) => task.id === activeLoop.taskId) || null;
-  }, [activeLoop?.taskId, tasks]);
-
-  const isLinkedLoopGoal = activeLoop?.goalId === liveGoal.id;
-
-  const linkedContributionRecords = useMemo(() => {
-    if (!activeLoop?.taskId) return [];
-    return contributionRecords.filter((record) => record.taskId === activeLoop.taskId);
-  }, [activeLoop?.taskId, contributionRecords]);
-
-  const linkedContributionValue = useMemo(
-    () => linkedContributionRecords.reduce((sum, record) => sum + record.dimensionResults.reduce((acc, item) => acc + item.value, 0), 0),
-    [linkedContributionRecords]
-  );
-
-  const loopStage = isLinkedLoopGoal
-    ? getAnalyticsLoopStage(loopTask?.status, linkedContributionRecords.length > 0)
-    : null;
-  const loopMeta = loopStage ? getAnalyticsLoopMeta(loopStage) : null;
-
   const totalMinutes = useMemo(
     () => contributionRecords.reduce((sum, item) => sum + item.durationMinutes, 0),
     [contributionRecords]
@@ -162,6 +80,11 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
       keywords.some((keyword) => record.taskTitle.includes(keyword) || record.tags.some((tag) => tag.includes(keyword)))
     );
   }, [liveGoal, taskHistoryRecords]);
+
+  const totalContributionValue = useMemo(
+    () => contributionRecords.reduce((sum, record) => sum + record.dimensionResults.reduce((acc, item) => acc + item.value, 0), 0),
+    [contributionRecords]
+  );
 
   const totalIncome = useMemo(() => {
     if (!liveGoal.targetIncome || !liveGoal.targetValue) return liveGoal.currentIncome || 0;
@@ -302,7 +225,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
         idealCumulative: filledEntries.length > 1 ? Number((((index + 1) / filledEntries.length) * finalCumulative).toFixed(2)) : finalCumulative,
       };
     });
-  }, [contributionRecords, matchedHistory, goal.estimatedTotalHours, liveGoal.targetIncome, liveGoal.targetValue]);
+  }, [contributionRecords, matchedHistory, liveGoal.estimatedTotalHours, liveGoal.targetIncome, liveGoal.targetValue]);
 
   const maxActual = Math.max(...chartPoints.map((item) => item.actual), 1);
   const maxDuration = Math.max(...chartPoints.map((item) => item.duration), 1);
@@ -354,27 +277,6 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
     { label: '当前投产比', value: totalMinutes > 0 ? `${currentEfficiency.toFixed(2)}%/h` : '--', tone: efficiencyTone },
     { label: '理想投产比', value: totalMinutes > 0 ? `${idealEfficiency.toFixed(2)}%/h` : '--', tone: efficiencyTone },
   ];
-
-  const handleNavigateLoopTask = () => {
-    eventBus.emit('dashboard:navigate-module', {
-      module: 'timeline',
-      taskId: activeLoop?.taskId,
-      createRectificationTask: !activeLoop?.taskId,
-      goalId: activeLoop?.goalId,
-      goalName: liveGoal.name,
-      painLabel: activeLoop?.painLabel,
-      taskTitle: activeLoop?.taskTitle,
-      promise: activeLoop?.promise,
-    });
-  };
-
-  const handleNavigateHQ = () => {
-    eventBus.emit('dashboard:navigate-module', {
-      module: 'memory',
-      goalId: activeLoop?.goalId,
-      taskId: activeLoop?.taskId,
-    });
-  };
 
   if (selectedRecord && editorDraft) {
     const originalDuration = Math.max(selectedRecord.durationMinutes || 0, 1);
@@ -605,90 +507,6 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
           </div>
         </div>
 
-        {isLinkedLoopGoal && loopMeta && (
-          <div
-            className="overflow-hidden rounded-[30px] border px-4 py-5 text-white shadow-[0_22px_50px_rgba(15,23,42,0.12)]"
-            style={{
-              background: 'linear-gradient(135deg, rgba(17,24,39,0.98), rgba(37,99,235,0.94) 54%, rgba(20,184,166,0.88))',
-              borderColor: 'rgba(255,255,255,0.12)',
-            }}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-[11px] font-black tracking-[0.24em] text-white/70">ANALYTICS RECTIFICATION</div>
-                <div className="mt-1 text-[22px] font-semibold tracking-[-0.04em]">整改分析视角</div>
-                <div
-                  className="mt-3 inline-flex items-center rounded-full px-3 py-1 text-xs font-black"
-                  style={{ backgroundColor: `${loopMeta.accent}33`, color: '#ffffff' }}
-                >
-                  {loopMeta.label}
-                </div>
-              </div>
-              <div className="rounded-[18px] border px-3 py-2 text-right" style={{ borderColor: 'rgba(255,255,255,0.16)', backgroundColor: 'rgba(255,255,255,0.08)' }}>
-                <div className="text-[11px] text-white/65">最近同步</div>
-                <div className="mt-1 text-sm font-semibold text-white">{formatLoopSyncLabel(activeLoop?.lastUpdatedAt)}</div>
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-[22px] border px-4 py-4" style={{ borderColor: 'rgba(255,255,255,0.14)', backgroundColor: 'rgba(255,255,255,0.07)' }}>
-              <div className="flex items-center gap-2 text-sm font-semibold text-white/85">
-                <Target className="h-4 w-4" /> 总部锁定问题
-              </div>
-              <div className="mt-2 text-lg font-semibold text-white">{activeLoop?.painLabel || '整改主线待确认'}</div>
-              <div className="mt-2 text-sm leading-6 text-white/75">{loopMeta.description}</div>
-            </div>
-
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="rounded-[20px] px-4 py-4" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
-                <div className="text-xs font-semibold text-white/62">整改任务</div>
-                <div className="mt-2 text-sm font-semibold text-white">{activeLoop?.taskTitle || '尚未排入时间轴'}</div>
-                <div className="mt-2 text-xs leading-5 text-white/65">
-                  {loopTask?.scheduledStart
-                    ? `计划 ${new Date(loopTask.scheduledStart).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}`
-                    : '先把整改动作明确到时间轴，分析页才会形成完整闭环。'}
-                </div>
-              </div>
-              <div className="rounded-[20px] px-4 py-4" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
-                <div className="text-xs font-semibold text-white/62">KR 回写</div>
-                <div className="mt-2 text-sm font-semibold text-white">{linkedContributionRecords.length > 0 ? `${linkedContributionRecords.length} 次记录` : '尚未补录'}</div>
-                <div className="mt-2 text-xs leading-5 text-white/65">
-                  {linkedContributionRecords.length > 0
-                    ? `已累计回写 ${linkedContributionValue} 点关键结果，继续盯是否完成最终收口。`
-                    : '执行后记得在时间轴补 KR，不然分析页只能看到计划，看不到结果。'}
-                </div>
-              </div>
-              <div className="rounded-[20px] px-4 py-4" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
-                <div className="text-xs font-semibold text-white/62">闭环状态</div>
-                <div className="mt-2 text-sm font-semibold text-white">{loopTask?.status === 'completed' ? '已完成' : linkedContributionRecords.length > 0 ? '已补 KR' : loopTask ? '待执行' : '待排动作'}</div>
-                <div className="mt-2 text-xs leading-5 text-white/65">{activeLoop?.promise || '这轮整改还没有沉淀出明确承诺文案。'}</div>
-              </div>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                onClick={handleNavigateLoopTask}
-                disabled={!activeLoop?.taskId}
-                className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#111827] transition active:scale-95 disabled:opacity-45"
-              >
-                {loopMeta.actionLabel} <ArrowRight className="h-4 w-4" />
-              </button>
-              <button
-                onClick={handleNavigateHQ}
-                className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold text-white transition active:scale-95"
-                style={{ borderColor: 'rgba(255,255,255,0.18)', backgroundColor: 'rgba(255,255,255,0.06)' }}
-              >
-                回总部复盘 <ArrowRight className="h-4 w-4" />
-              </button>
-              <div
-                className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium text-white/88"
-                style={{ borderColor: 'rgba(255,255,255,0.12)', backgroundColor: 'transparent' }}
-              >
-                <Link2 className="h-4 w-4" /> 目标分析已接入整改链路
-              </div>
-            </div>
-          </div>
-        )}
-
         <div className="rounded-[30px] bg-white px-4 py-5 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-[#111827]">
             <TrendingUp className="h-4 w-4" /> 趋势总览
@@ -757,6 +575,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
                     const x = chartPoints.length === 1 ? 160 : (index / (chartPoints.length - 1)) * 320;
                     const y = 160 - (point.cumulativeActual / maxCumulative) * 160;
                     const incomeY = 160 - (point.cumulativeIncome / maxCumulative) * 160;
+                    const idealY = 160 - (point.idealCumulative / maxCumulative) * 160;
                     return (
                       <g key={`${point.date}-node`}>
                         {point.incomeIncrement > 0 && (

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Minus, Plus } from 'lucide-react';
 import type { GoalMetric, GoalProjectBinding, GoalTheme, GoalType } from '@/types';
 
@@ -58,27 +58,23 @@ export default function GoalForm({
   onCancel,
   bgColor = '#efeff4',
 }: GoalFormProps) {
-  const buildInitialFormData = (): GoalFormData => initialData || {
-    name: '',
-    description: '',
-    type: 'numeric',
-    startDate: '',
-    endDate: '',
-    estimatedTotalHours: 0,
-    targetIncome: 0,
-    dimensions: [createMetric(0), createMetric(1)],
-    projectBindings: [projectOptions[0]],
-    theme: themeOptions[0],
-    showInFuture30Chart: true,
-    relatedDimensions: [],
-  };
-
-  const [formData, setFormData] = useState<GoalFormData>(buildInitialFormData);
+  const [formData, setFormData] = useState<GoalFormData>(
+    initialData || {
+      name: '',
+      description: '',
+      type: 'numeric',
+      startDate: '',
+      endDate: '',
+      estimatedTotalHours: 0,
+      targetIncome: 0,
+      dimensions: [createMetric(0), createMetric(1)],
+      projectBindings: [projectOptions[0]],
+      theme: themeOptions[0],
+      showInFuture30Chart: true,
+      relatedDimensions: [],
+    }
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  React.useEffect(() => {
-    setFormData(buildInitialFormData());
-  }, [initialData]);
 
   const durationDays = useMemo(() => {
     if (!formData.startDate || !formData.endDate) return 0;
