@@ -40,6 +40,7 @@ const TAG_LABELS: Record<string, string> = {
   'family': '家庭',
 };
 import { useAIStore } from '@/stores/aiStore';
+import { useNextActionStore } from '@/stores/nextActionStore';
 import { aiService } from '@/services/aiService';
 import { useTaskStore } from '@/stores/taskStore';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
@@ -112,6 +113,7 @@ interface GoalConversationState {
   draft: GoalDraftData;
   askedFields: string[];
   lastAskedField?: string;
+  followupHint?: 'need_more_key_results';
 }
 
 interface Message {
@@ -157,6 +159,35 @@ const beautifyAssistantReply = (content: string) => {
 
 const GOAL_THEME = { color: '#0A84FF', label: '海蓝' };
 
+const CHINESE_NUMBER_MAP: Record<string, number> = {
+  一: 1,
+  二: 2,
+  两: 2,
+  三: 3,
+  四: 4,
+  五: 5,
+  六: 6,
+  七: 7,
+  八: 8,
+  九: 9,
+  十: 10,
+};
+
+const parseChineseNumber = (value: string) => {
+  if (/^\d+$/.test(value)) return parseInt(value, 10);
+  if (value === '十') return 10;
+  if (value.startsWith('十')) return 10 + (CHINESE_NUMBER_MAP[value[1]] || 0);
+
+  const tenIndex = value.indexOf('十');
+  if (tenIndex > 0) {
+    const tens = CHINESE_NUMBER_MAP[value.slice(0, tenIndex)] || 0;
+    const ones = CHINESE_NUMBER_MAP[value.slice(tenIndex + 1)] || 0;
+    return tens * 10 + ones;
+  }
+
+  return CHINESE_NUMBER_MAP[value] || 0;
+};
+
 const normalizeGoalText = (input: string) =>
   input
     .replace(/[，。！!？?]/g, ' ')
@@ -166,15 +197,15 @@ const normalizeGoalText = (input: string) =>
 const extractRelativeDeadline = (message: string) => {
   const base = new Date();
   const patterns = [
-    { regex: /(\d+)\s*天(?:之后|以后|内)?/, unit: 'day' as const },
-    { regex: /(\d+)\s*周(?:之后|以后|内)?/, unit: 'week' as const },
-    { regex: /(\d+)\s*个?月(?:之后|以后|内)?/, unit: 'month' as const },
+    { regex: /([一二两三四五六七八九十\d]+)\s*天(?:之后|以后|内)?/, unit: 'day' as const },
+    { regex: /([一二两三四五六七八九十\d]+)\s*周(?:之后|以后|内)?/, unit: 'week' as const },
+    { regex: /([一二两三四五六七八九十\d]+)\s*个?月(?:之后|以后|内)?/, unit: 'month' as const },
   ];
 
   for (const { regex, unit } of patterns) {
     const match = message.match(regex);
     if (!match) continue;
-    const value = parseInt(match[1], 10);
+    const value = parseChineseNumber(match[1]);
     if (!Number.isFinite(value) || value <= 0) continue;
 
     const endDate = new Date(base);
@@ -245,10 +276,13 @@ function inferGoalDimensionName(text: string) {
   return cleaned || '关键结果';
 }
 
-function parseSingleGoalDimension(text: string, index: number): GoalDraftDimension | null {
-  const amountMatch = text.match(/(\d+(?:\.\d+)?)\s*(套|单|个|篇|条|位|人|次|万|元)/);
-  const inferredUnit = amountMatch?.[2] || inferGoalUnit(text);
-  let targetValue = amountMatch ? parseFloat(amountMatch[1]) : 1;
+const parseSingleGoalDimension = (text: string, index: number): GoalDraftDimension | null => {
+  const normalizedText = text.trim();
+  const amountMatch = normalizedText.match(/([一二两三四五六七八九十\d]+(?:\.\d+)?)\s*(套|单|个|篇|条|位|人|次|万|元)/);
+  const inferredUnit = amountMatch?.[2] || inferGoalUnit(normalizedText);
+  let targetValue = amountMatch
+    ? (/^[一二两三四五六七八九十]+$/.test(amountMatch[1]) ? parseChineseNumber(amountMatch[1]) : parseFloat(amountMatch[1]))
+    : 1;
   let unit = inferredUnit;
 
   if (unit === '万') {
@@ -256,7 +290,7 @@ function parseSingleGoalDimension(text: string, index: number): GoalDraftDimensi
     unit = '元';
   }
 
-  const name = inferGoalDimensionName(text);
+  const name = inferGoalDimensionName(normalizedText);
   if (!name) return null;
 
   return {
@@ -267,7 +301,7 @@ function parseSingleGoalDimension(text: string, index: number): GoalDraftDimensi
     currentValue: 0,
     weight: 0,
   };
-}
+};
 
 const parseGoalDimensions = (message: string, existingTagNames: string[]): GoalDraftDimension[] => {
   const items = splitGoalItems(message);
@@ -307,6 +341,12 @@ const parseGoalDimensions = (message: string, existingTagNames: string[]): GoalD
   }));
 };
 
+const looksLikeGoalResultAnswer = (message: string) => {
+  if (/[，,；;、\n]/.test(message)) return true;
+  if (/([一二两三四五六七八九十\d]+(?:\.\d+)?)\s*(套|单|个|篇|条|位|人|次|万|元)/.test(message)) return true;
+  return /卖出|成交|发布|新增|客户|线索|收入|回款|转化|内容/.test(message);
+};
+
 const buildGoalDraftFromMessage = (message: string, existingTagNames: string[]): GoalDraftData => {
   const timeInfo = extractRelativeDeadline(message);
   const startDate = new Date();
@@ -316,6 +356,9 @@ const buildGoalDraftFromMessage = (message: string, existingTagNames: string[]):
   if (endDate) endDate.setHours(0, 0, 0, 0);
 
   const estimatedDailyHours = parseDailyHoursFromMessage(message) || 0;
+  const dimensions = looksLikeGoalResultAnswer(message)
+    ? parseGoalDimensions(message, existingTagNames)
+    : [];
   const durationDays = endDate
     ? Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1)
     : 0;
@@ -323,7 +366,6 @@ const buildGoalDraftFromMessage = (message: string, existingTagNames: string[]):
     ? Number((estimatedDailyHours * durationDays).toFixed(1))
     : 0;
 
-  const dimensions = parseGoalDimensions(message, existingTagNames);
   const extractedTags = existingTagNames.filter((tag) => message.includes(tag)).slice(0, 3);
   const incomeMatch = message.match(/(\d+(?:\.\d+)?)\s*(万|元)/);
   const targetIncome = incomeMatch
@@ -408,6 +450,30 @@ const getNextGoalQuestion = (draft: GoalDraftData) => {
   return null;
 };
 
+const getMissingGoalResultTypes = (dimensions: GoalDraftDimension[]) => {
+  const dimensionNames = dimensions.map((item) => item.name);
+  const missing: string[] = [];
+
+  if (!dimensionNames.some((name) => name.includes('成交'))) {
+    missing.push('成交结果');
+  }
+  if (!dimensionNames.some((name) => name.includes('内容'))) {
+    missing.push('内容发布');
+  }
+  if (!dimensionNames.some((name) => name.includes('线索') || name.includes('客户'))) {
+    missing.push('意向客户');
+  }
+
+  return missing;
+};
+
+const getGoalKeyResultFollowup = (draft: GoalDraftData) => {
+  const missing = getMissingGoalResultTypes(draft.dimensions);
+  if (missing.length === 0) return null;
+
+  return `我先收到一部分关键结果啦 ✨\n\n现在还想再补一下：${missing.join('、')}。\n你可以直接像这样回答我：卖出1套，发6条内容，新增10个意向客户。`;
+};
+
 const buildGoalCreatedReply = (draft: GoalDraftData, goalName: string) => {
   const dimensionText = draft.dimensions
     .map((item) => `${item.name} ${item.targetValue}${item.unit}`)
@@ -423,12 +489,12 @@ const buildGoalCreatedReply = (draft: GoalDraftData, goalName: string) => {
   return beautifyAssistantReply(`好呀，我已经把目标草稿整理好了 ✨\n\n🎯 目标：${goalName}${dateText}${timeText}${progressText}${tagText}\n\n我现在会直接帮你打开目标编辑器，你可以再顺手改一下，点保存后它就会正式进目标组件，后面的任务联动也能接上啦 🤍`);
 };
 
-const draftToGoalFormData = (draft: GoalDraftData) => ({
+const draftToGoalFormData = (draft: GoalDraftData): GoalFormData => ({
   name: draft.name,
   description: draft.description,
-  type: 'numeric' as const,
-  startDate: draft.startDate ? new Date(draft.startDate).toISOString().split('T')[0] : '',
-  endDate: draft.endDate ? new Date(draft.endDate).toISOString().split('T')[0] : '',
+  type: 'numeric',
+  startDate: draft.startDate ? new Date(draft.startDate.getTime() - draft.startDate.getTimezoneOffset() * 60000).toISOString().split('T')[0] : '',
+  endDate: draft.endDate ? new Date(draft.endDate.getTime() - draft.endDate.getTimezoneOffset() * 60000).toISOString().split('T')[0] : '',
   estimatedTotalHours: draft.estimatedTotalHours,
   targetIncome: draft.targetIncome || 0,
   dimensions: draft.dimensions.length > 0 ? draft.dimensions : [
@@ -457,6 +523,7 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
   const { createGoal, updateGoal, goals } = useGoalStore();
   const { getAllTags } = useTagStore();
   const { personality, addMessage: addChatMessage } = useAIPersonalityStore();
+  const nextActionSnapshot = useNextActionStore((state) => state.snapshot);
   
   // 上下文模式状态
   const [contextMode, setContextMode] = useState<'normal' | 'income' | 'goal' | 'mutter' | 'task_breakdown'>('normal');
@@ -484,13 +551,28 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [goalConversation, setGoalConversation] = useState<GoalConversationState | null>(null);
   
-  // 获取默认欢迎消息
-  const getWelcomeMessage = (): Message => ({
-    id: 'welcome',
-    role: 'assistant',
-    content: beautifyAssistantReply(`你好！我是${personality.name}，你的AI助手${personality.toxicity > 60 ? '兼毒舌教练' : ''}。\n\n我能帮你：\n\n• 📅 智能分解任务和安排时间\n• 💰 自动分配金币和成长值\n• 🏷️ 自动打标签分类（AI智能理解）\n• 🕒 直接创建和修改时间轴任务\n• 🎯 智能关联长期目标\n• 📝 记录心情、想法、感恩、成功\n• 💡 收集创业想法到副业追踪器\n• 🔍 查询任务进度和统计\n• 🏠 智能动线优化（根据家里格局排序）\n• ✨ 万能收集：支持批量智能分析并分配\n• 🗑️ 时间轴操作：删除任务、移动任务\n\n**重要更新：**\n• 💬 我现在会真正和你对话，不只是执行命令\n• 👀 我会监督你的行为习惯（吃饭、睡觉、任务完成）\n• ${personality.toxicity > 60 ? '😏 该夸你的时候夸，该骂的时候绝不手软' : '🤗 该鼓励时鼓励，该提醒时提醒'}\n• 🎨 点击右上角头像可以设置我的性格\n\n直接输入文字开始对话吧！`),
-    timestamp: new Date(),
-  });
+  const getWelcomeMessage = (): Message => {
+    const moduleLabelMap: Record<string, string> = {
+      timeline: '时间轴',
+      goals: '目标',
+      memory: '总部',
+      journal: '日记',
+      home: '首页',
+      tags: '标签',
+    };
+
+    const moduleLabel = moduleLabelMap[currentModule] || currentModule;
+    const nextHint = nextActionSnapshot?.suggestedAction
+      ? `\n\n📍 当前场景：你现在在${moduleLabel}${nextActionSnapshot.focusLabel ? `，焦点是「${nextActionSnapshot.focusLabel}」` : ''}。\n👉 我建议你下一步先：${nextActionSnapshot.suggestedAction}`
+      : `\n\n📍 当前场景：你现在在${moduleLabel}。你可以直接告诉我你想推进哪一步，我会尽量顺着当前页面帮你。`;
+
+    return {
+      id: 'welcome',
+      role: 'assistant',
+      content: beautifyAssistantReply(`你好！我是${personality.name}，你的AI助手${personality.toxicity > 60 ? '兼毒舌教练' : ''}。\n\n我能帮你：\n\n• 📅 智能分解任务和安排时间\n• 💰 自动分配金币和成长值\n• 🏷️ 自动打标签分类（AI智能理解）\n• 🕒 直接创建和修改时间轴任务\n• 🎯 智能关联长期目标\n• 📝 记录心情、想法、感恩、成功\n• 💡 收集创业想法到副业追踪器\n• 🔍 查询任务进度和统计\n• 🏠 智能动线优化（根据家里格局排序）\n• ✨ 万能收集：支持批量智能分析并分配\n• 🗑️ 时间轴操作：删除任务、移动任务\n\n**重要更新：**\n• 💬 我现在会真正和你对话，不只是执行命令\n• 👀 我会监督你的行为习惯（吃饭、睡觉、任务完成）\n• ${personality.toxicity > 60 ? '😏 该夸你的时候夸，该骂的时候绝不手软' : '🤗 该鼓励时鼓励，该提醒时提醒'}\n• 🎨 点击右上角头像可以设置我的性格${nextHint}\n\n直接输入文字开始对话吧！`),
+      timestamp: new Date(),
+    };
+  };
   
   // 使用 localStorage 持久化聊天记录
   const [messages, setMessages] = useState<Message[]>(() => {
@@ -518,6 +600,13 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
       console.error('保存聊天记录失败:', error);
     }
   }, [messages]);
+
+  useEffect(() => {
+    if (messages.length === 0) return;
+    if (messages.length === 1 && messages[0]?.id === 'welcome') {
+      setMessages([getWelcomeMessage()]);
+    }
+  }, [currentModule, nextActionSnapshot?.updatedAt]);
   
   // 清除聊天记录
   const clearChatHistory = () => {
@@ -1814,25 +1903,30 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
           ? mergeGoalDraftWithAnswer(goalConversation.draft, askedField, message, existingTagNames)
           : goalConversation.draft;
 
-        const nextQuestion = getNextGoalQuestion(updatedDraft);
-        if (nextQuestion) {
-          setGoalConversation({
-            draft: updatedDraft,
-            askedFields: [...goalConversation.askedFields, nextQuestion.field],
-            lastAskedField: nextQuestion.field,
-          });
+        const shouldOpenEditorImmediately = askedField === 'keyResults' && updatedDraft.dimensions.length > 0;
 
-          const aiMessage: Message = {
-            id: `ai-${Date.now()}`,
-            role: 'assistant',
-            content: beautifyAssistantReply(nextQuestion.text),
-            timestamp: new Date(),
-            thinkingProcess: [...thinkingSteps],
-            isThinkingExpanded: false,
-          };
+        if (!shouldOpenEditorImmediately) {
+          const nextQuestion = getNextGoalQuestion(updatedDraft);
+          if (nextQuestion) {
+            setGoalConversation({
+              draft: updatedDraft,
+              askedFields: [...goalConversation.askedFields, nextQuestion.field],
+              lastAskedField: nextQuestion.field,
+              followupHint: undefined,
+            });
 
-          setMessages(prev => [...prev, aiMessage]);
-          return;
+            const aiMessage: Message = {
+              id: `ai-${Date.now()}`,
+              role: 'assistant',
+              content: beautifyAssistantReply(nextQuestion.text),
+              timestamp: new Date(),
+              thinkingProcess: [...thinkingSteps],
+              isThinkingExpanded: false,
+            };
+
+            setMessages(prev => [...prev, aiMessage]);
+            return;
+          }
         }
 
         setGoalEditorDraft(draftToGoalFormData(updatedDraft));
@@ -1861,6 +1955,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
           draft,
           askedFields: [nextQuestion.field],
           lastAskedField: nextQuestion.field,
+          followupHint: undefined,
         });
         setContextMode('goal');
 
@@ -1911,9 +2006,22 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
   };
 
   // 发送消息
-  const handleSend = async () => {
-    const message = inputValue.trim();
+  const handleSend = async (forcedMessage?: string) => {
+    const message = (forcedMessage ?? inputValue).trim();
     if (!message || isProcessing) return;
+
+    const moduleLabelMap: Record<string, string> = {
+      timeline: '时间轴',
+      goals: '目标',
+      memory: '总部',
+      journal: '日记',
+      home: '首页',
+      tags: '标签',
+    };
+    const moduleLabel = moduleLabelMap[currentModule] || currentModule;
+    const scenePrompt = nextActionSnapshot
+      ? `当前页面模块：${moduleLabel}\n当前联动焦点：${nextActionSnapshot.focusLabel || '无'}\n当前关联目标：${nextActionSnapshot.goalName || '无'}\n当前关联任务：${nextActionSnapshot.taskTitle || '无'}\n建议下一步：${nextActionSnapshot.suggestedAction || '无'}\n请优先基于当前模块和联动焦点给建议，不要泛泛而谈。`
+      : `当前页面模块：${moduleLabel}\n请优先结合当前模块给建议，不要泛泛而谈。`;
 
     // 清除之前的超时定时器
     if (sendTimeoutRef.current) {
@@ -1979,6 +2087,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
         userBehavior: useAIPersonalityStore.getState().userBehavior,
         recentTasks: tasks.slice(-10),
         recentMemories: useMemoryStore.getState().memories.slice(-10),
+        scenePrompt,
       };
       
       // 让AI理解用户意图
@@ -2722,6 +2831,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
   if (isFullScreen) {
     const selectedCount = messages.filter(m => m.isSelected).length;
     const fullScreenComposerHeight = isSelectionMode && selectedCount > 0 ? 92 : 188;
+    const fullScreenBottomInset = fullScreenComposerHeight + 188;
     
     return (
       <div className="h-full flex flex-col bg-white relative">
@@ -2803,7 +2913,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
         <div
           ref={conversationRef}
           className="flex-1 overflow-y-auto p-4 space-y-3 bg-neutral-50"
-          style={{ paddingBottom: `calc(${fullScreenComposerHeight}px + env(safe-area-inset-bottom) + 88px)` }}
+          style={{ paddingBottom: `calc(${fullScreenBottomInset}px + env(safe-area-inset-bottom))` }}
         >
           {messages.map((message) => {
             const resolvedDecomposedTasks =
@@ -2989,7 +3099,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
         {/* 底部操作区 */}
         <div
           className="fixed left-0 right-0 z-[1001] border-t border-neutral-200 bg-white shadow-[0_-8px_24px_rgba(15,23,42,0.08)]"
-          style={{ bottom: 'calc(76px + env(safe-area-inset-bottom))' }}
+          style={{ bottom: 'env(safe-area-inset-bottom)' }}
         >
           {/* 快速指令或智能分配按钮 */}
           {isSelectionMode && selectedCount > 0 ? (
@@ -3013,14 +3123,14 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
                     { label: '关于收入', icon: '💰', action: 'income_mode', title: '记录副业收入，自动同步到副业追踪和时间轴' },
                     { label: '关于目标', icon: '🎯', action: 'goal_mode', title: '设置长期或短期目标，AI智能解析' },
                     { label: '任务分解', icon: '🧩', action: 'task_breakdown_mode', title: '把你接下来输入的内容当成要拆解的任务，并在完成后自动打开任务编辑器' },
+                    { label: '下一步', icon: '🧭', action: 'next_step', title: '基于当前模块和联动焦点，告诉你现在最应该推进什么' },
                     { label: '心情碎碎念', icon: '💭', action: 'mutter_quick', title: '快速记录心情碎碎念' },
                   ].map((cmd) => (
                     <button
                       key={cmd.label}
                       onClick={() => {
                         if (cmd.action === 'smart_schedule') {
-                          setInputValue('根据我的习惯和当前时间，帮我智能安排接下来要做的任务');
-                          handleSend();
+                          handleSend(`结合当前页面场景帮我安排下一步。\n${scenePrompt}`);
                         } else if (cmd.action === 'income_mode') {
                           setContextMode('income');
                           const modeMessage: Message = {
@@ -3041,6 +3151,8 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
                             timestamp: new Date(),
                           };
                           setMessages(prev => [...prev, modeMessage]);
+                        } else if (cmd.action === 'next_step') {
+                          handleSend(`请基于当前联动焦点，直接告诉我现在最该推进的下一步，并说明为什么。\n${scenePrompt}`);
                         } else if (cmd.action === 'mutter_quick') {
                           const now = new Date();
                           const mutterContent = `心情记录 ${now.toLocaleString('zh-CN')}`;
@@ -3085,7 +3197,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
               </div>
 
               {/* 输入区域 */}
-              <div className="px-3 pb-2">
+              <div className="px-3 pb-[calc(8px+env(safe-area-inset-bottom))]">
                 <div className="flex items-end space-x-2">
                   <textarea
                     ref={textareaRef}

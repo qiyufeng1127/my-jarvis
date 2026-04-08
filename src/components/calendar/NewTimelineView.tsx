@@ -23,6 +23,7 @@ import { useTagStore } from '@/stores/tagStore';
 import { useGoalStore } from '@/stores/goalStore';
 import { useGoalContributionStore } from '@/stores/goalContributionStore';
 import { useHQBridgeStore } from '@/stores/hqBridgeStore';
+import { useNextActionStore } from '@/stores/nextActionStore';
 import { useTaskHistoryStore } from '@/stores/taskHistoryStore';
 import CelebrationEffect from '@/components/effects/CelebrationEffect';
 import { 
@@ -88,6 +89,7 @@ export default function NewTimelineView({
   const addTaskHistoryRecord = useTaskHistoryStore(state => state.addRecord);
   const activeLoop = useHQBridgeStore((state) => state.activeLoop);
   const setActiveLoop = useHQBridgeStore((state) => state.setActiveLoop);
+  const patchNextAction = useNextActionStore((state) => state.patchSnapshot);
   
   // 使用任务store
   const updateTaskEfficiency = useTaskStore(state => state.updateTaskEfficiency);
@@ -214,6 +216,15 @@ export default function NewTimelineView({
       if (payload?.module && payload.module !== 'timeline') return;
 
       if (payload?.createRectificationTask) {
+        patchNextAction({
+          currentModule: 'timeline',
+          goalId: payload.goalId,
+          goalName: payload.goalName,
+          focusLabel: payload.painLabel || payload.goalName || '整改动作',
+          suggestedAction: '先把整改动作排进时间轴并补全细节',
+          source: 'timeline',
+        });
+
         const targetDate = selectedDate ? new Date(selectedDate) : new Date();
         const now = new Date();
         const startTime = new Date(targetDate);
@@ -250,6 +261,16 @@ export default function NewTimelineView({
 
       if (!payload?.taskId) return;
 
+      patchNextAction({
+        currentModule: 'timeline',
+        taskId: payload.taskId,
+        goalId: payload.goalId,
+        goalName: payload.goalName,
+        focusLabel: payload.taskTitle || payload.painLabel || '当前焦点任务',
+        suggestedAction: '先展开这条任务，继续执行或补关键结果',
+        source: 'timeline',
+      });
+
       setLinkedTaskId(payload.taskId);
       setExpandedCards((prev) => new Set([...prev, payload.taskId as string]));
     };
@@ -277,6 +298,17 @@ export default function NewTimelineView({
         taskTitle: createdTask.title,
       });
     }
+
+    patchNextAction({
+      currentModule: 'timeline',
+      taskId: createdTask.id,
+      taskTitle: createdTask.title,
+      goalId: activeLoop?.goalId,
+      goalName: activeLoop?.goalName,
+      focusLabel: createdTask.title,
+      suggestedAction: pendingCreatedTaskFocus.shouldOpenEdit ? '继续补全这条任务细节' : '继续执行这条任务',
+      source: 'timeline',
+    });
 
     setLinkedTaskId(createdTask.id);
     setExpandedCards((prev) => new Set([...prev, createdTask.id]));
@@ -668,6 +700,8 @@ export default function NewTimelineView({
         description: task.description,
         isCompleted: task.status === 'completed',
         isLinkedHQTask: activeLoop?.taskId === task.id || (task.tags || []).includes('总部承诺'),
+        hasGoalContribution: existingGoalContributionRecords.some((record) => record.taskId === task.id),
+        isLoopClosed: activeLoop?.taskId === task.id && existingGoalContributionRecords.some((record) => record.taskId === task.id),
         goldReward: taskGold, // 使用任务的金币
         tags: taskTags, // 使用任务的标签
         sourceBadges,
@@ -1500,6 +1534,16 @@ export default function NewTimelineView({
               taskId,
               taskTitle: task.title,
             });
+            patchNextAction({
+              currentModule: 'timeline',
+              taskId,
+              taskTitle: task.title,
+              goalId: activeLoop.goalId,
+              goalName: activeLoop.goalName,
+              focusLabel: task.title,
+              suggestedAction: '任务已完成，下一步补关键结果回写目标',
+              source: 'timeline',
+            });
           }
           
           // 发送任务完成通知
@@ -1610,6 +1654,16 @@ export default function NewTimelineView({
           ...activeLoop,
           taskId,
           taskTitle: task.title,
+        });
+        patchNextAction({
+          currentModule: 'timeline',
+          taskId,
+          taskTitle: task.title,
+          goalId: activeLoop.goalId,
+          goalName: activeLoop.goalName,
+          focusLabel: task.title,
+          suggestedAction: '任务已完成，下一步补关键结果回写目标',
+          source: 'timeline',
         });
       }
 
@@ -2007,9 +2061,21 @@ export default function NewTimelineView({
         taskId: task.id,
         taskTitle: task.title,
       });
+      patchNextAction({
+        currentModule: 'goals',
+        goalId: goal.id,
+        goalName: goal.name,
+        taskId: task.id,
+        taskTitle: task.title,
+        focusLabel: goal.name,
+        suggestedAction: '关键结果已回写，去目标分析里看最新推进',
+        source: 'goals',
+      });
     }
 
-    setGoalContributionSuccess(`已把 ${task.title} 的关键结果写入 ${goal.name}`);
+    setGoalContributionSuccess(activeLoop?.taskId === task.id
+      ? `总部闭环已收到《${task.title}》的关键结果，当前链路正式收口。`
+      : `已把 ${task.title} 的关键结果写入 ${goal.name}`);
     window.setTimeout(() => {
       setGoalContributionTaskId(null);
       setGoalContributionSaving(false);
@@ -3126,12 +3192,20 @@ export default function NewTimelineView({
                         总部刚刚把你带到这条任务，先把它处理掉。
                       </div>
                     )}
-                    {block.isLinkedHQTask && linkedTaskId !== block.id && (
+                    {block.isLinkedHQTask && linkedTaskId !== block.id && !block.hasGoalContribution && (
                       <div
                         className="mb-2 rounded-full px-3 py-1 text-[10px] font-black tracking-[0.14em]"
                         style={{ backgroundColor: 'rgba(255,255,255,0.16)', color: '#fff7ed' }}
                       >
                         总部整改主任务，建议优先完成并补 KR。
+                      </div>
+                    )}
+                    {block.isLinkedHQTask && block.hasGoalContribution && (
+                      <div
+                        className="mb-2 rounded-full px-3 py-1 text-[10px] font-black tracking-[0.14em]"
+                        style={{ backgroundColor: 'rgba(16,185,129,0.26)', color: '#ecfdf5' }}
+                      >
+                        {block.isLoopClosed ? '总部闭环已回写，当前链路已收口。' : '关键结果已回写总部，等待闭环收口。'}
                       </div>
                     )}
                     {/* 第一行：拖拽手柄 + 标签 + 时长 + 编辑按钮 - 减少下边距 */}
@@ -3260,9 +3334,9 @@ export default function NewTimelineView({
                         
                         <div className={`${isMobile ? 'text-[9px]' : 'text-xs'} opacity-90`}>
                           {block.goalText}
-                          {block.isCompleted && (block.sourceBadges || []).includes('总部联动') && (
-                            <span className="ml-2 inline-flex rounded-full bg-white/20 px-2 py-0.5 text-[9px] font-bold tracking-[0.08em] text-white/95">
-                              已向总部回写完成
+                          {block.isCompleted && block.hasGoalContribution && (block.sourceBadges || []).includes('总部联动') && (
+                            <span className="ml-2 inline-flex rounded-full bg-emerald-500/30 px-2 py-0.5 text-[9px] font-bold tracking-[0.08em] text-white/95">
+                              {block.isLoopClosed ? '已闭环' : '已回写总部'}
                             </span>
                           )}
                         </div>

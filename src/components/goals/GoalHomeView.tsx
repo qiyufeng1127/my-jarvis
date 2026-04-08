@@ -4,6 +4,7 @@ import eventBus from '@/utils/eventBus';
 import { useGoalStore } from '@/stores/goalStore';
 import { useGoalContributionStore } from '@/stores/goalContributionStore';
 import { useHQBridgeStore } from '@/stores/hqBridgeStore';
+import { useNextActionStore } from '@/stores/nextActionStore';
 import { useTaskStore } from '@/stores/taskStore';
 import GoalAnalyticsView from '@/components/goals/GoalAnalyticsView';
 import GoalForm, { type GoalFormData } from '@/components/growth/GoalForm';
@@ -116,20 +117,89 @@ function getLoopStage(goal: LongTermGoal | null, taskStatus?: string, hasContrib
   return 'locked';
 }
 
-function getLoopStageMeta(stage: LoopStage) {
+function getLoopStageMeta(stage: LoopStage, taskStatus?: string) {
   if (stage === 'done') {
-    return { label: '已执行收口', accent: '#34C759', description: '总部整改动作已经完成，这轮闭环已经真正落地。' };
+    return {
+      label: '已正式闭环',
+      accent: '#34C759',
+      description: '整改动作已经完成，关键结果也已回写总部，这轮闭环已经正式收口。',
+      statusTitle: '已正式闭环',
+      statusHint: '总部已经收到关键结果，这条整改链路当前已完成收口。',
+      timelineAction: '回时间轴复盘',
+      hqAction: '回总部复盘结果',
+    };
   }
   if (stage === 'kr') {
-    return { label: '已补关键结果', accent: '#14b8a6', description: '时间轴产出已经写回目标，当前主要看是否完成最终收口。' };
+    return {
+      label: '已回写，待收口',
+      accent: '#14b8a6',
+      description: '时间轴产出已经写回目标，总部侧已收到结果，现在只差最终收口确认。',
+      statusTitle: '已回写 KR',
+      statusHint: '关键结果已经沉淀到目标分析，接下来可以回总部确认并完成收口。',
+      timelineAction: '回时间轴看回写',
+      hqAction: '回总部确认收口',
+    };
   }
   if (stage === 'task') {
-    return { label: '已排入时间轴', accent: '#8b5cf6', description: '整改动作已经进入时间轴，现在最重要的是按时执行并补 KR。' };
+    return {
+      label: '待补 KR',
+      accent: '#8b5cf6',
+      description: '整改动作已经进入时间轴，现在最重要的是按时执行；做完后记得立刻补 KR。',
+      statusTitle: taskStatusToLabel(taskStatus),
+      statusHint: '任务完成后必须补 KR，避免只执行、不沉淀、不收口。',
+      timelineAction: '去时间轴执行',
+      hqAction: '回总部看问题',
+    };
   }
   if (stage === 'goal') {
-    return { label: '已挂整改目标', accent: '#0A84FF', description: '总部已经点名并挂上目标，下一步要把整改动作真正排进时间轴。' };
+    return {
+      label: '待排整改动作',
+      accent: '#0A84FF',
+      description: '总部已经点名并挂上目标，下一步要把整改动作真正排进时间轴。',
+      statusTitle: '未安排',
+      statusHint: '先把动作拆进时间轴，后面才谈执行和回写。',
+      timelineAction: '去时间轴排任务',
+      hqAction: '回总部看问题',
+    };
   }
-  return { label: '仅总部锁题', accent: '#FF9500', description: '问题已经被总部锁定，但还没有形成完整整改闭环。' };
+  return {
+    label: '仅总部锁题',
+    accent: '#FF9500',
+    description: '问题已经被总部锁定，但还没有形成完整整改闭环。',
+    statusTitle: '未安排',
+    statusHint: '先挂目标、再排任务，闭环才会真正开始。',
+    timelineAction: '去时间轴排任务',
+    hqAction: '回总部看问题',
+  };
+}
+
+function taskStatusToLabel(taskStatus?: string) {
+  if (taskStatus === 'completed') return '已完成，待补 KR';
+  if (taskStatus === 'in_progress') return '执行中';
+  if (taskStatus) return '待执行';
+  return '未安排';
+}
+
+function buildModuleAdvice(module: string, nextAction?: string, focusLabel?: string) {
+  if (module === 'timeline') {
+    return nextAction || (focusLabel
+      ? `先处理「${focusLabel}」，优先判断它现在是该执行、补细节，还是补关键结果。`
+      : '先看今天时间轴里最靠前且最关键的一条任务，把它真正推进，而不是继续泛泛规划。');
+  }
+
+  if (module === 'goals') {
+    return nextAction || (focusLabel
+      ? `先打开「${focusLabel}」看目标进度，再决定今天要拆哪一个关键结果进时间轴。`
+      : '先选一个最值得推进的目标，把它拆成今天能执行的一步。');
+  }
+
+  if (module === 'memory') {
+    return nextAction || (focusLabel
+      ? `先围绕「${focusLabel}」确认问题、承诺和缺失动作，再决定回哪个模块执行。`
+      : '先确认总部当前锁定的问题，再决定是去目标还是去时间轴补动作。');
+  }
+
+  return nextAction || '先处理当前页面最明确的一步，不要同时开太多线程。';
 }
 
 function normalizeFormData(goal?: LongTermGoal | null): GoalFormData | undefined {
@@ -162,6 +232,7 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
   const addContributionRecord = useGoalContributionStore((state) => state.addRecord);
   const activeLoop = useHQBridgeStore((state) => state.activeLoop);
   const tasks = useTaskStore((state) => state.tasks);
+  const patchNextAction = useNextActionStore((state) => state.patchSnapshot);
   const [segment, setSegment] = useState<GoalSegment>('active');
   const [showForm, setShowForm] = useState(false);
   const [editingGoal, setEditingGoal] = useState<LongTermGoal | null>(null);
@@ -181,6 +252,15 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
       const matchedGoal = useGoalStore.getState().goals.find((goal) => goal.id === payload.goalId)
         || (activeLoop?.goalId === payload.goalId ? goals.find((goal) => goal.id === activeLoop.goalId) : undefined);
       if (!matchedGoal) return;
+
+      patchNextAction({
+        currentModule: 'goals',
+        goalId: payload.goalId,
+        goalName: matchedGoal.name,
+        focusLabel: matchedGoal.name,
+        suggestedAction: payload.action === 'edit' ? '继续补全这个目标配置' : '先看这个目标的进度与关键结果',
+        source: 'goals',
+      });
 
       if (payload.action === 'edit') {
         setSelectedGoal(null);
@@ -214,7 +294,7 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
     return useGoalContributionStore.getState().records.some((record) => record.goalId === activeLoop.goalId && record.taskId === activeLoop.taskId);
   }, [activeLoop?.goalId, activeLoop?.taskId]);
   const loopStage = getLoopStage(loopGoal, loopTask?.status, loopHasContribution);
-  const loopStageMeta = getLoopStageMeta(loopStage);
+  const loopStageMeta = getLoopStageMeta(loopStage, loopTask?.status);
 
   const groupedGoals: GoalCardGroup[] = [
     { key: 'active', title: '正在进行', emptyText: '还没有正在推进的目标，先创建一个开始吧。', goals: activeGoals },
@@ -222,8 +302,29 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
     { key: 'expired', title: '已经过去', emptyText: '暂无已过期或已归档目标。', goals: expiredGoals },
   ];
 
+  const nextActionSnapshot = useNextActionStore((state) => state.snapshot);
   const currentGroup = groupedGoals.find((group) => group.key === segment) ?? groupedGoals[0];
   const totalHours = Math.round(goals.reduce((sum, goal) => sum + (goal.estimatedTotalHours || 0), 0) * 10) / 10;
+  const suggestedFocusGoal = useMemo(() => {
+    if (loopGoal) return loopGoal;
+    if (nextActionSnapshot?.goalId) {
+      const matched = goals.find((goal) => goal.id === nextActionSnapshot.goalId);
+      if (matched) return matched;
+    }
+    return activeGoals
+      .slice()
+      .sort((a, b) => getGoalProgress(a) - getGoalProgress(b))[0] || null;
+  }, [activeGoals, goals, loopGoal, nextActionSnapshot?.goalId]);
+  const suggestedFocusTask = useMemo(() => {
+    if (loopTask) return loopTask;
+    if (!suggestedFocusGoal) return null;
+    return tasks.find((task) => task.longTermGoals && task.longTermGoals[suggestedFocusGoal.id]);
+  }, [loopTask, suggestedFocusGoal, tasks]);
+  const goalAdvice = buildModuleAdvice(
+    'goals',
+    nextActionSnapshot?.currentModule === 'goals' ? nextActionSnapshot.suggestedAction : undefined,
+    suggestedFocusGoal?.name || nextActionSnapshot?.focusLabel
+  );
 
   const handleSaveGoal = (formData: GoalFormData) => {
     const payload = {
@@ -297,12 +398,32 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
 
   const handleOpenLoopGoal = () => {
     if (!loopGoal) return;
+    patchNextAction({
+      currentModule: 'goals',
+      goalId: loopGoal.id,
+      goalName: loopGoal.name,
+      taskId: activeLoop?.taskId,
+      taskTitle: activeLoop?.taskTitle,
+      focusLabel: loopGoal.name,
+      suggestedAction: '查看目标分析，确认这轮整改是否真正推进目标',
+      source: 'goals',
+    });
     setLinkedGoalId(loopGoal.id);
     setSelectedGoal(loopGoal);
   };
 
   const handleNavigateLoopTask = () => {
     if (!activeLoop?.taskId) return;
+    patchNextAction({
+      currentModule: 'timeline',
+      goalId: activeLoop.goalId,
+      goalName: activeLoop.goalName,
+      taskId: activeLoop.taskId,
+      taskTitle: activeLoop.taskTitle,
+      focusLabel: activeLoop.taskTitle || activeLoop.goalName || '整改任务',
+      suggestedAction: '回到时间轴继续执行或补关键结果',
+      source: 'goals',
+    });
     eventBus.emit('dashboard:navigate-module', {
       module: 'timeline',
       taskId: activeLoop.taskId,
@@ -310,6 +431,16 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
   };
 
   const handleNavigateHQ = () => {
+    patchNextAction({
+      currentModule: 'memory',
+      goalId: activeLoop?.goalId,
+      goalName: activeLoop?.goalName,
+      taskId: activeLoop?.taskId,
+      taskTitle: activeLoop?.taskTitle,
+      focusLabel: activeLoop?.painLabel || activeLoop?.goalName || '整改问题',
+      suggestedAction: '回总部确认问题、承诺和闭环状态',
+      source: 'goals',
+    });
     eventBus.emit('dashboard:navigate-module', {
       module: 'memory',
       goalId: activeLoop?.goalId,
@@ -561,7 +692,7 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
                   <div className="mt-2 text-sm leading-6 text-white/72">{loopStageMeta.description}</div>
                 </div>
 
-                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div className="rounded-[20px] px-4 py-4" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
                     <div className="text-xs font-semibold text-white/62">整改目标</div>
                     <div className="mt-2 text-sm font-semibold text-white">{activeLoop.goalName || '尚未挂载目标'}</div>
@@ -574,8 +705,8 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
                   </div>
                   <div className="rounded-[20px] px-4 py-4" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
                     <div className="text-xs font-semibold text-white/62">执行状态</div>
-                    <div className="mt-2 text-sm font-semibold text-white">{loopTask?.status === 'completed' ? '已完成' : loopTask?.status === 'in_progress' ? '执行中' : loopHasContribution ? '已补 KR' : loopTask ? '待执行' : '未安排'}</div>
-                    <div className="mt-2 text-xs text-white/65">{loopHasContribution ? '关键结果已沉淀到目标分析' : '完成后记得补 KR，避免只做不收口'}</div>
+                    <div className="mt-2 text-sm font-semibold text-white">{loopStageMeta.statusTitle}</div>
+                    <div className="mt-2 text-xs text-white/65">{loopStageMeta.statusHint}</div>
                   </div>
                 </div>
 
@@ -602,14 +733,14 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
                     className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold text-white transition active:scale-95 disabled:opacity-45"
                     style={{ borderColor: 'rgba(255,255,255,0.24)', backgroundColor: 'rgba(255,255,255,0.06)' }}
                   >
-                    去时间轴执行 <ArrowRight className="h-4 w-4" />
+                    {loopStageMeta.timelineAction} <ArrowRight className="h-4 w-4" />
                   </button>
                   <button
                     onClick={handleNavigateHQ}
                     className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold text-white transition active:scale-95"
                     style={{ borderColor: 'rgba(255,255,255,0.18)', backgroundColor: 'transparent' }}
                   >
-                    回总部复盘 <ArrowRight className="h-4 w-4" />
+                    {loopStageMeta.hqAction} <ArrowRight className="h-4 w-4" />
                   </button>
                 </div>
               </div>
@@ -678,7 +809,21 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
                   key={goal.id}
                   className="rounded-[30px] px-4 py-4 shadow-[0_14px_40px_rgba(15,23,42,0.06)] cursor-pointer"
                   style={{ background: surface }}
-                  onClick={() => setSelectedGoal(goal)}
+                  onClick={() => {
+                patchNextAction({
+                  currentModule: 'goals',
+                  goalId: goal.id,
+                  goalName: goal.name,
+                  taskId: activeLoop?.taskId,
+                  taskTitle: activeLoop?.taskTitle,
+                  focusLabel: goal.name,
+                  suggestedAction: linkedGoalId === goal.id
+                    ? '这是当前联动焦点，优先看它的分析与关键结果'
+                    : '查看这个目标的进度与关键结果',
+                  source: 'goals',
+                });
+                setSelectedGoal(goal);
+              }}
                 >
                   <div className="flex items-center gap-4">
                     <div
