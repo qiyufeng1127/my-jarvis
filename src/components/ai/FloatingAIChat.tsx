@@ -1,11 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, X, Minimize2, Maximize2, GripVertical, Settings, Hourglass, ChevronDown, ChevronUp, CheckSquare, Square, Sparkles, Volume2, VolumeX, User, Trash2 } from 'lucide-react';
+import { Send, X, Minimize2, Maximize2, GripVertical, Settings, Hourglass, ChevronDown, ChevronUp, CheckSquare, Square, Sparkles, User, Trash2 } from 'lucide-react';
 import { useGoalStore } from '@/stores/goalStore';
 import { useTagStore } from '@/stores/tagStore';
 import { matchTaskToGoals, generateGoalSuggestionMessage } from '@/services/aiGoalMatcher';
 import { useMemoryStore, EMOTION_TAGS, CATEGORY_TAGS } from '@/stores/memoryStore';
 import { useKeyboardAvoidance } from '@/hooks';
-import VoiceControl from '@/components/voice/VoiceControl';
 import { notificationService } from '@/services/notificationService';
 import { useAIPersonalityStore } from '@/stores/aiPersonalityStore';
 import { behaviorMonitorService } from '@/services/behaviorMonitorService';
@@ -185,8 +184,6 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [bgColor, setBgColor] = useState(persistedState.bgColor);
   const [showColorPicker, setShowColorPicker] = useState(false);
-  const [isVoiceControlOpen, setIsVoiceControlOpen] = useState(false);
-  const [isVoiceListening, setIsVoiceListening] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   
   // 获取默认欢迎消息
@@ -2426,10 +2423,90 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
     }
   };
 
+  const quickActions = [
+    { key: 'smart_schedule', icon: '🎯', title: '帮我安排' },
+    { key: 'task_decompose', icon: '🧩', title: '任务分解' },
+    { key: 'timeline_operation', icon: '🕒', title: '时间轴操作' },
+    { key: 'income_mode', icon: '💰', title: '关于收入' },
+    { key: 'goal_mode', icon: '🏠', title: '关于目标' },
+    { key: 'mutter_quick', icon: '💭', title: '心情碎碎念' },
+  ] as const;
+
+  const handleQuickAction = (action: (typeof quickActions)[number]['key']) => {
+    if (action === 'smart_schedule') {
+      setInputValue('根据我的习惯和当前时间，帮我智能安排接下来要做的任务');
+      setTimeout(() => handleSend(), 0);
+      return;
+    }
+
+    if (action === 'task_decompose') {
+      setInputValue(prev => ensureTaskDecomposePrefix(prev));
+      return;
+    }
+
+    if (action === 'timeline_operation') {
+      setInputValue(prev => ensureTimelineOperationPrefix(prev));
+      return;
+    }
+
+    if (action === 'income_mode') {
+      setContextMode('income');
+      const modeMessage: Message = {
+        id: `ai-${Date.now()}`,
+        role: 'assistant',
+        content: '💰 **收入记录模式已开启**\n\n现在你可以直接输入收入相关的信息，例如：\n\n• "今天画插画赚了2000块钱"\n• "接了个设计单，收入5000元"\n• "副业收入3000"\n\n我会自动：\n✅ 提取金额和描述\n✅ 保存到副业追踪器\n✅ 在时间轴标记收入时间点\n\n💡 输入完成后会自动退出此模式',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, modeMessage]);
+      return;
+    }
+
+    if (action === 'goal_mode') {
+      setContextMode('goal');
+      const modeMessage: Message = {
+        id: `ai-${Date.now()}`,
+        role: 'assistant',
+        content: '🎯 **目标设置模式已开启**\n\n现在你可以用口语化的方式描述目标，例如：\n\n• "我希望在三个月之内赚10万块钱"\n• "一个星期之内发布新网站"\n• "今年要读完50本书"\n• "半年内减重20斤"\n\nAI会智能识别：\n✅ 目标内容\n✅ 时间期限\n✅ 数值目标\n✅ 自动分类\n\n💡 输入完成后会自动退出此模式',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, modeMessage]);
+      return;
+    }
+
+    if (action === 'mutter_quick') {
+      const now = new Date();
+      const mutterContent = `心情记录 ${now.toLocaleString('zh-CN')}`;
+
+      addMemory({
+        type: 'mutter',
+        content: mutterContent,
+        mood: '记录',
+        tags: ['碎碎念', '心情'],
+        date: now,
+      });
+
+      createTask({
+        title: `💭💕 心情碎碎念`,
+        description: `📝 ${mutterContent}\n\n💕 心情备注：点击编辑添加你的心情\n⏰ 记录时间：${now.toLocaleString('zh-CN')}`,
+        taskType: 'life' as TaskType,
+        priority: 2,
+        durationMinutes: 1,
+        scheduledStart: now,
+        scheduledEnd: new Date(now.getTime() + 60000),
+        tags: ['💭碎碎念', '💕心情'],
+        color: '#FFB6C1',
+        status: 'completed',
+        isRecord: true,
+      });
+
+      notificationService.success('💭 心情碎碎念已记录到时间轴！');
+    }
+  };
+
   // 全屏模式处理
   if (isFullScreen) {
     const selectedCount = messages.filter(m => m.isSelected).length;
-    const fullScreenComposerHeight = isSelectionMode && selectedCount > 0 ? 92 : 188;
+    const fullScreenComposerHeight = isSelectionMode && selectedCount > 0 ? 96 : 146;
     
     return (
       <div className="h-full flex flex-col bg-white relative keyboard-safe-area-top" onFocusCapture={handleFocusCapture}>
@@ -2511,7 +2588,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
         <div
           ref={conversationRef}
           className="flex-1 overflow-y-auto p-4 space-y-3 bg-neutral-50 keyboard-aware-scroll"
-          style={{ paddingBottom: `calc(${fullScreenComposerHeight}px + var(--app-safe-area-bottom) + var(--app-keyboard-offset) + 88px)` }}
+          style={{ paddingBottom: `calc(${fullScreenComposerHeight}px + var(--app-safe-area-bottom) + var(--app-keyboard-offset) + 16px)` }}
         >
           {messages.map((message) => {
             const resolvedDecomposedTasks =
@@ -2703,7 +2780,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
         {/* 底部操作区 */}
         <div
           className="fixed left-0 right-0 z-[1001] border-t border-neutral-200 bg-white shadow-[0_-8px_24px_rgba(15,23,42,0.08)] keyboard-aware-composer"
-          style={{ bottom: 'calc(76px + var(--app-safe-area-bottom))' }}
+          style={{ bottom: 'calc(64px + var(--app-safe-area-bottom))' }}
           onFocusCapture={handleFocusCapture}
         >
           {/* 快速指令或智能分配按钮 */}
@@ -2720,90 +2797,36 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
             </div>
           ) : (
             <>
-              <div className="px-3 py-2">
-                <div className="flex items-center space-x-2 overflow-x-auto">
-                  <span className="text-xs whitespace-nowrap text-gray-500">快速：</span>
-                  {[
-                    { label: '帮我安排', icon: '🎯', action: 'smart_schedule', title: '学习你的习惯，智能推荐当前适合做的任务' },
-                    { label: '任务分解', icon: '🧩', action: 'task_decompose', title: '给当前输入自动补上“任务分解：”前缀，触发任务拆分和编辑器' },
-                    { label: '时间轴操作', icon: '🕒', action: 'timeline_operation', title: '给当前输入自动补上“时间轴操作：”前缀，用自然语言批量操控时间轴任务' },
-                    { label: '关于收入', icon: '💰', action: 'income_mode', title: '记录副业收入，自动同步到副业追踪和时间轴' },
-                    { label: '关于目标', icon: '🎯', action: 'goal_mode', title: '设置长期或短期目标，AI智能解析' },
-                    { label: '心情碎碎念', icon: '💭', action: 'mutter_quick', title: '快速记录心情碎碎念' },
-                  ].map((cmd) => (
-                    <button
-                      key={cmd.label}
-                      onClick={() => {
-                        if (cmd.action === 'smart_schedule') {
-                          setInputValue('根据我的习惯和当前时间，帮我智能安排接下来要做的任务');
-                          handleSend();
-                        } else if (cmd.action === 'task_decompose') {
-                          setInputValue(prev => ensureTaskDecomposePrefix(prev));
-                        } else if (cmd.action === 'timeline_operation') {
-                          setInputValue(prev => ensureTimelineOperationPrefix(prev));
-                        } else if (cmd.action === 'income_mode') {
-                          setContextMode('income');
-                          const modeMessage: Message = {
-                            id: `ai-${Date.now()}`,
-                            role: 'assistant',
-                            content: '💰 **收入记录模式已开启**\n\n现在你可以直接输入收入相关的信息，例如：\n\n• "今天画插画赚了2000块钱"\n• "接了个设计单，收入5000元"\n• "副业收入3000"\n\n我会自动：\n✅ 提取金额和描述\n✅ 保存到副业追踪器\n✅ 在时间轴标记收入时间点\n\n💡 输入完成后会自动退出此模式',
-                            timestamp: new Date(),
-                          };
-                          setMessages(prev => [...prev, modeMessage]);
-                        } else if (cmd.action === 'goal_mode') {
-                          setContextMode('goal');
-                          const modeMessage: Message = {
-                            id: `ai-${Date.now()}`,
-                            role: 'assistant',
-                            content: '🎯 **目标设置模式已开启**\n\n现在你可以用口语化的方式描述目标，例如：\n\n• "我希望在三个月之内赚10万块钱"\n• "一个星期之内发布新网站"\n• "今年要读完50本书"\n• "半年内减重20斤"\n\nAI会智能识别：\n✅ 目标内容\n✅ 时间期限\n✅ 数值目标\n✅ 自动分类\n\n💡 输入完成后会自动退出此模式',
-                            timestamp: new Date(),
-                          };
-                          setMessages(prev => [...prev, modeMessage]);
-                        } else if (cmd.action === 'mutter_quick') {
-                          const now = new Date();
-                          const mutterContent = `心情记录 ${now.toLocaleString('zh-CN')}`;
+              {/* 快速指令 */}
+              <div className="px-3 pt-2 pb-2">
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                  {quickActions.map((cmd) => {
+                    const isActive =
+                      (contextMode === 'income' && cmd.key === 'income_mode') ||
+                      (contextMode === 'goal' && cmd.key === 'goal_mode');
 
-                          addMemory({
-                            type: 'mutter',
-                            content: mutterContent,
-                            mood: '记录',
-                            tags: ['碎碎念', '心情'],
-                            date: now,
-                          });
-
-                          createTask({
-                            title: `💭💕 心情碎碎念`,
-                            description: `📝 ${mutterContent}\n\n💕 心情备注：点击编辑添加你的心情\n⏰ 记录时间：${now.toLocaleString('zh-CN')}`,
-                            taskType: 'life' as TaskType,
-                            priority: 2,
-                            durationMinutes: 1,
-                            scheduledStart: now,
-                            scheduledEnd: new Date(now.getTime() + 60000),
-                            tags: ['💭碎碎念', '💕心情'],
-                            color: '#FFB6C1',
-                            status: 'completed',
-                            isRecord: true,
-                          });
-
-                          notificationService.success('💭 心情碎碎念已记录到时间轴！');
-                        }
-                      }}
-                      className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap hover:scale-105 ${
-                        contextMode === 'income' && cmd.action === 'income_mode' ? 'bg-green-500 text-white' :
-                        contextMode === 'goal' && cmd.action === 'goal_mode' ? 'bg-blue-500 text-white' :
-                        cmd.action === 'timeline_operation' ? 'bg-amber-100 text-amber-800 active:bg-amber-200' :
-                        'bg-neutral-100 text-gray-700 active:bg-neutral-200'
-                      }`}
-                      title={cmd.title}
-                    >
-                      {cmd.icon} {cmd.label}
-                    </button>
-                  ))}
+                    return (
+                      <button
+                        key={cmd.key}
+                        onClick={() => handleQuickAction(cmd.key)}
+                        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border text-base transition-all active:scale-95"
+                        style={{
+                          backgroundColor: isActive ? '#8b5cf6' : '#ffffff',
+                          color: isActive ? '#ffffff' : '#4b5563',
+                          borderColor: isActive ? '#8b5cf6' : '#e5e7eb',
+                          boxShadow: isActive ? '0 8px 18px rgba(139, 92, 246, 0.24)' : '0 2px 6px rgba(15, 23, 42, 0.06)',
+                        }}
+                        title={cmd.title}
+                      >
+                        <span>{cmd.icon}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
               {/* 输入区域 */}
-              <div className="px-3 pb-2">
+              <div className="px-3 pb-3" onFocusCapture={handleFocusCapture}>
                 <div className="flex items-end space-x-2">
                   <textarea
                     ref={textareaRef}
@@ -2812,16 +2835,16 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
                     onKeyDown={handleKeyDown}
                     onFocus={() => scrollIntoSafeView(textareaRef.current)}
                     placeholder="对我说点什么..."
-                    className="flex-1 px-3 py-2 rounded-lg resize-none focus:outline-none text-sm border border-gray-300 focus:border-blue-500 overflow-y-auto bg-white"
+                    className="flex-1 px-3 py-3 rounded-2xl resize-none focus:outline-none text-sm border border-gray-300 focus:border-blue-500 overflow-y-auto bg-white"
                     style={{
-                      minHeight: '40px',
+                      minHeight: '52px',
                       maxHeight: '120px',
                     }}
                   />
                   <button
                     onClick={handleSend}
                     disabled={!inputValue.trim() || isProcessing}
-                    className="p-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                    className="h-[52px] w-[52px] rounded-2xl bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 flex items-center justify-center"
                     title={isProcessing ? 'AI正在思考...' : '发送消息'}
                   >
                     {isProcessing ? <Hourglass className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
@@ -2855,35 +2878,6 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
 
   return (
     <>
-      {/* 语音控制按钮 - 只在时间轴显示，在AI按钮上方 */}
-      {currentModule === 'timeline' && (
-        <button
-          onClick={() => {
-            setIsVoiceControlOpen(!isVoiceControlOpen);
-            if (!isVoiceControlOpen) {
-              setIsVoiceListening(true);
-            } else {
-              setIsVoiceListening(false);
-            }
-          }}
-          className="fixed w-16 h-16 rounded-full shadow-2xl hover:scale-110 transition-all flex items-center justify-center"
-          style={{ 
-            backgroundColor: isVoiceListening ? '#10B981' : '#8B5CF6',
-            color: '#ffffff',
-            zIndex: 99999,
-            bottom: '168px', // 在AI按钮上方
-            right: '16px',
-          }}
-          title={isVoiceListening ? "免手模式开启中" : "点击开启免手模式"}
-        >
-          {isVoiceListening ? (
-            <Volume2 className="w-8 h-8" />
-          ) : (
-            <VolumeX className="w-8 h-8" />
-          )}
-        </button>
-      )}
-
       {/* AI助手浮动按钮 - 只在时间轴显示，黄色底色+白色图标 */}
       {!isOpen && currentModule === 'timeline' && (
         <button
@@ -2893,7 +2887,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
             backgroundColor: '#E8C259',
             color: '#ffffff',
             zIndex: 99999,
-            bottom: '88px', // 在语音按钮下方
+            bottom: '88px',
             right: '16px',
           }}
           title="AI助手"
@@ -3254,96 +3248,34 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
 
               {/* 快速指令 */}
               <div className="px-3 py-2 border-t keyboard-aware-composer" style={{ backgroundColor: theme.bgColor, borderColor: theme.borderColor }}>
-                <div className="flex items-center space-x-2 overflow-x-auto">
-                  <span className="text-xs whitespace-nowrap" style={{ color: theme.accentColor }}>快速：</span>
-                  {[
-                    { label: '帮我安排', icon: '🎯', action: 'smart_schedule', title: '学习你的习惯，智能推荐当前适合做的任务' },
-                    { label: '任务分解', icon: '🧩', action: 'task_decompose', title: '给当前输入自动补上“任务分解：”前缀，触发任务拆分和编辑器' },
-                    { label: '时间轴操作', icon: '🕒', action: 'timeline_operation', title: '给当前输入自动补上“时间轴操作：”前缀，用自然语言批量操控时间轴任务' },
-                    { label: '关于收入', icon: '💰', action: 'income_mode', title: '记录副业收入，自动同步到副业追踪和时间轴' },
-                    { label: '关于目标', icon: '🎯', action: 'goal_mode', title: '设置长期或短期目标，AI智能解析' },
-                    { label: '心情碎碎念', icon: '💭', action: 'mutter_quick', title: '快速记录心情碎碎念' },
-                  ].map((cmd) => (
-                    <button
-                      key={cmd.label}
-                      onClick={() => {
-                        if (cmd.action === 'smart_schedule') {
-                          setInputValue('根据我的习惯和当前时间，帮我智能安排接下来要做的任务');
-                          handleSend();
-                        } else if (cmd.action === 'task_decompose') {
-                          setInputValue(prev => ensureTaskDecomposePrefix(prev));
-                        } else if (cmd.action === 'timeline_operation') {
-                          setInputValue(prev => ensureTimelineOperationPrefix(prev));
-                        } else if (cmd.action === 'income_mode') {
-                          setContextMode('income');
-                          const modeMessage: Message = {
-                            id: `ai-${Date.now()}`,
-                            role: 'assistant',
-                            content: '💰 **收入记录模式已开启**\n\n现在你可以直接输入收入相关的信息，例如：\n\n• "今天画插画赚了2000块钱"\n• "接了个设计单，收入5000元"\n• "副业收入3000"\n\n我会自动：\n✅ 提取金额和描述\n✅ 保存到副业追踪器\n✅ 在时间轴标记收入时间点\n\n💡 输入完成后会自动退出此模式',
-                            timestamp: new Date(),
-                          };
-                          setMessages(prev => [...prev, modeMessage]);
-                        } else if (cmd.action === 'goal_mode') {
-                          setContextMode('goal');
-                          const modeMessage: Message = {
-                            id: `ai-${Date.now()}`,
-                            role: 'assistant',
-                            content: '🎯 **目标设置模式已开启**\n\n现在你可以用口语化的方式描述目标，例如：\n\n• "我希望在三个月之内赚10万块钱"\n• "一个星期之内发布新网站"\n• "今年要读完50本书"\n• "半年内减重20斤"\n\nAI会智能识别：\n✅ 目标内容\n✅ 时间期限\n✅ 数值目标\n✅ 自动分类\n\n💡 输入完成后会自动退出此模式',
-                            timestamp: new Date(),
-                          };
-                          setMessages(prev => [...prev, modeMessage]);
-                        } else if (cmd.action === 'mutter_quick') {
-                          // 快速添加心情碎碎念记录
-                          const now = new Date();
-                          const mutterContent = `心情记录 ${now.toLocaleString('zh-CN')}`;
-                          
-                          // 保存到记忆库
-                          addMemory({
-                            type: 'mutter',
-                            content: mutterContent,
-                            mood: '记录',
-                            tags: ['碎碎念', '心情'],
-                            date: now,
-                          });
-                          
-                          // 在时间轴创建粉红色卡片
-                          createTask({
-                            title: `💭💕 心情碎碎念`,
-                            description: `📝 ${mutterContent}\n\n💕 心情备注：点击编辑添加你的心情\n⏰ 记录时间：${now.toLocaleString('zh-CN')}`,
-                            taskType: 'life' as TaskType,
-                            priority: 2,
-                            durationMinutes: 1,
-                            scheduledStart: now,
-                            scheduledEnd: new Date(now.getTime() + 60000),
-                            tags: ['💭碎碎念', '💕心情'],
-                            color: '#FFB6C1', // 粉红色
-                            status: 'completed',
-                            isRecord: true,
-                          });
-                          
-                          // 显示提示消息
-                          notificationService.success('💭 心情碎碎念已记录到时间轴！');
-                        }
-                      }}
-                      className={`px-2 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap hover:scale-105`}
-                      style={{ 
-                        backgroundColor: contextMode === 'income' && cmd.action === 'income_mode' ? '#10b981' :
-                                       contextMode === 'goal' && cmd.action === 'goal_mode' ? '#3b82f6' :
-                                       theme.buttonBg, 
-                        color: contextMode === 'income' && cmd.action === 'income_mode' ? '#ffffff' :
-                               contextMode === 'goal' && cmd.action === 'goal_mode' ? '#ffffff' :
-                               theme.textColor 
-                      }}
-                      title={cmd.title}
-                    >
-                      {cmd.icon} {cmd.label}
-                    </button>
-                  ))}
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                  {quickActions.map((cmd) => {
+                    const isActive =
+                      (contextMode === 'income' && cmd.key === 'income_mode') ||
+                      (contextMode === 'goal' && cmd.key === 'goal_mode');
+
+                    return (
+                      <button
+                        key={cmd.key}
+                        onClick={() => handleQuickAction(cmd.key)}
+                        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border text-base transition-all active:scale-95"
+                        style={{
+                          backgroundColor: isActive ? '#8b5cf6' : theme.buttonBg,
+                          color: isActive ? '#ffffff' : theme.textColor,
+                          borderColor: isActive ? '#8b5cf6' : theme.borderColor,
+                          boxShadow: isActive ? '0 8px 18px rgba(139, 92, 246, 0.24)' : '0 2px 6px rgba(15, 23, 42, 0.08)',
+                        }}
+                        title={cmd.title}
+                      >
+                        <span>{cmd.icon}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
               {/* 输入区域 */}
-              <div className="p-3 border-t keyboard-aware-composer" style={{ backgroundColor: theme.bgColor, borderColor: theme.borderColor }}>
+              <div className="p-3 pt-0 border-t keyboard-aware-composer" style={{ backgroundColor: theme.bgColor, borderColor: theme.borderColor }}>
                 <div className="flex items-end space-x-2">
                   <textarea
                     ref={textareaRef}
@@ -3352,19 +3284,19 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
                     onKeyDown={handleKeyDown}
                     onFocus={() => scrollIntoSafeView(textareaRef.current)}
                     placeholder="对我说点什么..."
-                    className="flex-1 px-3 py-2 rounded-lg resize-none focus:outline-none text-sm border overflow-y-auto"
+                    className="flex-1 px-3 py-3 rounded-2xl resize-none focus:outline-none text-sm border overflow-y-auto"
                     style={{
                       backgroundColor: theme.cardBg,
                       color: theme.textColor,
                       borderColor: theme.borderColor,
-                      minHeight: '40px',
+                      minHeight: '52px',
                       maxHeight: '200px',
                     }}
                   />
                   <button
                     onClick={handleSend}
                     disabled={!inputValue.trim() || isProcessing}
-                    className="p-2 rounded-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="h-[52px] w-[52px] rounded-2xl hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 flex items-center justify-center"
                     style={{ backgroundColor: '#8b5cf6', color: '#ffffff' }}
                     title={isProcessing ? "AI正在思考..." : "发送消息"}
                   >
@@ -3416,12 +3348,6 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
           onConfirm={handleConfirmTaskEditor}
         />
       )}
-
-      {/* 语音控制组件 */}
-      <VoiceControl 
-        isOpen={isVoiceControlOpen} 
-        onClose={() => setIsVoiceControlOpen(false)} 
-      />
     </>
   );
 }

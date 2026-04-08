@@ -1,7 +1,7 @@
 import { useMemo, useState, useRef } from 'react';
 import { Minus, Plus } from 'lucide-react';
 import { useKeyboardAvoidance } from '@/hooks';
-import type { GoalMetric, GoalProjectBinding, GoalTheme, GoalType } from '@/types';
+import type { GoalMetric, GoalTheme, GoalType } from '@/types';
 
 export interface GoalFormData {
   name: string;
@@ -12,10 +12,7 @@ export interface GoalFormData {
   estimatedTotalHours: number;
   targetIncome: number;
   dimensions: GoalMetric[];
-  projectBindings: GoalProjectBinding[];
   theme: GoalTheme;
-  showInFuture30Chart: boolean;
-  relatedDimensions: string[];
 }
 
 interface GoalFormProps {
@@ -34,13 +31,6 @@ const themeOptions: GoalTheme[] = [
   { color: '#8B5CF6', label: '暮紫' },
 ];
 
-const projectOptions: GoalProjectBinding[] = [
-  { id: 'photo-work', name: '照相馆工作', color: '#10B981' },
-  { id: 'xiaohongshu', name: '发照相馆小红书', color: '#0A84FF' },
-  { id: 'customer-service', name: '接待顾客', color: '#FF9500' },
-  { id: 'wechat', name: '工作微信处理', color: '#34C759' },
-];
-
 function createMetric(index = 0): GoalMetric {
   return {
     id: `metric-${Date.now()}-${index}`,
@@ -54,7 +44,7 @@ function createMetric(index = 0): GoalMetric {
 
 export default function GoalForm({
   initialData,
-  dimensions,
+  dimensions: _dimensions,
   onSave,
   onCancel,
   bgColor = '#efeff4',
@@ -72,10 +62,7 @@ export default function GoalForm({
       estimatedTotalHours: 0,
       targetIncome: 0,
       dimensions: [createMetric(0), createMetric(1)],
-      projectBindings: [projectOptions[0]],
       theme: themeOptions[0],
-      showInFuture30Chart: true,
-      relatedDimensions: [],
     }
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -143,26 +130,6 @@ export default function GoalForm({
     }));
   };
 
-  const toggleProjectBinding = (project: GoalProjectBinding) => {
-    setFormData((prev) => {
-      const exists = prev.projectBindings.some((item) => item.id === project.id);
-      return {
-        ...prev,
-        projectBindings: exists
-          ? prev.projectBindings.filter((item) => item.id !== project.id)
-          : [...prev.projectBindings, project],
-      };
-    });
-  };
-
-  const toggleRelatedDimension = (dimensionId: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      relatedDimensions: prev.relatedDimensions.includes(dimensionId)
-        ? prev.relatedDimensions.filter((id) => id !== dimensionId)
-        : [...prev.relatedDimensions, dimensionId],
-    }));
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -197,7 +164,7 @@ export default function GoalForm({
                 onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
                 onFocus={() => scrollIntoSafeView(document.activeElement as HTMLElement | null)}
                 placeholder="填写目标名称"
-                className="w-full rounded-[18px] bg-[#f7f7fa] px-4 py-3 text-[18px] text-[#111111] outline-none"
+                className="w-full rounded-[18px] bg-[#f7f7fa] px-4 py-3 text-[18px] text-[#111111] placeholder:text-[#8e8e93] outline-none"
               />
               {errors.name && <p className="mt-2 text-sm text-[#ff3b30]">{errors.name}</p>}
             </section>
@@ -210,7 +177,7 @@ export default function GoalForm({
                     type="date"
                     value={formData.startDate}
                     onChange={(e) => setFormData((prev) => ({ ...prev, startDate: e.target.value }))}
-                    className="rounded-full bg-[#f3f3f6] px-4 py-2 text-[16px] text-[#111111] outline-none"
+                    className="rounded-full bg-[#f3f3f6] px-4 py-2 text-[16px] text-[#111111] outline-none [color-scheme:light]"
                   />
                 </div>
                 <div className="flex items-center justify-between border-b border-[#ececf1] pb-3">
@@ -219,7 +186,7 @@ export default function GoalForm({
                     type="date"
                     value={formData.endDate}
                     onChange={(e) => setFormData((prev) => ({ ...prev, endDate: e.target.value }))}
-                    className="rounded-full bg-[#f3f3f6] px-4 py-2 text-[16px] text-[#111111] outline-none"
+                    className="rounded-full bg-[#f3f3f6] px-4 py-2 text-[16px] text-[#111111] outline-none [color-scheme:light]"
                   />
                 </div>
                 <div className="flex items-center justify-between pt-1">
@@ -240,7 +207,7 @@ export default function GoalForm({
                   value={formData.estimatedTotalHours}
                   onChange={(e) => setFormData((prev) => ({ ...prev, estimatedTotalHours: Number(e.target.value || 0) }))}
                   onFocus={() => scrollIntoSafeView(document.activeElement as HTMLElement | null)}
-                  className="w-full rounded-[18px] bg-[#f7f7fa] px-4 py-3 text-[22px] font-semibold text-[#111111] outline-none"
+                  className="w-full rounded-[18px] bg-[#f7f7fa] px-4 py-3 text-[22px] font-semibold text-[#111111] placeholder:text-[#8e8e93] outline-none"
                 />
                 <div className="whitespace-nowrap pb-2 text-[16px] text-[#8e8e93]">约 {estimatedDailyHours || 0} h / 天</div>
               </div>
@@ -258,7 +225,7 @@ export default function GoalForm({
                   value={formData.targetIncome}
                   onChange={(e) => setFormData((prev) => ({ ...prev, targetIncome: Number(e.target.value || 0) }))}
                   onFocus={() => scrollIntoSafeView(document.activeElement as HTMLElement | null)}
-                  className="w-full rounded-[18px] bg-[#f7f7fa] px-4 py-3 text-[22px] font-semibold text-[#111111] outline-none"
+                  className="w-full rounded-[18px] bg-[#f7f7fa] px-4 py-3 text-[22px] font-semibold text-[#111111] placeholder:text-[#8e8e93] outline-none"
                 />
                 <div className="whitespace-nowrap pb-2 text-[16px] text-[#8e8e93]">元</div>
               </div>
@@ -283,7 +250,7 @@ export default function GoalForm({
                         onChange={(e) => updateMetric(item.id, { name: e.target.value })}
                         onFocus={() => scrollIntoSafeView(document.activeElement as HTMLElement | null)}
                         placeholder="名称"
-                        className="w-full rounded-[14px] border border-[#e4e4ea] bg-white px-3 py-3 text-[16px] outline-none"
+                        className="w-full rounded-[14px] border border-[#e4e4ea] bg-white px-3 py-3 text-[16px] text-[#111111] placeholder:text-[#8e8e93] outline-none"
                       />
                       <div className="grid grid-cols-2 gap-3">
                         <input
@@ -292,7 +259,7 @@ export default function GoalForm({
                           onChange={(e) => updateMetric(item.id, { unit: e.target.value })}
                           onFocus={() => scrollIntoSafeView(document.activeElement as HTMLElement | null)}
                           placeholder="单位"
-                          className="w-full rounded-[14px] border border-[#e4e4ea] bg-white px-3 py-3 text-[16px] outline-none"
+                          className="w-full rounded-[14px] border border-[#e4e4ea] bg-white px-3 py-3 text-[16px] text-[#111111] placeholder:text-[#8e8e93] outline-none"
                         />
                         <input
                           type="number"
@@ -300,7 +267,7 @@ export default function GoalForm({
                           value={item.targetValue}
                           onChange={(e) => updateMetric(item.id, { targetValue: Number(e.target.value || 0) })}
                           placeholder="目标总量"
-                          className="w-full rounded-[14px] border border-[#e4e4ea] bg-white px-3 py-3 text-[16px] outline-none"
+                          className="w-full rounded-[14px] border border-[#e4e4ea] bg-white px-3 py-3 text-[16px] text-[#111111] placeholder:text-[#8e8e93] outline-none"
                         />
                       </div>
                       <div className="flex items-center gap-2">
@@ -310,7 +277,7 @@ export default function GoalForm({
                           max="100"
                           value={item.weight}
                           onChange={(e) => updateMetric(item.id, { weight: Number(e.target.value || 0) })}
-                          className="w-24 rounded-[14px] border border-[#e4e4ea] bg-white px-3 py-3 text-[16px] outline-none"
+                          className="w-24 rounded-[14px] border border-[#e4e4ea] bg-white px-3 py-3 text-[16px] text-[#111111] placeholder:text-[#8e8e93] outline-none"
                         />
                         <span className="text-[16px] text-[#3a3a3c]">%</span>
                         <button type="button" onClick={() => removeMetric(item.id)} className="ml-auto rounded-full bg-white p-2 text-[#0A84FF] shadow-sm">
@@ -338,35 +305,8 @@ export default function GoalForm({
             </section>
 
             <section className="rounded-[26px] bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
-              <div className="text-[16px] text-[#3a3a3c]">绑定项目</div>
-              <div className="mt-3 space-y-3">
-                {projectOptions.map((project) => {
-                  const active = formData.projectBindings.some((item) => item.id === project.id);
-                  return (
-                    <button
-                      key={project.id}
-                      type="button"
-                      onClick={() => toggleProjectBinding(project)}
-                      className="flex w-full items-center justify-between rounded-[18px] border px-4 py-3 text-left transition"
-                      style={{
-                        borderColor: active ? project.color || '#0A84FF' : '#e7e7ed',
-                        background: active ? `${project.color || '#0A84FF'}15` : '#ffffff',
-                      }}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: project.color || '#0A84FF' }} />
-                        <span className="text-[16px] text-[#111111]">{project.name}</span>
-                      </div>
-                      {active && <span className="text-[#007aff]">已绑定</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section className="rounded-[26px] bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
               <div className="text-[16px] text-[#3a3a3c]">主题颜色</div>
-              <div className="mt-4 flex flex-wrap gap-4">
+              <div className="mt-4 flex flex-wrap items-center gap-4">
                 {themeOptions.map((theme) => {
                   const active = formData.theme.color === theme.color;
                   return (
@@ -382,49 +322,38 @@ export default function GoalForm({
                     </button>
                   );
                 })}
+
+                <label className="flex cursor-pointer flex-col items-center gap-2">
+                  <span
+                    className="flex h-12 w-12 items-center justify-center rounded-full border-4 transition"
+                    style={{
+                      backgroundColor: formData.theme.color,
+                      borderColor: themeOptions.some((theme) => theme.color === formData.theme.color) ? 'transparent' : '#111111',
+                    }}
+                  >
+                    <span className="text-[11px] font-semibold text-white mix-blend-difference">自定义</span>
+                  </span>
+                  <span className="text-xs text-[#6b7280]">自定义</span>
+                  <input
+                    type="color"
+                    value={formData.theme.color}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        theme: { color: e.target.value, label: '自定义' },
+                      }))
+                    }
+                    className="sr-only"
+                  />
+                </label>
               </div>
-              <div className="mt-3 text-sm text-[#8e8e93]">从已选项目的颜色中选一个作为展示色</div>
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-[18px] bg-[#f7f7fa] px-4 py-3">
+                <span className="text-sm text-[#8e8e93]">当前主题色</span>
+                <span className="text-[15px] font-medium text-[#111111]">{formData.theme.color.toUpperCase()}</span>
+              </div>
+              <div className="mt-3 text-sm text-[#8e8e93]">可选预设颜色，也可以使用自定义颜色作为目标展示色</div>
             </section>
 
-            <section className="rounded-[26px] bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
-              <div className="text-[16px] text-[#3a3a3c]">关联成长维度</div>
-              <div className="mt-3 grid grid-cols-2 gap-3">
-                {dimensions.map((dimension) => {
-                  const active = formData.relatedDimensions.includes(dimension.id);
-                  return (
-                    <button
-                      key={dimension.id}
-                      type="button"
-                      onClick={() => toggleRelatedDimension(dimension.id)}
-                      className="flex items-center gap-3 rounded-[18px] border px-3 py-3 text-left transition"
-                      style={{
-                        borderColor: active ? dimension.color : '#e7e7ed',
-                        background: active ? `${dimension.color}18` : '#ffffff',
-                      }}
-                    >
-                      <span className="text-xl">{dimension.icon}</span>
-                      <span className="text-[15px] text-[#111111]">{dimension.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section className="rounded-[26px] bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-[17px] text-[#111111]">在「未来30天每日理想投入」图表中显示</div>
-                  <div className="mt-1 text-sm text-[#8e8e93]">关闭后该目标将不出现在首页的未来30天堆叠图表中</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setFormData((prev) => ({ ...prev, showInFuture30Chart: !prev.showInFuture30Chart }))}
-                  className={`relative h-8 w-14 rounded-full transition ${formData.showInFuture30Chart ? 'bg-[#34c759]' : 'bg-[#d1d1d6]'}`}
-                >
-                  <span className={`absolute top-1 h-6 w-6 rounded-full bg-white transition ${formData.showInFuture30Chart ? 'left-7' : 'left-1'}`} />
-                </button>
-              </div>
-            </section>
           </div>
         </div>
       </form>
