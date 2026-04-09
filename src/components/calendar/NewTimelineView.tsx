@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, Camera, Check, ChevronDown, ChevronUp, Edit2, Trash2, GripVertical, Star, Clock, FileText, Upload, X, ShieldAlert } from 'lucide-react';
+import { Plus, Camera, Check, ChevronDown, ChevronUp, Edit2, Trash2, GripVertical, Star, Clock, FileText, Upload, X, ShieldAlert, Zap, WandSparkles, Sparkles } from 'lucide-react';
 import eventBus from '@/utils/eventBus';
 import type { Task, LongTermGoal } from '@/types';
 import { 
@@ -20,6 +20,7 @@ import NowTimeline from './NowTimeline';
 import { useAIStore } from '@/stores/aiStore';
 import { useGoldStore } from '@/stores/goldStore';
 import { useTagStore } from '@/stores/tagStore';
+import { TagLearningService } from '@/services/tagLearningService';
 import { useGoalStore } from '@/stores/goalStore';
 import { useGoalContributionStore } from '@/stores/goalContributionStore';
 import { useHQBridgeStore } from '@/stores/hqBridgeStore';
@@ -88,21 +89,23 @@ export default function NewTimelineView({
   const addTaskHistoryRecord = useTaskHistoryStore(state => state.addRecord);
   const activeLoop = useHQBridgeStore((state) => state.activeLoop);
   const setActiveLoop = useHQBridgeStore((state) => state.setActiveLoop);
+  const addHQAccountabilityRecord = useHQBridgeStore((state) => state.addAccountabilityRecord);
 
-  const START_DELAY_FORM_THRESHOLD = 5;
-  const LOW_EFFICIENCY_DELAY_MINUTES = 60;
-  const MANDATORY_REFLECTION_QUESTIONS: Record<'start_delay' | 'low_efficiency', string[]> = {
+  const START_DELAY_FORM_THRESHOLD = 10;
+  const LOW_EFFICIENCY_TIMEOUT_THRESHOLD = 10;
+  const LOW_EFFECTIVE_TIME_RATIO_THRESHOLD = 0.3;
+  const MANDATORY_REFLECTION_QUESTIONS: Record<'start_delay' | 'low_efficiency' | 'no_result', string[]> = {
     start_delay: [
-      '你已经连续多次在启动窗口内没有开始。你刚才究竟在逃避什么？',
-      '此刻你实际正在做什么，与当前任务冲突的诱因是什么？',
-      '如果总部现在追问，你最不能自圆其说的借口是什么？',
-      '你准备立刻做出的纠偏动作是什么？请写可执行动作。',
+      '你此刻实际正在做什么，为什么拖延了？',
+      '你要立刻做什么才能弥补拖延？',
     ],
     low_efficiency: [
-      '任务已经严重超时。真正拖慢你的关键障碍到底是什么？',
-      '这段时间你在反复想什么、刷什么、耗在什么地方？',
-      '如果继续这样低效下去，最直接损失的是哪一个目标或承诺？',
-      '你接下来准备如何止损，并避免下一次再次失控？',
+      '你此刻实际正在做什么，为什么效率这么低？',
+      '你要立刻做什么才能止损，并让任务重新回到推进状态？',
+    ],
+    no_result: [
+      '你此刻实际正在做什么，为什么这次投入之后没有任何关键结果？',
+      '你要立刻做什么才能补出最小可见结果？',
     ],
   };
   
@@ -204,6 +207,14 @@ export default function NewTimelineView({
   const imageInputRefs = useRef<Record<string, HTMLInputElement>>({});
   const [showGoldModal, setShowGoldModal] = useState(false); // 金币详情弹窗
   const [isSmartAssigning, setIsSmartAssigning] = useState(false); // 智能分配加载状态
+  const [quickBackfillDraft, setQuickBackfillDraft] = useState<{
+    title: string;
+    tags: string[];
+    goalId: string;
+    startTime: string;
+    endTime: string;
+    selectedGapIndex: number;
+  } | null>(null);
   
   useEffect(() => {
     const handleNavigate = (payload?: { module?: string; taskId?: string }) => {
@@ -340,11 +351,22 @@ export default function NewTimelineView({
 
   const syncReflectionToHQ = (
     task: Task,
-    trigger: 'start_delay' | 'low_efficiency',
+    trigger: 'start_delay' | 'low_efficiency' | 'no_result',
     answers: Array<{ question: string; answer: string }>
   ) => {
     const matchedGoals = getMatchedGoalsForTask(task);
     const primaryGoal = matchedGoals[0];
+    const submittedAt = new Date().toISOString();
+    const painLabel = trigger === 'start_delay'
+      ? '启动拖延'
+      : trigger === 'low_efficiency'
+      ? '低效率'
+      : '无结果';
+    const promise = answers[1]?.answer || (trigger === 'start_delay'
+      ? '立刻进入第一个动作。'
+      : trigger === 'low_efficiency'
+      ? '立刻止损并回到任务推进。'
+      : '立刻补出最小关键结果。');
 
     setActiveLoop({
       ...(activeLoop || {}),
@@ -352,18 +374,31 @@ export default function NewTimelineView({
       goalName: primaryGoal?.name || activeLoop?.goalName,
       taskId: task.id,
       taskTitle: task.title,
-      painLabel: trigger === 'start_delay' ? '启动拖延失控' : '严重低效率',
-      promise: trigger === 'start_delay' ? '立即进入启动动作，不再拖延启动窗口。' : '立即止损，收束分心，恢复目标推进效率。',
+      painLabel,
+      promise,
       accountabilityForm: {
         trigger,
         triggeredAt: task.mandatoryReflection?.triggeredAt || new Date().toISOString(),
-        submittedAt: new Date().toISOString(),
+        submittedAt,
         answers,
       },
     });
+
+    addHQAccountabilityRecord({
+      goalId: primaryGoal?.id || activeLoop?.goalId,
+      goalName: primaryGoal?.name || activeLoop?.goalName,
+      taskId: task.id,
+      taskTitle: task.title,
+      painLabel,
+      promise,
+      trigger,
+      triggeredAt: task.mandatoryReflection?.triggeredAt || new Date().toISOString(),
+      submittedAt,
+      answers,
+    });
   };
 
-  const openMandatoryReflection = (taskId: string, trigger: 'start_delay' | 'low_efficiency') => {
+  const openMandatoryReflection = (taskId: string, trigger: 'start_delay' | 'low_efficiency' | 'no_result') => {
     const task = allTasks.find((item) => item.id === taskId);
     if (!task) return;
 
@@ -378,7 +413,7 @@ export default function NewTimelineView({
     setMandatoryReflectionTaskId(taskId);
   };
 
-  const ensureMandatoryReflection = (taskId: string, trigger: 'start_delay' | 'low_efficiency') => {
+  const ensureMandatoryReflection = (taskId: string, trigger: 'start_delay' | 'low_efficiency' | 'no_result') => {
     const task = allTasks.find((item) => item.id === taskId);
     if (!task) return;
     if (isMandatoryReflectionPending(task)) {
@@ -615,6 +650,135 @@ export default function NewTimelineView({
     }
 
     return badges;
+  };
+
+  const normalizeTimeInput = (date: Date) => `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+
+  const getGoalDisplayText = (goal: LongTermGoal) => goal.name || goal.description || '未命名目标';
+
+  const buildBackfillSuggestion = (gapIndex: number) => {
+    const gap = gaps[gapIndex];
+    if (!gap) return null;
+
+    return {
+      title: '',
+      tags: [] as string[],
+      goalId: '',
+      startTime: normalizeTimeInput(gap.startTime),
+      endTime: normalizeTimeInput(gap.endTime),
+      selectedGapIndex: gapIndex,
+    };
+  };
+
+  const moveQuickBackfillGap = (direction: -1 | 1) => {
+    if (!gaps.length) return;
+
+    setQuickBackfillDraft((prev) => {
+      const currentIndex = prev?.selectedGapIndex ?? 0;
+      const nextIndex = Math.min(Math.max(currentIndex + direction, 0), gaps.length - 1);
+      const nextGap = gaps[nextIndex];
+      if (!nextGap) return prev;
+
+      return {
+        title: prev?.title || '',
+        tags: prev?.tags || [],
+        goalId: prev?.goalId || '',
+        startTime: normalizeTimeInput(nextGap.startTime),
+        endTime: normalizeTimeInput(nextGap.endTime),
+        selectedGapIndex: nextIndex,
+      };
+    });
+  };
+
+  const handleOpenQuickBackfill = () => {
+    const now = new Date();
+    const containingGapIndex = gaps.findIndex((gap) => now >= gap.startTime && now <= gap.endTime);
+    const nearestGapIndex = containingGapIndex >= 0 ? containingGapIndex : gaps.length - 1;
+    const fallbackDate = selectedDate;
+
+    setQuickBackfillDraft(
+      gaps.length > 0
+        ? buildBackfillSuggestion(Math.max(0, nearestGapIndex))
+        : {
+            title: '',
+            tags: [],
+            goalId: '',
+            startTime: '09:00',
+            endTime: '09:30',
+            selectedGapIndex: -1,
+          }
+    );
+  };
+
+  const handleQuickBackfillSmartAssign = async () => {
+    if (!quickBackfillDraft?.title.trim()) {
+      alert('请先输入标题');
+      return;
+    }
+
+    setIsSmartAssigning(true);
+    try {
+      const allTagNames = useTagStore.getState().getAllTags().map((tag) => tag.name);
+      const learnedTags = TagLearningService.suggestTags(quickBackfillDraft.title)
+        .map((item) => item.tag)
+        .filter((tag) => allTagNames.includes(tag));
+      const fallbackTags = useTagStore.getState().getRecommendedTags(quickBackfillDraft.title, 3);
+      const mergedTags = Array.from(new Set([...learnedTags, ...fallbackTags])).slice(0, 3);
+
+      const matchedGoal = useGoalStore.getState().findMatchingGoals(quickBackfillDraft.title, TagLearningService.extractKeywords(quickBackfillDraft.title))[0];
+
+      setQuickBackfillDraft((prev) => prev ? {
+        ...prev,
+        tags: mergedTags,
+        goalId: prev.goalId || matchedGoal?.id || '',
+      } : prev);
+    } finally {
+      setIsSmartAssigning(false);
+    }
+  };
+
+  const handleSaveQuickBackfill = () => {
+    if (!quickBackfillDraft) return;
+    const title = quickBackfillDraft.title.trim();
+    if (!title) {
+      alert('请先输入标题');
+      return;
+    }
+
+    const [startHour, startMinute] = quickBackfillDraft.startTime.split(':').map(Number);
+    const [endHour, endMinute] = quickBackfillDraft.endTime.split(':').map(Number);
+
+    const startDate = new Date(selectedDate);
+    startDate.setHours(startHour, startMinute, 0, 0);
+    const endDate = new Date(selectedDate);
+    endDate.setHours(endHour, endMinute, 0, 0);
+
+    if (endDate <= startDate) {
+      alert('结束时间必须晚于开始时间');
+      return;
+    }
+
+    const durationMinutes = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / 60000));
+    const longTermGoals = quickBackfillDraft.goalId ? { [quickBackfillDraft.goalId]: 100 } : {};
+
+    onTaskCreate({
+      title,
+      scheduledStart: startDate.toISOString(),
+      scheduledEnd: endDate.toISOString(),
+      durationMinutes,
+      taskType: 'work',
+      status: 'completed',
+      tags: quickBackfillDraft.tags,
+      longTermGoals,
+      identityTags: ['system:backfill-record'],
+      goldReward: 0,
+    });
+
+    if (quickBackfillDraft.tags.length > 0) {
+      TagLearningService.learnFromUserChoice(title, quickBackfillDraft.tags);
+    }
+
+    setQuickBackfillDraft(null);
   };
 
   // 转换任务为时间块（使用合并后的任务列表）
@@ -1911,6 +2075,8 @@ export default function NewTimelineView({
     }
 
     const effectiveDuration = Math.max(0, Number(draft.durationMinutes || 0));
+    const plannedDuration = Math.max(task.durationMinutes || 0, 1);
+    const effectiveRatio = effectiveDuration / plannedDuration;
 
     const dimensionResults = goal.dimensions
       .map((dimension) => ({
@@ -2429,6 +2595,7 @@ export default function NewTimelineView({
         const trigger = task.mandatoryReflection.trigger;
         const questions = MANDATORY_REFLECTION_QUESTIONS[trigger];
         const isReady = questions.every((question) => (mandatoryReflectionDraft[question] || '').trim().length > 0);
+        const secondAnswer = (mandatoryReflectionDraft[questions[1]] || '').trim();
 
         return (
           <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 px-3 pt-6 backdrop-blur-sm">
@@ -2444,7 +2611,7 @@ export default function NewTimelineView({
                 <div>
                   <div className="text-base font-bold">总部追责记录 · 必填</div>
                   <div className="mt-1 text-sm leading-6">
-                    该任务已经触发{trigger === 'start_delay' ? '启动拖延' : '严重低效率'}追责。你必须如实填写，提交后任务才允许继续完成；当前不允许退出、不允许跳过、不允许删除任务。
+                    该任务已经触发{trigger === 'start_delay' ? '启动拖延' : trigger === 'low_efficiency' ? '低效率' : '无结果'}追责。你必须如实填写；只有在你点击启动任务或完成任务时才会拦截并要求提交，平时不会自动弹出打断你当前填写。
                   </div>
                 </div>
               </div>
@@ -2758,11 +2925,17 @@ export default function NewTimelineView({
                           console.log('✅ 解析成功:', aiSuggestion);
                           
                           // 自动填充表单
+                          const learnedTags = TagLearningService.suggestTags(taskTitle)
+                            .map((item) => item.tag)
+                            .filter((tag) => userTags.includes(tag));
+                          const mergedTags = Array.from(new Set([...(aiSuggestion.tags || []), ...learnedTags])).slice(0, 3);
+                          const matchedGoal = useGoalStore.getState().findMatchingGoals(taskTitle, TagLearningService.extractKeywords(taskTitle))[0];
+
                           setEditedTaskData({
                             ...currentEditData,
                             goldReward: aiSuggestion.goldReward || currentEditData.goldReward,
-                            tags: aiSuggestion.tags || currentEditData.tags,
-                            goals: aiSuggestion.goals || currentEditData.goals,
+                            tags: mergedTags.length > 0 ? mergedTags : (aiSuggestion.tags || currentEditData.tags),
+                            goals: currentEditData.goals || matchedGoal?.name || aiSuggestion.goals || currentEditData.goals,
                             location: aiSuggestion.location || currentEditData.location
                           });
                           
@@ -3069,6 +3242,10 @@ export default function NewTimelineView({
                       // 保存计划拍照次数
                       plannedImageCount: verification?.plannedImageCount || 0,
                     });
+
+                    if ((currentEditData.tags || []).length > 0) {
+                      TagLearningService.learnFromUserChoice(currentEditData.title, currentEditData.tags || []);
+                    }
                     
                     setEditingTask(null);
                     setEditedTaskData(null);
@@ -3233,7 +3410,8 @@ export default function NewTimelineView({
                        const actualDurationMinutes = taskRecord?.scheduledStart
                          ? Math.max(0, Math.floor((actualEndTime.getTime() - new Date(taskRecord.scheduledStart).getTime()) / 60000))
                          : 0;
-                       const isLowEfficiencyOvertime = actualDurationMinutes >= ((taskRecord?.durationMinutes || block.duration || 0) + LOW_EFFICIENCY_DELAY_MINUTES);
+                       const overtimeCount = Math.max(0, Math.floor(actualDurationMinutes / Math.max(taskRecord?.durationMinutes || block.duration || 1, 1)) - 1);
+                       const isLowEfficiencyOvertime = overtimeCount >= LOW_EFFICIENCY_TIMEOUT_THRESHOLD;
                        
                        // 馃敡 璁＄畻閲戝竵濂栧姳锛堟彁鍓嶅畬鎴愬鍔?0%锛塦r
                        const scheduledEndTime = new Date(block.endTime);
@@ -3276,6 +3454,10 @@ export default function NewTimelineView({
 
                        if (startTimeoutCount >= START_DELAY_FORM_THRESHOLD) {
                          ensureMandatoryReflection(block.id, 'start_delay');
+                       }
+
+                       if (completeTimeoutCount >= LOW_EFFICIENCY_TIMEOUT_THRESHOLD) {
+                         ensureMandatoryReflection(block.id, 'low_efficiency');
                        }
                        
                        if (startTimeoutCount > 0) {
@@ -3368,6 +3550,17 @@ export default function NewTimelineView({
                           <span className="text-sm">💰</span>
                           <span className="text-xs font-bold">{block.goldReward}</span>
                         </div>
+
+                        {!block.isCompleted && (
+                          <button
+                            onClick={() => handleOpenQuickBackfill()}
+                            className="flex items-center justify-center rounded-full p-1 transition-all hover:scale-110"
+                            style={{ backgroundColor: 'rgba(239,68,68,0.22)', border: '1px solid rgba(255,255,255,0.35)' }}
+                            title="快捷补录"
+                          >
+                            <Zap className={`${isMobile ? 'w-3 h-3' : 'w-3.5 h-3.5'} text-white`} />
+                          </button>
+                        )}
                         
                         <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-bold`} style={{ color: '#ff69b4' }}>
                           *{(() => {
@@ -4128,6 +4321,25 @@ export default function NewTimelineView({
                             + 添加子任务
                           </button>
                         )}
+
+                        <button
+                          onClick={() => handleGenerateSubTasks(block.id, block.title, block.description)}
+                          disabled={generatingSubTasks === block.id}
+                          className="w-full py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-1.5"
+                          style={{ backgroundColor: 'rgba(255,255,255,0.26)' }}
+                        >
+                          {generatingSubTasks === block.id ? (
+                            <>
+                              <span className="animate-spin">⏳</span>
+                              <span>分解中...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-3 h-3" />
+                              <span>任务分解</span>
+                            </>
+                          )}
+                        </button>
                       </div>
                       )}
 
@@ -4490,6 +4702,148 @@ export default function NewTimelineView({
         />
       )}
       
+      {/* 快捷补录弹窗 */}
+      {quickBackfillDraft && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" onClick={() => setQuickBackfillDraft(null)}>
+          <div
+            className="w-full max-w-md rounded-3xl border border-white/10 p-5 shadow-2xl"
+            style={{ backgroundColor: isDark ? '#111827' : '#fffaf6' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-lg font-black" style={{ color: textColor }}>
+                  <Zap className="w-5 h-5 text-red-500" />
+                  <span>快捷补录</span>
+                </div>
+                <p className="mt-1 text-xs" style={{ color: accentColor }}>
+                  只填标题，其它由系统帮你补齐
+                </p>
+              </div>
+              <button onClick={() => setQuickBackfillDraft(null)} className="rounded-full p-1 hover:bg-black/5">
+                <X className="w-4 h-4" style={{ color: textColor }} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-semibold" style={{ color: textColor }}>标题</label>
+                <input
+                  value={quickBackfillDraft.title}
+                  onChange={(e) => setQuickBackfillDraft({ ...quickBackfillDraft, title: e.target.value })}
+                  placeholder="例如：回消息 / 洗碗 / 复盘会议"
+                  className="w-full rounded-2xl border px-3 py-2 text-sm outline-none"
+                  style={{ backgroundColor: isDark ? '#1f2937' : '#ffffff', borderColor: borderColor, color: textColor }}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold" style={{ color: textColor }}>开始</label>
+                  <input
+                    type="time"
+                    value={quickBackfillDraft.startTime}
+                    onChange={(e) => setQuickBackfillDraft({ ...quickBackfillDraft, startTime: e.target.value, selectedGapIndex: -1 })}
+                    className="w-full rounded-2xl border px-3 py-2 text-sm outline-none"
+                    style={{ backgroundColor: isDark ? '#1f2937' : '#ffffff', borderColor: borderColor, color: textColor }}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold" style={{ color: textColor }}>结束</label>
+                  <input
+                    type="time"
+                    value={quickBackfillDraft.endTime}
+                    onChange={(e) => setQuickBackfillDraft({ ...quickBackfillDraft, endTime: e.target.value, selectedGapIndex: -1 })}
+                    className="w-full rounded-2xl border px-3 py-2 text-sm outline-none"
+                    style={{ backgroundColor: isDark ? '#1f2937' : '#ffffff', borderColor: borderColor, color: textColor }}
+                  />
+                </div>
+              </div>
+
+              {gaps.length > 0 && (
+                <div className="rounded-2xl border px-3 py-3" style={{ borderColor: borderColor, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.7)' }}>
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-xs font-semibold" style={{ color: textColor }}>自动补录到间隔时间内</span>
+                    <button
+                      onClick={() => handleOpenQuickBackfill()}
+                      className="rounded-full px-2 py-1 text-[11px] font-bold"
+                      style={{ backgroundColor: '#ef4444', color: '#fff' }}
+                    >
+                      自动选中
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => moveQuickBackfillGap(-1)} className="rounded-full px-3 py-1 text-xs font-bold" style={{ backgroundColor: isDark ? '#374151' : '#e5e7eb', color: textColor }}>上一个</button>
+                    <div className="flex-1 rounded-xl px-3 py-2 text-center text-xs font-semibold" style={{ backgroundColor: isDark ? '#111827' : '#f8fafc', color: textColor }}>
+                      {quickBackfillDraft.selectedGapIndex >= 0 && gaps[quickBackfillDraft.selectedGapIndex]
+                        ? `${normalizeTimeInput(gaps[quickBackfillDraft.selectedGapIndex].startTime)} - ${normalizeTimeInput(gaps[quickBackfillDraft.selectedGapIndex].endTime)}`
+                        : '当前为手动时间'}
+                    </div>
+                    <button onClick={() => moveQuickBackfillGap(1)} className="rounded-full px-3 py-1 text-xs font-bold" style={{ backgroundColor: isDark ? '#374151' : '#e5e7eb', color: textColor }}>下一个</button>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="block text-xs font-semibold" style={{ color: textColor }}>标签</label>
+                  <button
+                    onClick={handleQuickBackfillSmartAssign}
+                    disabled={isSmartAssigning}
+                    className="rounded-full px-3 py-1 text-xs font-bold disabled:opacity-50 flex items-center gap-1"
+                    style={{ backgroundColor: '#8b5cf6', color: '#fff' }}
+                  >
+                    <WandSparkles className="w-3 h-3" />
+                    <span>{isSmartAssigning ? '分配中...' : '智能分配'}</span>
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {(quickBackfillDraft.tags || []).length > 0 ? quickBackfillDraft.tags.map((tag) => (
+                    <span key={tag} className="rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: isDark ? '#374151' : '#f3f4f6', color: textColor }}>
+                      {tag}
+                    </span>
+                  )) : (
+                    <span className="text-xs" style={{ color: accentColor }}>还没分配标签</span>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-semibold" style={{ color: textColor }}>目标</label>
+                <select
+                  value={quickBackfillDraft.goalId}
+                  onChange={(e) => setQuickBackfillDraft({ ...quickBackfillDraft, goalId: e.target.value })}
+                  className="w-full rounded-2xl border px-3 py-2 text-sm outline-none"
+                  style={{ backgroundColor: isDark ? '#1f2937' : '#ffffff', borderColor: borderColor, color: textColor }}
+                >
+                  <option value="">暂不挂目标</option>
+                  {goals.map((goal) => (
+                    <option key={goal.id} value={goal.id}>{getGoalDisplayText(goal)}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setQuickBackfillDraft(null)}
+                  className="flex-1 rounded-2xl px-4 py-2 text-sm font-semibold"
+                  style={{ backgroundColor: isDark ? '#374151' : '#e5e7eb', color: textColor }}
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleSaveQuickBackfill}
+                  className="flex-1 rounded-2xl px-4 py-2 text-sm font-bold"
+                  style={{ backgroundColor: '#ef4444', color: '#fff' }}
+                >
+                  完成补录
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 编辑任务模态框 */}
       {editingTask && (() => {
         const task = allTasks.find(t => t.id === editingTask);

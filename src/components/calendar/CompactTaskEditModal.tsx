@@ -27,7 +27,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
   const { goals, createGoal, updateGoal, findMatchingGoals } = useGoalStore();
   const { deductGold, balance } = useGoldStore();
   const { tasks } = useTaskStore();
-  const { getAllTags, getTagDurationRecords } = useTagStore();
+  const { getAllTags, getTagDurationRecords, getLearnedTagScores, learnTagSelection } = useTagStore();
   
   const [title, setTitle] = useState(task.title || '');
   const [isTitleAutoFilled, setIsTitleAutoFilled] = useState(false);
@@ -50,6 +50,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
   const [location, setLocation] = useState(task.location || '');
   const [newTag, setNewTag] = useState('');
   const [isAIAssigning, setIsAIAssigning] = useState(false);
+  const [lastSuggestedTags, setLastSuggestedTags] = useState<string[]>([]);
   
   // 子任务状态
   const [subtasks, setSubtasks] = useState<SubTask[]>(task.subtasks || []);
@@ -103,31 +104,6 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
         .map(token => token.trim().toLowerCase())
         .filter(token => token.length >= 2)
     ));
-
-    const keywordTagMap: Array<{ keyword: string; tags: string[] }> = [
-      { keyword: '家务', tags: ['家务', '清洁', '整理'] },
-      { keyword: '打扫', tags: ['清洁', '家务', '整理'] },
-      { keyword: '整理', tags: ['整理', '家务', '清洁'] },
-      { keyword: '收拾', tags: ['整理', '家务', '清洁'] },
-      { keyword: '做饭', tags: ['做饭', '日常', '生活'] },
-      { keyword: '吃饭', tags: ['吃饭', '日常', '生活'] },
-      { keyword: '厕所', tags: ['日常', '生活', '清洁'] },
-      { keyword: '上厕所', tags: ['日常', '生活', '清洁'] },
-      { keyword: '洗澡', tags: ['清洁', '日常', '生活'] },
-      { keyword: '洗漱', tags: ['清洁', '日常', '生活'] },
-      { keyword: '画画', tags: ['创作', '绘画', '艺术'] },
-      { keyword: '绘画', tags: ['创作', '绘画', '艺术'] },
-      { keyword: '插画', tags: ['创作', '绘画', '艺术'] },
-      { keyword: '写作', tags: ['创作', '写作', '工作'] },
-      { keyword: '学习', tags: ['学习', '成长', '阅读'] },
-      { keyword: '阅读', tags: ['阅读', '学习', '成长'] },
-      { keyword: '运动', tags: ['运动', '健康', '健身'] },
-      { keyword: '跑步', tags: ['运动', '跑步', '健康'] },
-      { keyword: '工作', tags: ['工作', '专注', '输出'] },
-      { keyword: '会议', tags: ['会议', '工作', '沟通'] },
-      { keyword: '拍摄', tags: ['拍摄', '创作', '工作'] },
-      { keyword: '摄影', tags: ['拍摄', '创作', '艺术'] },
-    ];
 
     const inferTaskType = (text: string): TaskType => {
       if (/(运动|跑步|健身|瑜伽|散步)/.test(text)) return 'health';
@@ -222,42 +198,72 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
       : task.durationMinutes || 30;
     const suggestedDuration = Math.min(240, Math.max(5, Math.round(averageDuration / 5) * 5));
 
+    const learnedTagScoreMap = new Map(
+      getLearnedTagScores(`${title} ${description}`)
+        .map(item => [item.tagName, item.score])
+    );
+
     const tagScoreMap = new Map<string, number>();
     const pushTagScore = (tagName: string, score: number) => {
-      if (!availableTagNames.has(tagName)) return;
+      if (!availableTagNames.has(tagName) || score <= 0) return;
       tagScoreMap.set(tagName, (tagScoreMap.get(tagName) || 0) + score);
     };
 
+    const normalizedTaskText = `${normalizedTitle} ${normalizedDescription}`.trim();
+
     matchedHistoryTasks.forEach((historyTask, historyIndex) => {
-      historyTask.tags?.forEach(tagName => pushTagScore(tagName, Math.max(1, 8 - historyIndex)));
-    });
+      const historyText = `${historyTask.title || ''} ${historyTask.description || ''}`.toLowerCase();
+      const baseScore = Math.max(3, 14 - historyIndex);
 
-    categoryMatchedTasks.forEach((historyTask) => {
-      historyTask.tags?.forEach(tagName => pushTagScore(tagName, 4));
-    });
+      historyTask.tags?.forEach(tagName => {
+        let score = baseScore;
+        const tagLower = tagName.toLowerCase();
 
-    availableTags.forEach(tag => {
-      const tagLower = tag.name.toLowerCase();
-      if (normalizedTitle.includes(tagLower) || tagLower.includes(normalizedTitle)) {
-        pushTagScore(tag.name, 12);
-      }
-      titleTokens.forEach(token => {
-        if (tagLower.includes(token) || token.includes(tagLower)) {
-          pushTagScore(tag.name, token.length >= 4 ? 8 : 5);
-        }
+        if (normalizedTaskText && historyText && normalizedTaskText === historyText) score += 10;
+        if (normalizedTitle && historyTask.title?.toLowerCase() === normalizedTitle) score += 12;
+        if (normalizedTaskText && historyText.includes(normalizedTaskText)) score += 6;
+        if (tagLower && normalizedTaskText.includes(tagLower)) score += 10;
+
+        pushTagScore(tagName, score);
       });
     });
 
-    keywordTagMap.forEach(({ keyword, tags }) => {
-      if (normalizedTitle.includes(keyword)) {
-        tags.forEach(tagName => pushTagScore(tagName, 9));
+    const titleDescriptionTokens = Array.from(new Set(
+      `${title} ${description}`
+        .trim()
+        .split(/[\s\-_/，。！？、：:（）()【】\[\]]+/)
+        .map(token => token.trim().toLowerCase())
+        .filter(token => token.length >= 2)
+    ));
+
+    availableTags.forEach(tag => {
+      const tagLower = tag.name.toLowerCase();
+      let directScore = 0;
+
+      if (normalizedTaskText && (normalizedTaskText.includes(tagLower) || tagLower.includes(normalizedTaskText))) {
+        directScore += tagLower === normalizedTaskText ? 20 : 12;
+      }
+
+      titleDescriptionTokens.forEach(token => {
+        if (token === tagLower) {
+          directScore += 14;
+        } else if (token.length >= 3 && (token.includes(tagLower) || tagLower.includes(token))) {
+          directScore += 4;
+        }
+      });
+
+      if (directScore > 0) {
+        pushTagScore(tag.name, directScore + Math.min(tag.usageCount || 0, 8));
+      }
+
+      const learnedScore = learnedTagScoreMap.get(tag.name) || 0;
+      if (learnedScore > 0) {
+        pushTagScore(tag.name, learnedScore);
       }
     });
 
-    const categoryRule = taskCategoryRules.find(rule => rule.key === currentTaskCategory);
-    categoryRule?.tags.forEach(tagName => pushTagScore(tagName, 7));
-
     const suggestedTags = Array.from(tagScoreMap.entries())
+      .filter(([, score]) => score >= 8)
       .sort((a, b) => b[1] - a[1])
       .map(([tagName]) => tagName)
       .slice(0, 3);
@@ -383,7 +389,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
       categoryLabel: currentTaskCategory,
       categoryHistoryCount: categoryMatchedTasks.length,
     };
-  }, [title, description, getAllTags, getTagDurationRecords, tasks, task.id, task.durationMinutes, task.taskType, task.tags, findMatchingGoals]);
+  }, [title, description, getAllTags, getTagDurationRecords, getLearnedTagScores, tasks, task.id, task.durationMinutes, task.taskType, task.tags, findMatchingGoals]);
 
   
   // 过滤后的目标列表
@@ -577,6 +583,8 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
   };
 
   const handleSave = () => {
+    learnTagSelection(`${title} ${description}`.trim(), tags, lastSuggestedTags);
+
     const updates: Partial<Task> = {
       title,
       description,
@@ -758,6 +766,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
       setDuration(smartAssignment.suggestedDuration);
       setGold(smartAssignment.suggestedGold);
       setTags(smartAssignment.suggestedTags);
+      setLastSuggestedTags(smartAssignment.suggestedTags);
 
       if (smartAssignment.suggestedGoalId) {
         setSelectedGoalId(smartAssignment.suggestedGoalId);
@@ -991,14 +1000,32 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
               </div>
 
               {selectedGoalId && (
-                <div className="rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50/70 dark:bg-purple-900/15 px-3 py-2 space-y-1">
-                  <div className="text-xs text-purple-700 dark:text-purple-300">
-                    当前目标：{selectedGoal?.name || '未选择'}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPendingGoalResults([]);
+                    setNewGoalResultName('');
+                    setNewGoalResultUnit('次');
+                    setNewGoalResultTargetValue(1);
+                    setShowGoalResultSelector(true);
+                    if (selectedGoalResults.length === 0) {
+                      setShowNewGoalResultInput(true);
+                    }
+                  }}
+                  className="w-full rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50/70 dark:bg-purple-900/15 px-3 py-2 text-left transition-all hover:bg-purple-100 dark:hover:bg-purple-900/25 hover:border-purple-400"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="text-xs text-purple-700 dark:text-purple-300">
+                        当前目标：{selectedGoal?.name || '未选择'}
+                      </div>
+                      <div className="text-xs text-purple-700 dark:text-purple-300">
+                        当前关键结果：{selectedGoalResult ? `${selectedGoalResult.typeLabel}：${selectedGoalResult.title}` : '未选择'}
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-purple-500 mt-0.5" />
                   </div>
-                  <div className="text-xs text-purple-700 dark:text-purple-300">
-                    当前关键结果：{selectedGoalResult ? `${selectedGoalResult.typeLabel}：${selectedGoalResult.title}` : '未选择'}
-                  </div>
-                </div>
+                </button>
               )}
 
               {selectedGoalId && (
@@ -1016,7 +1043,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
                   }}
                   className="w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50/80 dark:bg-purple-900/20 text-purple-700 dark:text-purple-200 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all"
                 >
-                  <span>{selectedGoalResults.length > 0 ? '选择关键结果' : '新建关键结果'}</span>
+                  <span>{selectedGoalResults.length > 0 ? '重新选择关键结果' : '新建关键结果'}</span>
                   <ChevronRight className="w-4 h-4" />
                 </button>
               )}

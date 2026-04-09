@@ -78,12 +78,30 @@ export interface TagFolder {
   createdAt: Date;
 }
 
+export interface TagLearningProfile {
+  keywordScores: Record<string, number>;
+  confirmedCount: number;
+  correctedAwayCount: number;
+  lastLearnedAt?: Date;
+}
+
+const normalizeLearningTokens = (text: string): string[] => {
+  return Array.from(new Set(
+    text
+      .toLowerCase()
+      .split(/[\s\-_/，。！？、：:；;（）()【】\[\]、,.]+/)
+      .map(token => token.trim())
+      .filter(token => token.length >= 2)
+  ));
+};
+
 interface TagState {
   tags: Record<string, TagData>; // key: 标签名称
   durationRecords: TagDurationRecord[];
   financeRecords: TagFinanceRecord[];
   groups: TagGroup[];
   folders: TagFolder[]; // 标签文件夹
+  tagLearningProfiles: Record<string, TagLearningProfile>;
   
   // 标签操作
   addTag: (name: string, emoji?: string, color?: string, tagType?: TagType, folderId?: string) => void;
@@ -146,6 +164,8 @@ interface TagState {
   
   // 智能推荐
   getRecommendedTags: (taskTitle: string, limit?: number) => string[];
+  learnTagSelection: (taskTitle: string, selectedTags: string[], previousSuggestedTags?: string[]) => void;
+  getLearnedTagScores: (taskTitle: string) => Array<{ tagName: string; score: number }>;
   
   // 批量操作
   batchUpdateTags: (operations: Array<{ type: 'rename' | 'delete' | 'merge'; data: any }>) => void;
@@ -275,6 +295,7 @@ export const useTagStore = create<TagState>()(
       financeRecords: [],
       groups: [],
       folders: [],
+      tagLearningProfiles: {},
       
       addTag: (name, emoji, color, tagType, folderId) => {
         const tags = get().tags;
@@ -933,31 +954,132 @@ export const useTagStore = create<TagState>()(
       },
       
       getRecommendedTags: (taskTitle, limit = 3) => {
-        const allTags = get().getActiveTagsSortedByUsage();
-        const recommended: string[] = [];
-        
-        // 基于关键词匹配推荐
-        for (const tag of allTags) {
-          if (recommended.length >= limit) break;
-          
-          // 简单的关键词匹配
+        const tokens = normalizeLearningTokens(taskTitle);
+        const activeTags = get().getActiveTagsSortedByUsage();
+        const profiles = get().tagLearningProfiles;
+        const scored = activeTags.map((tag) => {
+          const profile = profiles[tag.name];
+          let score = 0;
+
           if (taskTitle.toLowerCase().includes(tag.name.toLowerCase())) {
-            recommended.push(tag.name);
+            score += 18;
           }
-        }
-        
-        // 如果推荐不足，补充高频标签
-        if (recommended.length < limit) {
-          const highFreqTags = get().getHighFrequencyTags(limit * 2);
-          for (const tag of highFreqTags) {
-            if (recommended.length >= limit) break;
-            if (!recommended.includes(tag.name)) {
-              recommended.push(tag.name);
+
+          tokens.forEach((token) => {
+            score += profile?.keywordScores?.[token] || 0;
+            if (tag.name.toLowerCase().includes(token) || token.includes(tag.name.toLowerCase())) {
+              score += token.length >= 3 ? 5 : 2;
             }
-          }
-        }
-        
-        return recommended;
+          });
+
+          score += Math.min(tag.usageCount || 0, 10);
+          score += Math.min(profile?.confirmedCount || 0, 12);
+          score -= Math.min(profile?.correctedAwayCount || 0, 8);
+
+          return {
+            tagName: tag.name,
+            score,
+          };
+        });
+
+        return scored
+          .filter((item) => item.score > 0)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, limit)
+          .map((item) => item.tagName);
+      },
+
+      learnTagSelection: (taskTitle, selectedTags, previousSuggestedTags = []) => {
+        const tags = get().tags;
+        const tokens = normalizeLearningTokens(taskTitle);
+        const profiles = { ...get().tagLearningProfiles };
+        const selectedSet = new Set(selectedTags);
+        const suggestedSet = new Set(previousSuggestedTags);
+
+        selectedTags.forEach((tagName) => {
+          if (!tags[tagName]) return;
+
+          const currentProfile = profiles[tagName] || {
+            keywordScores: {},
+            confirmedCount: 0,
+            correctedAwayCount: 0,
+          };
+
+          const nextKeywordScores = { ...currentProfile.keywordScores };
+          tokens.forEach((token) => {
+            nextKeywordScores[token] = (nextKeywordScores[token] || 0) + 3;
+          });
+
+          profiles[tagName] = {
+            keywordScores: nextKeywordScores,
+            confirmedCount: currentProfile.confirmedCount + 1,
+            correctedAwayCount: currentProfile.correctedAwayCount,
+            lastLearnedAt: new Date(),
+          };
+        });
+
+        previousSuggestedTags.forEach((tagName) => {
+          if (!tags[tagName] || selectedSet.has(tagName)) return;
+
+          const currentProfile = profiles[tagName] || {
+            keywordScores: {},
+            confirmedCount: 0,
+            correctedAwayCount: 0,
+          };
+
+          const nextKeywordScores = { ...currentProfile.keywordScores };
+          tokens.forEach((token) => {
+            nextKeywordScores[token] = Math.max(0, (nextKeywordScores[token] || 0) - 1);
+          });
+
+          profiles[tagName] = {
+            keywordScores: nextKeywordScores,
+            confirmedCount: currentProfile.confirmedCount,
+            correctedAwayCount: currentProfile.correctedAwayCount + 1,
+            lastLearnedAt: new Date(),
+          };
+        });
+
+        Object.keys(tags).forEach((tagName) => {
+          if (!selectedSet.has(tagName) || suggestedSet.has(tagName)) return;
+
+          const currentProfile = profiles[tagName] || {
+            keywordScores: {},
+            confirmedCount: 0,
+            correctedAwayCount: 0,
+          };
+
+          const nextKeywordScores = { ...currentProfile.keywordScores };
+          tokens.forEach((token) => {
+            nextKeywordScores[token] = (nextKeywordScores[token] || 0) + 5;
+          });
+
+          profiles[tagName] = {
+            keywordScores: nextKeywordScores,
+            confirmedCount: currentProfile.confirmedCount + 2,
+            correctedAwayCount: Math.max(0, currentProfile.correctedAwayCount - 1),
+            lastLearnedAt: new Date(),
+          };
+        });
+
+        set({ tagLearningProfiles: profiles });
+      },
+
+      getLearnedTagScores: (taskTitle) => {
+        const tokens = normalizeLearningTokens(taskTitle);
+        const profiles = get().tagLearningProfiles;
+
+        return get().getActiveTagsSortedByUsage()
+          .map((tag) => {
+            const profile = profiles[tag.name];
+            const score = tokens.reduce((sum, token) => sum + (profile?.keywordScores?.[token] || 0), 0)
+              + Math.min(profile?.confirmedCount || 0, 12)
+              - Math.min(profile?.correctedAwayCount || 0, 8);
+
+            return { tagName: tag.name, score };
+          })
+          .filter((item) => item.score > 0)
+          .sort((a, b) => b.score - a.score);
       },
       
       batchUpdateTags: (operations) => {
@@ -1242,7 +1364,7 @@ export const useTagStore = create<TagState>()(
     }),
     {
       name: 'manifestos-tags-storage',
-      version: 1,
+      version: 2,
       storage: {
         getItem: (name) => {
           try {
@@ -1266,11 +1388,13 @@ export const useTagStore = create<TagState>()(
               }));
             }
             
-            if (parsed?.state?.financeRecords) {
-              parsed.state.financeRecords = parsed.state.financeRecords.map((record: any) => ({
-                ...record,
-                date: new Date(record.date),
-              }));
+            if (parsed?.state?.tagLearningProfiles) {
+              Object.keys(parsed.state.tagLearningProfiles).forEach(key => {
+                const profile = parsed.state.tagLearningProfiles[key];
+                if (profile?.lastLearnedAt) {
+                  profile.lastLearnedAt = new Date(profile.lastLearnedAt);
+                }
+              });
             }
             
             return parsed;

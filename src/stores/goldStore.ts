@@ -9,6 +9,7 @@ export interface GoldTransaction {
   taskId?: string;
   taskTitle?: string;
   timestamp: Date;
+  transactionKey?: string;
 }
 
 interface GoldState {
@@ -19,10 +20,11 @@ interface GoldState {
   lastResetDate: string;
   
   // Actions
-  addGold: (amount: number, reason: string, taskId?: string, taskTitle?: string) => void;
-  spendGold: (amount: number, reason: string) => void;
-  deductGold: (amount: number, reason: string, taskId?: string, taskTitle?: string) => boolean;
-  penaltyGold: (amount: number, reason: string, taskId?: string, taskTitle?: string) => void;
+  addGold: (amount: number, reason: string, taskId?: string, taskTitle?: string, transactionKey?: string) => void;
+  spendGold: (amount: number, reason: string, transactionKey?: string) => void;
+  deductGold: (amount: number, reason: string, taskId?: string, taskTitle?: string, transactionKey?: string) => boolean;
+  penaltyGold: (amount: number, reason: string, taskId?: string, taskTitle?: string, transactionKey?: string) => void;
+  hasTransaction: (transactionKey: string) => boolean;
   getTodayTransactions: () => GoldTransaction[];
   resetDailyStats: () => void;
 }
@@ -35,8 +37,18 @@ export const useGoldStore = create<GoldState>()(
       todaySpent: 0,
       transactions: [],
       lastResetDate: new Date().toDateString(),
+
+      hasTransaction: (transactionKey) => {
+        if (!transactionKey) return false;
+        return get().transactions.some((transaction) => transaction.transactionKey === transactionKey);
+      },
       
-      addGold: (amount, reason, taskId, taskTitle) => {
+      addGold: (amount, reason, taskId, taskTitle, transactionKey) => {
+        if (transactionKey && get().hasTransaction(transactionKey)) {
+          console.warn(`⚠️ 跳过重复金币增加: ${transactionKey}`);
+          return;
+        }
+
         const transaction: GoldTransaction = {
           id: crypto.randomUUID(),
           type: 'earn',
@@ -45,6 +57,7 @@ export const useGoldStore = create<GoldState>()(
           taskId,
           taskTitle,
           timestamp: new Date(),
+          transactionKey,
         };
         
         set((state) => {
@@ -69,8 +82,12 @@ export const useGoldStore = create<GoldState>()(
         console.log(`💰 获得金币: +${amount} (${reason})`);
       },
       
-      spendGold: (amount, reason) => {
+      spendGold: (amount, reason, transactionKey) => {
         const state = get();
+        if (transactionKey && state.hasTransaction(transactionKey)) {
+          console.warn(`⚠️ 跳过重复金币消费: ${transactionKey}`);
+          return;
+        }
         if (state.balance < amount) {
           console.warn('⚠️ 金币余额不足');
           return;
@@ -82,6 +99,7 @@ export const useGoldStore = create<GoldState>()(
           amount,
           reason,
           timestamp: new Date(),
+          transactionKey,
         };
         
         set((state) => {
@@ -106,8 +124,13 @@ export const useGoldStore = create<GoldState>()(
         console.log(`💸 消费金币: -${amount} (${reason})`);
       },
       
-      deductGold: (amount, reason, taskId, taskTitle) => {
+      deductGold: (amount, reason, taskId, taskTitle, transactionKey) => {
         const state = get();
+
+        if (transactionKey && state.hasTransaction(transactionKey)) {
+          console.warn(`⚠️ 跳过重复金币扣除: ${transactionKey}`);
+          return true;
+        }
         
         // 校验金币余额是否足够
         if (state.balance < amount) {
@@ -123,6 +146,7 @@ export const useGoldStore = create<GoldState>()(
           taskId,
           taskTitle,
           timestamp: new Date(),
+          transactionKey,
         };
         
         set((state) => {
@@ -148,7 +172,14 @@ export const useGoldStore = create<GoldState>()(
         return true;
       },
       
-      penaltyGold: (amount, reason, taskId, taskTitle) => {
+      penaltyGold: (amount, reason, taskId, taskTitle, transactionKey) => {
+        const state = get();
+
+        if (transactionKey && state.hasTransaction(transactionKey)) {
+          console.warn(`⚠️ 跳过重复惩罚扣币: ${transactionKey}`);
+          return;
+        }
+
         const transaction: GoldTransaction = {
           id: crypto.randomUUID(),
           type: 'penalty',
@@ -157,6 +188,7 @@ export const useGoldStore = create<GoldState>()(
           taskId,
           taskTitle,
           timestamp: new Date(),
+          transactionKey,
         };
         
         set((state) => {

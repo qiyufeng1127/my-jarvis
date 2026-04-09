@@ -88,7 +88,7 @@ export interface Task {
   mandatoryReflection?: {
     required: boolean;
     resolved: boolean;
-    trigger: 'start_delay' | 'low_efficiency';
+    trigger: 'start_delay' | 'low_efficiency' | 'no_result';
     triggeredAt: string;
     submittedAt?: string;
     answers?: Array<{
