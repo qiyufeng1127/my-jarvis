@@ -169,6 +169,13 @@ class NotificationService {
     }
   ): Promise<void> {
     try {
+      this.loadSettings();
+
+      if (!this.settings.browserNotification) {
+        console.log('⏭️ 浏览器通知已关闭，跳过系统通知');
+        return;
+      }
+
       // 检查权限
       if (this.permission !== 'granted') {
         const granted = await this.requestPermission();
@@ -257,6 +264,12 @@ class NotificationService {
    */
   playSound(type: 'start' | 'end' | 'warning' | 'coin' = 'start') {
     console.log('🔊 [playSound] 被调用:', type);
+
+    this.loadSettings();
+    if (!this.settings.browserNotification) {
+      console.log('⏭️ 提醒总开关已关闭，跳过音效播放');
+      return;
+    }
     
     // 🔧 检查是否有音频正在播放，避免重复播放
     if (this.isPlayingSound) {
@@ -375,6 +388,12 @@ class NotificationService {
    * 震动反馈
    */
   vibrate(pattern: number | number[] = [200, 100, 200]) {
+    this.loadSettings();
+    if (!this.settings.browserNotification) {
+      console.log('⏭️ 提醒总开关已关闭，跳过震动');
+      return;
+    }
+
     if ('vibrate' in navigator) {
       try {
         navigator.vibrate(pattern);
@@ -389,6 +408,13 @@ class NotificationService {
    * 语音播报 - 增强版（支持移动端）- 增强错误处理
    */
   speak(text: string) {
+    this.loadSettings();
+
+    if (!this.settings.browserNotification) {
+      console.log('⏭️ 提醒总开关已关闭，跳过语音播报');
+      return;
+    }
+
     // 检查设置
     if (!this.settings.voiceEnabled) {
       console.log('⏭️ 语音播报已关闭');
@@ -547,6 +573,8 @@ class NotificationService {
    */
   async notifyTaskStart(taskTitle: string, hasVerification: boolean = false) {
     console.log('📢 任务开始通知:', taskTitle);
+
+    this.loadSettings();
 
     // 检查设置 - 使用正确的设置项
     if (!this.settings.taskStartReminder) {

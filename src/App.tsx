@@ -87,15 +87,6 @@ function App() {
           console.warn('⚠️ 坏习惯监控服务启动失败:', err);
         }
         
-        // 启动后台通知服务（PWA 增强）
-        try {
-          const { backgroundNotificationService } = await import('@/services/backgroundNotificationService');
-          await backgroundNotificationService.initialize();
-          console.log('🔔 后台通知服务已启动');
-        } catch (err) {
-          console.warn('⚠️ 后台通知服务启动失败:', err);
-        }
-        
         // 🚀 启动后台任务调度服务（真正的后台运行）
         try {
           const { backgroundTaskScheduler } = await import('@/services/backgroundTaskScheduler');

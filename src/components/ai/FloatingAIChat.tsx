@@ -10,6 +10,7 @@ import { useAIPersonalityStore } from '@/stores/aiPersonalityStore';
 import { behaviorMonitorService } from '@/services/behaviorMonitorService';
 import AIPersonalitySettings from './AIPersonalitySettings';
 import { processMutter } from '@/services/mutterService';
+import { TagLearningService } from '@/services/tagLearningService';
 import { aiCommandCenter } from '@/services/aiCommandCenter';
 import eventBus from '@/utils/eventBus';
 
@@ -41,9 +42,10 @@ const TAG_LABELS: Record<string, string> = {
 };
 import { useAIStore } from '@/stores/aiStore';
 import { aiService } from '@/services/aiService';
+import { SmartScheduleService } from '@/services/smartScheduleService';
 import { useTaskStore } from '@/stores/taskStore';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
-import type { TaskType, TaskPriority } from '@/types';
+import type { Task, TaskType, TaskPriority } from '@/types';
 import AIConfigModal from './AIConfigModal';
 import UnifiedTaskEditor from '@/components/shared/UnifiedTaskEditor';
 import { 
@@ -53,6 +55,7 @@ import {
   useResizable, 
   useThinkingProcess 
 } from '@/hooks';
+import { AISmartProcessor } from '@/services/aiSmartService';
 import {
   getPriorityEmoji,
   LOCATION_ICONS,
@@ -122,6 +125,15 @@ interface GoalConversationState {
   lastAskedField?: string;
 }
 
+interface HabitBasedSuggestion {
+  title: string;
+  durationMinutes: number;
+  tags: string[];
+  location: string;
+  task_type: string;
+  priority: 'low' | 'medium' | 'high';
+}
+
 
 const beautifyAssistantReply = (content: string) => {
   return content
@@ -152,6 +164,182 @@ const ensureTimelineOperationPrefix = (text: string) => {
   if (!trimmed) return TIMELINE_OPERATION_PREFIX;
   if (trimmed.startsWith(TIMELINE_OPERATION_PREFIX)) return trimmed;
   return `${TIMELINE_OPERATION_PREFIX}${trimmed}`;
+};
+
+const appendAssistantMessage = (
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>,
+  content: string,
+) => {
+  setMessages(prev => [...prev, {
+    id: `ai-${Date.now()}`,
+    role: 'assistant',
+    content,
+    timestamp: new Date(),
+  }]);
+};
+
+const inferDraftLocation = (title: string) => {
+  if (/洗漱|洗澡|洗头|刷牙|洗脸|洗衣|拖地|打扫|清洁|收拾|整理/.test(title)) return '厕所';
+  if (/洗碗|做饭|吃饭|倒垃圾|扔垃圾|丢垃圾/.test(title)) return '厨房';
+  if (/开会|学习|工作|设计|写|画|剪辑|电脑|pinterest|小红书/.test(title.toLowerCase())) return '工作区';
+  return '全屋';
+};
+
+const enrichDraftTags = (taskTitle: string, candidateTags: string[] = []) => {
+  const tagStore = useTagStore.getState();
+  const resolvedTags = tagStore.resolveAutoTags(taskTitle, candidateTags, 3);
+  const learnedTags = tagStore.getRecommendedTags(taskTitle, 3);
+  const learningSuggestions = TagLearningService.suggestTags(taskTitle)
+    .map(item => item.tag)
+    .filter(Boolean);
+
+  const finalTags = Array.from(new Set([
+    ...resolvedTags,
+    ...learnedTags,
+    ...learningSuggestions,
+  ])).slice(0, 3);
+
+  const fallbackTags = finalTags.length > 0 ? finalTags : ['AI安排'];
+  const primaryTag = fallbackTags[0] || 'AI安排';
+  const taskColor = tagStore.getTagColor(primaryTag) || AISmartProcessor.getTaskColor(fallbackTags);
+
+  return {
+    tags: fallbackTags,
+    color: taskColor,
+    category: primaryTag,
+  };
+};
+
+const buildHabitBasedSuggestions = (tasks: Task[], now: Date): HabitBasedSuggestion[] => {
+  const currentHour = now.getHours();
+  const completedTasks = tasks.filter(task => task.status === 'completed');
+  const inProgressTasks = tasks.filter(task => task.status === 'in_progress');
+  const pendingTasks = tasks
+    .filter(task => task.status === 'pending' && task.scheduledStart)
+    .sort((a, b) => new Date(a.scheduledStart!).getTime() - new Date(b.scheduledStart!).getTime());
+
+  const suggestions: HabitBasedSuggestion[] = [];
+
+  if (pendingTasks.length > 0) {
+    pendingTasks.slice(0, 3).forEach(task => {
+      suggestions.push({
+        title: task.title,
+        durationMinutes: task.durationMinutes || 30,
+        tags: Array.isArray(task.tags) ? task.tags : [],
+        location: task.location || inferDraftLocation(task.title),
+        task_type: task.taskType || 'life',
+        priority: task.priority === 1 ? 'high' : task.priority === 3 ? 'low' : 'medium',
+      });
+    });
+  }
+
+  if (suggestions.length === 0 && inProgressTasks.length > 0) {
+    const task = inProgressTasks[0];
+    suggestions.push({
+      title: `继续：${task.title}`,
+      durationMinutes: Math.max(15, task.durationMinutes || 30),
+      tags: Array.isArray(task.tags) ? task.tags : [],
+      location: task.location || inferDraftLocation(task.title),
+      task_type: task.taskType || 'life',
+      priority: 'high',
+    });
+  }
+
+  if (suggestions.length === 0) {
+    if (currentHour < 6) {
+      suggestions.push({
+        title: '准备休息',
+        durationMinutes: 20,
+        tags: ['睡眠', '休息'],
+        location: '卧室',
+        task_type: 'life',
+        priority: 'high',
+      });
+    } else if (currentHour < 10) {
+      suggestions.push({
+        title: '洗漱并开启今天',
+        durationMinutes: 20,
+        tags: ['洗漱', '日常'],
+        location: '厕所',
+        task_type: 'life',
+        priority: 'high',
+      });
+    } else if (currentHour < 14) {
+      suggestions.push({
+        title: '处理当前最重要的一项任务',
+        durationMinutes: 45,
+        tags: ['工作'],
+        location: '工作区',
+        task_type: 'work',
+        priority: 'high',
+      });
+    } else if (currentHour < 19) {
+      suggestions.push({
+        title: '推进一个中等时长的核心任务',
+        durationMinutes: 60,
+        tags: ['工作'],
+        location: '工作区',
+        task_type: 'work',
+        priority: 'high',
+      });
+    } else {
+      suggestions.push({
+        title: '做一轮收尾整理',
+        durationMinutes: 30,
+        tags: ['家务', '整理'],
+        location: '全屋',
+        task_type: 'life',
+        priority: 'medium',
+      });
+    }
+  }
+
+  const historicalTagBoost = completedTasks
+    .filter(task => task.scheduledStart)
+    .filter(task => new Date(task.scheduledStart!).getHours() === currentHour)
+    .flatMap(task => task.tags || [])
+    .slice(0, 3);
+
+  if (suggestions[0] && historicalTagBoost.length > 0) {
+    suggestions[0].tags = Array.from(new Set([...(suggestions[0].tags || []), ...historicalTagBoost])).slice(0, 3);
+  }
+
+  return suggestions.slice(0, 3);
+};
+
+const buildDraftsFromHabitSuggestions = (suggestions: HabitBasedSuggestion[], existingTasks: Task[], now: Date): DecomposedTask[] => {
+  const scheduleTasks = suggestions.map(item => ({
+    title: item.title,
+    durationMinutes: item.durationMinutes,
+    priority: item.priority === 'high' ? 3 : item.priority === 'low' ? 1 : 2,
+    tags: item.tags,
+    location: item.location,
+    taskType: item.task_type,
+    category: item.tags?.[0] || 'AI安排',
+  }));
+
+  const scheduled = SmartScheduleService.scheduleTasks(scheduleTasks, existingTasks, now);
+
+  return scheduled.map((item, index) => {
+    const tagMeta = enrichDraftTags(item.task.title, item.task.tags || []);
+    return {
+      sequence: index + 1,
+      title: item.task.title,
+      description: item.task.title,
+      estimated_duration: item.task.durationMinutes,
+      scheduled_start: item.scheduledStart.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+      scheduled_end: item.scheduledEnd.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+      scheduled_start_iso: item.scheduledStart.toISOString(),
+      task_type: item.task.taskType || 'life',
+      category: tagMeta.category,
+      location: item.task.location || inferDraftLocation(item.task.title),
+      tags: tagMeta.tags,
+      goal: null,
+      gold: item.task.goldReward || 0,
+      color: tagMeta.color,
+      priority: item.task.priority === 3 ? 'high' : item.task.priority === 1 ? 'low' : 'medium',
+    };
+  });
 };
 
 
@@ -271,6 +459,7 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
       if (taskDrafts.length === 0) return;
 
       console.log('📥 [AI编辑器事件] 收到任务草稿:', taskDrafts);
+      eventBus.emit('dashboard:navigate-module', { module: 'timeline' });
       setEditingTasks(taskDrafts);
       setShowTaskEditor(true);
     };
@@ -660,6 +849,7 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
         .replace(/^-\s*/, '')
         .trim();
 
+      const tagMeta = enrichDraftTags(title);
       const scheduledStart = new Date(now.getTime() + index * estimatedDuration * 60000);
       const scheduledEnd = new Date(scheduledStart.getTime() + estimatedDuration * 60000);
 
@@ -672,12 +862,12 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
         scheduled_end: scheduledEnd.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
         scheduled_start_iso: scheduledStart.toISOString(),
         task_type: 'life',
-        category: 'AI安排',
-        location: '全屋',
-        tags: ['AI安排'],
+        category: tagMeta.category,
+        location: inferDraftLocation(title),
+        tags: tagMeta.tags,
         goal: null,
         gold: 0,
-        color: '#6A7334',
+        color: tagMeta.color,
         priority: index === 0 ? 'high' : 'medium',
       };
     });
@@ -737,6 +927,7 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
     const durationMatch = cleanedContent.match(/(\d+)\s*分钟/);
     const estimatedDuration = durationMatch ? parseInt(durationMatch[1], 10) : 30;
     const end = new Date(now.getTime() + estimatedDuration * 60000);
+    const tagMeta = enrichDraftTags(cleanedContent);
 
     return [{
       sequence: 1,
@@ -747,14 +938,63 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
       scheduled_end: end.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
       scheduled_start_iso: now.toISOString(),
       task_type: 'life',
-      category: 'AI安排',
-      location: '全屋',
-      tags: ['AI安排'],
+      category: tagMeta.category,
+      location: inferDraftLocation(cleanedContent),
+      tags: tagMeta.tags,
       goal: null,
       gold: 0,
-      color: '#6A7334',
+      color: tagMeta.color,
       priority: 'high',
     }];
+  };
+
+  const createTaskDraftsByLocalDecompose = (content: string): DecomposedTask[] => {
+    const cleanedContent = content.replace(TASK_DECOMPOSE_PREFIX, '').trim();
+    if (!cleanedContent) return [];
+
+    const now = new Date();
+    const delayMatch = cleanedContent.match(/(\d+)\s*分钟后/);
+    const initialDelayMinutes = delayMatch ? parseInt(delayMatch[1], 10) : 0;
+    const segments = cleanedContent
+      .replace(/^(\d+)\s*分钟后/, '')
+      .split(/(?:，然后|然后|接着|之后|再|并且|并)/)
+      .map(segment => segment.trim())
+      .filter(Boolean)
+      .map(segment => segment.replace(/^(去|先去|再去|然后去)/, '').trim())
+      .filter(Boolean);
+
+    if (segments.length <= 1) {
+      return createSingleTaskDraftFromText(content);
+    }
+
+    let currentStart = new Date(now.getTime() + initialDelayMinutes * 60000);
+
+    return segments.map((segment, index) => {
+      const durationMatch = segment.match(/(\d+)\s*分钟/);
+      const estimatedDuration = durationMatch ? parseInt(durationMatch[1], 10) : 15;
+      const scheduledStart = new Date(currentStart);
+      const scheduledEnd = new Date(scheduledStart.getTime() + estimatedDuration * 60000);
+      const tagMeta = enrichDraftTags(segment);
+      currentStart = new Date(scheduledEnd);
+
+      return {
+        sequence: index + 1,
+        title: segment,
+        description: segment,
+        estimated_duration: estimatedDuration,
+        scheduled_start: scheduledStart.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        scheduled_end: scheduledEnd.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        scheduled_start_iso: scheduledStart.toISOString(),
+        task_type: 'life',
+        category: tagMeta.category,
+        location: inferDraftLocation(segment),
+        tags: tagMeta.tags,
+        goal: null,
+        gold: 0,
+        color: tagMeta.color,
+        priority: index === 0 ? 'high' : 'medium',
+      };
+    });
   };
 
   const buildTaskDraftsFromIntent = (intent: any, rawMessage: string): DecomposedTask[] => {
@@ -773,6 +1013,7 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
           : new Date(now.getTime() + (sequence - 1) * 30 * 60000);
         const estimatedDuration = task.duration || task.durationMinutes || task.estimated_duration || 30;
         const end = new Date(start.getTime() + estimatedDuration * 60000);
+        const tagMeta = enrichDraftTags(task.title || task.description || rawMessage, task.tags || []);
 
         drafts.push({
           sequence,
@@ -783,12 +1024,12 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
           scheduled_end: end.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
           scheduled_start_iso: start.toISOString(),
           task_type: task.task_type || task.category || 'life',
-          category: task.category || 'AI安排',
-          location: task.location || '全屋',
-          tags: task.tags || ['AI安排'],
+          category: tagMeta.category,
+          location: task.location || inferDraftLocation(task.title || task.description || rawMessage),
+          tags: tagMeta.tags,
           goal: task.goal || null,
           gold: task.gold || task.goldReward || 0,
-          color: task.color || '#6A7334',
+          color: tagMeta.color,
           priority: task.priority === 'low' ? 'low' : task.priority === 'high' ? 'high' : 'medium',
         });
       });
@@ -1033,6 +1274,34 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
   // 处理时间轴操作指令
   const handleTimelineOperation = async (message: string) => {
     const normalizedMessage = message.replace(TIMELINE_OPERATION_PREFIX, '').trim();
+
+    if (/根据我的习惯|帮我智能安排|安排接下来|接下来要做的任务/.test(normalizedMessage)) {
+      const now = new Date();
+      const suggestions = buildHabitBasedSuggestions(tasks, now);
+      const drafts = buildDraftsFromHabitSuggestions(suggestions, tasks, now);
+
+      if (drafts.length === 0) {
+        setMessages(prev => [...prev, {
+          id: `ai-${Date.now()}`,
+          role: 'assistant',
+          content: '我现在还没整理出适合你的下一步安排，你可以先告诉我一个明确目标，我再继续给你排。',
+          timestamp: new Date(),
+        }]);
+        return true;
+      }
+
+      setPendingTimelineOperations([]);
+      setEditingTasks(drafts);
+      setShowTaskEditor(true);
+      setMessages(prev => [...prev, {
+        id: `ai-${Date.now()}`,
+        role: 'assistant',
+        content: `我按你当前时间、待办和这个时段常做的事，先帮你排了 ${drafts.length} 个接下来可执行的任务，已经打开任务编辑器，你确认后就能推到时间轴。`,
+        timestamp: new Date(),
+      }]);
+      return true;
+    }
+
     const operationSegments = normalizedMessage
       .split(/(?:，然后|然后|再把|再将|再|并且|并|接着)/)
       .map(segment => segment.trim())
@@ -1652,12 +1921,17 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
       };
       
       // 让AI理解用户意图
-      addThinkingStep('🧠 正在理解你的意图...');
+      addThinkingStep('🧠 正在进行智能理解与执行规划...');
       if (isExplicitTaskDecompose) {
         addThinkingStep('🧩 已识别任务分解模式，将优先拆分任务并打开编辑器');
       }
 
       const intent = await aiCommandCenter.processUserInput(normalizedMessage, context);
+      const hasCreateTaskAction = intent.actions.some(action => action.type === 'create_task');
+      const localDecomposedDrafts = (intent.intent === 'create_task' || isExplicitTaskDecompose)
+        ? createTaskDraftsByLocalDecompose(normalizedMessage)
+        : [];
+      const shouldUseLocalDecomposeDrafts = hasCreateTaskAction && localDecomposedDrafts.length > 1;
       
       addThinkingStep(`✅ 理解：${intent.understanding}`);
       addThinkingStep(`🎯 意图：${intent.intent} (置信度 ${Math.round(intent.confidence * 100)}%)`);
@@ -1686,9 +1960,10 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
         const hasDestructiveTimelineAction = intent.actions.some(action =>
           action.type === 'delete_tasks' || action.type === 'move_task'
         );
+        const isTimelineOperationMessage = normalizedMessage.startsWith(TIMELINE_OPERATION_PREFIX.replace('：', ':')) || /删除|清空|移除|删掉|去掉|挪到|移到|改到|调到|移动|顺移|往后顺移|往前顺移|延后|提前|推迟/.test(normalizedMessage);
 
-        if (hasDestructiveTimelineAction) {
-          addThinkingStep('🛡️ 检测到时间轴批量操作，切换为确认预览模式');
+        if (hasDestructiveTimelineAction || isTimelineOperationMessage) {
+          addThinkingStep('🛡️ 检测到时间轴操作，切换为确认预览模式');
           const handled = await handleTimelineOperation(ensureTimelineOperationPrefix(normalizedMessage));
           if (handled !== false) {
             setIsProcessing(false);
@@ -1696,23 +1971,43 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
             return;
           }
         }
+
+        const actionsToExecute = shouldUseLocalDecomposeDrafts
+          ? intent.actions.filter(action => action.type !== 'create_task')
+          : intent.actions;
+
+        if (shouldUseLocalDecomposeDrafts) {
+          addThinkingStep('🧩 检测到简单串联任务，跳过指挥中枢里的默认开编辑器，改用本地拆分草稿只打开一次');
+        }
         
-        const execution = await aiCommandCenter.executeActions(intent.actions);
+        const execution = await aiCommandCenter.executeActions(actionsToExecute);
         
         if (execution.success) {
           addThinkingStep('🤍 都处理好了');
         } else {
           addThinkingStep(`🌧️ 有一小部分没成功：${execution.errors.join(', ')}`);
         }
+
+        if (shouldUseLocalDecomposeDrafts) {
+          setEditingTasks(localDecomposedDrafts);
+          setShowTaskEditor(true);
+        }
+      }
+
+      if (contextMode !== 'normal') {
+        setContextMode('normal');
       }
       
-      // 显示AI的回复
-      const fallbackDecomposedTasks = (intent.intent === 'create_task' || isExplicitTaskDecompose)
+      const editorWasOpenedByAction = intent.actions.some(action => action.type === 'create_task');
+      const fallbackDecomposedTasks = ((shouldUseLocalDecomposeDrafts && localDecomposedDrafts.length > 0)
+        ? localDecomposedDrafts
+        : (!editorWasOpenedByAction && (intent.intent === 'create_task' || isExplicitTaskDecompose))
         ? buildTaskDraftsFromIntent(intent, normalizedMessage)
-        : [];
+        : []);
 
-      const shouldAutoOpenEditor = fallbackDecomposedTasks.length > 0 && (intent.intent === 'create_task' || isExplicitTaskDecompose);
+      const shouldAutoOpenEditor = fallbackDecomposedTasks.length > 0 && !editorWasOpenedByAction && (intent.intent === 'create_task' || isExplicitTaskDecompose);
 
+      // 显示AI的回复
       const aiMessage: Message = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
@@ -1760,6 +2055,10 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
       console.error('🧠 [智能AI] 处理失败，降级到传统模式:', error);
       addThinkingStep('⚠️ AI智能处理失败，使用传统模式');
       // 继续执行下面的传统处理逻辑
+      appendAssistantMessage(
+        setMessages,
+        beautifyAssistantReply('⚠️ 智能主链路这次没有接稳，我先用兼容模式继续处理，功能不会中断。')
+      );
     }
     // 🧠 ==================== 智能AI指挥中枢结束 ==================== 🧠
     
@@ -2434,73 +2733,60 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
 
   const handleQuickAction = (action: (typeof quickActions)[number]['key']) => {
     if (action === 'smart_schedule') {
-      setInputValue('根据我的习惯和当前时间，帮我智能安排接下来要做的任务');
+      setContextMode('normal');
+      const schedulePrompt = ensureTimelineOperationPrefix('根据我的习惯和当前时间，帮我智能安排接下来要做的任务');
+      setInputValue(schedulePrompt);
       setTimeout(() => handleSend(), 0);
       return;
     }
 
     if (action === 'task_decompose') {
+      setContextMode('normal');
       setInputValue(prev => ensureTaskDecomposePrefix(prev));
       return;
     }
 
     if (action === 'timeline_operation') {
+      setContextMode('normal');
+      eventBus.emit('dashboard:navigate-module', { module: 'timeline' });
       setInputValue(prev => ensureTimelineOperationPrefix(prev));
       return;
     }
 
     if (action === 'income_mode') {
       setContextMode('income');
-      const modeMessage: Message = {
-        id: `ai-${Date.now()}`,
-        role: 'assistant',
-        content: '💰 **收入记录模式已开启**\n\n现在你可以直接输入收入相关的信息，例如：\n\n• "今天画插画赚了2000块钱"\n• "接了个设计单，收入5000元"\n• "副业收入3000"\n\n我会自动：\n✅ 提取金额和描述\n✅ 保存到副业追踪器\n✅ 在时间轴标记收入时间点\n\n💡 输入完成后会自动退出此模式',
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, modeMessage]);
+      eventBus.emit('dashboard:navigate-module', { module: 'money' });
+      appendAssistantMessage(
+        setMessages,
+        '💰 **收入记录模式已开启**\n\n现在你可以直接输入收入相关的信息，例如：\n\n• "今天画插画赚了2000块钱"\n• "接了个设计单，收入5000元"\n• "副业收入3000"\n\n我会自动：\n✅ 提取金额和描述\n✅ 保存到副业追踪器\n✅ 在时间轴标记收入时间点\n\n💡 输入完成后会自动退出此模式'
+      );
       return;
     }
 
     if (action === 'goal_mode') {
       setContextMode('goal');
-      const modeMessage: Message = {
-        id: `ai-${Date.now()}`,
-        role: 'assistant',
-        content: '🎯 **目标设置模式已开启**\n\n现在你可以用口语化的方式描述目标，例如：\n\n• "我希望在三个月之内赚10万块钱"\n• "一个星期之内发布新网站"\n• "今年要读完50本书"\n• "半年内减重20斤"\n\nAI会智能识别：\n✅ 目标内容\n✅ 时间期限\n✅ 数值目标\n✅ 自动分类\n\n💡 输入完成后会自动退出此模式',
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, modeMessage]);
+      appendAssistantMessage(
+        setMessages,
+        '🎯 **目标设置模式已开启**\n\n现在你后面发给我的内容，我会按“目标”来理解，不会只是带你跳转页面。\n\n例如：\n\n• "我计划10天内把下一套文创设计发出去"\n• "这个月想把副业收入做到5000"\n• "我想在两周内完成网站上线"\n\n我会继续帮你：\n✅ 自动创建目标草稿\n✅ 识别开始/结束时间\n✅ 追问每天投入时长、关键结果等缺失信息\n✅ 后续还能把任务关联到这个目标\n\n💡 你现在直接说目标就行'
+      );
       return;
     }
 
     if (action === 'mutter_quick') {
-      const now = new Date();
-      const mutterContent = `心情记录 ${now.toLocaleString('zh-CN')}`;
-
-      addMemory({
-        type: 'mutter',
-        content: mutterContent,
-        mood: '记录',
-        tags: ['碎碎念', '心情'],
-        date: now,
-      });
-
-      createTask({
-        title: `💭💕 心情碎碎念`,
-        description: `📝 ${mutterContent}\n\n💕 心情备注：点击编辑添加你的心情\n⏰ 记录时间：${now.toLocaleString('zh-CN')}`,
-        taskType: 'life' as TaskType,
-        priority: 2,
-        durationMinutes: 1,
-        scheduledStart: now,
-        scheduledEnd: new Date(now.getTime() + 60000),
-        tags: ['💭碎碎念', '💕心情'],
-        color: '#FFB6C1',
-        status: 'completed',
-        isRecord: true,
-      });
-
-      notificationService.success('💭 心情碎碎念已记录到时间轴！');
+      setContextMode('mutter');
+      eventBus.emit('dashboard:navigate-module', { module: 'memory' });
+      appendAssistantMessage(
+        setMessages,
+        '💭 **碎碎念模式已开启**\n\n你现在直接发心情、吐槽、想法就行。\n\n例如：\n• "今天真的好累"\n• "我刚刚把代码删了，好烦"\n• "突然想到一个很好的创业点子"\n\n我会帮你自动理解、记录，并同步到对应位置。'
+      );
     }
+  };
+
+  const handleOpenTaskEditorFromMessage = (tasks: DecomposedTask[]) => {
+    if (!tasks.length) return;
+    eventBus.emit('dashboard:navigate-module', { module: 'timeline' });
+    setEditingTasks(tasks);
+    setShowTaskEditor(true);
   };
 
   // 全屏模式处理
@@ -2731,10 +3017,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
                     
                     {/* 打开编辑器按钮 */}
                     <button
-                      onClick={() => {
-                        setEditingTasks(resolvedDecomposedTasks);
-                        setShowTaskEditor(true);
-                      }}
+                      onClick={() => handleOpenTaskEditorFromMessage(resolvedDecomposedTasks)}
                       className="w-full mt-3 py-3 px-4 rounded-xl text-sm font-semibold bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 active:scale-[0.99] transition-all shadow-md"
                     >
                       ✨ 打开任务编辑器（{resolvedDecomposedTasks.length}项）

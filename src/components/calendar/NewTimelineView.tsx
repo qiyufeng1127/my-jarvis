@@ -38,6 +38,7 @@ import {
 } from '@/utils/goldCalculator';
 import { baiduImageRecognition } from '@/services/baiduImageRecognition';
 import { notificationService } from '@/services/notificationService';
+import { backgroundTaskScheduler } from '@/services/backgroundTaskScheduler';
 import TaskVerificationExtension from './TaskVerificationExtension';
 import TaskVerificationCountdownContent from './TaskVerificationCountdownContent';
 import GoldDetailsModal from '@/components/gold/GoldDetailsModal';
@@ -215,6 +216,8 @@ export default function NewTimelineView({
     endTime: string;
     selectedGapIndex: number;
     previousSuggestedTags: string[];
+    note: string;
+    values: Record<string, string>;
   } | null>(null);
   
   useEffect(() => {
@@ -675,7 +678,29 @@ export default function NewTimelineView({
       endTime: normalizeTimeInput(gap.endTime),
       selectedGapIndex: gapIndex,
       previousSuggestedTags: [] as string[],
+      note: '',
+      values: {} as Record<string, string>,
     };
+  };
+
+  const getPreferredBackfillGapIndex = () => {
+    if (!gaps.length) return -1;
+
+    const now = new Date();
+    const containingGapIndex = gaps.findIndex((gap) => now >= gap.startTime && now <= gap.endTime);
+    if (containingGapIndex >= 0) return containingGapIndex;
+
+    const previousGapIndex = [...gaps]
+      .map((gap, index) => ({ gap, index }))
+      .filter(({ gap }) => gap.endTime <= now)
+      .pop()?.index;
+
+    if (previousGapIndex !== undefined) return previousGapIndex;
+
+    const nextGapIndex = gaps.findIndex((gap) => gap.startTime >= now);
+    if (nextGapIndex >= 0) return nextGapIndex;
+
+    return gaps.length - 1;
   };
 
   const moveQuickBackfillGap = (direction: -1 | 1) => {
@@ -695,6 +720,8 @@ export default function NewTimelineView({
         endTime: normalizeTimeInput(nextGap.endTime),
         selectedGapIndex: nextIndex,
         previousSuggestedTags: prev?.previousSuggestedTags || [],
+        note: prev?.note || '',
+        values: prev?.values || {},
       };
     });
   };
@@ -1368,15 +1395,26 @@ export default function NewTimelineView({
       console.log('❌ [handleStartTask] 任务不存在');
       return;
     }
+
+    const now = new Date();
+    const originalScheduledStart = task.scheduledStart ? new Date(task.scheduledStart) : now;
+    const isEarlyStart = now.getTime() < originalScheduledStart.getTime();
     
     // 检查是否配置了启动验证
     if (verification?.enabled && verification?.startKeywords?.length > 0) {
       console.log('📷 [handleStartTask] 任务有启动验证，创建启动倒计时状态');
+      console.log(`⏰ [handleStartTask] 是否提前开始: ${isEarlyStart ? '是' : '否'}`);
+
+      // 关键修复：提前开始时，不应立刻从当前时刻计算“启动超时”
+      // 应该保留原计划开始时间，并把2分钟宽限期算在计划开始时间之后
+      const startDeadline = isEarlyStart
+        ? new Date(originalScheduledStart.getTime() + 2 * 60 * 1000)
+        : new Date(now.getTime() + 2 * 60 * 1000);
       
       // 创建启动倒计时状态
       const countdownState = {
         status: 'start_countdown',
-        startDeadline: new Date(Date.now() + 2 * 60 * 1000).toISOString(), // 2分钟后
+        startDeadline: startDeadline.toISOString(),
         taskDeadline: null,
         startTimeoutCount: 0,
         completeTimeoutCount: 0,
@@ -1386,11 +1424,17 @@ export default function NewTimelineView({
       // 保存到localStorage
       localStorage.setItem(`countdown_${taskId}`, JSON.stringify(countdownState));
       console.log('✅ [handleStartTask] 已创建启动倒计时状态:', countdownState);
+
+      // 同步到后台调度，避免前后台状态不一致
+      backgroundTaskScheduler.updateTaskStatus(taskId, 'start_countdown', {
+        startDeadline: countdownState.startDeadline,
+        startTimeoutCount: countdownState.startTimeoutCount,
+      });
       
-      // 更新任务状态为waiting_start，触发倒计时组件显示
+      // 关键修复：不要在点击开始时覆盖原 scheduledStart
+      // 否则会把“原计划开始时间”抹掉，导致提前开始被误判为超时
       onTaskUpdate(taskId, { 
         status: 'waiting_start',
-        scheduledStart: new Date().toISOString(),
       });
       
       // 展开任务卡片，显示倒计时组件
@@ -1401,7 +1445,6 @@ export default function NewTimelineView({
       // 没有启动验证，直接启动任务
       console.log('✅ [handleStartTask] 无启动验证，直接启动任务');
       
-      const now = new Date();
       const duration = task.duration || task.durationMinutes || 30;
       const endTime = new Date(now.getTime() + duration * 60 * 1000);
       

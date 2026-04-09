@@ -222,6 +222,19 @@ class BackgroundTaskScheduler {
     }
   }
 
+  private getLiveTask(taskId: string) {
+    try {
+      const saved = localStorage.getItem('manifestos-tasks-storage');
+      if (!saved) return null;
+
+      const parsed = JSON.parse(saved);
+      return parsed?.state?.tasks?.find((task: any) => task.id === taskId) || null;
+    } catch (error) {
+      console.error('❌ 读取实时任务数据失败:', error);
+      return null;
+    }
+  }
+
   /**
    * 检查所有任务
    */
@@ -244,6 +257,37 @@ class BackgroundTaskScheduler {
    * 检查单个任务
    */
   private checkTask(schedule: TaskScheduleState, task: ScheduledTask, now: Date) {
+    const liveTask = this.getLiveTask(schedule.taskId);
+    if (!liveTask || !liveTask.scheduledStart || !liveTask.scheduledEnd) {
+      this.unscheduleTask(schedule.taskId);
+      return;
+    }
+
+    task.taskTitle = liveTask.title;
+    task.scheduledStart = new Date(liveTask.scheduledStart).toISOString();
+    task.scheduledEnd = new Date(liveTask.scheduledEnd).toISOString();
+    task.goldReward = liveTask.goldReward || 0;
+    task.hasVerification = Boolean(
+      liveTask.verificationEnabled || liveTask.verificationStart || liveTask.verificationComplete
+    );
+    task.startKeywords = liveTask.startKeywords;
+    task.completeKeywords = liveTask.completeKeywords;
+
+    if (
+      schedule.scheduledStart !== task.scheduledStart ||
+      schedule.scheduledEnd !== task.scheduledEnd
+    ) {
+      schedule.scheduledStart = task.scheduledStart;
+      schedule.scheduledEnd = task.scheduledEnd;
+      schedule.status = 'waiting_start';
+      schedule.startDeadline = null;
+      schedule.taskDeadline = null;
+      schedule.actualStartTime = null;
+      schedule.remindersTriggered = [];
+    }
+
+    this.saveTaskDetails(task);
+
     const scheduledStart = new Date(schedule.scheduledStart);
     const scheduledEnd = new Date(schedule.scheduledEnd);
 

@@ -2,6 +2,32 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Task, TaskStatus, TaskType } from '@/types';
 import { taskMonitorService } from '@/services/taskMonitorService';
+import { backgroundTaskScheduler } from '@/services/backgroundTaskScheduler';
+
+const hasTaskVerification = (task: Partial<Task>) => Boolean(
+  task.verificationEnabled || task.verificationStart || task.verificationComplete
+);
+
+const syncTaskSchedule = (task: Task) => {
+  taskMonitorService.stopMonitoring(task.id);
+  backgroundTaskScheduler.unscheduleTask(task.id);
+
+  if (!task.scheduledStart || !task.scheduledEnd) {
+    return;
+  }
+
+  taskMonitorService.startMonitoring(task);
+  backgroundTaskScheduler.scheduleTask({
+    taskId: task.id,
+    taskTitle: task.title,
+    scheduledStart: new Date(task.scheduledStart).toISOString(),
+    scheduledEnd: new Date(task.scheduledEnd).toISOString(),
+    goldReward: task.goldReward || 0,
+    hasVerification: hasTaskVerification(task),
+    startKeywords: task.startKeywords,
+    completeKeywords: task.completeKeywords,
+  });
+};
 
 interface TaskState {
   tasks: Task[];
@@ -43,6 +69,9 @@ export const useTaskStore = create<TaskState>()(
     // 纯本地模式，不需要加载
     // persist 中间件会自动从 localStorage 加载
     console.log('📦 使用本地存储的任务');
+
+    const tasks = get().tasks;
+    tasks.forEach((task) => syncTaskSchedule(task));
   },
 
   createTask: async (taskData) => {
@@ -113,10 +142,8 @@ export const useTaskStore = create<TaskState>()(
       const { activityMonitorService } = await import('@/services/activityMonitorService');
       activityMonitorService.recordActivity();
       
-      // 开始监控任务
-      if (newTask.scheduledStart && newTask.scheduledEnd) {
-        taskMonitorService.startMonitoring(newTask);
-      }
+      // 同步任务提醒调度
+      syncTaskSchedule(newTask);
       
       return newTask;
     } catch (error) {
@@ -127,8 +154,11 @@ export const useTaskStore = create<TaskState>()(
 
   updateTask: async (id, updates) => {
     try {
+      const existingTask = get().tasks.find((t) => t.id === id);
+      if (!existingTask) return;
+
       const updatedTask = {
-        ...get().tasks.find((t) => t.id === id),
+        ...existingTask,
         ...updates,
         updatedAt: new Date(),
       } as Task;
@@ -138,10 +168,8 @@ export const useTaskStore = create<TaskState>()(
         tasks: state.tasks.map((t) => (t.id === id ? updatedTask : t)),
       }));
       
-      // 重新监控任务（如果时间有变化）
-      if (updatedTask.scheduledStart && updatedTask.scheduledEnd) {
-        taskMonitorService.startMonitoring(updatedTask);
-      }
+      // 重新同步任务提醒调度
+      syncTaskSchedule(updatedTask);
       
       // 如果任务完成，触发习惯识别
       if (updates.status === 'completed') {
@@ -157,8 +185,9 @@ export const useTaskStore = create<TaskState>()(
 
   deleteTask: async (id) => {
     try {
-      // 停止监控
+      // 停止监控并取消后台调度
       taskMonitorService.stopMonitoring(id);
+      backgroundTaskScheduler.unscheduleTask(id);
       
       // 从本地删除
       set((state) => ({

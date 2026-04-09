@@ -6,15 +6,64 @@
 import { notificationService } from './notificationService';
 import type { Task } from '@/types';
 
+interface NotificationSettings {
+  taskStartBeforeReminder: boolean;
+  taskStartBeforeMinutes: number;
+  taskStartReminder: boolean;
+  taskEndBeforeReminder: boolean;
+  taskEndBeforeMinutes: number;
+  taskEndReminder: boolean;
+}
+
 class TaskMonitorService {
-  private monitoredTasks: Map<string, NodeJS.Timeout> = new Map();
-  private notifiedTasks: Set<string> = new Set(); // 记录已通知的任务
+  private monitoredTasks: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private notifiedTasks: Set<string> = new Set();
+
+  private getNotificationSettings(): NotificationSettings {
+    const defaults: NotificationSettings = {
+      taskStartBeforeReminder: true,
+      taskStartBeforeMinutes: 2,
+      taskStartReminder: true,
+      taskEndBeforeReminder: true,
+      taskEndBeforeMinutes: 5,
+      taskEndReminder: true,
+    };
+
+    try {
+      const saved = localStorage.getItem('notification_settings');
+      if (!saved) return defaults;
+
+      return {
+        ...defaults,
+        ...JSON.parse(saved),
+      };
+    } catch (error) {
+      console.warn('⚠️ [任务监控] 读取通知设置失败，使用默认配置:', error);
+      return defaults;
+    }
+  }
+
+  private scheduleReminder(key: string, delay: number, callback: () => void) {
+    if (delay <= 0) return;
+
+    const timer = setTimeout(() => {
+      if (this.notifiedTasks.has(key)) {
+        this.monitoredTasks.delete(key);
+        return;
+      }
+
+      callback();
+      this.notifiedTasks.add(key);
+      this.monitoredTasks.delete(key);
+    }, delay);
+
+    this.monitoredTasks.set(key, timer);
+  }
 
   /**
    * 开始监控任务
    */
   startMonitoring(task: Task) {
-    // 如果已经在监控，先停止
     this.stopMonitoring(task.id);
 
     if (!task.scheduledStart || !task.scheduledEnd) {
@@ -24,48 +73,55 @@ class TaskMonitorService {
     const now = new Date();
     const startTime = new Date(task.scheduledStart);
     const endTime = new Date(task.scheduledEnd);
+    const settings = this.getNotificationSettings();
+    const hasVerification = Boolean(
+      task.verificationEnabled || task.verificationStart || task.verificationComplete
+    );
 
-    // 检查任务是否需要验证
-    const hasVerification = task.verification?.enabled || false;
-
-    // 1. 任务开始通知
-    if (startTime > now) {
-      const timeUntilStart = startTime.getTime() - now.getTime();
-      const startTimer = setTimeout(() => {
-        if (!this.notifiedTasks.has(`${task.id}-start`)) {
-          notificationService.notifyTaskStart(task.title, hasVerification);
-          this.notifiedTasks.add(`${task.id}-start`);
+    if (settings.taskStartBeforeReminder) {
+      const beforeStartTime = new Date(
+        startTime.getTime() - settings.taskStartBeforeMinutes * 60 * 1000
+      );
+      this.scheduleReminder(
+        `${task.id}-start-before`,
+        beforeStartTime.getTime() - now.getTime(),
+        () => {
+          notificationService.notifyTaskStartBefore(
+            task.title,
+            settings.taskStartBeforeMinutes,
+            hasVerification
+          );
         }
-      }, timeUntilStart);
-
-      this.monitoredTasks.set(`${task.id}-start`, startTimer);
+      );
     }
 
-    // 2. 任务即将结束通知（提前2分钟）
-    const warningTime = new Date(endTime.getTime() - 2 * 60 * 1000);
-    if (warningTime > now) {
-      const timeUntilWarning = warningTime.getTime() - now.getTime();
-      const warningTimer = setTimeout(() => {
-        if (!this.notifiedTasks.has(`${task.id}-warning`)) {
-          notificationService.notifyTaskEnding(task.title, 2, hasVerification);
-          this.notifiedTasks.add(`${task.id}-warning`);
-        }
-      }, timeUntilWarning);
-
-      this.monitoredTasks.set(`${task.id}-warning`, warningTimer);
+    if (settings.taskStartReminder) {
+      this.scheduleReminder(`${task.id}-start`, startTime.getTime() - now.getTime(), () => {
+        notificationService.notifyTaskStart(task.title, hasVerification);
+      });
     }
 
-    // 3. 任务结束通知
-    if (endTime > now) {
-      const timeUntilEnd = endTime.getTime() - now.getTime();
-      const endTimer = setTimeout(() => {
-        if (!this.notifiedTasks.has(`${task.id}-end`)) {
-          notificationService.notifyTaskEnd(task.title, hasVerification);
-          this.notifiedTasks.add(`${task.id}-end`);
+    if (settings.taskEndBeforeReminder) {
+      const beforeEndTime = new Date(
+        endTime.getTime() - settings.taskEndBeforeMinutes * 60 * 1000
+      );
+      this.scheduleReminder(
+        `${task.id}-warning`,
+        beforeEndTime.getTime() - now.getTime(),
+        () => {
+          notificationService.notifyTaskEnding(
+            task.title,
+            settings.taskEndBeforeMinutes,
+            hasVerification
+          );
         }
-      }, timeUntilEnd);
+      );
+    }
 
-      this.monitoredTasks.set(`${task.id}-end`, endTimer);
+    if (settings.taskEndReminder) {
+      this.scheduleReminder(`${task.id}-end`, endTime.getTime() - now.getTime(), () => {
+        notificationService.notifyTaskEnd(task.title, hasVerification);
+      });
     }
 
     console.log(`✅ [任务监控] 开始监控任务: ${task.title}`);
@@ -75,14 +131,14 @@ class TaskMonitorService {
    * 停止监控任务
    */
   stopMonitoring(taskId: string) {
-    // 清除所有相关的定时器
     const timers = [
+      `${taskId}-start-before`,
       `${taskId}-start`,
       `${taskId}-warning`,
       `${taskId}-end`,
     ];
 
-    timers.forEach(key => {
+    timers.forEach((key) => {
       const timer = this.monitoredTasks.get(key);
       if (timer) {
         clearTimeout(timer);
@@ -90,8 +146,7 @@ class TaskMonitorService {
       }
     });
 
-    // 清除通知记录
-    timers.forEach(key => {
+    timers.forEach((key) => {
       this.notifiedTasks.delete(key);
     });
 
@@ -102,7 +157,7 @@ class TaskMonitorService {
    * 批量监控任务
    */
   monitorTasks(tasks: Task[]) {
-    tasks.forEach(task => {
+    tasks.forEach((task) => {
       if (task.scheduledStart && task.scheduledEnd) {
         this.startMonitoring(task);
       }
@@ -113,7 +168,7 @@ class TaskMonitorService {
    * 清除所有监控
    */
   clearAll() {
-    this.monitoredTasks.forEach(timer => clearTimeout(timer));
+    this.monitoredTasks.forEach((timer) => clearTimeout(timer));
     this.monitoredTasks.clear();
     this.notifiedTasks.clear();
     console.log('🧹 [任务监控] 清除所有监控');
@@ -128,11 +183,3 @@ class TaskMonitorService {
 }
 
 export const taskMonitorService = new TaskMonitorService();
-
-
-
-
-
-
-
-

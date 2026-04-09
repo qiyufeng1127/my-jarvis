@@ -185,9 +185,10 @@ export default function TaskVerificationCountdownContent({
   useEffect(() => {
     const now = new Date();
     const start = new Date(scheduledStart);
+    const hasExistingStartFlow = state.status === 'start_countdown' || state.status === 'uploading_start' || state.status === 'task_countdown' || state.status === 'uploading_complete' || state.status === 'completed';
     
     // 如果当前时间 >= 预设开始时间，且状态为等待启动，则触发启动倒计时
-    if (now >= start && state.status === 'waiting_start' && !hasTriggeredBackgroundPenalty) {
+    if (now >= start && state.status === 'waiting_start' && !hasTriggeredBackgroundPenalty && !hasExistingStartFlow) {
       console.log(`⏰ 任务到达预设时间，触发启动倒计时: ${taskTitle}`);
       
       // 🔧 标记已触发，避免重复扣币
@@ -626,8 +627,11 @@ export default function TaskVerificationCountdownContent({
       const duration = Math.floor((new Date(scheduledEnd).getTime() - new Date(scheduledStart).getTime()) / 60000);
       const taskSeconds = duration * 60;
       
-      // 判断是否在启动倒计时内（2分钟内）
-      const isWithinStartWindow = state.status === 'start_countdown';
+      // 关键修复：只有在计划开始时间已到，且当前处于启动倒计时阶段，才算“按时启动”
+      // 提前开始不应被归入启动倒计时窗口，更不能被视作拖延或超时
+      const scheduledStartTime = new Date(scheduledStart);
+      const hasReachedScheduledStart = now.getTime() >= scheduledStartTime.getTime();
+      const isWithinStartWindow = hasReachedScheduledStart && state.status === 'start_countdown';
       
       if (isWithinStartWindow) {
         // 2分钟内完成启动，奖励50%金币
@@ -635,8 +639,8 @@ export default function TaskVerificationCountdownContent({
         addGold(bonusGold, `按时启动任务（奖励50%）`, taskId, taskTitle);
         console.log(`✅ 按时启动任务，获得${bonusGold}金币奖励`);
       } else {
-        // 提前启动，无奖励
-        console.log(`✅ 提前启动任务: ${taskTitle}`);
+        // 提前启动或普通启动，无拖延惩罚
+        console.log(`✅ 提前启动/正常启动任务: ${taskTitle}`);
       }
       
       const newState = {

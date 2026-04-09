@@ -14,6 +14,7 @@ import { useMemoryStore } from '@/stores/memoryStore';
 import { useGoalStore } from '@/stores/goalStore';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
 import { useAIPersonalityStore } from '@/stores/aiPersonalityStore';
+import eventBus from '@/utils/eventBus';
 
 /**
  * AI意图识别结果
@@ -586,9 +587,120 @@ class AICommandCenter {
   // ==================== 具体功能实现 ====================
   
   private async createTask(params: any) {
-    const { createTask } = useTaskStore.getState();
-    // 实现任务创建逻辑
-    return await createTask(params);
+    const taskStore = useTaskStore.getState();
+    const now = new Date();
+
+    const rawTasks = Array.isArray(params?.tasks) && params.tasks.length > 0
+      ? params.tasks
+      : [params];
+
+    const shouldTryDecompose = rawTasks.length === 1 && (() => {
+      const sourceText = [rawTasks[0]?.title, rawTasks[0]?.description, rawTasks[0]?.content]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+
+      return /然后|接着|再|之后|并且|并|先|5分钟后|分钟后|小时后/.test(sourceText);
+    })();
+
+    if (shouldTryDecompose) {
+      const sourceText = [rawTasks[0]?.title, rawTasks[0]?.description, rawTasks[0]?.content]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+
+      try {
+        const decomposed = await aiService.decomposeTask(sourceText, now);
+
+        if (decomposed.success && decomposed.tasks && decomposed.tasks.length >= 1) {
+          const taskDrafts = decomposed.tasks.map((task: any, index: number) => {
+            const [hours, minutes] = (task.startTime || `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`)
+              .split(':')
+              .map(Number);
+            const scheduledStart = new Date(now);
+            scheduledStart.setHours(hours, minutes, 0, 0);
+            const scheduledEnd = new Date(scheduledStart.getTime() + (task.duration || 30) * 60000);
+
+            return {
+              sequence: index + 1,
+              title: task?.title || `任务${index + 1}`,
+              description: task?.description || task?.title || sourceText,
+              estimated_duration: task?.duration || 30,
+              scheduled_start: scheduledStart.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+              scheduled_end: scheduledEnd.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+              scheduled_start_iso: scheduledStart.toISOString(),
+              task_type: task?.taskType || task?.task_type || task?.category || 'life',
+              category: task?.category || 'AI安排',
+              location: task?.location || '全屋',
+              tags: task?.tags || ['AI安排'],
+              goal: task?.goal || null,
+              gold: task?.goldReward || task?.gold || 0,
+              color: task?.color || '#6A7334',
+              priority: task?.priority === 'high' ? 'high' : task?.priority === 'low' ? 'low' : 'medium',
+            };
+          });
+
+          eventBus.emit('ai:open-task-editor', { tasks: taskDrafts });
+
+          return {
+            openTaskEditor: true,
+            tasks: taskDrafts,
+            storeTaskCount: taskStore.tasks.length,
+          };
+        }
+      } catch (error) {
+        console.error('🎯 [AI指挥中枢] 任务分解失败，降级为单任务草稿:', error);
+      }
+    }
+
+    const taskDrafts = rawTasks.map((task: any, index: number) => {
+      let scheduledStart = task?.scheduledStart
+        ? new Date(task.scheduledStart)
+        : task?.scheduled_start_iso
+        ? new Date(task.scheduled_start_iso)
+        : new Date(now.getTime() + index * 30 * 60000);
+
+      if (index > 0 && !task?.scheduledStart && !task?.scheduled_start_iso) {
+        const previous = rawTasks[index - 1];
+        const previousDuration = previous?.durationMinutes || previous?.estimated_duration || 30;
+        scheduledStart = new Date(now.getTime() + index * previousDuration * 60000);
+      }
+
+      const estimatedDuration = task?.duration || task?.durationMinutes || task?.estimated_duration || 30;
+      const scheduledEnd = new Date(scheduledStart.getTime() + estimatedDuration * 60000);
+      const rawPriority = task?.priority;
+
+      return {
+        sequence: index + 1,
+        title: task?.title || task?.description || `任务${index + 1}`,
+        description: task?.description || task?.title || '',
+        estimated_duration: estimatedDuration,
+        scheduled_start: scheduledStart.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        scheduled_end: scheduledEnd.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        scheduled_start_iso: scheduledStart.toISOString(),
+        task_type: task?.taskType || task?.task_type || task?.category || 'life',
+        category: task?.category || 'AI安排',
+        location: task?.location || '全屋',
+        tags: task?.tags || ['AI安排'],
+        goal: task?.goal || null,
+        gold: task?.goldReward || task?.gold || 0,
+        color: task?.color || '#6A7334',
+        priority:
+          rawPriority === 1 || rawPriority === 'high'
+            ? 'high'
+            : rawPriority === 3 || rawPriority === 'low'
+            ? 'low'
+            : 'medium',
+      };
+    });
+
+    eventBus.emit('ai:open-task-editor', { tasks: taskDrafts });
+
+    return {
+      openTaskEditor: true,
+      tasks: taskDrafts,
+      storeTaskCount: taskStore.tasks.length,
+    };
   }
   
   private async recordMutter(params: any) {

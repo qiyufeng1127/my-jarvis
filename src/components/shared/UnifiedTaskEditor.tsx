@@ -47,11 +47,16 @@ export default function UnifiedTaskEditor({
   onConfirm,
   isDark = false 
 }: UnifiedTaskEditorProps) {
-  const { addTag, getTagByName, addTagToFolder, getAllFolders, getAllTags } = useTagStore();
+  const { addTag, getTagByName, addTagToFolder, getAllFolders, getAllTags, resolveAutoTags } = useTagStore();
   const scrollRef = useRef<HTMLDivElement>(null);
   const { handleFocusCapture, scrollIntoSafeView } = useKeyboardAvoidance(scrollRef);
 
   const pickSmartTags = (taskTitle: string, existingTags: string[] = []) => {
+    const resolvedExistingTags = resolveAutoTags(taskTitle, existingTags, 3);
+    if (resolvedExistingTags.length > 0) {
+      return resolvedExistingTags;
+    }
+
     const activeTags = getAllTags()
       .filter((tag: TagData) => !tag.isDisabled)
       .sort((a: TagData, b: TagData) => b.usageCount - a.usageCount);
@@ -85,10 +90,13 @@ export default function UnifiedTaskEditor({
       { keyword: '吃药', tags: ['健康'] },
     ];
 
-    const keywordTags = fallbackKeywordMap
-      .filter(({ keyword }) => normalizedTitle.includes(keyword))
-      .flatMap(({ tags }) => tags)
-      .filter(tagName => activeTagNames.has(tagName));
+    const keywordTags = resolveAutoTags(
+      taskTitle,
+      fallbackKeywordMap
+        .filter(({ keyword }) => normalizedTitle.includes(keyword))
+        .flatMap(({ tags }) => tags),
+      3
+    );
 
     const preferredTags = [
       ...learnedTags,
@@ -477,8 +485,8 @@ export default function UnifiedTaskEditor({
 
     console.log(`✅ [推送到时间轴] 推送 ${editingTasks.length} 个任务`);
     
-    // 调用父组件的确认回调
-    onConfirm(editingTasks);
+    // 调用父组件的确认回调，并等待真正执行完成
+    await onConfirm(editingTasks);
     
     // 关闭编辑器
     onClose();

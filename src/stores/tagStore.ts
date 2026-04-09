@@ -564,6 +564,48 @@ export const useTagStore = create<TagState>()(
         
         set({ tags: newTags });
       },
+
+      matchExistingTagNames: (candidateTags) => {
+        const normalizedCandidates = Array.from(new Set(
+          candidateTags
+            .map(tag => tag.trim())
+            .filter(Boolean)
+        ));
+        if (normalizedCandidates.length === 0) return [];
+
+        const activeTags = get().getActiveTagsSortedByUsage();
+        const candidateMap = new Map(activeTags.map(tag => [tag.name.toLowerCase(), tag.name]));
+        const resolved: string[] = [];
+
+        normalizedCandidates.forEach((candidate) => {
+          const normalizedCandidate = candidate.toLowerCase();
+          const exactMatch = candidateMap.get(normalizedCandidate);
+          if (exactMatch) {
+            resolved.push(exactMatch);
+            return;
+          }
+
+          const fuzzyMatch = activeTags.find((tag) => {
+            const normalizedTag = tag.name.toLowerCase();
+            return normalizedTag.includes(normalizedCandidate) || normalizedCandidate.includes(normalizedTag);
+          });
+
+          if (fuzzyMatch) {
+            resolved.push(fuzzyMatch.name);
+          }
+        });
+
+        return Array.from(new Set(resolved));
+      },
+
+      resolveAutoTags: (taskTitle, candidateTags = [], limit = 3) => {
+        const matchedCandidateTags = get().matchExistingTagNames(candidateTags);
+        const learnedTags = get().getRecommendedTags(taskTitle, limit + matchedCandidateTags.length);
+        return Array.from(new Set([
+          ...matchedCandidateTags,
+          ...learnedTags,
+        ])).slice(0, limit);
+      },
       
       recordTagUsage: (tagName, taskId, taskTitle, duration, isInvalid = false, completionNotes, completionEfficiency) => {
         const tags = get().tags;

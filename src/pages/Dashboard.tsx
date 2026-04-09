@@ -9,6 +9,7 @@ import TimelineCalendar from '@/components/calendar/TimelineCalendar';
 import ResponsiveLayout from '@/components/layout/ResponsiveLayout';
 import { taskMonitorService } from '@/services/taskMonitorService';
 import { notificationService } from '@/services/notificationService';
+import { backgroundTaskScheduler } from '@/services/backgroundTaskScheduler';
 
 export default function Dashboard() {
   const { tasks, loadTasks, updateTask, createTask, deleteTask } = useTaskStore();
@@ -70,6 +71,24 @@ export default function Dashboard() {
   // 当任务列表变化时，重新监控
   useEffect(() => {
     taskMonitorService.monitorTasks(tasks);
+    tasks.forEach((task) => {
+      if (task.scheduledStart && task.scheduledEnd) {
+        backgroundTaskScheduler.scheduleTask({
+          taskId: task.id,
+          taskTitle: task.title,
+          scheduledStart: new Date(task.scheduledStart).toISOString(),
+          scheduledEnd: new Date(task.scheduledEnd).toISOString(),
+          goldReward: task.goldReward || 0,
+          hasVerification: Boolean(
+            task.verificationEnabled || task.verificationStart || task.verificationComplete
+          ),
+          startKeywords: task.startKeywords,
+          completeKeywords: task.completeKeywords,
+        });
+      } else {
+        backgroundTaskScheduler.unscheduleTask(task.id);
+      }
+    });
   }, [tasks]);
 
   return (
