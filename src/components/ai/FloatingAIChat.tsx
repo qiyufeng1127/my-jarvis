@@ -3289,6 +3289,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
               identityTags: ['system:mutter-record'],
               goldReward: 0,
               isRecord: true,
+              isMutterRecord: true,
             });
             
             addThinkingStep('📅 已在时间轴标记');

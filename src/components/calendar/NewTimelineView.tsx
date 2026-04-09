@@ -472,7 +472,21 @@ export default function NewTimelineView({
 
   const isMutterRecordTask = (task?: Task | null) => {
     if (!task) return false;
-    return (task.identityTags || []).includes('system:mutter-record');
+
+    const tags = task.tags || [];
+    const identityTags = task.identityTags || [];
+    const title = task.title || '';
+    const description = task.description || '';
+
+    return Boolean(
+      (task as Task & { isMutterRecord?: boolean }).isMutterRecord ||
+      identityTags.includes('system:mutter-record') ||
+      tags.some((tag) => tag.includes('碎碎念') || tag.includes('日记')) ||
+      title.includes('碎碎念') ||
+      title.includes('小记') ||
+      title.includes('日记') ||
+      description.includes('心情:')
+    );
   };
 
   // 根据任务内容智能分配颜色 - 优化版，避免重复
@@ -3384,15 +3398,11 @@ export default function NewTimelineView({
                 data-task-id={block.id}
                 className={`flex-1 ${isMobile ? 'rounded-xl' : 'rounded-2xl'} shadow-lg overflow-hidden relative`}
                 style={{ 
-                  background: block.isMutterRecord
-                    ? `linear-gradient(135deg, ${block.color} 0%, ${block.color}dd 55%, #fff1f7 140%)`
-                    : block.color,
-                  opacity: block.isCompleted ? (block.isMutterRecord ? 0.96 : 0.6) : 1,
+                  background: block.color,
+                  opacity: block.isCompleted ? (block.isMutterRecord ? 0.98 : 0.6) : 1,
                   filter: block.isCompleted && !block.isMutterRecord ? 'saturate(0.5)' : 'none',
-                  boxShadow: block.isMutterRecord
-                    ? '0 12px 30px rgba(244, 114, 182, 0.28), 0 0 0 1px rgba(255,255,255,0.32) inset'
-                    : undefined,
-                  border: block.isMutterRecord ? '1px solid rgba(255,255,255,0.35)' : undefined,
+                  boxShadow: undefined,
+                  border: undefined,
                 }}
               >
                 {/* 任务状态标记 - 右上角显示超时和低效率标记 */}
@@ -3410,6 +3420,152 @@ export default function NewTimelineView({
                   size={isMobile ? 'small' : 'medium'}
                 />
                 
+                {/* 🔥 验证倒计时组件 - 预设时间到达或任务进行中时显示 */}
+                {(() => {
+                  const now = new Date();
+                  const scheduledStart = new Date(block.startTime);
+                  const hasReachedStartTime = now >= scheduledStart;
+                  const isInProgress = block.status === 'in_progress';
+                  const isCompleted = block.isCompleted;
+                  
+                  // 显示条件：预设时间已到达 且 未完成，且不是“间隔补录记录”任务
+                  const taskRecord = allTasks.find((item) => item.id === block.id);
+                  const shouldShow = hasReachedStartTime && !isCompleted && !isHistoricalGapRecordTask(taskRecord);
+                  
+                  return shouldShow;
+                })() && (
+                  <TaskVerificationCountdownContent
+                     key={block.id}
+                     taskId={block.id}
+                     taskTitle={block.title}
+                     scheduledStart={block.startTime}
+                     scheduledEnd={block.endTime}
+                     goldReward={block.goldReward || 0}
+                     onStart={(actualStartTime, calculatedEndTime) => {
+                       // 更新任务的实际开始和结束时间（核心需求：时间动态更新）
+                       console.log(`🚀 [时间更新] 任务启动: ${block.title}`);
+                       console.log(`  预设开始: ${new Date(block.startTime).toLocaleTimeString()}`);
+                       console.log(`  实际开始: ${actualStartTime.toLocaleTimeString()}`);
+                       console.log(`  预计结束: ${calculatedEndTime.toLocaleTimeString()}`);
+                       
+                       onTaskUpdate(block.id, {
+                         scheduledStart: actualStartTime.toISOString(),
+                         scheduledEnd: calculatedEndTime.toISOString(),
+                         status: 'in_progress',
+                       });
+                     }}
+                     onComplete={(actualEndTime) => {
+                       // 更新任务的实际结束时间（核心需求：事件卡片结束时间自动更新为实际完成时间）
+                       console.log(`✅ [时间更新] 任务完成: ${block.title}`);
+                       console.log(`  预设结束: ${new Date(block.endTime).toLocaleTimeString()}`);
+                       console.log(`  实际结束: ${actualEndTime.toLocaleTimeString()}`);
+                       
+                       const taskRecord = allTasks.find((item) => item.id === block.id);
+                       if (isMandatoryReflectionPending(taskRecord)) {
+                         openMandatoryReflection(block.id, taskRecord?.mandatoryReflection?.trigger || 'low_efficiency');
+                         return;
+                       }
+
+                       if (taskRecord && activeLoop?.taskId === taskRecord.id) {
+                         setActiveLoop({
+                           ...activeLoop,
+                           taskId: taskRecord.id,
+                           taskTitle: taskRecord.title,
+                           timelineTaskCompletedAt: actualEndTime.toISOString(),
+                           closureNote: activeLoop?.goalContributionRecordedAt
+                             ? '追责动作与目标贡献都已补齐，等待总部复盘确认。'
+                             : '整改任务已执行完成，下一步补写目标贡献记录。',
+                         });
+                       }
+
+                       // 🎯 更新任务的实际结束时间
+                       onTaskUpdate(block.id, {
+                         endTime: actualEndTime.toISOString(),
+                         status: 'completed'
+                       });
+                       
+                       const isHistoricalGapTask = isHistoricalGapRecordTask(taskRecord);
+
+                       // 🎯 所有普通任务完成时都显示效率评估模态框；过去的间隔补录记录任务不进入该流程
+                       if (isHistoricalGapTask) {
+                         onTaskUpdate(block.id, {
+                           scheduledEnd: actualEndTime.toISOString(),
+                           endTime: actualEndTime.toISOString(),
+                           isCompleted: true,
+                           status: 'completed'
+                         });
+                         return;
+                       }
+                       
+                       // 🎯 所有普通任务完成时都显示效率评估模态框
+                       const verification = taskVerifications[block.id];
+                       const plannedImageCount = verification?.plannedImageCount || 0;
+                       const actualImageCount = taskImages[block.id]?.length || 0;
+                       const actualDurationMinutes = taskRecord?.scheduledStart
+                         ? Math.max(0, Math.floor((actualEndTime.getTime() - new Date(taskRecord.scheduledStart).getTime()) / 60000))
+                         : 0;
+                       const overtimeCount = Math.max(0, Math.floor(actualDurationMinutes / Math.max(taskRecord?.durationMinutes || block.duration || 1, 1)) - 1);
+                       const isLowEfficiencyOvertime = overtimeCount >= LOW_EFFICIENCY_TIMEOUT_THRESHOLD;
+                       
+                       // 馃敡 璁＄畻閲戝竵濂栧姳锛堟彁鍓嶅畬鎴愬鍔?0%锛塦r
+                       const scheduledEndTime = new Date(block.endTime);
+                       const scheduledStartTime = new Date(block.startTime);
+                       const now = new Date();
+                       
+                       // 判断是否为补录历史任务（任务开始时间早于当前时间）
+                       const isHistoricalTask = scheduledStartTime < now;
+                       const isBackfillRecord = isHistoricalGapRecordTask(taskRecord);
+                       
+                       const isEarly = actualEndTime < scheduledEndTime;
+                       // 如果是补录历史任务，不发金币；否则按提前完成计算
+                       const goldReward = isBackfillRecord
+                         ? 0
+                         : (isHistoricalTask 
+                           ? (block.goldReward || 0) 
+                           : (isEarly ? Math.floor((block.goldReward || 0) * 0.5) : 0));
+                       
+                       setEfficiencyModalTask({
+                         id: block.id,
+                         title: block.title,
+                         plannedImageCount,
+                         actualImageCount,
+                         actualEndTime,
+                         goldReward,
+                         forceMandatoryReflection: isLowEfficiencyOvertime,
+                       });
+                       setEfficiencyModalOpen(true);
+                     }}
+                     onTimeoutUpdate={(startTimeoutCount, completeTimeoutCount) => {
+                       // 保存超时数据到任务对象
+                       console.log(`💾 保存超时数据: 启动${startTimeoutCount}次, 完成${completeTimeoutCount}次`);
+                       
+                       onTaskUpdate(block.id, {
+                         startVerificationTimeout: startTimeoutCount > 0,
+                         startTimeoutCount: startTimeoutCount,
+                         completionTimeout: completeTimeoutCount > 0,
+                         completeTimeoutCount: completeTimeoutCount,
+                       });
+
+                       if (startTimeoutCount >= START_DELAY_FORM_THRESHOLD) {
+                         ensureMandatoryReflection(block.id, 'start_delay');
+                       }
+
+                       if (completeTimeoutCount >= LOW_EFFICIENCY_TIMEOUT_THRESHOLD) {
+                         ensureMandatoryReflection(block.id, 'low_efficiency');
+                       }
+                       
+                       if (startTimeoutCount > 0) {
+                         setTaskStartTimeouts(prev => ({ ...prev, [block.id]: true }));
+                       }
+                       if (completeTimeoutCount > 0) {
+                         setTaskFinishTimeouts(prev => ({ ...prev, [block.id]: true }));
+                       }
+                     }}
+                     hasVerification={!!taskVerifications[block.id]?.enabled}
+                     startKeywords={taskVerifications[block.id]?.startKeywords || ['启动', '开始']}
+                     completeKeywords={taskVerifications[block.id]?.completionKeywords || ['完成', '结束']}
+                   />
+                )}
 {/* 完成划线 */}
                 {block.isCompleted && !block.isMutterRecord && (
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
@@ -3440,15 +3596,49 @@ export default function NewTimelineView({
 
                 {/* 未展开：横向长条形布局 - 完全按照设计图，手机版缩小并压缩空白 */}
                 {!isExpanded && (
-                  <div className={`${isMobile ? 'p-1.5' : 'p-2.5'} text-white`} style={{ color: getTextColor(block.color) }}>
-                    {block.isMutterRecord && (
-                      <div
-                        className="mb-2 inline-flex items-center rounded-full px-3 py-1 text-[10px] font-black tracking-[0.14em]"
-                        style={{ backgroundColor: 'rgba(255,255,255,0.26)', color: '#fff8fb' }}
-                      >
-                        日记记录
+                  <div className={`${isMobile ? 'p-2' : 'p-2.5'} text-white`} style={{ color: getTextColor(block.color) }}>
+                    {block.isMutterRecord ? (
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="mb-2 flex flex-wrap gap-1">
+                            {block.tags.map((tag, idx) => (
+                              <span
+                                key={`${tag}-${idx}`}
+                                className={`${isMobile ? 'text-[9px]' : 'text-[10px]'} font-semibold ${isMobile ? 'px-1.5 py-0.5' : 'px-2 py-0.5'} rounded-full`}
+                                style={{ backgroundColor: 'rgba(255,255,255,0.22)' }}
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+
+                          <div className="flex items-start gap-1.5">
+                            <span className={`${isMobile ? 'text-sm' : 'text-base'} mt-[1px] shrink-0`}>{block.emoji || '💭'}</span>
+                            <h3
+                              className={`${isMobile ? 'text-[14px] leading-[1.35]' : 'text-[15px] leading-[1.45]'} font-semibold text-white/95`}
+                              style={{
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden',
+                              }}
+                            >
+                              {block.title}
+                            </h3>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => toggleExpand(block.id)}
+                          className="mt-0.5 h-8 w-8 shrink-0 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                          style={{ backgroundColor: 'rgba(255,255,255,0.16)' }}
+                          title="展开日记内容"
+                        >
+                          <ChevronDown className="w-3 h-3" />
+                        </button>
                       </div>
-                    )}
+                    ) : (
+                    <>
                     {linkedTaskId === block.id && (
                       <div
                         className="mb-2 rounded-full px-3 py-1 text-[10px] font-black tracking-[0.14em]"
@@ -3747,19 +3937,10 @@ export default function NewTimelineView({
                             </button>
                           </div>
                         </>
-                      ) : (
-                        <div className="flex w-full items-center justify-end">
-                          <button
-                            onClick={() => toggleExpand(block.id)}
-                            className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110"
-                            style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
-                            title="展开日记内容"
-                          >
-                            <ChevronDown className="w-3 h-3" />
-                          </button>
-                        </div>
-                      )}
+                      ) : null}
                     </div>
+                    </>
+                    )}
                   </div>
                 )}
 
@@ -3780,64 +3961,46 @@ export default function NewTimelineView({
 
                 {/* 展开：日记记录布局 */}
                 {isExpanded && block.isMutterRecord && (
-                    <div className="p-4 text-white" style={{ color: getTextColor(block.color) }}>
-                      <div className="rounded-[24px] border border-white/28 bg-white/10 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] backdrop-blur-[1px]">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="inline-flex items-center rounded-full bg-white/18 px-3 py-1 text-[10px] font-black tracking-[0.18em] text-white/90">
-                              RECORD ENTRY
-                            </div>
-                            <div className="mt-3 flex items-center gap-2">
-                              <span className="text-2xl">{block.emoji}</span>
-                              <h3 className="text-[18px] font-semibold tracking-[0.02em] text-white/95">
-                                {block.title}
-                              </h3>
-                            </div>
-                            <div className="mt-2 text-xs text-white/75">
-                              {formatTime(block.startTime)} — {formatTime(block.endTime)} · 5 min
-                            </div>
+                  <div className="p-4 text-white" style={{ color: getTextColor(block.color) }}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        {block.tags.length > 0 && (
+                          <div className="mb-3 flex flex-wrap gap-2">
+                            {block.tags.map((tag, idx) => (
+                              <span
+                                key={`${tag}-${idx}`}
+                                className="rounded-full px-2.5 py-1 text-[11px] font-medium text-white/88"
+                                style={{ backgroundColor: 'rgba(255,255,255,0.18)' }}
+                              >
+                                {tag}
+                              </span>
+                            ))}
                           </div>
+                        )}
 
-                          <button
-                            onClick={() => toggleExpand(block.id)}
-                            className="h-8 w-8 rounded-full bg-white/18 flex items-center justify-center transition-all hover:scale-110"
-                            title="收起日记内容"
-                          >
-                            <ChevronUp className="w-4 h-4" />
-                          </button>
-                        </div>
-
-                        <div className="mt-4 rounded-[20px] bg-[rgba(255,255,255,0.14)] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]">
-                          <div className="text-[11px] uppercase tracking-[0.2em] text-white/65">今日记录</div>
-                          <div className="mt-3 whitespace-pre-wrap text-[14px] leading-7 text-white/92">
-                            {block.description?.split('\n\n')[0] || '今天的小想法，已经轻轻放进时间轴里了。'}
-                          </div>
-                        </div>
-
-                        <div className="mt-4 grid gap-3 md:grid-cols-[1.2fr_0.8fr]">
-                          <div className="rounded-[18px] bg-white/10 px-4 py-3">
-                            <div className="text-[11px] uppercase tracking-[0.18em] text-white/60">心情备注</div>
-                            <div className="mt-2 text-sm leading-6 text-white/88">
-                              {block.goalText || '留给今天的自己一句温柔备注。'}
-                            </div>
-                          </div>
-
-                          <div className="rounded-[18px] bg-white/10 px-4 py-3">
-                            <div className="text-[11px] uppercase tracking-[0.18em] text-white/60">标签</div>
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {block.tags.map((tag, idx) => (
-                                <span
-                                  key={`${tag}-${idx}`}
-                                  className="rounded-full bg-white/18 px-2.5 py-1 text-[11px] font-medium text-white/88"
-                                >
-                                  {tag}
-                                </span>
-                              ))}
+                        <div className="flex items-start gap-2">
+                          <span className="mt-0.5 text-xl">{block.emoji || '💭'}</span>
+                          <div className="min-w-0 flex-1">
+                            <h3 className="text-[17px] font-semibold leading-7 text-white/95 whitespace-pre-wrap break-words">
+                              {block.title}
+                            </h3>
+                            <div className="mt-3 whitespace-pre-wrap break-words text-[14px] leading-7 text-white/88">
+                              {block.description || block.title}
                             </div>
                           </div>
                         </div>
                       </div>
+
+                      <button
+                        onClick={() => toggleExpand(block.id)}
+                        className="h-8 w-8 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                        style={{ backgroundColor: 'rgba(255,255,255,0.16)' }}
+                        title="收起日记内容"
+                      >
+                        <ChevronUp className="w-4 h-4" />
+                      </button>
                     </div>
+                  </div>
                 )}
 
                 {/* 展开：竖向长方形布局 */}

@@ -30,6 +30,19 @@ export interface MutterResult {
   cardColor: string; // 卡片颜色
 }
 
+const normalizeMutterText = (content: string) => content.replace(/\s+/g, ' ').trim();
+
+const getMutterCardColor = (content: string, tags: string[], category: string): string => {
+  const merged = `${content} ${tags.join(' ')} ${category}`;
+
+  if (/大姨妈|姨妈|经期|生理期|月经/.test(merged)) return '#C7B3A3';
+  if (/肚子痛|肚子疼|胃痛|头痛|头疼|牙疼|不舒服|难受|痛|感冒|发烧|疲惫|累|乏/.test(merged)) return '#B7A79A';
+  if (/灵感|点子|想到|创意|突然想到|想法/.test(merged)) return '#A89F8C';
+  if (/焦虑|烦|委屈|崩溃|难过|生气|紧张|害怕|压力/.test(merged)) return '#A999A4';
+  if (/开心|高兴|平静|治愈|轻松|满足|感恩/.test(merged)) return '#A8B19A';
+  return '#B7ADA1';
+};
+
 /**
  * 处理碎碎念
  */
@@ -78,16 +91,10 @@ export async function processMutter(content: string): Promise<MutterResult> {
   }
   
   // 5. 生成时间轴卡片信息
-  const diaryPrefix = priorityTags.includes('#生理期')
-    ? '姨妈小记'
-    : priorityTags.includes('#健康')
-    ? '身体备忘'
-    : priorityTags.includes('#情绪')
-    ? '情绪小记'
-    : '今晚的碎碎念';
-  const cardTitle = `${moodEmoji} ${diaryPrefix}`;
-  const cardDescription = `${content}\n\n${moodEmoji} 心情: ${mood}\n📂 分类: ${category}\n🏷️ 标签: ${tags.join('、')}`;
-  const cardColor = getMoodColor(classification.emotionTags);
+  const normalizedContent = normalizeMutterText(content);
+  const cardTitle = normalizedContent;
+  const cardDescription = content.trim();
+  const cardColor = getMutterCardColor(content, tags, category);
   
   console.log('💭 [碎碎念处理] 处理完成');
   
