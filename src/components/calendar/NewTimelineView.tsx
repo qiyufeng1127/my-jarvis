@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, Camera, Check, ChevronDown, ChevronUp, Edit2, Trash2, GripVertical, Star, Clock, FileText, Upload, X, ShieldAlert, Zap, WandSparkles, Sparkles } from 'lucide-react';
+import { Plus, Camera, Check, ChevronDown, ChevronUp, Edit2, Trash2, GripVertical, Star, Clock, FileText, Upload, X, ShieldAlert, Zap, Sparkles } from 'lucide-react';
 import eventBus from '@/utils/eventBus';
 import type { Task, LongTermGoal } from '@/types';
 import { 
@@ -4793,7 +4793,7 @@ export default function NewTimelineView({
                     className="rounded-full px-3 py-1 text-xs font-bold disabled:opacity-50 flex items-center gap-1"
                     style={{ backgroundColor: '#8b5cf6', color: '#fff' }}
                   >
-                    <WandSparkles className="w-3 h-3" />
+                    <Sparkles className="w-3 h-3" />
                     <span>{isSmartAssigning ? '分配中...' : '智能分配'}</span>
                   </button>
                 </div>
