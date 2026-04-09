@@ -470,6 +470,11 @@ export default function NewTimelineView({
     return new Date(task.scheduledStart).getTime() < Date.now();
   };
 
+  const isMutterRecordTask = (task?: Task | null) => {
+    if (!task) return false;
+    return (task.identityTags || []).includes('system:mutter-record');
+  };
+
   // 根据任务内容智能分配颜色 - 优化版，避免重复
   const getTaskColor = (task: Task): string => {
     const title = task.title.toLowerCase();
@@ -861,6 +866,7 @@ export default function NewTimelineView({
       const taskColor = task.color || getTaskColor(task);
       const taskTags = task.tags && task.tags.length > 0 ? task.tags : getTaskTags(task.taskType, task.title);
       const sourceBadges = getTaskSourceBadges(task);
+      const isMutterRecord = isMutterRecordTask(task);
       // 使用新的金币计算器：站立15金币/分钟，坐着10金币/分钟
       const taskGold = task.goldReward || (() => {
         const duration = task.durationMinutes || 60;
@@ -892,10 +898,16 @@ export default function NewTimelineView({
         sourceBadges,
         goalText: getGoalText(task),
         emoji: getTaskEmoji(task.title),
+        isMutterRecord,
         subtasks: task.subtasks?.map(st => st.title) || defaultSubtasks,
       };
     })
-    .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+    .sort((a, b) => {
+      if (a.isMutterRecord !== b.isMutterRecord) {
+        return a.isMutterRecord ? -1 : 1;
+      }
+      return a.startTime.getTime() - b.startTime.getTime();
+    });
 
   // 计算间隔
   const gaps: Array<{
@@ -3372,9 +3384,15 @@ export default function NewTimelineView({
                 data-task-id={block.id}
                 className={`flex-1 ${isMobile ? 'rounded-xl' : 'rounded-2xl'} shadow-lg overflow-hidden relative`}
                 style={{ 
-                  backgroundColor: block.color,
-                  opacity: block.isCompleted ? 0.6 : 1,
-                  filter: block.isCompleted ? 'saturate(0.5)' : 'none',
+                  background: block.isMutterRecord
+                    ? `linear-gradient(135deg, ${block.color} 0%, ${block.color}dd 55%, #fff1f7 140%)`
+                    : block.color,
+                  opacity: block.isCompleted ? (block.isMutterRecord ? 0.96 : 0.6) : 1,
+                  filter: block.isCompleted && !block.isMutterRecord ? 'saturate(0.5)' : 'none',
+                  boxShadow: block.isMutterRecord
+                    ? '0 12px 30px rgba(244, 114, 182, 0.28), 0 0 0 1px rgba(255,255,255,0.32) inset'
+                    : undefined,
+                  border: block.isMutterRecord ? '1px solid rgba(255,255,255,0.35)' : undefined,
                 }}
               >
                 {/* 任务状态标记 - 右上角显示超时和低效率标记 */}
@@ -3392,154 +3410,8 @@ export default function NewTimelineView({
                   size={isMobile ? 'small' : 'medium'}
                 />
                 
-                {/* 🔥 验证倒计时组件 - 预设时间到达或任务进行中时显示 */}
-                {(() => {
-                  const now = new Date();
-                  const scheduledStart = new Date(block.startTime);
-                  const hasReachedStartTime = now >= scheduledStart;
-                  const isInProgress = block.status === 'in_progress';
-                  const isCompleted = block.isCompleted;
-                  
-                  // 显示条件：预设时间已到达 且 未完成，且不是“间隔补录记录”任务
-                  const taskRecord = allTasks.find((item) => item.id === block.id);
-                  const shouldShow = hasReachedStartTime && !isCompleted && !isHistoricalGapRecordTask(taskRecord);
-                  
-                  return shouldShow;
-                })() && (
-                  <TaskVerificationCountdownContent
-                     key={block.id}
-                     taskId={block.id}
-                     taskTitle={block.title}
-                     scheduledStart={block.startTime}
-                     scheduledEnd={block.endTime}
-                     goldReward={block.goldReward || 0}
-                     onStart={(actualStartTime, calculatedEndTime) => {
-                       // 更新任务的实际开始和结束时间（核心需求：时间动态更新）
-                       console.log(`🚀 [时间更新] 任务启动: ${block.title}`);
-                       console.log(`  预设开始: ${new Date(block.startTime).toLocaleTimeString()}`);
-                       console.log(`  实际开始: ${actualStartTime.toLocaleTimeString()}`);
-                       console.log(`  预计结束: ${calculatedEndTime.toLocaleTimeString()}`);
-                       
-                       onTaskUpdate(block.id, {
-                         scheduledStart: actualStartTime.toISOString(),
-                         scheduledEnd: calculatedEndTime.toISOString(),
-                         status: 'in_progress',
-                       });
-                     }}
-                     onComplete={(actualEndTime) => {
-                       // 更新任务的实际结束时间（核心需求：事件卡片结束时间自动更新为实际完成时间）
-                       console.log(`✅ [时间更新] 任务完成: ${block.title}`);
-                       console.log(`  预设结束: ${new Date(block.endTime).toLocaleTimeString()}`);
-                       console.log(`  实际结束: ${actualEndTime.toLocaleTimeString()}`);
-                       
-                       const taskRecord = allTasks.find((item) => item.id === block.id);
-                       if (isMandatoryReflectionPending(taskRecord)) {
-                         openMandatoryReflection(block.id, taskRecord?.mandatoryReflection?.trigger || 'low_efficiency');
-                         return;
-                       }
-
-                       if (taskRecord && activeLoop?.taskId === taskRecord.id) {
-                         setActiveLoop({
-                           ...activeLoop,
-                           taskId: taskRecord.id,
-                           taskTitle: taskRecord.title,
-                           timelineTaskCompletedAt: actualEndTime.toISOString(),
-                           closureNote: activeLoop?.goalContributionRecordedAt
-                             ? '追责动作与目标贡献都已补齐，等待总部复盘确认。'
-                             : '整改任务已执行完成，下一步补写目标贡献记录。',
-                         });
-                       }
-
-                       // 🎯 更新任务的实际结束时间
-                       onTaskUpdate(block.id, {
-                         endTime: actualEndTime.toISOString(),
-                         status: 'completed'
-                       });
-                       
-                       const isHistoricalGapTask = isHistoricalGapRecordTask(taskRecord);
-
-                       // 🎯 所有普通任务完成时都显示效率评估模态框；过去的间隔补录记录任务不进入该流程
-                       if (isHistoricalGapTask) {
-                         onTaskUpdate(block.id, {
-                           scheduledEnd: actualEndTime.toISOString(),
-                           endTime: actualEndTime.toISOString(),
-                           isCompleted: true,
-                           status: 'completed'
-                         });
-                         return;
-                       }
-                       
-                       // 🎯 所有普通任务完成时都显示效率评估模态框
-                       const verification = taskVerifications[block.id];
-                       const plannedImageCount = verification?.plannedImageCount || 0;
-                       const actualImageCount = taskImages[block.id]?.length || 0;
-                       const actualDurationMinutes = taskRecord?.scheduledStart
-                         ? Math.max(0, Math.floor((actualEndTime.getTime() - new Date(taskRecord.scheduledStart).getTime()) / 60000))
-                         : 0;
-                       const overtimeCount = Math.max(0, Math.floor(actualDurationMinutes / Math.max(taskRecord?.durationMinutes || block.duration || 1, 1)) - 1);
-                       const isLowEfficiencyOvertime = overtimeCount >= LOW_EFFICIENCY_TIMEOUT_THRESHOLD;
-                       
-                       // 馃敡 璁＄畻閲戝竵濂栧姳锛堟彁鍓嶅畬鎴愬鍔?0%锛塦r
-                       const scheduledEndTime = new Date(block.endTime);
-                       const scheduledStartTime = new Date(block.startTime);
-                       const now = new Date();
-                       
-                       // 判断是否为补录历史任务（任务开始时间早于当前时间）
-                       const isHistoricalTask = scheduledStartTime < now;
-                       const isBackfillRecord = isHistoricalGapRecordTask(taskRecord);
-                       
-                       const isEarly = actualEndTime < scheduledEndTime;
-                       // 如果是补录历史任务，不发金币；否则按提前完成计算
-                       const goldReward = isBackfillRecord
-                         ? 0
-                         : (isHistoricalTask 
-                           ? (block.goldReward || 0) 
-                           : (isEarly ? Math.floor((block.goldReward || 0) * 0.5) : 0));
-                       
-                       setEfficiencyModalTask({
-                         id: block.id,
-                         title: block.title,
-                         plannedImageCount,
-                         actualImageCount,
-                         actualEndTime,
-                         goldReward,
-                         forceMandatoryReflection: isLowEfficiencyOvertime,
-                       });
-                       setEfficiencyModalOpen(true);
-                     }}
-                     onTimeoutUpdate={(startTimeoutCount, completeTimeoutCount) => {
-                       // 保存超时数据到任务对象
-                       console.log(`💾 保存超时数据: 启动${startTimeoutCount}次, 完成${completeTimeoutCount}次`);
-                       
-                       onTaskUpdate(block.id, {
-                         startVerificationTimeout: startTimeoutCount > 0,
-                         startTimeoutCount: startTimeoutCount,
-                         completionTimeout: completeTimeoutCount > 0,
-                         completeTimeoutCount: completeTimeoutCount,
-                       });
-
-                       if (startTimeoutCount >= START_DELAY_FORM_THRESHOLD) {
-                         ensureMandatoryReflection(block.id, 'start_delay');
-                       }
-
-                       if (completeTimeoutCount >= LOW_EFFICIENCY_TIMEOUT_THRESHOLD) {
-                         ensureMandatoryReflection(block.id, 'low_efficiency');
-                       }
-                       
-                       if (startTimeoutCount > 0) {
-                         setTaskStartTimeouts(prev => ({ ...prev, [block.id]: true }));
-                       }
-                       if (completeTimeoutCount > 0) {
-                         setTaskFinishTimeouts(prev => ({ ...prev, [block.id]: true }));
-                       }
-                     }}
-                     hasVerification={!!taskVerifications[block.id]?.enabled}
-                     startKeywords={taskVerifications[block.id]?.startKeywords || ['启动', '开始']}
-                     completeKeywords={taskVerifications[block.id]?.completionKeywords || ['完成', '结束']}
-                   />
-                )}
 {/* 完成划线 */}
-                {block.isCompleted && (
+                {block.isCompleted && !block.isMutterRecord && (
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
                     <div 
                       className="w-full h-1.5 bg-white opacity-90"
@@ -3569,6 +3441,14 @@ export default function NewTimelineView({
                 {/* 未展开：横向长条形布局 - 完全按照设计图，手机版缩小并压缩空白 */}
                 {!isExpanded && (
                   <div className={`${isMobile ? 'p-1.5' : 'p-2.5'} text-white`} style={{ color: getTextColor(block.color) }}>
+                    {block.isMutterRecord && (
+                      <div
+                        className="mb-2 inline-flex items-center rounded-full px-3 py-1 text-[10px] font-black tracking-[0.14em]"
+                        style={{ backgroundColor: 'rgba(255,255,255,0.26)', color: '#fff8fb' }}
+                      >
+                        日记记录
+                      </div>
+                    )}
                     {linkedTaskId === block.id && (
                       <div
                         className="mb-2 rounded-full px-3 py-1 text-[10px] font-black tracking-[0.14em]"
@@ -3588,7 +3468,7 @@ export default function NewTimelineView({
                     {/* 第一行：拖拽手柄 + 标签 + 时长 + 编辑按钮 - 减少下边距 */}
                     <div className={`flex items-center justify-between ${isMobile ? 'mb-0.5' : 'mb-1'}`}>
                       <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
-                        {/* 拖拽手柄 */}
+                        {!block.isMutterRecord && (
                         <div
                           className="cursor-move p-0.5 rounded hover:bg-white/20 transition-colors"
                           onMouseDown={(e) => handleDragStart(e, block.id, block.startTime)}
@@ -3596,6 +3476,7 @@ export default function NewTimelineView({
                         >
                           <GripVertical className={`${isMobile ? 'w-3 h-3' : 'w-3.5 h-3.5'} opacity-60`} />
                         </div>
+                        )}
                         
                         <div className={`flex ${isMobile ? 'gap-1' : 'gap-1'} flex-wrap`}>
                           {[...block.tags, ...(block.sourceBadges || [])].map((tag, idx) => (
@@ -3611,23 +3492,23 @@ export default function NewTimelineView({
                       </div>
                       
                       <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
-                        {/* 金币显示 */}
+                        {!block.isMutterRecord && (
                         <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(255,215,0,0.3)' }}>
                           <span className="text-sm">💰</span>
                           <span className="text-xs font-bold">{block.goldReward}</span>
                         </div>
+                        )}
                         
-                        <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-bold`} style={{ color: '#ff69b4' }}>
-                          *{(() => {
-                            // 计算实际时长：从实际开始时间到实际结束时间
+                        <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-bold`} style={{ color: block.isMutterRecord ? 'rgba(255,255,255,0.92)' : '#ff69b4' }}>
+                          {block.isMutterRecord ? '日记记录' : `*${(() => {
                             const startTime = new Date(block.startTime);
                             const endTime = new Date(block.endTime);
                             const actualDuration = Math.round((endTime.getTime() - startTime.getTime()) / 60000);
                             return actualDuration;
-                          })()} min
+                          })()} min`}
                         </div>
                         
-                        {/* 编辑按钮 */}
+                        {!block.isMutterRecord && (
                         <button
                           onClick={() => setEditingTask(block.id)}
                           className={`${isMobile ? 'p-0.5' : 'p-1'} rounded-full hover:bg-white/20 transition-colors`}
@@ -3635,17 +3516,17 @@ export default function NewTimelineView({
                         >
                           <Edit2 className={`${isMobile ? 'w-3 h-3' : 'w-3.5 h-3.5'}`} />
                         </button>
+                        )}
                       </div>
                     </div>
 
                     {/* 第二行：图片 + 标题区域 - 手机版缩小并减少边距 */}
                     <div className={`flex ${isMobile ? 'gap-1.5 mb-0.5' : 'gap-2 mb-1'}`}>
-                      {/* 圆形图片 */}
                       <div 
-                        onClick={() => handleOpenImagePicker(block.id)}
-                        className={`${isMobile ? 'w-8 h-8' : 'w-12 h-12'} rounded-full flex-shrink-0 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity relative`}
+                        onClick={() => !block.isMutterRecord && handleOpenImagePicker(block.id)}
+                        className={`${isMobile ? 'w-8 h-8' : 'w-12 h-12'} rounded-full flex-shrink-0 flex items-center justify-center transition-opacity relative ${block.isMutterRecord ? '' : 'cursor-pointer hover:opacity-80'}`}
                         style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
-                        title="点击上传照片（支持多选）"
+                        title={block.isMutterRecord ? '碎碎念记录' : '点击上传照片（支持多选）'}
                       >
                         {taskImages[block.id] && taskImages[block.id].length > 0 ? (
                           <img 
@@ -3653,10 +3534,12 @@ export default function NewTimelineView({
                             alt="封面"
                             className="w-full h-full object-cover rounded-full"
                           />
+                        ) : block.isMutterRecord ? (
+                          <span className={`${isMobile ? 'text-sm' : 'text-xl'}`}>📝</span>
                         ) : (
                           <Camera className={`${isMobile ? 'w-3.5 h-3.5' : 'w-5 h-5'} opacity-60`} />
                         )}
-                        {uploadingImage === block.id && (
+                        {uploadingImage === block.id && !block.isMutterRecord && (
                           <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
                             <span className={`text-white ${isMobile ? 'text-[8px]' : 'text-[10px]'}`}>上传中</span>
                           </div>
@@ -3665,8 +3548,8 @@ export default function NewTimelineView({
 
                       {/* 标题 + 目标 + 状态指示器 */}
                       <div className="flex-1 flex flex-col justify-center min-w-0">
-                        <div className={`flex items-center ${isMobile ? 'gap-1 mb-0' : 'gap-1 mb-0.5'}`}>
-                          <h3 className={`${isMobile ? 'text-sm' : 'text-base'} font-bold ${block.isCompleted ? 'line-through' : ''}`}>
+                        <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-1 mb-0.5'}`}>
+                          <h3 className={`${isMobile ? 'text-sm' : 'text-base'} font-semibold tracking-[0.01em] text-white/95 ${block.isCompleted && !block.isMutterRecord ? 'line-through' : ''}`}>
                             {block.title}
                           </h3>
                           <span className={`${isMobile ? 'text-base' : 'text-lg'}`}>{block.emoji}</span>
@@ -3727,146 +3610,155 @@ export default function NewTimelineView({
                       </div>
                     </div>
 
-                    {/* 第三行：按钮 + 金币 + start - 手机版缩小 */}
+                        {/* 第三行：按钮 + 金币 + start - 手机版缩小 */}
                     <div className="flex items-center justify-between">
-                      {/* 左侧：圆形按钮 */}
-                      <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
-                        {/* AI拆解子任务 */}
-                        <button
-                          onClick={() => handleGenerateSubTasks(block.id, block.title, block.description)}
-                          disabled={generatingSubTasks === block.id}
-                          className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110 disabled:opacity-50"
-                          style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
-                          title="AI拆解子任务"
-                        >
-                          <span className="text-sm">{generatingSubTasks === block.id ? '⏳' : '⭐'}</span>
-                        </button>
-                        
-                        {/* 启用/编辑验证 */}
-                        <button
-                          onClick={() => {
-                            const verification = taskVerifications[block.id];
-                            if (verification && verification.enabled) {
-                              setEditingVerification(block.id);
-                            } else {
-                              handleEnableVerification(block.id, block.title, block.taskType || 'work');
-                            }
-                          }}
-                          className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110"
-                          style={{ 
-                            backgroundColor: taskVerifications[block.id]?.enabled 
-                              ? 'rgba(34,197,94,0.4)' 
-                              : 'rgba(255,255,255,0.25)' 
-                          }}
-                          title={taskVerifications[block.id]?.enabled ? '编辑验证关键词' : '启用拖延验证'}
-                        >
-                          <span className="text-sm">⏱️</span>
-                        </button>
+                      {!block.isMutterRecord ? (
+                        <>
+                          {/* 左侧：圆形按钮 */}
+                          <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
+                            <button
+                              onClick={() => handleGenerateSubTasks(block.id, block.title, block.description)}
+                              disabled={generatingSubTasks === block.id}
+                              className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110 disabled:opacity-50"
+                              style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
+                              title="AI拆解子任务"
+                            >
+                              <span className="text-sm">{generatingSubTasks === block.id ? '⏳' : '⭐'}</span>
+                            </button>
+                            
+                            <button
+                              onClick={() => {
+                                const verification = taskVerifications[block.id];
+                                if (verification && verification.enabled) {
+                                  setEditingVerification(block.id);
+                                } else {
+                                  handleEnableVerification(block.id, block.title, block.taskType || 'work');
+                                }
+                              }}
+                              className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                              style={{ 
+                                backgroundColor: taskVerifications[block.id]?.enabled 
+                                  ? 'rgba(34,197,94,0.4)' 
+                                  : 'rgba(255,255,255,0.25)' 
+                              }}
+                              title={taskVerifications[block.id]?.enabled ? '编辑验证关键词' : '启用拖延验证'}
+                            >
+                              <span className="text-sm">⏱️</span>
+                            </button>
 
-                        {/* 关键结果 */}
-                        <button
-                          onClick={() => openGoalContributionModal(block.id)}
-                          className="rounded-full px-2 py-1 text-[10px] font-bold transition-all hover:scale-105"
-                          style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
-                          title="填写关键结果"
-                        >
-                          KR
-                        </button>
-                      </div>
+                            <button
+                              onClick={() => openGoalContributionModal(block.id)}
+                              className="rounded-full px-2 py-1 text-[10px] font-bold transition-all hover:scale-105"
+                              style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
+                              title="填写关键结果"
+                            >
+                              KR
+                            </button>
+                          </div>
 
-                      {/* 右侧：start + 展开 */}
-                      <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
-                        {!block.isCompleted && block.status !== 'in_progress' && taskVerifications[block.id]?.status !== 'started' && (
+                          {/* 右侧：start + 展开 */}
+                          <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
+                            {!block.isCompleted && block.status !== 'in_progress' && taskVerifications[block.id]?.status !== 'started' && (
+                              <button
+                                onClick={() => handleStartTask(block.id)}
+                                disabled={startingTask === block.id}
+                                className="px-2 py-0.5 text-xs rounded-full font-bold transition-all hover:scale-105 disabled:opacity-50"
+                                style={{ 
+                                  backgroundColor: taskVerifications[block.id]?.status === 'started' 
+                                    ? 'rgba(34,197,94,0.3)' 
+                                    : 'rgba(255,255,255,0.95)',
+                                  color: taskVerifications[block.id]?.status === 'started'
+                                    ? 'rgba(255,255,255,0.95)'
+                                    : block.color,
+                                }}
+                                title={
+                                  taskVerifications[block.id]?.status === 'started'
+                                    ? '已启动验证'
+                                    : taskVerifications[block.id]?.enabled 
+                                    ? '拍照验证启动' 
+                                    : '开始任务'
+                                }
+                              >
+                                {startingTask === block.id 
+                                  ? '⏳' 
+                                  : taskVerifications[block.id]?.status === 'started'
+                                  ? '✅已启动'
+                                  : '*start'}
+                              </button>
+                            )}
+                            
+                            {taskVerifications[block.id]?.status === 'started' && !block.isCompleted && (
+                              <div 
+                                className={` rounded-full font-bold`}
+                                style={{ 
+                                  backgroundColor: 'rgba(34,197,94,0.3)',
+                                  color: 'rgba(255,255,255,0.95)',
+                                }}
+                              >
+                                鉁呭凡鍚姩
+                              </div>
+                            )}
+                            
+                            {block.status === 'in_progress' && (
+                              <div 
+                                className="px-2 py-0.5 text-xs rounded-full font-bold"
+                                style={{ 
+                                  backgroundColor: 'rgba(34,197,94,0.3)',
+                                  color: 'rgba(255,255,255,0.95)',
+                                }}
+                              >
+                                进行中
+                              </div>
+                            )}
+                            
+                            <button
+                              onClick={() => {
+                                const taskData = allTasks.find(t => t.id === block.id);
+                                if (taskData) {
+                                  eventBus.emit('openSOPDialog', taskData);
+                                }
+                              }}
+                              className="px-2 py-0.5 rounded-full text-xs font-bold transition-all hover:scale-105"
+                              style={{ 
+                                backgroundColor: 'rgba(59, 130, 246, 0.3)',
+                                color: 'rgb(255, 255, 255)',
+                              }}
+                              title="保存到SOP"
+                            >
+                              SOP
+                            </button>
+                            
+                            <button
+                              onClick={() => setRecurrenceDialogTask(allTasks.find(t => t.id === block.id) || null)}
+                              className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                              style={{ 
+                                backgroundColor: block.isRecurring ? 'rgba(16, 185, 129, 0.3)' : 'rgba(139, 92, 246, 0.3)',
+                              }}
+                              title={block.isRecurring ? '已设置重复' : '设置任务重复'}
+                            >
+                              <span className="text-sm">🔄</span>
+                            </button>
+                            <button
+                              onClick={() => toggleExpand(block.id)}
+                              className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                              style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
+                            >
+                              <ChevronDown className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex w-full items-center justify-end">
                           <button
-                            onClick={() => handleStartTask(block.id)}
-                            disabled={startingTask === block.id}
-                            className="px-2 py-0.5 text-xs rounded-full font-bold transition-all hover:scale-105 disabled:opacity-50"
-                            style={{ 
-                              backgroundColor: taskVerifications[block.id]?.status === 'started' 
-                                ? 'rgba(34,197,94,0.3)' 
-                                : 'rgba(255,255,255,0.95)',
-                              color: taskVerifications[block.id]?.status === 'started'
-                                ? 'rgba(255,255,255,0.95)'
-                                : block.color,
-                            }}
-                            title={
-                              taskVerifications[block.id]?.status === 'started'
-                                ? '已启动验证'
-                                : taskVerifications[block.id]?.enabled 
-                                ? '拍照验证启动' 
-                                : '开始任务'
-                            }
+                            onClick={() => toggleExpand(block.id)}
+                            className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                            style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
+                            title="展开日记内容"
                           >
-                            {startingTask === block.id 
-                              ? '⏳' 
-                              : taskVerifications[block.id]?.status === 'started'
-                              ? '✅已启动'
-                              : '*start'}
+                            <ChevronDown className="w-3 h-3" />
                           </button>
-                        )}
-                        
-                        {/* 宸插惎鍔ㄦ爣璇?*/}
-                        {taskVerifications[block.id]?.status === 'started' && !block.isCompleted && (
-                          <div 
-                            className={` rounded-full font-bold`}
-                            style={{ 
-                              backgroundColor: 'rgba(34,197,94,0.3)',
-                              color: 'rgba(255,255,255,0.95)',
-                            }}
-                          >
-                            鉁呭凡鍚姩
-                          </div>
-                        )}
-                        
-                        {block.status === 'in_progress' && (
-                          <div 
-                            className="px-2 py-0.5 text-xs rounded-full font-bold"
-                            style={{ 
-                              backgroundColor: 'rgba(34,197,94,0.3)',
-                              color: 'rgba(255,255,255,0.95)',
-                            }}
-                          >
-                            进行中
-                          </div>
-                        )}
-                        
-                        {/* SOP按钮 - 始终显示 */}
-                        <button
-                          onClick={() => {
-                            const taskData = allTasks.find(t => t.id === block.id);
-                            if (taskData) {
-                              eventBus.emit('openSOPDialog', taskData);
-                            }
-                          }}
-                          className="px-2 py-0.5 rounded-full text-xs font-bold transition-all hover:scale-105"
-                          style={{ 
-                            backgroundColor: 'rgba(59, 130, 246, 0.3)',
-                            color: 'rgb(255, 255, 255)',
-                          }}
-                          title="保存到SOP"
-                        >
-                          SOP
-                        </button>
-                        
-                        {/* 任务重复按钮 */}
-                        <button
-                          onClick={() => setRecurrenceDialogTask(allTasks.find(t => t.id === block.id) || null)}
-                          className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110"
-                          style={{ 
-                            backgroundColor: block.isRecurring ? 'rgba(16, 185, 129, 0.3)' : 'rgba(139, 92, 246, 0.3)',
-                          }}
-                          title={block.isRecurring ? '已设置重复' : '设置任务重复'}
-                        >
-                          <span className="text-sm">🔄</span>
-                        </button>
-                        <button
-                          onClick={() => toggleExpand(block.id)}
-                          className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110"
-                          style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
-                        >
-                          <ChevronDown className="w-3 h-3" />
-                        </button>
-                      </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -3886,8 +3778,70 @@ export default function NewTimelineView({
                   </div>
                 )}
 
+                {/* 展开：日记记录布局 */}
+                {isExpanded && block.isMutterRecord && (
+                    <div className="p-4 text-white" style={{ color: getTextColor(block.color) }}>
+                      <div className="rounded-[24px] border border-white/28 bg-white/10 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] backdrop-blur-[1px]">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="inline-flex items-center rounded-full bg-white/18 px-3 py-1 text-[10px] font-black tracking-[0.18em] text-white/90">
+                              RECORD ENTRY
+                            </div>
+                            <div className="mt-3 flex items-center gap-2">
+                              <span className="text-2xl">{block.emoji}</span>
+                              <h3 className="text-[18px] font-semibold tracking-[0.02em] text-white/95">
+                                {block.title}
+                              </h3>
+                            </div>
+                            <div className="mt-2 text-xs text-white/75">
+                              {formatTime(block.startTime)} — {formatTime(block.endTime)} · 5 min
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => toggleExpand(block.id)}
+                            className="h-8 w-8 rounded-full bg-white/18 flex items-center justify-center transition-all hover:scale-110"
+                            title="收起日记内容"
+                          >
+                            <ChevronUp className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        <div className="mt-4 rounded-[20px] bg-[rgba(255,255,255,0.14)] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]">
+                          <div className="text-[11px] uppercase tracking-[0.2em] text-white/65">今日记录</div>
+                          <div className="mt-3 whitespace-pre-wrap text-[14px] leading-7 text-white/92">
+                            {block.description?.split('\n\n')[0] || '今天的小想法，已经轻轻放进时间轴里了。'}
+                          </div>
+                        </div>
+
+                        <div className="mt-4 grid gap-3 md:grid-cols-[1.2fr_0.8fr]">
+                          <div className="rounded-[18px] bg-white/10 px-4 py-3">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-white/60">心情备注</div>
+                            <div className="mt-2 text-sm leading-6 text-white/88">
+                              {block.goalText || '留给今天的自己一句温柔备注。'}
+                            </div>
+                          </div>
+
+                          <div className="rounded-[18px] bg-white/10 px-4 py-3">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-white/60">标签</div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {block.tags.map((tag, idx) => (
+                                <span
+                                  key={`${tag}-${idx}`}
+                                  className="rounded-full bg-white/18 px-2.5 py-1 text-[11px] font-medium text-white/88"
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                )}
+
                 {/* 展开：竖向长方形布局 */}
-                {isExpanded && (
+                {isExpanded && !block.isMutterRecord && (
                   <div className="p-4 text-white" style={{ color: getTextColor(block.color) }}>
                     {/* 顶部：拖拽手柄 + 标签和时长 + 编辑按钮 */}
                     <div className="flex items-start justify-between mb-2">

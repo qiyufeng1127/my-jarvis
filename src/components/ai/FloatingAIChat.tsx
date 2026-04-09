@@ -46,7 +46,6 @@ import { SmartScheduleService } from '@/services/smartScheduleService';
 import { useTaskStore } from '@/stores/taskStore';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
 import type { Task, TaskType, TaskPriority } from '@/types';
-import AIConfigModal from './AIConfigModal';
 import UnifiedTaskEditor from '@/components/shared/UnifiedTaskEditor';
 import { 
   useLocalStorage, 
@@ -125,6 +124,29 @@ interface GoalConversationState {
   lastAskedField?: string;
 }
 
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+  tags?: {
+    emotions: string[];
+    categories: string[];
+    type?: 'mood' | 'thought' | 'todo' | 'success' | 'gratitude';
+  };
+  rewards?: { gold: number; growth: number };
+  thinkingProcess?: string[];
+  isThinkingExpanded?: boolean;
+  isSelected?: boolean;
+  goalMatches?: Array<{ goalId: string; goalName: string; confidence: number }>;
+  decomposedTasks?: DecomposedTask[];
+  showTaskEditor?: boolean;
+  openModuleButton?: {
+    label: string;
+    module: string;
+  };
+}
+
 interface HabitBasedSuggestion {
   title: string;
   durationMinutes: number;
@@ -150,7 +172,8 @@ const beautifyAssistantReply = (content: string) => {
 };
 
 const TASK_DECOMPOSE_PREFIX = '任务分解：';
-const TIMELINE_OPERATION_PREFIX = '时间轴操作：';
+const TIMELINE_OPERATION_PREFIX = '时间轴操作';
+const TIMELINE_PREFIX_PATTERN = /^\s*时间轴操作\s*[：:\-—]?\s*/;
 
 const ensureTaskDecomposePrefix = (text: string) => {
   const trimmed = text.trim();
@@ -159,11 +182,15 @@ const ensureTaskDecomposePrefix = (text: string) => {
   return `${TASK_DECOMPOSE_PREFIX}${trimmed}`;
 };
 
+const hasTimelineOperationPrefix = (text: string) => /时间轴操作/.test(text);
+const stripTimelineOperationPrefix = (text: string) => text.replace(TIMELINE_PREFIX_PATTERN, '').trim();
 const ensureTimelineOperationPrefix = (text: string) => {
   const trimmed = text.trim();
-  if (!trimmed) return TIMELINE_OPERATION_PREFIX;
-  if (trimmed.startsWith(TIMELINE_OPERATION_PREFIX)) return trimmed;
-  return `${TIMELINE_OPERATION_PREFIX}${trimmed}`;
+  if (!trimmed) return `${TIMELINE_OPERATION_PREFIX}：`;
+  if (hasTimelineOperationPrefix(trimmed)) {
+    return trimmed.replace(TIMELINE_PREFIX_PATTERN, `${TIMELINE_OPERATION_PREFIX}：`);
+  }
+  return `${TIMELINE_OPERATION_PREFIX}：${trimmed}`;
 };
 
 const appendAssistantMessage = (
@@ -369,7 +396,6 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
   const [isMinimized, setIsMinimized] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [inputValue, setInputValue] = useState('');
-  const [showConfigModal, setShowConfigModal] = useState(false);
   const [bgColor, setBgColor] = useState(persistedState.bgColor);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -444,6 +470,7 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
   const [showTaskEditor, setShowTaskEditor] = useState(false);
   const [editingTasks, setEditingTasks] = useState<DecomposedTask[]>([]);
   const [pendingTimelineOperations, setPendingTimelineOperations] = useState<TimelineOperationDraft[]>([]);
+  const [goalConversation, setGoalConversation] = useState<GoalConversationState | null>(null);
 
   // 监控编辑器状态变化
   useEffect(() => {
@@ -953,18 +980,22 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
     if (!cleanedContent) return [];
 
     const now = new Date();
-    const delayMatch = cleanedContent.match(/(\d+)\s*分钟后/);
+    const delayMatch = cleanedContent.match(/(\d+)\s*分钟\s*(?:后|之后)/);
     const initialDelayMinutes = delayMatch ? parseInt(delayMatch[1], 10) : 0;
-    const segments = cleanedContent
-      .replace(/^(\d+)\s*分钟后/, '')
-      .split(/(?:，然后|然后|接着|之后|再|并且|并)/)
+    const contentWithoutDelay = cleanedContent
+      .replace(/^(\d+)\s*分钟\s*(?:后|之后)\s*/, '')
+      .trim();
+
+    const segments = contentWithoutDelay
+      .split(/(?:，然后|,然后|然后|接着|之后|再|并且|并|，|,|、)/)
       .map(segment => segment.trim())
       .filter(Boolean)
-      .map(segment => segment.replace(/^(去|先去|再去|然后去)/, '').trim())
-      .filter(Boolean);
+      .map(segment => segment.replace(/^(去|先去|再去|然后去|再|然后|并且|并)\s*/, '').trim())
+      .filter(Boolean)
+      .filter(segment => !/^(\d+)\s*分钟$/.test(segment));
 
     if (segments.length <= 1) {
-      return createSingleTaskDraftFromText(content);
+      return createSingleTaskDraftFromText(contentWithoutDelay || cleanedContent);
     }
 
     let currentStart = new Date(now.getTime() + initialDelayMinutes * 60000);
@@ -1273,7 +1304,7 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
 
   // 处理时间轴操作指令
   const handleTimelineOperation = async (message: string) => {
-    const normalizedMessage = message.replace(TIMELINE_OPERATION_PREFIX, '').trim();
+    const normalizedMessage = stripTimelineOperationPrefix(message);
 
     if (/根据我的习惯|帮我智能安排|安排接下来|接下来要做的任务/.test(normalizedMessage)) {
       const now = new Date();
@@ -1306,6 +1337,18 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
       .split(/(?:，然后|然后|再把|再将|再|并且|并|接着)/)
       .map(segment => segment.trim())
       .filter(Boolean);
+
+    const taskHasSchedule = (task: Task) => !!task.scheduledStart;
+    const getSafeDurationMinutes = (task: Task) => task.durationMinutes || 30;
+    const cloneTaskWithSchedule = (task: Task, scheduledStart: Date, scheduledEnd?: Date) => {
+      const durationMinutes = getSafeDurationMinutes(task);
+      const finalEnd = scheduledEnd || new Date(scheduledStart.getTime() + durationMinutes * 60000);
+
+      return {
+        scheduledStart,
+        scheduledEnd: finalEnd,
+      };
+    };
 
     const isTaskPending = (task: Task) => task.status !== 'completed' && task.status !== 'cancelled';
     const isTaskCompleted = (task: Task) => task.status === 'completed';
@@ -1370,6 +1413,64 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
     const describeDate = (date: Date | null) => {
       if (!date) return '指定日期';
       return `${date.getMonth() + 1}月${date.getDate()}日`;
+    };
+    const parseExplicitTime = (text: string) => {
+      const timePoint = parseHourMinute(text);
+      const targetDate = parseTargetDate(text);
+      if (!timePoint) return null;
+
+      const baseDate = targetDate || new Date();
+      baseDate.setHours(timePoint.hour, timePoint.minute, 0, 0);
+      return baseDate;
+    };
+    const parseGapMinutes = (text: string): number | null => {
+      const halfHourMatch = text.match(/(半小时|半个小时)/);
+      if (halfHourMatch) return 30;
+
+      const hourMatch = text.match(/(\d+)\s*小时/);
+      if (hourMatch) return parseInt(hourMatch[1], 10) * 60;
+
+      const minuteMatch = text.match(/(\d+)\s*分钟/);
+      if (minuteMatch) return parseInt(minuteMatch[1], 10);
+
+      return null;
+    };
+    const normalizeText = (text: string) => text.replace(/[，。、“”‘’\s]/g, '');
+    const extractTaskKeyword = (text: string) => {
+      const cleaned = text
+        .replace(/把|将|让|给|所有|全部|今天|今日|明天|明日|后天|昨天|昨日|本周|这周|未完成|已完成|还未做|没做|未做/g, '')
+        .replace(/任务|事项|安排/g, '')
+        .replace(/插队到|插到|塞到|放到|排到|挪到|移到|改到|调到|移动到|移动|顺延到|顺延|提前到|提前|延后到|延后|推迟到|推迟/g, '')
+        .replace(/前面|前边|前头|后面|后边|后头|最前面|最前|最开头|最开始|最后面|最后|末尾|后头/g, '')
+        .replace(/交换|对调|互换|调换|重排|压缩|错开|重叠|重合|间隔|空档|缓冲/g, '')
+        .trim();
+
+      return cleaned || null;
+    };
+    const matchTaskByKeyword = (taskList: Task[], text: string) => {
+      const keyword = extractTaskKeyword(text);
+      if (!keyword) return null;
+      const normalizedKeyword = normalizeText(keyword);
+      return taskList.find(task => normalizeText(`${task.title}${task.description || ''}`).includes(normalizedKeyword)) || null;
+    };
+    const sortTasksByStart = (taskList: Task[]) => [...taskList].sort((a, b) => {
+      const aTime = a.scheduledStart ? new Date(a.scheduledStart).getTime() : 0;
+      const bTime = b.scheduledStart ? new Date(b.scheduledStart).getTime() : 0;
+      return aTime - bTime;
+    });
+    const createMoveDraft = (task: Task, index: number, newStart: Date, descriptionPrefix: string) => {
+      const durationMinutes = getSafeDurationMinutes(task);
+      const { scheduledStart, scheduledEnd } = cloneTaskWithSchedule(
+        task,
+        newStart,
+        new Date(newStart.getTime() + durationMinutes * 60000)
+      );
+
+      return buildTimelinePreviewTask(task, index, 'move', {
+        scheduledStart,
+        scheduledEnd,
+        descriptionPrefix,
+      });
     };
     const filterTasksByText = (taskList: Task[], text: string) => {
       let result = [...taskList];
@@ -1457,6 +1558,218 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
         };
       }
 
+      if (/交换|对调|互换|调换/.test(operationText)) {
+        const tasksToAdjust = sortTasksByStart(filterTasksByText(tasks.filter(taskHasSchedule), operationText));
+        if (tasksToAdjust.length < 2) {
+          return {
+            drafts: [] as TimelineOperationDraft[],
+            summary: '❌ 交换至少需要找到两个已排时间的任务。',
+          };
+        }
+
+        const [firstTask, secondTask] = tasksToAdjust;
+        const firstStart = new Date(firstTask.scheduledStart!);
+        const secondStart = new Date(secondTask.scheduledStart!);
+
+        return {
+          drafts: [
+            createMoveDraft(firstTask, 0, secondStart, '交换位置：'),
+            createMoveDraft(secondTask, 1, firstStart, '交换位置：'),
+          ],
+          summary: `🔁 已预览“${firstTask.title}”和“${secondTask.title}”交换时间位置。`,
+        };
+      }
+
+      if (/(插队|插到|塞到)/.test(operationText) || (/排到|放到/.test(operationText) && /最前面|最前|最开头|最开始|最后面|最后|末尾/.test(operationText))) {
+        const tasksToAdjust = sortTasksByStart(filterTasksByText(tasks.filter(taskHasSchedule), operationText));
+        if (tasksToAdjust.length === 0) {
+          return {
+            drafts: [] as TimelineOperationDraft[],
+            summary: '❌ 没找到要重新插队的任务。',
+          };
+        }
+
+        const gapMinutes = parseGapMinutes(operationText) ?? 0;
+        const anchorTasks = sortTasksByStart(tasks.filter(taskHasSchedule));
+        const anchorTask = matchTaskByKeyword(anchorTasks, operationText);
+        const moveTask = anchorTask && tasksToAdjust.some(task => task.id === anchorTask.id)
+          ? tasksToAdjust.find(task => task.id !== anchorTask.id) || tasksToAdjust[0]
+          : tasksToAdjust[0];
+
+        let targetStart: Date | null = null;
+        let summaryText = '';
+
+        if (/最前面|最前|最开头|最开始/.test(operationText)) {
+          const firstTask = anchorTasks.find(task => task.id !== moveTask.id);
+          if (!firstTask?.scheduledStart) {
+            return {
+              drafts: [] as TimelineOperationDraft[],
+              summary: '❌ 没找到可供插到最前面的参考任务。',
+            };
+          }
+          targetStart = new Date(firstTask.scheduledStart);
+          targetStart.setMinutes(targetStart.getMinutes() - getSafeDurationMinutes(moveTask) - gapMinutes);
+          summaryText = `⬆️ 已预览“${moveTask.title}”插到最前面。`;
+        } else if (/最后面|最后|末尾|后头/.test(operationText)) {
+          const lastTask = [...anchorTasks].reverse().find(task => task.id !== moveTask.id);
+          if (!lastTask?.scheduledEnd && !lastTask?.scheduledStart) {
+            return {
+              drafts: [] as TimelineOperationDraft[],
+              summary: '❌ 没找到可供插到最后的参考任务。',
+            };
+          }
+          const lastEnd = lastTask.scheduledEnd ? new Date(lastTask.scheduledEnd) : new Date(lastTask.scheduledStart!);
+          targetStart = new Date(lastEnd);
+          targetStart.setMinutes(targetStart.getMinutes() + gapMinutes);
+          summaryText = `⬇️ 已预览“${moveTask.title}”插到最后面。`;
+        } else if (anchorTask?.scheduledStart) {
+          targetStart = new Date(anchorTask.scheduledStart);
+          if (/前面|前边|前头/.test(operationText)) {
+            targetStart.setMinutes(targetStart.getMinutes() - getSafeDurationMinutes(moveTask) - gapMinutes);
+            summaryText = `↖️ 已预览“${moveTask.title}”插到“${anchorTask.title}”前面。`;
+          } else {
+            const anchorEnd = anchorTask.scheduledEnd ? new Date(anchorTask.scheduledEnd) : new Date(anchorTask.scheduledStart);
+            targetStart = new Date(anchorEnd);
+            targetStart.setMinutes(targetStart.getMinutes() + gapMinutes);
+            summaryText = `↘️ 已预览“${moveTask.title}”插到“${anchorTask.title}”后面。`;
+          }
+        }
+
+        if (!targetStart) {
+          return {
+            drafts: [] as TimelineOperationDraft[],
+            summary: '❌ 请说清楚要插到谁前后，或者插到最前/最后。',
+          };
+        }
+
+        return {
+          drafts: [createMoveDraft(moveTask, 0, targetStart, '插队调整：')],
+          summary: summaryText,
+        };
+      }
+
+      if (/压缩|腾出|留出|空出/.test(operationText) && /间隔|空档|缓冲/.test(operationText)) {
+        const tasksToAdjust = sortTasksByStart(filterTasksByText(tasks.filter(taskHasSchedule), operationText));
+        const gapMinutes = parseGapMinutes(operationText);
+
+        if (tasksToAdjust.length < 2 || gapMinutes === null) {
+          return {
+            drafts: [] as TimelineOperationDraft[],
+            summary: '❌ 至少需要两个已排时间的任务，并明确间隔时长，例如“把今天所有任务之间压缩成间隔15分钟”。',
+          };
+        }
+
+        const drafts: TimelineOperationDraft[] = [];
+        let cursorStart: Date | null = null;
+
+        tasksToAdjust.forEach((task, index) => {
+          const oldStart = new Date(task.scheduledStart!);
+          const newStart = index === 0
+            ? new Date(oldStart)
+            : new Date((cursorStart || oldStart).getTime());
+          const draft = createMoveDraft(task, index, newStart, `调整间隔为${gapMinutes}分钟：`);
+          drafts.push(draft);
+          cursorStart = new Date(draft.scheduledEnd || newStart);
+          cursorStart.setMinutes(cursorStart.getMinutes() + gapMinutes);
+        });
+
+        return {
+          drafts,
+          summary: `🧩 已预览 ${tasksToAdjust.length} 个任务，统一调整为相邻间隔 ${gapMinutes} 分钟。`,
+        };
+      }
+
+      if ((/重叠|重合|撞在一起/.test(operationText) && /不要|别|取消|错开|拉开|分开|排开/.test(operationText)) || (/避免/.test(operationText) && /重叠|重合/.test(operationText)) || (/重叠|重合/.test(operationText) && /排开/.test(operationText))) {
+        const tasksToAdjust = sortTasksByStart(filterTasksByText(tasks.filter(taskHasSchedule), operationText));
+        const gapMinutes = parseGapMinutes(operationText) ?? 0;
+
+        if (tasksToAdjust.length < 2) {
+          return {
+            drafts: [] as TimelineOperationDraft[],
+            summary: '❌ 没找到可以错开的重叠任务。',
+          };
+        }
+
+        const drafts: TimelineOperationDraft[] = [];
+        let lastEnd: Date | null = null;
+
+        tasksToAdjust.forEach((task, index) => {
+          const oldStart = new Date(task.scheduledStart!);
+          let newStart = new Date(oldStart);
+
+          if (lastEnd && newStart.getTime() < lastEnd.getTime()) {
+            newStart = new Date(lastEnd);
+            newStart.setMinutes(newStart.getMinutes() + gapMinutes);
+          }
+
+          const draft = createMoveDraft(task, index, newStart, gapMinutes > 0 ? `错开重叠并留${gapMinutes}分钟间隔：` : '错开重叠：');
+          drafts.push(draft);
+          lastEnd = new Date(draft.scheduledEnd || newStart);
+        });
+
+        return {
+          drafts,
+          summary: `📐 已预览 ${tasksToAdjust.length} 个任务，按时间顺序自动错开${gapMinutes > 0 ? `并保留 ${gapMinutes} 分钟间隔` : ''}。`,
+        };
+      }
+
+      if (/顺延|顺次延后|往后排|依次后移/.test(operationText)) {
+        const tasksToMove = sortTasksByStart(filterTasksByText(tasks.filter(taskHasSchedule), operationText));
+        const shiftMinutes = parseShiftMinutes(operationText);
+        const explicitTime = parseExplicitTime(operationText);
+        const gapMinutes = parseGapMinutes(operationText) ?? 0;
+
+        if (tasksToMove.length === 0) {
+          return {
+            drafts: [] as TimelineOperationDraft[],
+            summary: '❌ 没有找到符合条件的任务。',
+          };
+        }
+
+        if (explicitTime) {
+          const drafts: TimelineOperationDraft[] = [];
+          let nextStart = new Date(explicitTime);
+
+          tasksToMove.forEach((task, index) => {
+            const draft = createMoveDraft(task, index, new Date(nextStart), `顺延到${nextStart.getHours()}:${String(nextStart.getMinutes()).padStart(2, '0')}后：`);
+            drafts.push(draft);
+            nextStart = new Date(draft.scheduledEnd || nextStart);
+            nextStart.setMinutes(nextStart.getMinutes() + gapMinutes);
+          });
+
+          return {
+            drafts,
+            summary: `📚 已预览 ${tasksToMove.length} 个任务，从 ${explicitTime.getHours()}:${String(explicitTime.getMinutes()).padStart(2, '0')} 开始顺次排开${gapMinutes > 0 ? `，并保留 ${gapMinutes} 分钟间隔` : ''}。`,
+          };
+        }
+
+        if (shiftMinutes !== null) {
+          const drafts: TimelineOperationDraft[] = [];
+          let previousEnd: Date | null = null;
+
+          tasksToMove.forEach((task, index) => {
+            const oldStart = new Date(task.scheduledStart!);
+            let newStart = new Date(oldStart);
+
+            if (index === 0) {
+              newStart.setMinutes(newStart.getMinutes() + shiftMinutes);
+            } else if (previousEnd) {
+              newStart = new Date(previousEnd);
+              newStart.setMinutes(newStart.getMinutes() + gapMinutes);
+            }
+
+            const draft = createMoveDraft(task, index, newStart, `顺延${Math.abs(shiftMinutes)}分钟：`);
+            drafts.push(draft);
+            previousEnd = new Date(draft.scheduledEnd || newStart);
+          });
+
+          return {
+            drafts,
+            summary: `⏩ 已预览 ${tasksToMove.length} 个任务整体顺延，并按顺序重新衔接${gapMinutes > 0 ? `，保留 ${gapMinutes} 分钟间隔` : ''}。`,
+          };
+        }
+      }
+
       if (/挪到|移到|改到|调到|移动|顺移|往后顺移|往前顺移|延后|提前|推迟/.test(operationText)) {
         const tasksToMove = filterTasksByText(tasks, operationText);
         const shiftMinutes = parseShiftMinutes(operationText);
@@ -1471,24 +1784,37 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
         if (shiftMinutes !== null) {
           const drafts = tasksToMove.map((task, index) => {
             const oldStart = task.scheduledStart ? new Date(task.scheduledStart) : new Date();
-            const oldEnd = task.scheduledEnd
-              ? new Date(task.scheduledEnd)
-              : new Date(oldStart.getTime() + task.durationMinutes * 60000);
             const newStart = new Date(oldStart);
-            const newEnd = new Date(oldEnd);
             newStart.setMinutes(newStart.getMinutes() + shiftMinutes);
-            newEnd.setMinutes(newEnd.getMinutes() + shiftMinutes);
 
-            return buildTimelinePreviewTask(task, index, 'move', {
-              scheduledStart: newStart,
-              scheduledEnd: newEnd,
-              descriptionPrefix: `${shiftMinutes > 0 ? '后移' : '前移'}${Math.abs(shiftMinutes)}分钟：`,
-            });
+            return createMoveDraft(
+              task,
+              index,
+              newStart,
+              `${shiftMinutes > 0 ? '后移' : '前移'}${Math.abs(shiftMinutes)}分钟：`
+            );
           });
 
           return {
             drafts,
             summary: `⏱️ 已预览 ${operationDesc}的 ${drafts.length} 个任务${shiftMinutes > 0 ? '往后顺移' : '往前移动'} ${Math.abs(shiftMinutes)} 分钟。`,
+          };
+        }
+
+        const explicitTime = parseExplicitTime(operationText);
+        if (explicitTime) {
+          const drafts = tasksToMove.map((task, index) =>
+            createMoveDraft(
+              task,
+              index,
+              new Date(explicitTime),
+              `移动到${describeDate(explicitTime)} ${String(explicitTime.getHours()).padStart(2, '0')}:${String(explicitTime.getMinutes()).padStart(2, '0')}：`
+            )
+          );
+
+          return {
+            drafts,
+            summary: `🕒 已预览 ${drafts.length} 个任务移动到指定时间点。`,
           };
         }
 
@@ -1505,13 +1831,8 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
           const oldStart = task.scheduledStart ? new Date(task.scheduledStart) : new Date();
           const newStart = new Date(targetDate);
           newStart.setHours(oldStart.getHours(), oldStart.getMinutes(), 0, 0);
-          const newEnd = new Date(newStart.getTime() + task.durationMinutes * 60000);
 
-          return buildTimelinePreviewTask(task, index, 'move', {
-            scheduledStart: newStart,
-            scheduledEnd: newEnd,
-            descriptionPrefix: `移动到${describeDate(targetDate)}：`,
-          });
+          return createMoveDraft(task, index, newStart, `移动到${describeDate(targetDate)}：`);
         });
 
         return {
@@ -1770,101 +2091,416 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
   };
 
   // 处理目标相关的输入
+  const extractGoalName = (text: string) => {
+    const cleaned = text
+      .replace(/[，。！？,.!？]/g, ' ')
+      .replace(/我想要|我想在|我想于|我想|我要在|我要于|我要|我计划在|我计划于|我计划|计划在|计划于|计划|目标是|希望在|希望|打算在|打算|准备在|准备/gu, '')
+      .replace(/^(这个月|本月|这周|本周|今天|明天|后天)/, '')
+      .replace(/^(到?\d{1,2}月\d{1,2}[日号]?(之前|前|内|截止)?)/, '')
+      .replace(/^(到?\d{1,2}[日号]?(之前|前|内|截止)?)/, '')
+      .replace(/^(\d{1,2}号之前|\d{1,2}号前|\d{1,2}日之前|\d{1,2}日内|\d{1,2}天内|\d+周内|\d+个月内)/, '')
+      .replace(/^(之前|前|内|截止)/, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const actionPatterns = [
+      /(?:要|想|计划|准备)?发(.+)/u,
+      /(?:要|想|计划|准备)?写(.+)/u,
+      /(?:要|想|计划|准备)?做(.+)/u,
+      /(?:要|想|计划|准备)?完成(.+)/u,
+      /(?:要|想|计划|准备)?上线(.+)/u,
+      /(?:要|想|计划|准备)?发布(.+)/u,
+      /(?:要|想|计划|准备)?搞定(.+)/u,
+      /(?:要|想|计划|准备)?把(.+?)(?:完成|做完|上线|发布|搞定)/u,
+    ];
+
+    for (const pattern of actionPatterns) {
+      const match = cleaned.match(pattern);
+      if (match?.[1]) {
+        return match[1].trim();
+      }
+    }
+
+    return cleaned.replace(/^(要|想|能|把)/, '').trim() || text.trim();
+  };
+
+  const parseGoalEndDate = (text: string) => {
+    const now = new Date();
+    const exactDay = text.match(/(\d{1,2})\s*[日号]\s*(之前|前|内|截止)/);
+    if (exactDay) {
+      const day = parseInt(exactDay[1], 10);
+      return new Date(now.getFullYear(), now.getMonth(), day, 23, 59, 59, 999);
+    }
+
+    const monthDay = text.match(/(\d{1,2})月(\d{1,2})\s*[日号]?\s*(之前|前|内|截止)?/);
+    if (monthDay) {
+      return new Date(now.getFullYear(), parseInt(monthDay[1], 10) - 1, parseInt(monthDay[2], 10), 23, 59, 59, 999);
+    }
+
+    const dayCount = text.match(/(\d+)\s*天(之内|内|后|之后|前|之前)?/);
+    if (dayCount) {
+      const result = new Date(now);
+      result.setDate(result.getDate() + parseInt(dayCount[1], 10));
+      result.setHours(23, 59, 59, 999);
+      return result;
+    }
+
+    const weekCount = text.match(/(\d+)\s*周(之内|内|后|之后|前|之前)?/);
+    if (weekCount) {
+      const result = new Date(now);
+      result.setDate(result.getDate() + parseInt(weekCount[1], 10) * 7);
+      result.setHours(23, 59, 59, 999);
+      return result;
+    }
+
+    const monthCount = text.match(/(\d+)\s*个?月(之内|内|后|之后|前|之前)?/);
+    if (monthCount) {
+      const result = new Date(now);
+      result.setMonth(result.getMonth() + parseInt(monthCount[1], 10));
+      result.setHours(23, 59, 59, 999);
+      return result;
+    }
+
+    return undefined;
+  };
+
+  const parseDailyHours = (text: string) => {
+    const normalized = text.replace(/半小时/g, '0.5小时');
+
+    const hourMatch = normalized.match(/(?:每天|每日)?\s*(\d+(?:\.\d+)?)\s*个?小时/);
+    if (hourMatch) return parseFloat(hourMatch[1]);
+
+    const minuteMatch = normalized.match(/(?:每天|每日)?\s*(\d+)\s*分钟/);
+    if (minuteMatch) return Number((parseInt(minuteMatch[1], 10) / 60).toFixed(1));
+
+    const chineseMixedHour = text.match(/(?:每天|每日)?\s*([一二两三四五六七八九十])\s*个?半?小时/u);
+    if (chineseMixedHour) {
+      const map: Record<string, number> = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
+      const base = map[chineseMixedHour[1]];
+      return text.includes('半小时') || text.includes('个半小时') ? base + 0.5 : base;
+    }
+
+    if (/(?:每天|每日)?\s*半小时/u.test(text)) return 0.5;
+    if (/(?:每天|每日)?\s*一个半小时/u.test(text)) return 1.5;
+    if (/(?:每天|每日)?\s*两个半小时/u.test(text)) return 2.5;
+    if (/(?:每天|每日)?\s*三个半小时/u.test(text)) return 3.5;
+
+    return undefined;
+  };
+
+  const parseChineseNumber = (value: string) => {
+    if (!value) return undefined;
+    if (/^\d+(?:\.\d+)?$/.test(value)) return parseFloat(value);
+
+    const digitMap: Record<string, number> = {
+      零: 0,
+      一: 1,
+      二: 2,
+      两: 2,
+      三: 3,
+      四: 4,
+      五: 5,
+      六: 6,
+      七: 7,
+      八: 8,
+      九: 9,
+    };
+
+    if (value === '十') return 10;
+    if (value.includes('十')) {
+      const [tensPart, onesPart] = value.split('十');
+      const tens = tensPart ? (digitMap[tensPart] ?? 0) : 1;
+      const ones = onesPart ? (digitMap[onesPart] ?? 0) : 0;
+      return tens * 10 + ones;
+    }
+
+    return digitMap[value];
+  };
+
+  const parseGoalDimensions = (text: string): GoalDraftDimension[] => {
+    const segments = text
+      .split(/\n|，|。|；|;|、|然后|再做|再来|再补|再|以及|还有|顺便|外加/u)
+      .map(item => item.trim())
+      .filter(Boolean);
+
+    const unitKeywords = ['张', '篇', '条', '次', '个', '套', '小时', '分钟', '单', '人', '版', '页', '组', '份', '版块', '套图'];
+    const verbPrefixes = ['完成', '做完', '做到', '找', '画', '发', '写', '整理', '收集', '产出', '输出', '制作', '发布', '上线', '提交', '梳理'];
+
+    return segments
+      .map((segment, index) => {
+        const numberMatch = segment.match(/(\d+(?:\.\d+)?|[零一二两三四五六七八九十]+)/u);
+        if (!numberMatch) return null;
+
+        const targetValue = parseChineseNumber(numberMatch[1]);
+        if (targetValue === undefined) return null;
+
+        const unit = unitKeywords.find(keyword => segment.includes(keyword)) || '项';
+        let name = segment
+          .replace(/首先|然后|再做|再来|再补|再|还有|以及|顺便|外加|需要|要|先|去|把|并|并且/gu, '')
+          .replace(/(\d+(?:\.\d+)?|[零一二两三四五六七八九十]+)(张|篇|条|次|个|套|小时|分钟|单|人|版|页|组|份|版块|套图)?/gu, '')
+          .trim();
+
+        const matchedVerb = verbPrefixes.find(prefix => name.startsWith(prefix));
+        if (matchedVerb && name.length > matchedVerb.length) {
+          name = name.slice(matchedVerb.length).trim();
+        }
+
+        name = name
+          .replace(/^关于/u, '')
+          .replace(/^(一个|一套|一组|一份)/u, '')
+          .replace(/(出来|一下|一下子)$/u, '')
+          .trim();
+
+        if (!name) return null;
+
+        return {
+          id: `goal-dimension-${Date.now()}-${index}`,
+          name,
+          unit,
+          targetValue,
+          currentValue: 0,
+          weight: Number((1 / Math.max(segments.length, 1)).toFixed(2)),
+        };
+      })
+      .filter(Boolean) as GoalDraftDimension[];
+  };
+
+  const buildGoalPrompt = (draft: GoalDraftData, nextField: string) => {
+    const baseSummary = [
+      `🎯 目标：${draft.name || '未填写'}`,
+      draft.startDate ? `📅 开始：${draft.startDate.toLocaleDateString('zh-CN')}` : '📅 开始：默认今天',
+      draft.endDate ? `⏰ 截止：${draft.endDate.toLocaleDateString('zh-CN')}` : '⏰ 截止：待补充',
+      draft.estimatedDailyHours ? `🕒 每日投入：${draft.estimatedDailyHours} 小时` : '🕒 每日投入：待补充',
+      draft.estimatedTotalHours ? `⌛ 预计总投入：${draft.estimatedTotalHours} 小时` : '⌛ 预计总投入：待计算',
+      draft.dimensions.length > 0 ? `📌 关键结果：${draft.dimensions.map(item => `${item.name}${item.targetValue}${item.unit}`).join('、')}` : '📌 关键结果：待补充',
+    ].join('\n');
+
+    if (nextField === 'dailyHours') {
+      return beautifyAssistantReply(`${baseSummary}\n\n我先帮你把时间范围定成今天开始，到截止日结束啦。\n\n接下来告诉我：你准备每天投入多少时间做这个目标？\n比如直接回我“每天两小时”就行。`);
+    }
+
+    if (nextField === 'dimensions') {
+      return beautifyAssistantReply(`${baseSummary}\n\n好，那我接着帮你补关键结果。\n你可以像聊天一样直接说：\n\n• 发 1 篇文创设计小红书\n• 画 10 张插画\n• 找 30 张灵感图\n\n我会自动识别成“标题 + 单位 + 总数”。`);
+    }
+
+    return beautifyAssistantReply(`${baseSummary}\n\n我已经先帮你把目标骨架整理好了，我们继续往下补。`);
+  };
+
+  const finalizeGoalConversation = async (draft: GoalDraftData) => {
+    const newGoal = createGoal({
+      name: draft.name,
+      description: draft.description,
+      goalType: draft.dimensions.length > 0 || draft.estimatedTotalHours > 0 ? 'numeric' : 'boolean',
+      targetValue: draft.dimensions.length > 0
+        ? draft.dimensions.reduce((sum, item) => sum + item.targetValue, 0)
+        : draft.estimatedTotalHours || 1,
+      currentValue: 0,
+      startDate: draft.startDate,
+      endDate: draft.endDate,
+      deadline: draft.endDate,
+      estimatedDailyHours: draft.estimatedDailyHours,
+      estimatedTotalHours: draft.estimatedTotalHours,
+      dimensions: draft.dimensions,
+      unit: draft.dimensions.length > 0 ? '项' : '小时',
+      relatedDimensions: draft.relatedDimensions,
+      projectBindings: draft.projectBindings,
+      theme: draft.theme,
+      showInFuture30Chart: draft.showInFuture30Chart,
+      milestones: [],
+    });
+
+    const now = new Date();
+    await createTask({
+      title: `🎯 新目标：${draft.name}`,
+      description: `${draft.description}\n\n${draft.endDate ? `截止：${draft.endDate.toLocaleDateString('zh-CN')}\n` : ''}${draft.estimatedDailyHours ? `每日投入：${draft.estimatedDailyHours}小时\n` : ''}${draft.estimatedTotalHours ? `总投入：${draft.estimatedTotalHours}小时\n` : ''}${draft.dimensions.length > 0 ? `关键结果：${draft.dimensions.map(item => `${item.name}${item.targetValue}${item.unit}`).join('、')}` : ''}`,
+      taskType: 'life' as TaskType,
+      priority: 1,
+      durationMinutes: 1,
+      scheduledStart: now,
+      scheduledEnd: new Date(now.getTime() + 60000),
+      tags: ['🎯目标记录', '长期目标'],
+      color: '#B4E7CE',
+      status: 'completed',
+      isRecord: true,
+    });
+
+    const aiMessage: Message = {
+      id: `ai-${Date.now()}`,
+      role: 'assistant',
+      content: beautifyAssistantReply(`好，我已经把这个目标完整建好了。\n\n🎯 目标：${draft.name}\n📅 开始：${draft.startDate ? draft.startDate.toLocaleDateString('zh-CN') : '今天'}\n⏰ 截止：${draft.endDate ? draft.endDate.toLocaleDateString('zh-CN') : '未设置'}\n🕒 每日投入：${draft.estimatedDailyHours || 0} 小时\n⌛ 总投入：${draft.estimatedTotalHours || 0} 小时\n${draft.dimensions.length > 0 ? `📌 关键结果：${draft.dimensions.map(item => `${item.name}${item.targetValue}${item.unit}`).join('、')}\n` : ''}\n你现在可以直接打开目标板块去继续精修。`),
+      timestamp: new Date(),
+      openModuleButton: {
+        label: '✨ 打开目标板块',
+        module: 'goals',
+      },
+      thinkingProcess: [...thinkingSteps],
+      isThinkingExpanded: false,
+    };
+
+    setMessages(prev => [...prev, aiMessage]);
+    setGoalConversation(null);
+    setContextMode('normal');
+    return newGoal;
+  };
+
   const handleGoalInput = async (message: string) => {
     try {
       addThinkingStep('🎯 识别为目标设置...');
-      
-      // 使用 AI 或正则提取时间和目标
-      let deadline: Date | undefined;
-      let goalDescription = message;
-      
-      // 提取时间信息
-      const timePatterns = [
-        { pattern: /(\d+)\s*个?月/, unit: 'month' },
-        { pattern: /(\d+)\s*周/, unit: 'week' },
-        { pattern: /(\d+)\s*天/, unit: 'day' },
-        { pattern: /(\d+)\s*年/, unit: 'year' },
-      ];
-      
-      let timeText = '';
-      for (const { pattern, unit } of timePatterns) {
-        const match = message.match(pattern);
-        if (match) {
-          const value = parseInt(match[1]);
-          deadline = new Date();
-          if (unit === 'month') {
-            deadline.setMonth(deadline.getMonth() + value);
-            timeText = `${value}个月`;
-          } else if (unit === 'week') {
-            deadline.setDate(deadline.getDate() + value * 7);
-            timeText = `${value}周`;
-          } else if (unit === 'day') {
-            deadline.setDate(deadline.getDate() + value);
-            timeText = `${value}天`;
-          } else if (unit === 'year') {
-            deadline.setFullYear(deadline.getFullYear() + value);
-            timeText = `${value}年`;
-          }
-          
-          addThinkingStep(`⏰ 识别期限: ${timeText}`);
-          break;
-        }
-      }
-      
-      // 提取数值目标
-      const numberMatch = message.match(/(\d+(?:\.\d+)?)\s*(?:元|块|万|个|次)?/);
-      const targetValue = numberMatch ? parseFloat(numberMatch[1]) : undefined;
-      
-      if (targetValue) {
-        addThinkingStep(`🎯 识别目标值: ${targetValue}`);
-      }
-      
-      // 创建目标
-      const newGoal = createGoal({
-        name: goalDescription.slice(0, 50),
-        description: goalDescription,
-        goalType: targetValue ? 'numeric' : 'boolean',
-        targetValue,
-        currentValue: 0,
-        deadline,
-        relatedDimensions: [],
-        milestones: [],
-      });
-      
-      addThinkingStep('✅ 目标已创建');
-      
-      // 在时间轴上创建醒目的目标记录卡片
+
       const now = new Date();
-      await createTask({
-        title: `🎯🌟✨ 新目标设定`,
-        description: `🚀 ${goalDescription}\n\n${targetValue ? `📊 目标值: ${targetValue}\n` : ''}${deadline ? `⏰ 期限: ${timeText}后 (${deadline.toLocaleDateString('zh-CN')})\n` : ''}🎉 加油，你一定可以的！`,
-        taskType: 'life' as TaskType,
-        priority: 1,
-        durationMinutes: 1,
-        scheduledStart: now,
-        scheduledEnd: new Date(now.getTime() + 60000),
-        tags: ['🎯目标记录', '🌟梦想', '🚀成长'],
-        color: '#B4E7CE', // 复古糖果薄荷绿
-        status: 'completed',
-        isRecord: true,
-      });
-      
-      const responseContent = beautifyAssistantReply(`好耶，这个目标我已经帮你种下啦 🌱\n\n🎯 目标：${newGoal.name}\n${targetValue ? `📊 目标值：${targetValue}\n` : ''}${deadline ? `⏰ 期限：${deadline.toLocaleDateString('zh-CN')}\n` : ''}\n✨ 我已经把它放进长期目标里了\n\n你之后随时都可以去目标模块看看，我会陪你慢慢往前走的 🤍`);
-      
-      const aiMessage: Message = {
-        id: `ai-${Date.now()}`,
-        role: 'assistant',
-        content: responseContent,
-        timestamp: new Date(),
-        thinkingProcess: [...thinkingSteps],
-        isThinkingExpanded: false,
-      };
-      
-      setMessages(prev => [...prev, aiMessage]);
-      
-      // 退出目标模式
-      setContextMode('normal');
-      
+
+      if (!goalConversation) {
+        const endDate = parseGoalEndDate(message);
+        const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const goalName = extractGoalName(message);
+
+        const draft: GoalDraftData = {
+          name: goalName,
+          description: message,
+          startDate,
+          endDate,
+          estimatedTotalHours: 0,
+          estimatedDailyHours: 0,
+          projectBindings: [],
+          dimensions: [],
+          theme: { color: '#3B82F6', label: '海蓝' },
+          showInFuture30Chart: true,
+          relatedDimensions: [],
+          extractedTags: [],
+          missingFields: [],
+        };
+
+        const initialDailyHours = parseDailyHours(message);
+        if (initialDailyHours) {
+          draft.estimatedDailyHours = initialDailyHours;
+          if (draft.startDate && draft.endDate) {
+            const days = Math.max(1, Math.ceil((draft.endDate.getTime() - draft.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+            draft.estimatedTotalHours = Number((days * initialDailyHours).toFixed(1));
+          }
+        }
+
+        const initialDimensions = parseGoalDimensions(message);
+        if (initialDimensions.length > 0) {
+          draft.dimensions = initialDimensions;
+        }
+
+        if (!draft.endDate) {
+          const reply: Message = {
+            id: `ai-${Date.now()}`,
+            role: 'assistant',
+            content: beautifyAssistantReply(`我已经先抓到目标主体了：${draft.name}\n\n不过截止时间我还需要你补一下。你可以直接回我比如“12号之前”或者“这周内”。`),
+            timestamp: new Date(),
+            thinkingProcess: [...thinkingSteps],
+            isThinkingExpanded: false,
+          };
+          setMessages(prev => [...prev, reply]);
+          setGoalConversation({ draft, askedFields: ['endDate'], lastAskedField: 'endDate' });
+          return;
+        }
+
+        if (!draft.estimatedDailyHours) {
+          setGoalConversation({ draft, askedFields: ['dailyHours'], lastAskedField: 'dailyHours' });
+          const reply: Message = {
+            id: `ai-${Date.now()}`,
+            role: 'assistant',
+            content: buildGoalPrompt(draft, 'dailyHours'),
+            timestamp: new Date(),
+            thinkingProcess: [...thinkingSteps],
+            isThinkingExpanded: false,
+          };
+          setMessages(prev => [...prev, reply]);
+          return;
+        }
+
+        if (draft.dimensions.length === 0) {
+          setGoalConversation({ draft, askedFields: ['dailyHours', 'dimensions'], lastAskedField: 'dimensions' });
+          const reply: Message = {
+            id: `ai-${Date.now()}`,
+            role: 'assistant',
+            content: buildGoalPrompt(draft, 'dimensions'),
+            timestamp: new Date(),
+            thinkingProcess: [...thinkingSteps],
+            isThinkingExpanded: false,
+          };
+          setMessages(prev => [...prev, reply]);
+          return;
+        }
+
+        await finalizeGoalConversation(draft);
+        return;
+      }
+
+      const draft = { ...goalConversation.draft };
+      const lastAskedField = goalConversation.lastAskedField;
+
+      if (lastAskedField === 'endDate') {
+        draft.endDate = parseGoalEndDate(message);
+        if (!draft.endDate) {
+          setMessages(prev => [...prev, {
+            id: `ai-${Date.now()}`,
+            role: 'assistant',
+            content: beautifyAssistantReply('这个截止时间我还没完全听懂，你可以直接说“12号之前”或者“下周内”。'),
+            timestamp: new Date(),
+          }]);
+          return;
+        }
+
+        setGoalConversation({ draft, askedFields: [...goalConversation.askedFields, 'dailyHours'], lastAskedField: 'dailyHours' });
+        setMessages(prev => [...prev, {
+          id: `ai-${Date.now()}`,
+          role: 'assistant',
+          content: buildGoalPrompt(draft, 'dailyHours'),
+          timestamp: new Date(),
+          thinkingProcess: [...thinkingSteps],
+          isThinkingExpanded: false,
+        }]);
+        return;
+      }
+
+      if (lastAskedField === 'dailyHours') {
+        const dailyHours = parseDailyHours(message);
+        if (!dailyHours) {
+          setMessages(prev => [...prev, {
+            id: `ai-${Date.now()}`,
+            role: 'assistant',
+            content: beautifyAssistantReply('我还没听清你每天准备投入多少时间。你可以直接说“每天两小时”或者“每天90分钟”。'),
+            timestamp: new Date(),
+          }]);
+          return;
+        }
+        draft.estimatedDailyHours = dailyHours;
+        setGoalConversation({ draft, askedFields: [...goalConversation.askedFields, 'dimensions'], lastAskedField: 'dimensions' });
+        setMessages(prev => [...prev, {
+          id: `ai-${Date.now()}`,
+          role: 'assistant',
+          content: buildGoalPrompt(draft, 'dimensions'),
+          timestamp: new Date(),
+          thinkingProcess: [...thinkingSteps],
+          isThinkingExpanded: false,
+        }]);
+        return;
+      }
+
+      if (draft.startDate && draft.endDate && draft.estimatedDailyHours) {
+        const days = Math.max(1, Math.ceil((draft.endDate.getTime() - draft.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+        draft.estimatedTotalHours = Number((days * draft.estimatedDailyHours).toFixed(1));
+      }
+
+      if (lastAskedField === 'dimensions') {
+        const dimensions = parseGoalDimensions(message);
+        if (dimensions.length === 0) {
+          setMessages(prev => [...prev, {
+            id: `ai-${Date.now()}`,
+            role: 'assistant',
+            content: beautifyAssistantReply('关键结果这次我还没拆出来。你可以像这样说：发1篇小红书、画10张插画、找30张灵感图。'),
+            timestamp: new Date(),
+          }]);
+          return;
+        }
+        draft.dimensions = dimensions;
+      }
+
+      await finalizeGoalConversation(draft);
     } catch (error) {
       console.error('处理目标设置失败:', error);
       const errorMessage: Message = {
@@ -1902,6 +2538,40 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
     setMessages(prev => [...prev, userMessage]);
     setInputValue(''); // 立即清空输入框
     setIsProcessing(true);
+
+    // 上下文模式优先，避免被通用指挥中枢提前截走
+    if (contextMode === 'income') {
+      try {
+        clearThinkingSteps();
+        await handleIncomeInput(message);
+      } finally {
+        setIsProcessing(false);
+        clearThinkingSteps();
+      }
+      return;
+    }
+
+    if (contextMode === 'goal') {
+      try {
+        clearThinkingSteps();
+        await handleGoalInput(message);
+      } finally {
+        setIsProcessing(false);
+        clearThinkingSteps();
+      }
+      return;
+    }
+
+    if (contextMode === 'mutter') {
+      try {
+        clearThinkingSteps();
+        await handleMutterInput(message);
+      } finally {
+        setIsProcessing(false);
+        clearThinkingSteps();
+      }
+      return;
+    }
     
     // 🧠 ==================== 智能AI指挥中枢 ==================== 🧠
     // 使用真正的AI语义理解，而不是关键词匹配
@@ -1960,11 +2630,22 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
         const hasDestructiveTimelineAction = intent.actions.some(action =>
           action.type === 'delete_tasks' || action.type === 'move_task'
         );
-        const isTimelineOperationMessage = normalizedMessage.startsWith(TIMELINE_OPERATION_PREFIX.replace('：', ':')) || /删除|清空|移除|删掉|去掉|挪到|移到|改到|调到|移动|顺移|往后顺移|往前顺移|延后|提前|推迟/.test(normalizedMessage);
+        const isTimelineOperationMessage = hasTimelineOperationPrefix(normalizedMessage)
+          || /删除|清空|移除|删掉|去掉|挪到|移到|改到|调到|移动|顺移|往后顺移|往前顺移|延后|提前|推迟|顺延|顺次延后|往后排|依次后移|重叠|重合|排开|错开|拉开|分开|交换|对调|互换|调换|插队|插到|塞到|排到|放到|间隔|空档|缓冲|压缩|腾出|留出|空出/.test(normalizedMessage);
 
         if (hasDestructiveTimelineAction || isTimelineOperationMessage) {
           addThinkingStep('🛡️ 检测到时间轴操作，切换为确认预览模式');
           const handled = await handleTimelineOperation(ensureTimelineOperationPrefix(normalizedMessage));
+          if (handled !== false) {
+            setIsProcessing(false);
+            clearThinkingSteps();
+            return;
+          }
+        }
+
+        if (hasTimelineOperationPrefix(message)) {
+          addThinkingStep('🛡️ 检测到时间轴操作前缀，优先尝试模糊解析');
+          const handled = await handleTimelineOperation(ensureTimelineOperationPrefix(message));
           if (handled !== false) {
             setIsProcessing(false);
             clearThinkingSteps();
@@ -2062,31 +2743,6 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
     }
     // 🧠 ==================== 智能AI指挥中枢结束 ==================== 🧠
     
-    // 检查上下文模式
-    if (contextMode === 'income') {
-      clearThinkingSteps();
-      await handleIncomeInput(message);
-      setIsProcessing(false);
-      clearThinkingSteps();
-      return;
-    }
-    
-    if (contextMode === 'goal') {
-      clearThinkingSteps();
-      await handleGoalInput(message);
-      setIsProcessing(false);
-      clearThinkingSteps();
-      return;
-    }
-    
-    if (contextMode === 'mutter') {
-      clearThinkingSteps();
-      await handleMutterInput(message);
-      setIsProcessing(false);
-      clearThinkingSteps();
-      return;
-    }
-
     // 添加超时保护（30秒）
     sendTimeoutRef.current = setTimeout(() => {
       console.error('⚠️ [发送超时] 处理时间超过30秒');
@@ -2165,13 +2821,13 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
     if (!hasAI) {
       const shouldShowPrompt = /分解|拆解|安排时间|智能/.test(message);
       if (shouldShowPrompt) {
-        const confirmConfig = confirm('AI功能需要配置API Key才能使用。\n\n配置后可以：\n• 智能理解上下文（不依赖关键词）\n• 更准确的标签识别\n• 自然语言对话\n• 智能任务分解\n• 智能动线优化\n\n是否现在配置？');
-        if (confirmConfig) {
-          setShowConfigModal(true);
-            if (sendTimeoutRef.current) clearTimeout(sendTimeoutRef.current);
-            setIsProcessing(false);
-          return;
-        }
+        const configHintMessage: Message = {
+          id: `ai-${Date.now()}`,
+          role: 'assistant',
+          content: beautifyAssistantReply('当前还没配置 AI，所以这次我先不用弹窗打断你。你如果之后想启用更强的智能分解、标签识别和自然语言理解，可以手动点右上角设置再配。'),
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, configHintMessage]);
       }
     }
 
@@ -2624,12 +3280,14 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
               description: mutterResult.cardDescription,
               taskType: 'life' as TaskType,
               priority: 2,
-              durationMinutes: 1,
+              durationMinutes: 5,
               scheduledStart: now,
-              scheduledEnd: new Date(now.getTime() + 60000),
+              scheduledEnd: new Date(now.getTime() + 5 * 60000),
               tags: mutterResult.tags,
               color: mutterResult.cardColor,
               status: 'completed',
+              identityTags: ['system:mutter-record'],
+              goldReward: 0,
               isRecord: true,
             });
             
@@ -2765,19 +3423,19 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
 
     if (action === 'goal_mode') {
       setContextMode('goal');
+      setGoalConversation(null);
       appendAssistantMessage(
         setMessages,
-        '🎯 **目标设置模式已开启**\n\n现在你后面发给我的内容，我会按“目标”来理解，不会只是带你跳转页面。\n\n例如：\n\n• "我计划10天内把下一套文创设计发出去"\n• "这个月想把副业收入做到5000"\n• "我想在两周内完成网站上线"\n\n我会继续帮你：\n✅ 自动创建目标草稿\n✅ 识别开始/结束时间\n✅ 追问每天投入时长、关键结果等缺失信息\n✅ 后续还能把任务关联到这个目标\n\n💡 你现在直接说目标就行'
+        '🎯 **目标设置模式已开启**\n\n你现在后面发给我的内容，我会按“完整目标流程”来处理，不会只草率建一个空目标。\n\n例如：\n\n• "我12号之前要发文创设计"\n• "这个月我要把副业收入做到5000"\n• "我想在两周内完成网站上线"\n\n接下来我会帮你一步一步补：\n✅ 自动提炼真正的目标标题\n✅ 自动识别开始时间=今天、结束时间=你的截止日\n✅ 继续问你每天准备投入多少时间\n✅ 自动计算总投入小时数\n✅ 再问你关键结果，并拆成“标题 + 单位 + 总数”\n✅ 最后给你一个“打开目标板块”的按钮直达去编辑\n\n💡 你现在直接说目标就行。'
       );
       return;
     }
 
     if (action === 'mutter_quick') {
       setContextMode('mutter');
-      eventBus.emit('dashboard:navigate-module', { module: 'memory' });
       appendAssistantMessage(
         setMessages,
-        '💭 **碎碎念模式已开启**\n\n你现在直接发心情、吐槽、想法就行。\n\n例如：\n• "今天真的好累"\n• "我刚刚把代码删了，好烦"\n• "突然想到一个很好的创业点子"\n\n我会帮你自动理解、记录，并同步到对应位置。'
+        '💭 **碎碎念模式已开启**\n\n你现在直接发心情、吐槽、想法就行。\n\n例如：\n• "今天真的好累"\n• "我刚刚把代码删了，好烦"\n• "突然想到一个很好的创业点子"\n\n我会帮你自动理解、打标签，并在时间轴里保存成一张碎碎念记录卡片。'
       );
     }
   };
@@ -2845,13 +3503,6 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
               </button>
             )}
             <button
-              onClick={() => setShowConfigModal(true)}
-              className="p-2 rounded-lg bg-neutral-100 active:bg-neutral-200"
-              title="AI配置"
-            >
-              <Settings className="w-5 h-5 text-gray-700" />
-            </button>
-            <button
               onClick={clearChatHistory}
               className="p-2 rounded-lg bg-neutral-100 hover:bg-red-100 active:bg-red-200"
               title="清除聊天记录"
@@ -2911,6 +3562,15 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
                 } ${message.isSelected ? 'ring-2 ring-blue-500' : ''}`}
               >
                 <div className="whitespace-pre-wrap text-sm">{message.content}</div>
+
+                {message.openModuleButton && (
+                  <button
+                    onClick={() => eventBus.emit('dashboard:navigate-module', { module: message.openModuleButton?.module })}
+                    className="w-full mt-3 py-3 px-4 rounded-xl text-sm font-semibold bg-gradient-to-r from-blue-600 to-cyan-500 text-white hover:from-blue-700 hover:to-cyan-600 active:scale-[0.99] transition-all shadow-md"
+                  >
+                    {message.openModuleButton.label}
+                  </button>
+                )}
                 
                 {/* 显示AI思考过程 */}
                 {message.role === 'assistant' && message.thinkingProcess && message.thinkingProcess.length > 0 && (
@@ -3138,8 +3798,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
           )}
         </div>
 
-        {/* AI配置弹窗 */}
-        <AIConfigModal isOpen={showConfigModal} onClose={() => setShowConfigModal(false)} />
+        {/* AI配置弹窗已禁用，不再自动或手动弹出 */}
         
         {/* AI性格设置弹窗 */}
         <AIPersonalitySettings isOpen={showPersonalitySettings} onClose={() => setShowPersonalitySettings(false)} />
@@ -3148,11 +3807,8 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
         {showTaskEditor && editingTasks.length > 0 && (
           <UnifiedTaskEditor
             tasks={editingTasks}
-            onClose={() => {
-              setShowTaskEditor(false);
-              setEditingTasks([]);
-            }}
-            onConfirm={handlePushToTimeline}
+            onClose={resetTaskEditorState}
+            onConfirm={handleConfirmTaskEditor}
           />
         )}
       </div>
@@ -3257,17 +3913,6 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setShowConfigModal(true);
-                }}
-                className="p-1 rounded transition-colors"
-                style={{ backgroundColor: theme.buttonBg }}
-                title="AI配置"
-              >
-                <Settings className="w-4 h-4" style={{ color: theme.textColor }} />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
                   clearChatHistory();
                 }}
                 className="p-1 rounded transition-colors hover:bg-red-100"
@@ -3331,6 +3976,15 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
                     >
                       <div className="whitespace-pre-wrap text-sm">{message.content}</div>
                       
+                      {message.openModuleButton && (
+                        <button
+                          onClick={() => eventBus.emit('dashboard:navigate-module', { module: message.openModuleButton?.module })}
+                          className="w-full mt-3 py-3 px-4 rounded-xl text-sm font-semibold bg-gradient-to-r from-blue-600 to-cyan-500 text-white hover:from-blue-700 hover:to-cyan-600 active:scale-[0.99] transition-all shadow-md"
+                        >
+                          {message.openModuleButton.label}
+                        </button>
+                      )}
+
                       {/* 显示AI思考过程 */}
                       {message.role === 'assistant' && message.thinkingProcess && message.thinkingProcess.length > 0 && (
                         <div className="mt-3 pt-3 border-t" style={{ borderColor: theme.borderColor }}>
@@ -3608,11 +4262,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
         </div>
       )}
 
-      {/* AI配置弹窗 */}
-      <AIConfigModal 
-        isOpen={showConfigModal} 
-        onClose={() => setShowConfigModal(false)} 
-      />
+      {/* AI配置弹窗已禁用，不再显示 */}
       
       {/* AI性格设置弹窗 */}
       <AIPersonalitySettings 

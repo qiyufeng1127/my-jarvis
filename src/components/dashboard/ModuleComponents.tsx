@@ -1485,35 +1485,11 @@ export { default as AISmartModule } from '@/components/ai/AISmartModule';
 export function TimelineModule({ isDark = false, bgColor = '#ffffff', moduleSize }: { isDark?: boolean; bgColor?: string; moduleSize?: { width: number; height: number } }) {
   const { tasks, updateTask, createTask, deleteTask } = useTaskStore();
   const [showAIChat, setShowAIChat] = useState(false);
-  const [showConfigPrompt, setShowConfigPrompt] = useState(false);
   
   // 使用 useCallback 包装 createTask，避免无限循环
   const handleCreateTask = useCallback((task: any) => {
     return createTask(task);
   }, [createTask]);
-  
-  // 检查AI是否已配置
-  const checkAIConfig = () => {
-    const aiConfig = localStorage.getItem('manifestos-ai-config-storage');
-    if (aiConfig) {
-      try {
-        const config = JSON.parse(aiConfig);
-        return config?.state?.config?.apiKey ? true : false;
-      } catch {
-        return false;
-      }
-    }
-    return false;
-  };
-  
-  const handleAIButtonClick = () => {
-    const isConfigured = checkAIConfig();
-    if (!isConfigured) {
-      setShowConfigPrompt(true);
-    } else {
-      setShowAIChat(true);
-    }
-  };
   
   return (
     <>
@@ -1530,7 +1506,7 @@ export function TimelineModule({ isDark = false, bgColor = '#ffffff', moduleSize
       
       {/* AI助手浮动按钮 - 黄色背景白色图标 */}
       <button
-        onClick={handleAIButtonClick}
+        onClick={() => setShowAIChat(true)}
         className="fixed w-16 h-16 rounded-full shadow-2xl hover:scale-110 transition-all flex items-center justify-center"
         style={{ 
           backgroundColor: '#E8C259',
@@ -1543,65 +1519,6 @@ export function TimelineModule({ isDark = false, bgColor = '#ffffff', moduleSize
       >
         <span className="text-3xl">🤖</span>
       </button>
-      
-      {/* AI配置提示弹窗 */}
-      {showConfigPrompt && (
-        <div className="fixed inset-0 z-[100000] bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
-            <div className="text-center mb-6">
-              <div className="text-6xl mb-4">🤖</div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">AI 功能需要配置</h2>
-              <p className="text-sm text-gray-600">
-                配置 API Key 后可以使用：
-              </p>
-            </div>
-            
-            <div className="bg-purple-50 rounded-lg p-4 mb-6">
-              <ul className="space-y-2 text-sm text-gray-700">
-                <li>✅ 智能识别心情、碎碎念、待办</li>
-                <li>✅ 自动打情绪和分类标签</li>
-                <li>✅ 智能任务分解到时间轴</li>
-                <li>✅ 自然语言对话</li>
-                <li>✅ AI 思考过程可视化</li>
-                <li>✅ 智能动线优化</li>
-              </ul>
-            </div>
-            
-            <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 mb-6">
-              <h3 className="text-sm font-semibold text-blue-900 mb-2">💡 推荐使用 DeepSeek</h3>
-              <p className="text-xs text-blue-800 mb-2">
-                国内大模型，速度快、价格便宜、效果好
-              </p>
-              <a
-                href="https://platform.deepseek.com/api_keys"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-blue-600 hover:text-blue-800 underline"
-              >
-                👉 点击获取 DeepSeek API Key
-              </a>
-            </div>
-            
-            <div className="flex space-x-3">
-              <button
-                onClick={() => setShowConfigPrompt(false)}
-                className="flex-1 py-3 rounded-lg bg-gray-200 text-gray-700 font-semibold hover:bg-gray-300 transition-colors"
-              >
-                稍后配置
-              </button>
-              <button
-                onClick={() => {
-                  setShowConfigPrompt(false);
-                  setShowAIChat(true);
-                }}
-                className="flex-1 py-3 rounded-lg bg-purple-600 text-white font-semibold hover:bg-purple-700 transition-colors"
-              >
-                立即配置
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       
       {/* AI对话全屏弹窗 */}
       {showAIChat && (

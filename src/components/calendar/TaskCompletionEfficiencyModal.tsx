@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 
 interface TaskCompletionEfficiencyModalProps {
@@ -29,6 +29,16 @@ export default function TaskCompletionEfficiencyModal({
   const [efficiency, setEfficiency] = useState(100);
   const [isDragging, setIsDragging] = useState(false);
   const [notes, setNotes] = useState(''); // 备注
+
+  useEffect(() => {
+    if (!isOpen || forceMandatoryReflection) return;
+
+    const timer = window.setTimeout(() => {
+      onClose();
+    }, 1800);
+
+    return () => window.clearTimeout(timer);
+  }, [isOpen, forceMandatoryReflection, onClose]);
 
   if (!isOpen) return null;
 

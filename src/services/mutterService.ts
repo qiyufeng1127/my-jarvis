@@ -6,6 +6,12 @@
 import { aiService } from './aiService';
 import { useAIPersonalityStore } from '@/stores/aiPersonalityStore';
 
+const MUTTER_PRIORITY_TAGS = [
+  { pattern: /大姨妈|姨妈|经期|生理期|月经/, label: '#生理期' },
+  { pattern: /肚子痛|肚子疼|胃痛|头痛|头疼|牙疼|不舒服|难受|痛|感冒|发烧/, label: '#健康' },
+  { pattern: /累|烦|委屈|焦虑|崩溃|开心|难过|生气|平静|紧张|害怕/, label: '#情绪' },
+];
+
 export interface MutterResult {
   // 心情信息
   mood: string; // 心情描述
@@ -39,7 +45,12 @@ export async function processMutter(content: string): Promise<MutterResult> {
   const mood = classification.moodDescription || '记录';
   const moodEmoji = classification.moodEmoji || '💭';
   const category = classification.categoryTags[0] || '生活';
-  const tags = ['💭碎碎念', ...classification.categoryTags.map(t => `#${t}`)];
+  const priorityTags = MUTTER_PRIORITY_TAGS
+    .filter((item) => item.pattern.test(content))
+    .map((item) => item.label);
+  const categoryTags = classification.categoryTags.map(t => `#${t}`);
+  const emotionTags = (classification.emotionTags || []).slice(0, 2).map(t => `#${t}`);
+  const tags = Array.from(new Set(['#碎碎念', ...priorityTags, ...categoryTags, ...emotionTags])).slice(0, 5);
   
   // 3. 生成AI个性化回复
   const { personality } = useAIPersonalityStore.getState();
@@ -67,7 +78,14 @@ export async function processMutter(content: string): Promise<MutterResult> {
   }
   
   // 5. 生成时间轴卡片信息
-  const cardTitle = `${moodEmoji} ${mood}`;
+  const diaryPrefix = priorityTags.includes('#生理期')
+    ? '姨妈小记'
+    : priorityTags.includes('#健康')
+    ? '身体备忘'
+    : priorityTags.includes('#情绪')
+    ? '情绪小记'
+    : '今晚的碎碎念';
+  const cardTitle = `${moodEmoji} ${diaryPrefix}`;
   const cardDescription = `${content}\n\n${moodEmoji} 心情: ${mood}\n📂 分类: ${category}\n🏷️ 标签: ${tags.join('、')}`;
   const cardColor = getMoodColor(classification.emotionTags);
   

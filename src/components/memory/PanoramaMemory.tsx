@@ -13,7 +13,6 @@ import { useTaskStore } from '@/stores/taskStore';
 import { useHQBridgeStore, type HQLoopBridgeState } from '@/stores/hqBridgeStore';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
 import { useAIStore } from '@/stores/aiStore';
-import AIConfigModal from '@/components/ai/AIConfigModal';
 
 interface PanoramaMemoryProps {
   isDark?: boolean;
@@ -191,7 +190,6 @@ export default function PanoramaMemory({ bgColor = '#ffffff' }: PanoramaMemoryPr
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [userAnswers, setUserAnswers] = useState<string[]>([]);
   const [isHydrated, setIsHydrated] = useState(false);
-  const [showConfigModal, setShowConfigModal] = useState(false);
   const [reportSummary, setReportSummary] = useState<HQReportSummary | null>(null);
   const [commitmentSyncResult, setCommitmentSyncResult] = useState<CommitmentSyncResult | null>(null);
 
@@ -674,10 +672,6 @@ ${reportData.painFocus.question}`;
     const value = inputValue.trim();
     if (!value || isSubmitting || stage === 'loading' || stage === 'report' || !reportData.sampleStatus.isEnough) return;
 
-    if (!isConfigured()) {
-      setShowConfigModal(true);
-    }
-
     setIsSubmitting(true);
 
     const currentStage = stage;
@@ -936,28 +930,7 @@ ${reportData.painFocus.question}`;
             </div>
           </div>
 
-          {!isConfigured() && (
-            <div
-              className="mb-4 flex items-center justify-between gap-3 rounded-[22px] border px-4 py-3"
-              style={{ backgroundColor: '#fff4e7', borderColor: '#e7c79d' }}
-            >
-              <div>
-                <div className="text-sm font-black" style={{ color: '#6d4823' }}>
-                  当前尚未启用网站 AI Key
-                </div>
-                <div className="text-xs" style={{ color: '#8a6540' }}>
-                  现在会先走本地兜底逻辑；配置后，总部述职会直接接入站内 AI。
-                </div>
-              </div>
-        <button
-                onClick={() => setShowConfigModal(true)}
-                className="rounded-full px-4 py-2 text-sm font-bold"
-                style={{ backgroundColor: '#23160d', color: '#f7efe1' }}
-              >
-                配置 AI Key
-        </button>
-      </div>
-          )}
+
 
           {stage === 'loading' && (
             <div
@@ -1374,8 +1347,6 @@ ${reportData.painFocus.question}`;
           )}
         </div>
       </div>
-      
-      <AIConfigModal isOpen={showConfigModal} onClose={() => setShowConfigModal(false)} />
     </>
   );
 }

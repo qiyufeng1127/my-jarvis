@@ -187,34 +187,7 @@ function App() {
     };
   }, []);
   
-  // 初始化语音播报（需要用户交互）
-  useEffect(() => {
-    let initialized = false;
-    
-    const initSpeech = async () => {
-      if (initialized) return;
-      initialized = true;
-      
-      try {
-        await notificationService.initSpeech();
-        console.log('✅ 语音播报已激活');
-        // 移除监听器
-        document.removeEventListener('click', initSpeech);
-        document.removeEventListener('touchstart', initSpeech);
-      } catch (error) {
-        console.warn('⚠️ 语音播报激活失败:', error);
-      }
-    };
-    
-    // 监听用户的第一次点击或触摸
-    document.addEventListener('click', initSpeech, { once: true });
-    document.addEventListener('touchstart', initSpeech, { once: true });
-    
-    return () => {
-      document.removeEventListener('click', initSpeech);
-      document.removeEventListener('touchstart', initSpeech);
-    };
-  }, []);
+  // 语音播报改为仅在设置页中由用户手动激活，这里不再全局自动触发
 
   // 全局错误处理器 - 防止白屏
   useEffect(() => {
