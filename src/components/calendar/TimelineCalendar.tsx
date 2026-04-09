@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import eventBus from '@/utils/eventBus';
 import { 
   Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Inbox, Zap
 } from 'lucide-react';
@@ -505,6 +506,19 @@ export default function TimelineCalendar({
               title="快捷开始"
             >
               <span className="text-xl">⚡</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setShowInbox(false);
+                setShowQuickStart(false);
+                eventBus.emit('timeline:open-quick-backfill');
+              }}
+              className="flex items-center justify-center w-10 h-10 rounded-lg transition-all"
+              style={{ backgroundColor: 'transparent' }}
+              title="快捷补录"
+            >
+              <span className="text-xl">📝</span>
             </button>
           </div>
 

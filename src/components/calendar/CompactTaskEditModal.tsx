@@ -27,7 +27,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
   const { goals, createGoal, updateGoal, findMatchingGoals } = useGoalStore();
   const { deductGold, balance } = useGoldStore();
   const { tasks } = useTaskStore();
-  const { getAllTags, getTagDurationRecords, getLearnedTagScores, learnTagSelection } = useTagStore();
+  const { getAllTags, getTagDurationRecords, getLearnedTagScores, getRecommendedTags, learnTagSelection } = useTagStore();
   
   const [title, setTitle] = useState(task.title || '');
   const [isTitleAutoFilled, setIsTitleAutoFilled] = useState(false);
@@ -202,6 +202,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
       getLearnedTagScores(`${title} ${description}`)
         .map(item => [item.tagName, item.score])
     );
+    const storeRecommendedTags = getRecommendedTags(`${title} ${description}`.trim(), 5);
 
     const tagScoreMap = new Map<string, number>();
     const pushTagScore = (tagName: string, score: number) => {
@@ -237,6 +238,11 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
     ));
 
     availableTags.forEach(tag => {
+      const recommendedIndex = storeRecommendedTags.indexOf(tag.name);
+      if (recommendedIndex >= 0) {
+        pushTagScore(tag.name, 18 - recommendedIndex * 3);
+      }
+
       const tagLower = tag.name.toLowerCase();
       let directScore = 0;
 
@@ -263,10 +269,22 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
     });
 
     const suggestedTags = Array.from(tagScoreMap.entries())
-      .filter(([, score]) => score >= 8)
+      .filter(([, score]) => score >= 14)
       .sort((a, b) => b[1] - a[1])
       .map(([tagName]) => tagName)
       .slice(0, 3);
+
+    const fallbackRecommendedTags = storeRecommendedTags
+      .filter(tagName => availableTagNames.has(tagName));
+
+    const finalSuggestedTags = (suggestedTags.length > 0 ? suggestedTags : fallbackRecommendedTags)
+      .slice(0, 3);
+
+    const topTagScore = suggestedTags.length > 0
+      ? (tagScoreMap.get(suggestedTags[0]) || 0)
+      : 0;
+    const isLowConfidenceTagging = topTagScore < 18 && finalSuggestedTags.length <= 1;
+    const conservativeSuggestedTags = isLowConfidenceTagging ? [] : finalSuggestedTags;
 
     const historicalGoldSamples = matchedHistoryTasks
       .filter(item => typeof item.goldReward === 'number' && item.goldReward >= 0)
@@ -298,7 +316,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
       }));
 
     const tagMatchedTasks = otherTasks
-      .filter(item => item.tags?.some(tagName => suggestedTags.includes(tagName)))
+      .filter(item => item.tags?.some(tagName => conservativeSuggestedTags.includes(tagName)))
       .filter(item => typeof item.goldReward === 'number' && item.goldReward >= 0)
       .slice(0, 18)
       .map(item => ({
@@ -308,7 +326,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
       }));
 
     const inferredTaskType = inferTaskType(`${normalizedTitle} ${normalizedDescription}`);
-    const fallbackGold = smartCalculateGoldReward(suggestedDuration, inferredTaskType, suggestedTags, title);
+    const fallbackGold = smartCalculateGoldReward(suggestedDuration, inferredTaskType, conservativeSuggestedTags, title);
 
     const weightedGoldPerMinuteFromHistory = historicalGoldSamples.reduce(
       (sum, item) => sum + item.weight * (item.gold / Math.max(item.durationMinutes, 1)),
@@ -383,7 +401,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
     return {
       suggestedDuration,
       suggestedGold,
-      suggestedTags,
+      suggestedTags: conservativeSuggestedTags,
       suggestedGoalId: bestGoal?.id || '',
       matchedHistoryCount: matchedHistoryTasks.length,
       categoryLabel: currentTaskCategory,

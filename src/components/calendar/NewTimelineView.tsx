@@ -214,6 +214,7 @@ export default function NewTimelineView({
     startTime: string;
     endTime: string;
     selectedGapIndex: number;
+    previousSuggestedTags: string[];
   } | null>(null);
   
   useEffect(() => {
@@ -225,9 +226,15 @@ export default function NewTimelineView({
       setExpandedCards((prev) => new Set([...prev, payload.taskId as string]));
     };
 
+    const handleOpenQuickBackfillEvent = () => {
+      handleOpenQuickBackfill();
+    };
+
     eventBus.on('dashboard:navigate-module', handleNavigate);
+    eventBus.on('timeline:open-quick-backfill', handleOpenQuickBackfillEvent);
     return () => {
       eventBus.off('dashboard:navigate-module', handleNavigate);
+      eventBus.off('timeline:open-quick-backfill', handleOpenQuickBackfillEvent);
     };
   }, []);
 
@@ -667,6 +674,7 @@ export default function NewTimelineView({
       startTime: normalizeTimeInput(gap.startTime),
       endTime: normalizeTimeInput(gap.endTime),
       selectedGapIndex: gapIndex,
+      previousSuggestedTags: [] as string[],
     };
   };
 
@@ -686,6 +694,7 @@ export default function NewTimelineView({
         startTime: normalizeTimeInput(nextGap.startTime),
         endTime: normalizeTimeInput(nextGap.endTime),
         selectedGapIndex: nextIndex,
+        previousSuggestedTags: prev?.previousSuggestedTags || [],
       };
     });
   };
@@ -706,6 +715,7 @@ export default function NewTimelineView({
             startTime: '09:00',
             endTime: '09:30',
             selectedGapIndex: -1,
+            previousSuggestedTags: [],
           }
     );
   };
@@ -718,19 +728,31 @@ export default function NewTimelineView({
 
     setIsSmartAssigning(true);
     try {
-      const allTagNames = useTagStore.getState().getAllTags().map((tag) => tag.name);
-      const learnedTags = TagLearningService.suggestTags(quickBackfillDraft.title)
+      const tagStore = useTagStore.getState();
+      const goalStore = useGoalStore.getState();
+      const allTagNames = tagStore.getAllTags().map((tag) => tag.name);
+      const learnedTagScores = tagStore.getLearnedTagScores(quickBackfillDraft.title);
+      const learnedTagsFromStore = learnedTagScores.map((item) => item.tagName);
+      const learnedTagsFromHistory = TagLearningService.suggestTags(quickBackfillDraft.title)
         .map((item) => item.tag)
         .filter((tag) => allTagNames.includes(tag));
-      const fallbackTags = useTagStore.getState().getRecommendedTags(quickBackfillDraft.title, 3);
-      const mergedTags = Array.from(new Set([...learnedTags, ...fallbackTags])).slice(0, 3);
+      const fallbackTags = tagStore.getRecommendedTags(quickBackfillDraft.title, 3);
+      const mergedTags = Array.from(new Set([
+        ...learnedTagsFromStore,
+        ...learnedTagsFromHistory,
+        ...fallbackTags,
+      ])).slice(0, 3);
 
-      const matchedGoal = useGoalStore.getState().findMatchingGoals(quickBackfillDraft.title, TagLearningService.extractKeywords(quickBackfillDraft.title))[0];
+      const matchedGoal = goalStore.findMatchingGoals(
+        quickBackfillDraft.title,
+        TagLearningService.extractKeywords(quickBackfillDraft.title)
+      )[0];
 
       setQuickBackfillDraft((prev) => prev ? {
         ...prev,
         tags: mergedTags,
         goalId: prev.goalId || matchedGoal?.id || '',
+        previousSuggestedTags: mergedTags,
       } : prev);
     } finally {
       setIsSmartAssigning(false);
@@ -776,6 +798,7 @@ export default function NewTimelineView({
 
     if (quickBackfillDraft.tags.length > 0) {
       TagLearningService.learnFromUserChoice(title, quickBackfillDraft.tags);
+      useTagStore.getState().learnTagSelection(title, quickBackfillDraft.tags, quickBackfillDraft.previousSuggestedTags || []);
     }
 
     setQuickBackfillDraft(null);
@@ -3550,17 +3573,6 @@ export default function NewTimelineView({
                           <span className="text-sm">💰</span>
                           <span className="text-xs font-bold">{block.goldReward}</span>
                         </div>
-
-                        {!block.isCompleted && (
-                          <button
-                            onClick={() => handleOpenQuickBackfill()}
-                            className="flex items-center justify-center rounded-full p-1 transition-all hover:scale-110"
-                            style={{ backgroundColor: 'rgba(239,68,68,0.22)', border: '1px solid rgba(255,255,255,0.35)' }}
-                            title="快捷补录"
-                          >
-                            <Zap className={`${isMobile ? 'w-3 h-3' : 'w-3.5 h-3.5'} text-white`} />
-                          </button>
-                        )}
                         
                         <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-bold`} style={{ color: '#ff69b4' }}>
                           *{(() => {
@@ -4982,31 +4994,29 @@ export default function NewTimelineView({
                 </button>
                 <button
                   onClick={() => {
-                    const titleInput = document.getElementById('gap-task-title') as HTMLInputElement;
-                    const durationInput = document.getElementById('gap-task-duration') as HTMLInputElement;
-                    
-                    const title = titleInput?.value.trim() || '新任务';
-                    const duration = Math.min(
-                      parseInt(durationInput?.value) || creatingGapTask.maxDuration,
-                      creatingGapTask.maxDuration
-                    );
-                    
-                    // 创建任务
-                    const startTime = new Date(creatingGapTask.startTime);
-                    const endTime = new Date(startTime.getTime() + duration * 60000);
-                    
-                    onTaskCreate({
-                      title,
-                      scheduledStart: startTime.toISOString(),
-                      scheduledEnd: endTime.toISOString(),
-                      durationMinutes: duration,
-                      taskType: 'work',
-                      status: 'pending' as const,
-                      tags: ['间隔补录记录'],
-                    });
-                    
-                    setCreatingGapTask(null);
-                  }}
+              const titleInput = document.getElementById('gap-task-title') as HTMLInputElement;
+              const durationInput = document.getElementById('gap-task-duration') as HTMLInputElement;
+
+              const title = titleInput?.value.trim() || '新任务';
+              const duration = Math.min(
+                parseInt(durationInput?.value) || creatingGapTask.maxDuration,
+                creatingGapTask.maxDuration
+              );
+
+              const startTime = new Date(creatingGapTask.startTime);
+              const endTime = new Date(startTime.getTime() + duration * 60000);
+
+              setQuickBackfillDraft({
+                title,
+                tags: [],
+                goalId: '',
+                startTime: normalizeTimeInput(startTime),
+                endTime: normalizeTimeInput(endTime),
+                selectedGapIndex: gaps.findIndex((gap) => gap.startTime.getTime() === creatingGapTask.startTime.getTime() && gap.endTime.getTime() === creatingGapTask.endTime.getTime()),
+                previousSuggestedTags: [],
+              });
+              setCreatingGapTask(null);
+            }}
                   className="flex-1 px-4 py-2 rounded-lg font-bold transition-all hover:scale-105"
                   style={{ 
                     backgroundColor: '#C85A7C',

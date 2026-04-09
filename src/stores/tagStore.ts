@@ -80,6 +80,7 @@ export interface TagFolder {
 
 export interface TagLearningProfile {
   keywordScores: Record<string, number>;
+  relatedTagScores: Record<string, number>;
   confirmedCount: number;
   correctedAwayCount: number;
   lastLearnedAt?: Date;
@@ -94,6 +95,13 @@ const normalizeLearningTokens = (text: string): string[] => {
       .filter(token => token.length >= 2)
   ));
 };
+
+const createEmptyTagLearningProfile = (): TagLearningProfile => ({
+  keywordScores: {},
+  relatedTagScores: {},
+  confirmedCount: 0,
+  correctedAwayCount: 0,
+});
 
 interface TagState {
   tags: Record<string, TagData>; // key: 标签名称
@@ -112,6 +120,8 @@ interface TagState {
   mergeTags: (tagNames: string[], newName: string) => void;
   setTagType: (tagName: string, tagType: TagType) => void;
   batchSetTagType: (tagNames: string[], tagType: TagType) => void;
+  matchExistingTagNames: (candidateTags: string[]) => string[];
+  resolveAutoTags: (taskTitle: string, candidateTags?: string[], limit?: number) => string[];
   
   // 文件夹操作
   createFolder: (name: string, emoji: string, color: string, tagNames?: string[]) => string;
@@ -972,6 +982,10 @@ export const useTagStore = create<TagState>()(
             }
           });
 
+          Object.values(profile?.relatedTagScores || {}).forEach((value) => {
+            score += value * 0.12;
+          });
+
           score += Math.min(tag.usageCount || 0, 10);
           score += Math.min(profile?.confirmedCount || 0, 12);
           score -= Math.min(profile?.correctedAwayCount || 0, 8);
@@ -983,7 +997,7 @@ export const useTagStore = create<TagState>()(
         });
 
         return scored
-          .filter((item) => item.score > 0)
+          .filter((item) => item.score >= 12)
           .sort((a, b) => b.score - a.score)
           .slice(0, limit)
           .map((item) => item.tagName);
@@ -999,19 +1013,22 @@ export const useTagStore = create<TagState>()(
         selectedTags.forEach((tagName) => {
           if (!tags[tagName]) return;
 
-          const currentProfile = profiles[tagName] || {
-            keywordScores: {},
-            confirmedCount: 0,
-            correctedAwayCount: 0,
-          };
-
+          const currentProfile = profiles[tagName] || createEmptyTagLearningProfile();
           const nextKeywordScores = { ...currentProfile.keywordScores };
+          const nextRelatedTagScores = { ...currentProfile.relatedTagScores };
+
           tokens.forEach((token) => {
             nextKeywordScores[token] = (nextKeywordScores[token] || 0) + 3;
           });
 
+          selectedTags.forEach((relatedTagName) => {
+            if (relatedTagName === tagName || !tags[relatedTagName]) return;
+            nextRelatedTagScores[relatedTagName] = (nextRelatedTagScores[relatedTagName] || 0) + 2;
+          });
+
           profiles[tagName] = {
             keywordScores: nextKeywordScores,
+            relatedTagScores: nextRelatedTagScores,
             confirmedCount: currentProfile.confirmedCount + 1,
             correctedAwayCount: currentProfile.correctedAwayCount,
             lastLearnedAt: new Date(),
@@ -1021,19 +1038,22 @@ export const useTagStore = create<TagState>()(
         previousSuggestedTags.forEach((tagName) => {
           if (!tags[tagName] || selectedSet.has(tagName)) return;
 
-          const currentProfile = profiles[tagName] || {
-            keywordScores: {},
-            confirmedCount: 0,
-            correctedAwayCount: 0,
-          };
-
+          const currentProfile = profiles[tagName] || createEmptyTagLearningProfile();
           const nextKeywordScores = { ...currentProfile.keywordScores };
+          const nextRelatedTagScores = { ...currentProfile.relatedTagScores };
+
           tokens.forEach((token) => {
             nextKeywordScores[token] = Math.max(0, (nextKeywordScores[token] || 0) - 1);
           });
 
+          selectedTags.forEach((relatedTagName) => {
+            if (!nextRelatedTagScores[relatedTagName]) return;
+            nextRelatedTagScores[relatedTagName] = Math.max(0, nextRelatedTagScores[relatedTagName] - 1);
+          });
+
           profiles[tagName] = {
             keywordScores: nextKeywordScores,
+            relatedTagScores: nextRelatedTagScores,
             confirmedCount: currentProfile.confirmedCount,
             correctedAwayCount: currentProfile.correctedAwayCount + 1,
             lastLearnedAt: new Date(),
@@ -1043,19 +1063,22 @@ export const useTagStore = create<TagState>()(
         Object.keys(tags).forEach((tagName) => {
           if (!selectedSet.has(tagName) || suggestedSet.has(tagName)) return;
 
-          const currentProfile = profiles[tagName] || {
-            keywordScores: {},
-            confirmedCount: 0,
-            correctedAwayCount: 0,
-          };
-
+          const currentProfile = profiles[tagName] || createEmptyTagLearningProfile();
           const nextKeywordScores = { ...currentProfile.keywordScores };
+          const nextRelatedTagScores = { ...currentProfile.relatedTagScores };
+
           tokens.forEach((token) => {
             nextKeywordScores[token] = (nextKeywordScores[token] || 0) + 5;
           });
 
+          selectedTags.forEach((relatedTagName) => {
+            if (relatedTagName === tagName || !tags[relatedTagName]) return;
+            nextRelatedTagScores[relatedTagName] = (nextRelatedTagScores[relatedTagName] || 0) + 3;
+          });
+
           profiles[tagName] = {
             keywordScores: nextKeywordScores,
+            relatedTagScores: nextRelatedTagScores,
             confirmedCount: currentProfile.confirmedCount + 2,
             correctedAwayCount: Math.max(0, currentProfile.correctedAwayCount - 1),
             lastLearnedAt: new Date(),
@@ -1073,12 +1096,13 @@ export const useTagStore = create<TagState>()(
           .map((tag) => {
             const profile = profiles[tag.name];
             const score = tokens.reduce((sum, token) => sum + (profile?.keywordScores?.[token] || 0), 0)
+              + Object.values(profile?.relatedTagScores || {}).reduce((sum, value) => sum + value * 0.12, 0)
               + Math.min(profile?.confirmedCount || 0, 12)
               - Math.min(profile?.correctedAwayCount || 0, 8);
 
             return { tagName: tag.name, score };
           })
-          .filter((item) => item.score > 0)
+          .filter((item) => item.score >= 6)
           .sort((a, b) => b.score - a.score);
       },
       

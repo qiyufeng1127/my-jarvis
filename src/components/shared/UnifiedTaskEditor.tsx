@@ -52,12 +52,14 @@ export default function UnifiedTaskEditor({
   const { handleFocusCapture, scrollIntoSafeView } = useKeyboardAvoidance(scrollRef);
 
   const pickSmartTags = (taskTitle: string, existingTags: string[] = []) => {
-    const allTags = getAllTags()
+    const activeTags = getAllTags()
       .filter((tag: TagData) => !tag.isDisabled)
       .sort((a: TagData, b: TagData) => b.usageCount - a.usageCount);
 
+    const activeTagNames = new Set(activeTags.map((tag: TagData) => tag.name));
+    const learnedTags = useTagStore.getState().getRecommendedTags(taskTitle, 5);
     const normalizedTitle = taskTitle.toLowerCase();
-    const matches = allTags.filter((tag: TagData) => {
+    const matches = activeTags.filter((tag: TagData) => {
       const normalizedTag = tag.name.toLowerCase();
       return normalizedTitle.includes(normalizedTag) || normalizedTag.includes(normalizedTitle);
     });
@@ -86,17 +88,21 @@ export default function UnifiedTaskEditor({
     const keywordTags = fallbackKeywordMap
       .filter(({ keyword }) => normalizedTitle.includes(keyword))
       .flatMap(({ tags }) => tags)
-      .filter(tagName => allTags.some((tag: TagData) => tag.name === tagName));
+      .filter(tagName => activeTagNames.has(tagName));
 
-    const preferredTags = [...matches.map((tag: TagData) => tag.name), ...keywordTags, ...existingTags];
+    const preferredTags = [
+      ...learnedTags,
+      ...matches.map((tag: TagData) => tag.name),
+      ...keywordTags,
+      ...existingTags.filter(tagName => activeTagNames.has(tagName)),
+    ];
     const smartTags = dedupeTags(preferredTags).slice(0, 3);
 
-    if (smartTags.length >= 2) {
+    if (smartTags.length > 0) {
       return smartTags;
     }
 
-    const highUsageTags = allTags.slice(0, 6).map((tag: TagData) => tag.name);
-    return dedupeTags([...smartTags, ...highUsageTags, ...existingTags]).slice(0, 3);
+    return [];
   };
 
   const normalizeTaskDraft = (task: any, fallbackIndex: number) => {
@@ -110,7 +116,7 @@ export default function UnifiedTaskEditor({
       title: smartTitle,
       description: noteText,
       note: noteText,
-      tags: smartTags.length > 0 ? smartTags : ['日常'],
+      tags: smartTags,
       color: AISmartProcessor.getTaskColor(smartTags.length > 0 ? smartTags : ['日常']),
     };
   };

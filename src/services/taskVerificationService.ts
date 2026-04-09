@@ -4,6 +4,25 @@
 
 import { notificationService } from './notificationService';
 
+const resolveAiEndpoint = (endpoint: string) => {
+  if (typeof window !== 'undefined' && import.meta.env.DEV && endpoint.includes('api.deepseek.com')) {
+    return '/ai-api';
+  }
+
+  return endpoint;
+};
+
+const extractJsonPayload = (raw: string) => {
+  let content = raw.trim();
+
+  const fencedMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fencedMatch?.[1]) {
+    content = fencedMatch[1].trim();
+  }
+
+  return content.trim();
+};
+
 export interface TaskVerification {
   enabled: boolean;
   startKeywords: string[]; // 启动验证关键词（可手动修改）
@@ -230,7 +249,7 @@ export async function generateSubTasks(
 只返回JSON数组，不要其他文字。`;
 
   try {
-    const response = await fetch(apiEndpoint, {
+    const response = await fetch(resolveAiEndpoint(apiEndpoint), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -248,27 +267,32 @@ export async function generateSubTasks(
     });
 
     if (!response.ok) {
-      throw new Error('AI拆解失败');
+      const errorText = await response.text();
+      throw new Error(`AI拆解失败: ${response.status} ${errorText}`);
     }
 
     const data = await response.json();
-    const aiResponse = data.choices[0].message.content;
-    
-    // 提取JSON
-    let jsonStr = aiResponse.trim();
-    if (jsonStr.startsWith('```json')) {
-      jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '');
-    } else if (jsonStr.startsWith('```')) {
-      jsonStr = jsonStr.replace(/```\n?/g, '');
-    }
-    
+    const aiResponse = data.choices?.[0]?.message?.content || '[]';
+    const jsonStr = extractJsonPayload(aiResponse);
     const subTasks = JSON.parse(jsonStr);
-    console.log('📋 AI拆解子任务:', subTasks);
-    
-    return subTasks;
+
+    if (!Array.isArray(subTasks)) {
+      throw new Error('AI返回的任务拆解结果不是数组');
+    }
+
+    const normalizedSubTasks = subTasks
+      .map((item) => String(item || '').trim())
+      .filter(Boolean)
+      .slice(0, 5);
+
+    if (normalizedSubTasks.length === 0) {
+      throw new Error('AI返回的任务拆解结果为空');
+    }
+
+    console.log('📋 AI拆解子任务:', normalizedSubTasks);
+    return normalizedSubTasks;
   } catch (error) {
     console.error('AI拆解失败:', error);
-    // 返回默认子任务
     return ['开始准备', '执行任务', '完成收尾'];
   }
 }
