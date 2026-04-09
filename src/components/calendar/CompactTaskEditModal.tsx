@@ -61,6 +61,19 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
   const [goalSearchQuery, setGoalSearchQuery] = useState('');
   const [showNewGoalInput, setShowNewGoalInput] = useState(false);
   const [newGoalName, setNewGoalName] = useState('');
+  const [newGoalMetricName, setNewGoalMetricName] = useState('');
+  const [newGoalMetricTarget, setNewGoalMetricTarget] = useState('');
+  const [newGoalMetricUnit, setNewGoalMetricUnit] = useState('次');
+  const [showAddMetricToSelectedGoal, setShowAddMetricToSelectedGoal] = useState(false);
+  const [selectedGoalMetricName, setSelectedGoalMetricName] = useState('');
+  const [selectedGoalMetricTarget, setSelectedGoalMetricTarget] = useState('');
+  const [selectedGoalMetricUnit, setSelectedGoalMetricUnit] = useState('次');
+  const [pendingGoalResultSelection, setPendingGoalResultSelection] = useState<{
+    goalId: string;
+    resultId: string;
+    resultTitle: string;
+    resultTypeLabel: string;
+  } | null>(null);
   const [showGoalResultSelector, setShowGoalResultSelector] = useState(false);
   const hasMandatoryReflection = !!task.mandatoryReflection?.required && !task.mandatoryReflection?.resolved;
   
@@ -425,6 +438,10 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
     setSelectedGoalId(goalId);
     setShowGoalSelector(false);
     setGoalSearchQuery('');
+    setShowAddMetricToSelectedGoal(false);
+    setSelectedGoalMetricName('');
+    setSelectedGoalMetricTarget('');
+    setSelectedGoalMetricUnit('次');
     setShowGoalResultSelector(false);
   };
 
@@ -438,6 +455,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
     ].filter(Boolean);
 
     setDescription(descriptionLines.join('\n'));
+    setPendingGoalResultSelection(null);
     setShowGoalResultSelector(false);
   };
   
@@ -447,20 +465,110 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
       alert('请输入目标名称');
       return;
     }
+
+    const metricName = newGoalMetricName.trim();
+    const metricTarget = Number(newGoalMetricTarget || 0);
+    const metricUnit = newGoalMetricUnit.trim() || '次';
+
+    const dimensions = metricName && metricTarget > 0
+      ? [{
+          id: `metric-${Date.now()}`,
+          name: metricName,
+          unit: metricUnit,
+          targetValue: metricTarget,
+          currentValue: 0,
+          weight: 100,
+        }]
+      : [];
     
     const newGoal = createGoal({
       name: newGoalName.trim(),
       description: '',
       goalType: 'numeric',
       isActive: true,
+      dimensions,
+      targetValue: dimensions.reduce((sum, item) => sum + item.targetValue, 0),
+      currentValue: 0,
+      unit: dimensions[0]?.unit || '',
     });
     
     setSelectedGoalId(newGoal.id);
+    if (dimensions[0]) {
+      setPendingGoalResultSelection({
+        goalId: newGoal.id,
+        resultId: `dimension-${dimensions[0].id}`,
+        resultTitle: dimensions[0].name,
+        resultTypeLabel: '关键结果',
+      });
+    } else {
+      setPendingGoalResultSelection(null);
+    }
     setNewGoalName('');
+    setNewGoalMetricName('');
+    setNewGoalMetricTarget('');
+    setNewGoalMetricUnit('次');
+    setShowAddMetricToSelectedGoal(false);
+    setSelectedGoalMetricName('');
+    setSelectedGoalMetricTarget('');
+    setSelectedGoalMetricUnit('次');
     setShowNewGoalInput(false);
     setShowGoalSelector(false);
     setGoalSearchQuery('');
-    setShowGoalResultSelector(false);
+    setShowGoalResultSelector(!!dimensions[0]);
+  };
+
+  const handleAddMetricToCurrentGoal = () => {
+    if (!selectedGoal) {
+      alert('请先选择一个目标');
+      return;
+    }
+
+    const metricName = selectedGoalMetricName.trim();
+    const metricTarget = Number(selectedGoalMetricTarget || 0);
+    const metricUnit = selectedGoalMetricUnit.trim() || '次';
+
+    if (!metricName) {
+      alert('请输入关键结果名称');
+      return;
+    }
+
+    if (!metricTarget || metricTarget <= 0) {
+      alert('请输入大于 0 的目标次数');
+      return;
+    }
+
+    const createdMetric = {
+      id: `metric-${Date.now()}`,
+      name: metricName,
+      unit: metricUnit,
+      targetValue: metricTarget,
+      currentValue: 0,
+      weight: 100,
+    };
+
+    const nextDimensions = [
+      ...(selectedGoal.dimensions || []),
+      createdMetric,
+    ];
+
+    useGoalStore.getState().updateGoal(selectedGoal.id, {
+      dimensions: nextDimensions,
+      targetValue: nextDimensions.reduce((sum, item) => sum + (item.targetValue || 0), 0),
+      currentValue: nextDimensions.reduce((sum, item) => sum + (item.currentValue || 0), 0),
+      unit: selectedGoal.unit || metricUnit,
+    });
+
+    setSelectedGoalMetricName('');
+    setSelectedGoalMetricTarget('');
+    setSelectedGoalMetricUnit('次');
+    setShowAddMetricToSelectedGoal(false);
+    setPendingGoalResultSelection({
+      goalId: selectedGoal.id,
+      resultId: `dimension-${createdMetric.id}`,
+      resultTitle: createdMetric.name,
+      resultTypeLabel: '关键结果',
+    });
+    setShowGoalResultSelector(true);
   };
 
   const handleSave = () => {
@@ -875,6 +983,61 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
                 )}
               </div>
 
+              {selectedGoalId && (
+                <div className="rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-900/10 p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-xs font-semibold text-purple-700 dark:text-purple-200">
+                      已选目标：{selectedGoal?.name || '当前目标'}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddMetricToSelectedGoal(prev => !prev)}
+                      className="px-2 py-1 rounded-md text-xs font-semibold transition-all"
+                      style={{ backgroundColor: '#ede9fe', color: '#6d28d9' }}
+                    >
+                      {showAddMetricToSelectedGoal ? '收起新增KR' : '给当前目标新增KR'}
+                    </button>
+                  </div>
+
+                  {showAddMetricToSelectedGoal && (
+                    <div className="space-y-2 pt-1">
+                      <input
+                        type="text"
+                        value={selectedGoalMetricName}
+                        onChange={(e) => setSelectedGoalMetricName(e.target.value)}
+                        placeholder="关键结果名称..."
+                        className="w-full px-3 py-2 text-sm border border-purple-200 dark:border-purple-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                      />
+                      <div className="grid grid-cols-[1fr_84px] gap-2">
+                        <input
+                          type="number"
+                          min="1"
+                          value={selectedGoalMetricTarget}
+                          onChange={(e) => setSelectedGoalMetricTarget(e.target.value)}
+                          placeholder="次数"
+                          className="w-full px-3 py-2 text-sm border border-purple-200 dark:border-purple-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                        />
+                        <input
+                          type="text"
+                          value={selectedGoalMetricUnit}
+                          onChange={(e) => setSelectedGoalMetricUnit(e.target.value)}
+                          placeholder="单位"
+                          className="w-full px-3 py-2 text-sm border border-purple-200 dark:border-purple-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddMetricToCurrentGoal}
+                        className="w-full px-3 py-2 rounded-lg text-sm font-semibold transition-all"
+                        style={{ backgroundColor: '#7c3aed', color: '#f8f7f1' }}
+                      >
+                        确认给当前目标新增关键结果
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {selectedGoalId && selectedGoalResults.length > 0 && (
                 <button
                   type="button"
@@ -996,7 +1159,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
         {showGoalSelector && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60] keyboard-aware-modal-shell">
             <div
-              className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[70vh] flex flex-col overflow-hidden border-2 border-purple-300 dark:border-purple-700 keyboard-aware-modal-card"
+              className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[76vh] flex flex-col overflow-hidden border-2 border-purple-300 dark:border-purple-700 keyboard-aware-modal-card"
               onFocusCapture={handleFocusCapture}
             >
               {/* 弹窗头部 */}
@@ -1007,6 +1170,14 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
                     setShowGoalSelector(false);
                     setGoalSearchQuery('');
                     setShowNewGoalInput(false);
+                    setNewGoalName('');
+                    setNewGoalMetricName('');
+                    setNewGoalMetricTarget('');
+                    setNewGoalMetricUnit('次');
+                    setShowAddMetricToSelectedGoal(false);
+                    setSelectedGoalMetricName('');
+                    setSelectedGoalMetricTarget('');
+                    setSelectedGoalMetricUnit('次');
                   }}
                   className="p-1 hover:bg-white/20 rounded-lg transition-colors"
                 >
@@ -1088,6 +1259,33 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
                       autoFocus
                       onFocus={() => scrollIntoSafeView(goalRef.current)}
                     />
+                    <input
+                      type="text"
+                      value={newGoalMetricName}
+                      onChange={(e) => setNewGoalMetricName(e.target.value)}
+                      placeholder="顺手新增关键结果（可选）..."
+                      className="w-full px-3 py-2 text-sm border border-purple-200 dark:border-purple-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    />
+                    <div className="grid grid-cols-[1fr_84px] gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        value={newGoalMetricTarget}
+                        onChange={(e) => setNewGoalMetricTarget(e.target.value)}
+                        placeholder="次数"
+                        className="w-full px-3 py-2 text-sm border border-purple-200 dark:border-purple-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                      />
+                      <input
+                        type="text"
+                        value={newGoalMetricUnit}
+                        onChange={(e) => setNewGoalMetricUnit(e.target.value)}
+                        placeholder="单位"
+                        className="w-full px-3 py-2 text-sm border border-purple-200 dark:border-purple-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div className="text-[11px] text-gray-500 dark:text-gray-400 leading-5">
+                      这里可以直接同时新建目标和关键结果；如果只填目标名，不填下面内容，也可以只创建目标。
+                    </div>
                     <div className="flex gap-2">
                       <button
                         onClick={handleCreateNewGoal}
@@ -1100,6 +1298,9 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
                         onClick={() => {
                           setShowNewGoalInput(false);
                           setNewGoalName('');
+                          setNewGoalMetricName('');
+                          setNewGoalMetricTarget('');
+                          setNewGoalMetricUnit('次');
                         }}
                         className="px-3 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-all"
                       >
@@ -1135,7 +1336,10 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">已关联目标：{selectedGoal.name}</p>
                 </div>
                 <button
-                  onClick={() => setShowGoalResultSelector(false)}
+                  onClick={() => {
+                    setPendingGoalResultSelection(null);
+                    setShowGoalResultSelector(false);
+                  }}
                   className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 >
                   <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
@@ -1144,27 +1348,40 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
 
               <div className="flex-1 overflow-y-auto p-3 space-y-2">
                 {selectedGoalResults.length > 0 ? (
-                  selectedGoalResults.map((result) => (
-                    <button
-                      key={result.id}
-                      type="button"
-                      onClick={() => handleSelectGoalResult(
-                        result.title,
-                        result.type === 'dimension' ? '关键结果' : result.type === 'milestone' ? '里程碑' : '项目'
-                      )}
-                      className="w-full text-left p-3 rounded-xl border-2 border-transparent bg-gray-50 dark:bg-gray-800 hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="font-medium text-gray-900 dark:text-white">{result.title}</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{result.subtitle}</div>
+                  selectedGoalResults.map((result) => {
+                    const isPendingSelection = pendingGoalResultSelection?.goalId === selectedGoal?.id && pendingGoalResultSelection?.resultId === result.id;
+
+                    return (
+                      <button
+                        key={result.id}
+                        type="button"
+                        onClick={() => handleSelectGoalResult(
+                          result.title,
+                          result.type === 'dimension' ? '关键结果' : result.type === 'milestone' ? '里程碑' : '项目'
+                        )}
+                        className={`w-full text-left p-3 rounded-xl border-2 bg-gray-50 dark:bg-gray-800 hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all ${
+                          isPendingSelection
+                            ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 shadow-[0_0_0_1px_rgba(168,85,247,0.12)]'
+                            : 'border-transparent'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="font-medium text-gray-900 dark:text-white">{result.title}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{result.subtitle}</div>
+                            {isPendingSelection && (
+                              <div className="mt-2 text-[11px] font-medium text-purple-600 dark:text-purple-300">
+                                刚刚新建，点一下即可立即使用
+                              </div>
+                            )}
+                          </div>
+                          <span className="text-[10px] px-2 py-1 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 whitespace-nowrap">
+                            {result.type === 'dimension' ? '维度' : result.type === 'milestone' ? '里程碑' : '项目'}
+                          </span>
                         </div>
-                        <span className="text-[10px] px-2 py-1 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 whitespace-nowrap">
-                          {result.type === 'dimension' ? '维度' : result.type === 'milestone' ? '里程碑' : '项目'}
-                        </span>
-                      </div>
-                    </button>
-                  ))
+                      </button>
+                    );
+                  })
                 ) : (
                   <div className="py-10 text-center text-sm text-gray-400">
                     这个目标里还没有可复用的关键结果

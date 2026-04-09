@@ -1,6 +1,27 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+export interface HQArchiveRecord {
+  id: string;
+  goalId?: string;
+  goalName?: string;
+  taskId?: string;
+  taskTitle?: string;
+  painLabel?: string;
+  promise?: string;
+  remedialActionTitle?: string;
+  remedialActionTags?: string[];
+  remedialActionGoalId?: string;
+  remedialActionCreatedTaskId?: string;
+  trigger: 'start_delay' | 'low_efficiency';
+  triggeredAt: string;
+  submittedAt?: string;
+  answers: Array<{
+    question: string;
+    answer: string;
+  }>;
+}
+
 export interface HQLoopBridgeState {
   goalId?: string;
   taskId?: string;
@@ -8,6 +29,10 @@ export interface HQLoopBridgeState {
   taskTitle?: string;
   painLabel?: string;
   promise?: string;
+  remedialActionTitle?: string;
+  remedialActionTags?: string[];
+  remedialActionGoalId?: string;
+  remedialActionCreatedTaskId?: string;
   accountabilityForm?: {
     trigger: 'start_delay' | 'low_efficiency';
     triggeredAt: string;
@@ -26,7 +51,9 @@ export interface HQLoopBridgeState {
 
 interface HQBridgeStore {
   activeLoop: HQLoopBridgeState | null;
+  archiveRecords: HQArchiveRecord[];
   setActiveLoop: (payload: HQLoopBridgeState | null) => void;
+  addArchiveRecord: (record: Omit<HQArchiveRecord, 'id'>) => string;
   clearActiveLoop: () => void;
 }
 
@@ -34,6 +61,7 @@ export const useHQBridgeStore = create<HQBridgeStore>()(
   persist(
     (set) => ({
       activeLoop: null,
+      archiveRecords: [],
       setActiveLoop: (payload) => {
         set({
           activeLoop: payload
@@ -44,12 +72,25 @@ export const useHQBridgeStore = create<HQBridgeStore>()(
             : null,
         });
       },
+      addArchiveRecord: (record) => {
+        const id = crypto.randomUUID();
+        set((state) => ({
+          archiveRecords: [
+            {
+              ...record,
+              id,
+            },
+            ...state.archiveRecords,
+          ],
+        }));
+        return id;
+      },
       clearActiveLoop: () => set({ activeLoop: null }),
     }),
     {
       name: 'manifestos-hq-bridge-storage',
-      version: 1,
-      partialize: (state) => ({ activeLoop: state.activeLoop }),
+      version: 2,
+      partialize: (state) => ({ activeLoop: state.activeLoop, archiveRecords: state.archiveRecords }),
     }
   )
 );

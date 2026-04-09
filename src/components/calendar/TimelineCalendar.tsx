@@ -47,6 +47,7 @@ export default function TimelineCalendar({
   const [isEditingTask, setIsEditingTask] = useState(false); // 新增：跟踪是否正在编辑任务
   const [showInbox, setShowInbox] = useState(false); // 新增：是否显示收集箱
   const [showQuickStart, setShowQuickStart] = useState(false); // 新增：是否显示快捷开始
+  const [quickBackfillTrigger, setQuickBackfillTrigger] = useState(0);
   
   const timelineRef = useRef<HTMLDivElement>(null);
   
@@ -506,6 +507,20 @@ export default function TimelineCalendar({
             >
               <span className="text-xl">⚡</span>
             </button>
+            <button
+              onClick={() => {
+                setQuickBackfillTrigger((prev) => prev + 1);
+                setShowInbox(false);
+                setShowQuickStart(false);
+              }}
+              className="flex items-center justify-center w-10 h-10 rounded-lg transition-all"
+              style={{
+                backgroundColor: 'transparent',
+              }}
+              title="快捷补录"
+            >
+              <span className="text-xl">📝</span>
+            </button>
           </div>
 
           {/* 导入导出按钮 */}
@@ -574,6 +589,7 @@ export default function TimelineCalendar({
               borderColor={borderColor}
               isDark={isDark}
               onEditingChange={setIsEditingTask}
+              quickBackfillTrigger={quickBackfillTrigger}
             />
           )}
         </div>

@@ -302,8 +302,10 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
     <div 
       className="fixed inset-0 flex flex-col" 
       style={{ 
-        paddingTop: 'env(safe-area-inset-top)',
+        paddingTop: 'var(--app-safe-area-top-spacing)',
         paddingBottom: '0',
+        paddingLeft: 'var(--app-safe-area-left)',
+        paddingRight: 'var(--app-safe-area-right)',
         margin: '0',
         backgroundColor: 'transparent',
         fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
@@ -345,6 +347,7 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         className="flex-1 overflow-y-auto overflow-x-hidden"
         style={{ 
           WebkitOverflowScrolling: 'touch', // iOS 平滑滚动
+          paddingTop: '8px',
           paddingBottom: '64px',
           backgroundColor: '#fefaf0',
           minHeight: 0,

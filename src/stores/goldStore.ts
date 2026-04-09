@@ -27,6 +27,33 @@ interface GoldState {
   resetDailyStats: () => void;
 }
 
+const DUPLICATE_TRANSACTION_WINDOW_MS = 10_000;
+
+const normalizeReason = (reason: string) => reason.trim();
+
+const isDuplicateTransaction = (
+  transactions: GoldTransaction[],
+  candidate: Omit<GoldTransaction, 'id' | 'timestamp'>,
+  now: Date
+) => {
+  const nowTime = now.getTime();
+
+  return transactions.some((transaction) => {
+    const transactionTime = new Date(transaction.timestamp).getTime();
+    const withinWindow = nowTime - transactionTime >= 0 && nowTime - transactionTime <= DUPLICATE_TRANSACTION_WINDOW_MS;
+
+    if (!withinWindow) return false;
+
+    return (
+      transaction.type === candidate.type &&
+      transaction.amount === candidate.amount &&
+      normalizeReason(transaction.reason) === normalizeReason(candidate.reason) &&
+      (transaction.taskId || '') === (candidate.taskId || '') &&
+      (transaction.taskTitle || '') === (candidate.taskTitle || '')
+    );
+  });
+};
+
 export const useGoldStore = create<GoldState>()(
   persist(
     (set, get) => ({
@@ -37,14 +64,24 @@ export const useGoldStore = create<GoldState>()(
       lastResetDate: new Date().toDateString(),
       
       addGold: (amount, reason, taskId, taskTitle) => {
-        const transaction: GoldTransaction = {
-          id: crypto.randomUUID(),
-          type: 'earn',
+        const now = new Date();
+        const candidate = {
+          type: 'earn' as const,
           amount,
           reason,
           taskId,
           taskTitle,
-          timestamp: new Date(),
+        };
+
+        if (isDuplicateTransaction(get().transactions, candidate, now)) {
+          console.warn(`⚠️ 检测到重复入账，已拦截: +${amount} (${reason})`);
+          return;
+        }
+
+        const transaction: GoldTransaction = {
+          id: crypto.randomUUID(),
+          ...candidate,
+          timestamp: now,
         };
         
         set((state) => {
@@ -75,13 +112,23 @@ export const useGoldStore = create<GoldState>()(
           console.warn('⚠️ 金币余额不足');
           return;
         }
+
+        const now = new Date();
+        const candidate = {
+          type: 'spend' as const,
+          amount,
+          reason,
+        };
+
+        if (isDuplicateTransaction(state.transactions, candidate, now)) {
+          console.warn(`⚠️ 检测到重复消费，已拦截: -${amount} (${reason})`);
+          return;
+        }
         
         const transaction: GoldTransaction = {
           id: crypto.randomUUID(),
-          type: 'spend',
-          amount,
-          reason,
-          timestamp: new Date(),
+          ...candidate,
+          timestamp: now,
         };
         
         set((state) => {
@@ -114,15 +161,25 @@ export const useGoldStore = create<GoldState>()(
           console.warn(`⚠️ 金币余额不足: 需要 ${amount}，当前余额 ${state.balance}`);
           return false;
         }
-        
-        const transaction: GoldTransaction = {
-          id: crypto.randomUUID(),
-          type: 'spend',
+
+        const now = new Date();
+        const candidate = {
+          type: 'spend' as const,
           amount,
           reason,
           taskId,
           taskTitle,
-          timestamp: new Date(),
+        };
+
+        if (isDuplicateTransaction(state.transactions, candidate, now)) {
+          console.warn(`⚠️ 检测到重复扣费，已拦截: -${amount} (${reason})`);
+          return false;
+        }
+        
+        const transaction: GoldTransaction = {
+          id: crypto.randomUUID(),
+          ...candidate,
+          timestamp: now,
         };
         
         set((state) => {
@@ -149,14 +206,24 @@ export const useGoldStore = create<GoldState>()(
       },
       
       penaltyGold: (amount, reason, taskId, taskTitle) => {
-        const transaction: GoldTransaction = {
-          id: crypto.randomUUID(),
-          type: 'penalty',
+        const now = new Date();
+        const candidate = {
+          type: 'penalty' as const,
           amount,
           reason,
           taskId,
           taskTitle,
-          timestamp: new Date(),
+        };
+
+        if (isDuplicateTransaction(get().transactions, candidate, now)) {
+          console.warn(`⚠️ 检测到重复惩罚，已拦截: -${amount} (${reason})`);
+          return;
+        }
+
+        const transaction: GoldTransaction = {
+          id: crypto.randomUUID(),
+          ...candidate,
+          timestamp: now,
         };
         
         set((state) => {
@@ -256,4 +323,3 @@ export const useGoldStore = create<GoldState>()(
     }
   )
 );
-

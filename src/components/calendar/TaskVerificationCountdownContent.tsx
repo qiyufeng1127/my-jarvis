@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useGoldStore } from '@/stores/goldStore';
 import { ImageUploader } from '@/services/taskVerificationService';
 import { notificationService } from '@/services/notificationService';
@@ -122,6 +122,17 @@ export default function TaskVerificationCountdownContent({
     startDeadline: string | null;
     taskDeadline: string | null;
   }>({ startDeadline: null, taskDeadline: null });
+
+  // 🔧 跨重渲染/状态恢复的扣币锁，避免重复执行
+  const transactionLocksRef = useRef<Set<string>>(new Set());
+
+  const hasTransactionLock = useCallback((key: string) => {
+    return transactionLocksRef.current.has(key);
+  }, []);
+
+  const setTransactionLock = useCallback((key: string) => {
+    transactionLocksRef.current.add(key);
+  }, []);
   
   // 🔧 分步日志显示（直接在界面上显示）
   const [verifyLog, setVerifyLog] = useState<string>('正在验证中，请稍后...');
@@ -188,10 +199,16 @@ export default function TaskVerificationCountdownContent({
     
     // 如果当前时间 >= 预设开始时间，且状态为等待启动，则触发启动倒计时
     if (now >= start && state.status === 'waiting_start' && !hasTriggeredBackgroundPenalty) {
+      const backgroundPenaltyKey = `background-start-delay:${taskId}:${start.toISOString()}`;
+      if (hasTransactionLock(backgroundPenaltyKey)) {
+        return;
+      }
+
       console.log(`⏰ 任务到达预设时间，触发启动倒计时: ${taskTitle}`);
       
       // 🔧 标记已触发，避免重复扣币
       setHasTriggeredBackgroundPenalty(true);
+      setTransactionLock(backgroundPenaltyKey);
       
       // 🔧 计算已经拖延了多少次（每2分钟算一次拖延）
       const delayMs = now.getTime() - start.getTime();
@@ -241,7 +258,7 @@ export default function TaskVerificationCountdownContent({
       
       console.log(`📊 启动倒计时状态：已拖延${missedTimeouts}次，当前周期剩余${remainingSeconds}秒`);
     }
-  }, [scheduledStart.getTime(), state.status, taskTitle, hasTriggeredBackgroundPenalty, goldReward, penaltyGold, taskId]);
+  }, [scheduledStart.getTime(), state.status, taskTitle, hasTriggeredBackgroundPenalty, goldReward, penaltyGold, taskId, hasTransactionLock, setTransactionLock]);
   
   // 每秒更新当前时间，用于实时计算剩余时间（使用requestAnimationFrame确保后台运行）
   useEffect(() => {
@@ -280,12 +297,18 @@ export default function TaskVerificationCountdownContent({
     
     // 启动倒计时超时
     if (state.status === 'start_countdown' && startCountdownLeft === 0 && state.startDeadline) {
+      const timeoutKey = `start-timeout:${taskId}:${state.startDeadline}`;
+      if (hasTransactionLock(timeoutKey)) {
+        return;
+      }
+
       // 🔧 检查是否已经为这个deadline扣过币了
       if (currentTimeoutPenaltyTriggered.startDeadline === state.startDeadline) {
         return; // 已经扣过了，不再重复扣
       }
       
       const penaltyAmount = Math.floor(goldReward * 0.2);
+      setTransactionLock(timeoutKey);
       penaltyGold(penaltyAmount, `启动超时（第${state.startTimeoutCount + 1}次）`, taskId, taskTitle);
       console.log(`⚠️ 启动超时！扣除${penaltyAmount}金币（${state.startTimeoutCount + 1}次）`);
       
@@ -322,12 +345,18 @@ export default function TaskVerificationCountdownContent({
     
     // 任务倒计时超时
     if (state.status === 'task_countdown' && taskCountdownLeft === 0 && state.taskDeadline) {
+      const timeoutKey = `complete-timeout:${taskId}:${state.taskDeadline}`;
+      if (hasTransactionLock(timeoutKey)) {
+        return;
+      }
+
       // 🔧 检查是否已经为这个deadline扣过币了
       if (currentTimeoutPenaltyTriggered.taskDeadline === state.taskDeadline) {
         return; // 已经扣过了，不再重复扣
       }
       
       const penaltyAmount = Math.floor(goldReward * 0.2);
+      setTransactionLock(timeoutKey);
       penaltyGold(penaltyAmount, `完成超时（第${state.completeTimeoutCount + 1}次）`, taskId, taskTitle);
       console.log(`⚠️ 完成超时！扣除${penaltyAmount}金币（${state.completeTimeoutCount + 1}次）`);
       
@@ -361,7 +390,7 @@ export default function TaskVerificationCountdownContent({
         completeTimeoutCount: newState.completeTimeoutCount,
       });
     }
-  }, [state, startCountdownLeft, taskCountdownLeft, goldReward, penaltyGold, taskId, taskTitle, saveState, currentTimeoutPenaltyTriggered]);
+  }, [state, startCountdownLeft, taskCountdownLeft, goldReward, penaltyGold, taskId, taskTitle, saveState, currentTimeoutPenaltyTriggered, hasTransactionLock, setTransactionLock]);
   
   // 任务即将结束提醒（完全遵循用户设置）
   useEffect(() => {
@@ -786,8 +815,14 @@ export default function TaskVerificationCountdownContent({
         addLog('❌ 验证失败: ' + (verifyResult.message || '未匹配到关键词'));
         
         const penaltyAmount = Math.floor(goldReward * 0.2);
-        penaltyGold(penaltyAmount, `${isStartVerification ? '启动' : '完成'}验证失败`, taskId, taskTitle);
-        addLog(`💸 扣除${penaltyAmount}金币`);
+        const verificationPenaltyKey = `verification-fail:${taskId}:${previewType}:${state.startTimeoutCount}:${state.completeTimeoutCount}`;
+        if (!hasTransactionLock(verificationPenaltyKey)) {
+          setTransactionLock(verificationPenaltyKey);
+          penaltyGold(penaltyAmount, `${isStartVerification ? '启动' : '完成'}验证失败`, taskId, taskTitle);
+          addLog(`💸 扣除${penaltyAmount}金币`);
+        } else {
+          addLog('⚠️ 已拦截重复验证失败扣币');
+        }
         
         // 返回倒计时
         if (isStartVerification) {
@@ -930,8 +965,14 @@ export default function TaskVerificationCountdownContent({
       
       // 扣除金币
       const penaltyAmount = Math.floor(goldReward * 0.2);
-      penaltyGold(penaltyAmount, `${isStartVerification ? '启动' : '完成'}验证异常`, taskId, taskTitle);
-      addLog(`💸 扣除${penaltyAmount}金币`);
+      const verificationErrorPenaltyKey = `verification-error:${taskId}:${previewType}:${state.startTimeoutCount}:${state.completeTimeoutCount}`;
+      if (!hasTransactionLock(verificationErrorPenaltyKey)) {
+        setTransactionLock(verificationErrorPenaltyKey);
+        penaltyGold(penaltyAmount, `${isStartVerification ? '启动' : '完成'}验证异常`, taskId, taskTitle);
+        addLog(`💸 扣除${penaltyAmount}金币`);
+      } else {
+        addLog('⚠️ 已拦截重复验证异常扣币');
+      }
       
       // 返回倒计时
       if (isStartVerification) {
@@ -963,7 +1004,7 @@ export default function TaskVerificationCountdownContent({
       // 5秒后清除日志
       setTimeout(() => clearLogs(), 5000);
     }
-  }, [previewImage, previewType, startKeywords, completeKeywords, state, goldReward, taskId, taskTitle, scheduledEnd, onStart, onComplete, storageKey]);
+  }, [previewImage, previewType, startKeywords, completeKeywords, state, goldReward, taskId, taskTitle, scheduledEnd, onStart, onComplete, storageKey, hasTransactionLock, setTransactionLock]);
 
   // 🔧 新增：取消预览
   const handleCancelPreview = useCallback(() => {
