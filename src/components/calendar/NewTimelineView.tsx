@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Camera, Check, ChevronDown, ChevronUp, Edit2, Trash2, GripVertical, Star, Clock, FileText, Upload, X, ShieldAlert } from 'lucide-react';
 import eventBus from '@/utils/eventBus';
 import type { Task, LongTermGoal } from '@/types';
-import { TagLearningService } from '@/services/tagLearningService';
 import { 
   generateVerificationKeywords, 
   generateSubTasks, 
@@ -24,6 +23,7 @@ import { useTagStore } from '@/stores/tagStore';
 import { useGoalStore } from '@/stores/goalStore';
 import { useGoalContributionStore } from '@/stores/goalContributionStore';
 import { useHQBridgeStore } from '@/stores/hqBridgeStore';
+import { useTaskHistoryStore } from '@/stores/taskHistoryStore';
 import CelebrationEffect from '@/components/effects/CelebrationEffect';
 import { 
   adjustTaskStartTime, 
@@ -59,7 +59,6 @@ interface NewTimelineViewProps {
   borderColor: string;
   isDark: boolean;
   onEditingChange?: (isEditing: boolean) => void; // 新增：通知父组件编辑状态
-  quickBackfillTrigger?: number;
 }
 
 export default function NewTimelineView({
@@ -74,7 +73,6 @@ export default function NewTimelineView({
   borderColor,
   isDark,
   onEditingChange,
-  quickBackfillTrigger,
 }: NewTimelineViewProps) {
   // 检测是否为移动设备
   const [isMobile, setIsMobile] = useState(false);
@@ -91,18 +89,20 @@ export default function NewTimelineView({
   const activeLoop = useHQBridgeStore((state) => state.activeLoop);
   const setActiveLoop = useHQBridgeStore((state) => state.setActiveLoop);
 
-  const START_DELAY_FORM_THRESHOLD = 10;
+  const START_DELAY_FORM_THRESHOLD = 5;
   const LOW_EFFICIENCY_DELAY_MINUTES = 60;
-  const LOW_EFFICIENCY_FORM_THRESHOLD = 10;
-  const LOW_EFFICIENCY_STORAGE_KEY = 'low-efficiency-delay-strike-count';
   const MANDATORY_REFLECTION_QUESTIONS: Record<'start_delay' | 'low_efficiency', string[]> = {
     start_delay: [
-      '你此刻实际正在做什么，为什么拖延了？',
-      '你要立刻做什么才能弥补拖延？',
+      '你已经连续多次在启动窗口内没有开始。你刚才究竟在逃避什么？',
+      '此刻你实际正在做什么，与当前任务冲突的诱因是什么？',
+      '如果总部现在追问，你最不能自圆其说的借口是什么？',
+      '你准备立刻做出的纠偏动作是什么？请写可执行动作。',
     ],
     low_efficiency: [
-      '你此刻实际正在做什么，为什么拖延了？',
-      '你要立刻做什么才能弥补拖延？',
+      '任务已经严重超时。真正拖慢你的关键障碍到底是什么？',
+      '这段时间你在反复想什么、刷什么、耗在什么地方？',
+      '如果继续这样低效下去，最直接损失的是哪一个目标或承诺？',
+      '你接下来准备如何止损，并避免下一次再次失控？',
     ],
   };
   
@@ -122,28 +122,12 @@ export default function NewTimelineView({
   } | null>(null);
   const [mandatoryReflectionTaskId, setMandatoryReflectionTaskId] = useState<string | null>(null);
   const [mandatoryReflectionDraft, setMandatoryReflectionDraft] = useState<Record<string, string>>({});
-  const [lowEfficiencyStrikeCount, setLowEfficiencyStrikeCount] = useState(0);
-    useEffect(() => {
-    try {
-      const savedCount = localStorage.getItem(LOW_EFFICIENCY_STORAGE_KEY);
-      if (!savedCount) return;
+  
 
-      const parsedCount = Number(savedCount);
-      if (!Number.isNaN(parsedCount) && parsedCount >= 0) {
-        setLowEfficiencyStrikeCount(parsedCount);
-      }
-    } catch (error) {
-      console.error('❌ 加载低效率拖延计数失败:', error);
-    }
-  }, []);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(LOW_EFFICIENCY_STORAGE_KEY, String(lowEfficiencyStrikeCount));
-    } catch (error) {
-      console.error('❌ 保存低效率拖延计数失败:', error);
-    }
-  }, [lowEfficiencyStrikeCount]);
+
+
+
 
   useEffect(() => {
     const checkMobile = () => {
@@ -204,11 +188,6 @@ export default function NewTimelineView({
   const [taskActualStartTimes, setTaskActualStartTimes] = useState<Record<string, Date>>({}); // 任务实际启动时间
   const [goalContributionTaskId, setGoalContributionTaskId] = useState<string | null>(null);
   const [linkedTaskId, setLinkedTaskId] = useState<string | null>(null);
-  const [showContributionGoalCreator, setShowContributionGoalCreator] = useState(false);
-  const [newContributionGoalName, setNewContributionGoalName] = useState('');
-  const [newContributionGoalMetricName, setNewContributionGoalMetricName] = useState('');
-  const [newContributionGoalMetricTarget, setNewContributionGoalMetricTarget] = useState('');
-  const [newContributionGoalMetricUnit, setNewContributionGoalMetricUnit] = useState('次');
   const [goalContributionDrafts, setGoalContributionDrafts] = useState<Record<string, {
     goalId: string;
     note: string;
@@ -225,14 +204,6 @@ export default function NewTimelineView({
   const imageInputRefs = useRef<Record<string, HTMLInputElement>>({});
   const [showGoldModal, setShowGoldModal] = useState(false); // 金币详情弹窗
   const [isSmartAssigning, setIsSmartAssigning] = useState(false); // 智能分配加载状态
-  const [quickBackfillDraft, setQuickBackfillDraft] = useState<{
-    title: string;
-    tags: string[];
-    longTermGoals: Record<string, number>;
-    startTime: string;
-    endTime: string;
-    suggestedGapIndex: number;
-  } | null>(null);
   
   useEffect(() => {
     const handleNavigate = (payload?: { module?: string; taskId?: string }) => {
@@ -370,29 +341,19 @@ export default function NewTimelineView({
   const syncReflectionToHQ = (
     task: Task,
     trigger: 'start_delay' | 'low_efficiency',
-    answers: Array<{ question: string; answer: string }>,
-    remedialTask?: {
-      title: string;
-      tags: string[];
-      goalId?: string;
-      createdTaskId?: string;
-    }
+    answers: Array<{ question: string; answer: string }>
   ) => {
     const matchedGoals = getMatchedGoalsForTask(task);
     const primaryGoal = matchedGoals[0];
 
     setActiveLoop({
       ...(activeLoop || {}),
-      goalId: remedialTask?.goalId || primaryGoal?.id || activeLoop?.goalId,
-      goalName: goals.find((goal) => goal.id === remedialTask?.goalId)?.name || primaryGoal?.name || activeLoop?.goalName,
+      goalId: primaryGoal?.id || activeLoop?.goalId,
+      goalName: primaryGoal?.name || activeLoop?.goalName,
       taskId: task.id,
       taskTitle: task.title,
       painLabel: trigger === 'start_delay' ? '启动拖延失控' : '严重低效率',
-      promise: remedialTask?.title || (trigger === 'start_delay' ? '立即进入启动动作，不再拖延启动窗口。' : '立即止损，收束分心，恢复目标推进效率。'),
-      remedialActionTitle: remedialTask?.title,
-      remedialActionTags: remedialTask?.tags,
-      remedialActionGoalId: remedialTask?.goalId,
-      remedialActionCreatedTaskId: remedialTask?.createdTaskId,
+      promise: trigger === 'start_delay' ? '立即进入启动动作，不再拖延启动窗口。' : '立即止损，收束分心，恢复目标推进效率。',
       accountabilityForm: {
         trigger,
         triggeredAt: task.mandatoryReflection?.triggeredAt || new Date().toISOString(),
@@ -421,6 +382,7 @@ export default function NewTimelineView({
     const task = allTasks.find((item) => item.id === taskId);
     if (!task) return;
     if (isMandatoryReflectionPending(task)) {
+      openMandatoryReflection(taskId, task.mandatoryReflection?.trigger || trigger);
       return;
     }
 
@@ -433,6 +395,7 @@ export default function NewTimelineView({
         answers: [],
       },
     });
+    openMandatoryReflection(taskId, trigger);
   };
   
   // 判断颜色是否为深色
@@ -684,8 +647,6 @@ export default function NewTimelineView({
       const taskColor = task.color || getTaskColor(task);
       const taskTags = task.tags && task.tags.length > 0 ? task.tags : getTaskTags(task.taskType, task.title);
       const sourceBadges = getTaskSourceBadges(task);
-      const isRemedialActionTask = (task.identityTags || []).includes('hq-remedial-action') || activeLoop?.remedialActionCreatedTaskId === task.id;
-      const isLinkedHQTask = activeLoop?.taskId === task.id || (task.tags || []).includes('总部承诺') || isRemedialActionTask;
       // 使用新的金币计算器：站立15金币/分钟，坐着10金币/分钟
       const taskGold = task.goldReward || (() => {
         const duration = task.durationMinutes || 60;
@@ -710,10 +671,8 @@ export default function NewTimelineView({
         color: taskColor, // 使用任务的颜色
         category: task.taskType,
         description: task.description,
-        status: task.status,
         isCompleted: task.status === 'completed',
-        isLinkedHQTask,
-        isRemedialActionTask,
+        isLinkedHQTask: activeLoop?.taskId === task.id || (task.tags || []).includes('总部承诺'),
         goldReward: taskGold, // 使用任务的金币
         tags: taskTags, // 使用任务的标签
         sourceBadges,
@@ -1584,11 +1543,6 @@ export default function NewTimelineView({
     const task = allTasks.find(t => t.id === taskId);
     
     if (!task) return;
-
-    if (isMandatoryReflectionPending(task)) {
-      openMandatoryReflection(taskId, task.mandatoryReflection?.trigger || 'low_efficiency');
-      return;
-    }
     
     // 🔧 验证开关判断：如果任务没有设置验证，直接完成
     if (task.status === 'in_progress' && (!verification || !verification.enabled)) {
@@ -1928,73 +1882,8 @@ export default function NewTimelineView({
         : draft,
     }));
     setGoalContributionTaskId(taskId);
-    setShowContributionGoalCreator(false);
-    setNewContributionGoalName('');
-    setNewContributionGoalMetricName('');
-    setNewContributionGoalMetricTarget('');
-    setNewContributionGoalMetricUnit('次');
     setGoalContributionError(null);
     setGoalContributionSuccess(null);
-  };
-
-  const handleCreateContributionGoal = () => {
-    if (!goalContributionTaskId) return;
-
-    const goalName = newContributionGoalName.trim();
-    const metricName = newContributionGoalMetricName.trim();
-    const metricTarget = Number(newContributionGoalMetricTarget || 0);
-    const metricUnit = newContributionGoalMetricUnit.trim() || '次';
-
-    if (!goalName) {
-      setGoalContributionError('请先输入关联目标名称。');
-      return;
-    }
-
-    if (!metricName) {
-      setGoalContributionError('请先输入关键结果名称。');
-      return;
-    }
-
-    if (!metricTarget || metricTarget <= 0) {
-      setGoalContributionError('请为关键结果填写大于 0 的目标次数。');
-      return;
-    }
-
-    const createdGoal = useGoalStore.getState().createGoal({
-      name: goalName,
-      description: '',
-      goalType: 'numeric',
-      isActive: true,
-      dimensions: [
-        {
-          id: `metric-${Date.now()}`,
-          name: metricName,
-          unit: metricUnit,
-          targetValue: metricTarget,
-          currentValue: 0,
-          weight: 100,
-        },
-      ],
-      targetValue: metricTarget,
-      currentValue: 0,
-      unit: metricUnit,
-    });
-
-    handleGoalContributionDraftChange(goalContributionTaskId, {
-      goalId: createdGoal.id,
-      values: createdGoal.dimensions.reduce<Record<string, string>>((acc, dimension) => {
-        acc[dimension.id] = '';
-        return acc;
-      }, {}),
-    });
-
-    setShowContributionGoalCreator(false);
-    setNewContributionGoalName('');
-    setNewContributionGoalMetricName('');
-    setNewContributionGoalMetricTarget('');
-    setNewContributionGoalMetricUnit('次');
-    setGoalContributionError(null);
-    setGoalContributionSuccess(`已新建目标「${createdGoal.name}」，现在可以直接填写关键结果。`);
   };
 
   const handleGoalContributionDraftChange = (taskId: string, updates: Partial<{ goalId: string; note: string; durationMinutes: string; values: Record<string, string> }>) => {
@@ -2173,340 +2062,6 @@ export default function NewTimelineView({
 
   const timeUntilEnd = calculateTimeUntilEndOfDay();
   const timePassed = calculateTimePassedToday();
-  const selectedDateKey = selectedDate.toDateString();
-
-  const availableTagOptions = useMemo(
-    () => useTagStore.getState().getAllTags().filter((tag) => !tag.isDisabled),
-    [tasks.length]
-  );
-
-  const tasksForSelectedDate = useMemo(
-    () => allTasks.filter((task) => {
-      if (!task.scheduledStart) return false;
-      const taskDate = new Date(task.scheduledStart);
-      return taskDate.toDateString() === selectedDateKey;
-    }),
-    [allTasks, selectedDateKey]
-  );
-
-  const normalizedSelectedTasks = useMemo(
-    () => tasksForSelectedDate
-      .map((task) => {
-        const startTime = task.startTime ? new Date(task.startTime) : new Date(task.scheduledStart!);
-        const endTime = task.scheduledEnd
-          ? new Date(task.scheduledEnd)
-          : (task.endTime
-            ? new Date(task.endTime)
-            : new Date(startTime.getTime() + (task.durationMinutes || 60) * 60000));
-
-        return {
-          id: task.id,
-          startTime,
-          endTime,
-        };
-      })
-      .sort((a, b) => a.startTime.getTime() - b.startTime.getTime()),
-    [tasksForSelectedDate]
-  );
-
-  const detectedBackfillGaps = useMemo(() => {
-    const dayStart = new Date(selectedDate);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(selectedDate);
-    dayEnd.setHours(23, 59, 59, 999);
-
-    const gapsForDate: Array<{ startTime: Date; endTime: Date; durationMinutes: number }> = [];
-
-    if (normalizedSelectedTasks.length === 0) {
-      gapsForDate.push({
-        startTime: dayStart,
-        endTime: dayEnd,
-        durationMinutes: Math.max(1, Math.round((dayEnd.getTime() - dayStart.getTime()) / 60000)),
-      });
-      return gapsForDate;
-    }
-
-    const firstTask = normalizedSelectedTasks[0];
-    if (firstTask.startTime.getTime() > dayStart.getTime()) {
-      gapsForDate.push({
-        startTime: dayStart,
-        endTime: firstTask.startTime,
-        durationMinutes: Math.round((firstTask.startTime.getTime() - dayStart.getTime()) / 60000),
-      });
-    }
-
-    normalizedSelectedTasks.forEach((task, index) => {
-      const nextTask = normalizedSelectedTasks[index + 1];
-      if (!nextTask) return;
-
-      const gapMinutes = Math.round((nextTask.startTime.getTime() - task.endTime.getTime()) / 60000);
-      if (gapMinutes > 0) {
-        gapsForDate.push({
-          startTime: task.endTime,
-          endTime: nextTask.startTime,
-          durationMinutes: gapMinutes,
-        });
-      }
-    });
-
-    const lastTask = normalizedSelectedTasks[normalizedSelectedTasks.length - 1];
-    if (lastTask.endTime.getTime() < dayEnd.getTime()) {
-      gapsForDate.push({
-        startTime: lastTask.endTime,
-        endTime: dayEnd,
-        durationMinutes: Math.round((dayEnd.getTime() - lastTask.endTime.getTime()) / 60000),
-      });
-    }
-
-    return gapsForDate.filter((gap) => gap.durationMinutes >= 5);
-  }, [normalizedSelectedTasks, selectedDate]);
-
-  const buildBackfillGoalMap = (goalNameOrId?: string) => {
-    if (!goalNameOrId) return {} as Record<string, number>;
-    const normalizedValue = goalNameOrId.trim();
-    if (!normalizedValue) return {} as Record<string, number>;
-
-    const matchedGoal = goals.find((goal) => goal.id === normalizedValue || goal.name === normalizedValue);
-    if (!matchedGoal) return {} as Record<string, number>;
-
-    return { [matchedGoal.id]: 100 };
-  };
-
-  const formatBackfillTimeValue = (date: Date) => {
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${hours}:${minutes}`;
-  };
-
-  const sanitizeRemedialActionTitle = (value: string) => {
-    const normalized = value.trim().replace(/\s+/g, ' ');
-    if (!normalized) return '';
-    return normalized.length > 40 ? normalized.slice(0, 40) : normalized;
-  };
-
-  const buildRemedialTaskPayload = (task: Task, remedialActionTitle: string) => {
-    const safeTitle = sanitizeRemedialActionTitle(remedialActionTitle) || `弥补拖延：${task.title}`;
-    const allTagNames = availableTagOptions.map((tag) => tag.name);
-    const taskTags = task.tags || [];
-    const learnedTags = TagLearningService.suggestTags(safeTitle)
-      .map((item) => item.tag)
-      .filter((tag) => allTagNames.includes(tag));
-    const recommendedTags = useTagStore.getState().getRecommendedTags(safeTitle, 4);
-    const mergedTags = Array.from(new Set([
-      ...taskTags,
-      ...learnedTags,
-      ...recommendedTags,
-    ])).filter((tag) => allTagNames.includes(tag)).slice(0, 4);
-
-    const taskGoalIds = Object.keys(task.longTermGoals || {}).filter((goalId) => (task.longTermGoals?.[goalId] || 0) > 0);
-    const inferredGoal = getMatchedGoalsForTask(task)[0];
-    const remedialGoalId = taskGoalIds[0] || inferredGoal?.id || activeLoop?.goalId;
-    const longTermGoals = remedialGoalId ? { [remedialGoalId]: 100 } : {};
-
-    const startDate = new Date();
-    const endDate = new Date(startDate.getTime() + 30 * 60000);
-
-    return {
-      title: safeTitle,
-      description: `总部追责补救动作｜源任务：${task.title}`,
-      taskType: task.taskType || 'work',
-      priority: 1 as const,
-      durationMinutes: 30,
-      scheduledStart: startDate,
-      scheduledEnd: endDate,
-      status: 'pending' as const,
-      tags: Array.from(new Set(['总部补救', ...mergedTags])).slice(0, 5),
-      longTermGoals,
-      identityTags: Array.from(new Set([...(task.identityTags || []), 'hq-remedial-action'])),
-      goldReward: 0,
-      growthDimensions: task.growthDimensions || {},
-      enableProgressCheck: false,
-      color: task.color,
-    };
-  };
-
-  const getNearestGapIndex = () => {
-    if (detectedBackfillGaps.length === 0) return -1;
-
-    const now = new Date();
-    const gapContainingNow = detectedBackfillGaps.findIndex(
-      (gap) => gap.startTime.getTime() <= now.getTime() && gap.endTime.getTime() >= now.getTime()
-    );
-    if (gapContainingNow >= 0) return gapContainingNow;
-
-    const previousGapIndex = [...detectedBackfillGaps]
-      .map((gap, index) => ({ gap, index }))
-      .filter(({ gap }) => gap.endTime.getTime() <= now.getTime())
-      .sort((a, b) => b.gap.endTime.getTime() - a.gap.endTime.getTime())[0]?.index;
-
-    if (typeof previousGapIndex === 'number') return previousGapIndex;
-
-    return 0;
-  };
-
-  const applyGapToQuickBackfill = (gapIndex: number) => {
-    const gap = detectedBackfillGaps[gapIndex];
-    if (!gap) return;
-
-    setQuickBackfillDraft((prev) => ({
-      title: prev?.title || '',
-      tags: prev?.tags || [],
-      longTermGoals: prev?.longTermGoals || {},
-      startTime: formatBackfillTimeValue(gap.startTime),
-      endTime: formatBackfillTimeValue(gap.endTime),
-      suggestedGapIndex: gapIndex,
-    }));
-  };
-
-  const openQuickBackfill = () => {
-    if (detectedBackfillGaps.length === 0) {
-      const fallbackEnd = new Date(selectedDate);
-      fallbackEnd.setHours(new Date().getHours(), new Date().getMinutes(), 0, 0);
-      const fallbackStart = new Date(fallbackEnd.getTime() - 30 * 60000);
-      setQuickBackfillDraft({
-        title: '',
-        tags: [],
-        longTermGoals: {},
-        startTime: formatBackfillTimeValue(fallbackStart),
-        endTime: formatBackfillTimeValue(fallbackEnd),
-        suggestedGapIndex: -1,
-      });
-      return;
-    }
-
-    applyGapToQuickBackfill(getNearestGapIndex());
-  };
-
-  useEffect(() => {
-    if (!quickBackfillTrigger) return;
-    openQuickBackfill();
-  }, [quickBackfillTrigger]);
-
-  const navigateQuickBackfillGap = (direction: -1 | 1) => {
-    if (!quickBackfillDraft || detectedBackfillGaps.length === 0) return;
-    const nextIndex = Math.min(
-      detectedBackfillGaps.length - 1,
-      Math.max(0, quickBackfillDraft.suggestedGapIndex + direction)
-    );
-    applyGapToQuickBackfill(nextIndex);
-  };
-
-  const handleQuickBackfillSmartAssign = async () => {
-    if (!quickBackfillDraft?.title.trim()) {
-      alert('请先填写补录标题');
-      return;
-    }
-
-    setIsSmartAssigning(true);
-
-    try {
-      const allTagNames = availableTagOptions.map((tag) => tag.name);
-      const historySuggestions = TagLearningService.suggestTags(quickBackfillDraft.title)
-        .map((item) => item.tag)
-        .filter((tag) => allTagNames.includes(tag));
-      const storeSuggestions = useTagStore.getState().getRecommendedTags(quickBackfillDraft.title, 5);
-
-      const { aiService } = await import('@/services/aiService');
-      const goalNames = goals.map((goal) => goal.name);
-      const prompt = `你要给“快速补录”做智能分配。只返回 JSON，不要解释。\n任务标题：${quickBackfillDraft.title}\n可选标签：${allTagNames.join('、') || '无'}\n历史偏好标签：${historySuggestions.join('、') || '无'}\n系统候选标签：${storeSuggestions.join('、') || '无'}\n可选目标：${goalNames.join('、') || '无'}\n返回格式：{"tags":["标签1","标签2"],"goal":"目标名或空字符串"}`;
-      const response = await aiService.chat([
-        { role: 'system', content: '你是时间轴任务补录助手，必须优先参考用户历史标签与现有标签，只返回JSON。' },
-        { role: 'user', content: prompt },
-      ]);
-
-      let aiTags: string[] = [];
-      let aiGoal = '';
-
-      if (response.success && response.content) {
-        let jsonContent = response.content.trim();
-        const jsonMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-        if (jsonMatch) {
-          jsonContent = jsonMatch[1].trim();
-        }
-        const parsed = JSON.parse(jsonContent.match(/\{[\s\S]*\}/)?.[0] || jsonContent);
-        aiTags = Array.isArray(parsed.tags) ? parsed.tags : [];
-        aiGoal = typeof parsed.goal === 'string' ? parsed.goal : '';
-      }
-
-      const mergedTags = Array.from(new Set([
-        ...historySuggestions,
-        ...storeSuggestions,
-        ...aiTags,
-      ])).filter((tag) => allTagNames.includes(tag)).slice(0, 4);
-
-      setQuickBackfillDraft((prev) => prev ? {
-        ...prev,
-        tags: mergedTags,
-        longTermGoals: buildBackfillGoalMap(aiGoal),
-      } : prev);
-    } catch (error) {
-      console.error('快速补录智能分配失败:', error);
-      const fallbackTags = Array.from(new Set([
-        ...TagLearningService.suggestTags(quickBackfillDraft.title).map((item) => item.tag),
-        ...useTagStore.getState().getRecommendedTags(quickBackfillDraft.title, 3),
-      ])).filter((tag) => availableTagOptions.some((item) => item.name === tag)).slice(0, 4);
-
-      setQuickBackfillDraft((prev) => prev ? {
-        ...prev,
-        tags: fallbackTags,
-      } : prev);
-    } finally {
-      setIsSmartAssigning(false);
-    }
-  };
-
-  const handleSaveQuickBackfill = () => {
-    if (!quickBackfillDraft?.title.trim()) {
-      alert('请先填写补录标题');
-      return;
-    }
-
-    const [startHour, startMinute] = quickBackfillDraft.startTime.split(':').map(Number);
-    const [endHour, endMinute] = quickBackfillDraft.endTime.split(':').map(Number);
-
-    if ([startHour, startMinute, endHour, endMinute].some((value) => Number.isNaN(value))) {
-      alert('请先选择有效时间');
-      return;
-    }
-
-    const startDate = new Date(selectedDate);
-    startDate.setHours(startHour, startMinute, 0, 0);
-    const endDate = new Date(selectedDate);
-    endDate.setHours(endHour, endMinute, 0, 0);
-
-    if (endDate <= startDate) {
-      alert('结束时间要晚于开始时间');
-      return;
-    }
-
-    const durationMinutes = Math.max(5, Math.round((endDate.getTime() - startDate.getTime()) / 60000));
-    const normalizedTags = Array.from(new Set(quickBackfillDraft.tags)).filter(Boolean);
-
-    onTaskCreate({
-      title: quickBackfillDraft.title.trim(),
-      description: '快捷补录',
-      taskType: 'life',
-      priority: 2,
-      durationMinutes,
-      scheduledStart: startDate,
-      scheduledEnd: endDate,
-      status: 'completed',
-      actualStart: startDate,
-      actualEnd: endDate,
-      tags: normalizedTags,
-      longTermGoals: quickBackfillDraft.longTermGoals,
-      identityTags: ['quick-backfill'],
-      goldReward: 0,
-      growthDimensions: {},
-      enableProgressCheck: false,
-    });
-
-    if (normalizedTags.length > 0) {
-      TagLearningService.learnFromUserChoice(quickBackfillDraft.title.trim(), normalizedTags);
-    }
-
-    setQuickBackfillDraft(null);
-  };
 
   return (
     <div className="space-y-3 pb-4 relative">
@@ -2520,13 +2075,13 @@ export default function NewTimelineView({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 overflow-x-auto">
-            {/* 今日已过去按钮 */}
-            <button
-              onClick={() => {
-                alert(`今天已经过去了 ${timePassed.hours}小时${timePassed.mins}分钟`);
-              }}
-              className="flex items-center gap-2 px-4 py-2 rounded-full transition-all hover:scale-105 whitespace-nowrap"
+          {/* 今日已过去按钮 */}
+          <button
+            onClick={() => {
+              // 可以添加一些交互，比如显示详细统计
+              alert(`今天已经过去了 ${timePassed.hours}小时${timePassed.mins}分钟`);
+            }}
+            className="flex items-center gap-2 px-4 py-2 rounded-full transition-all hover:scale-105"
               style={{ 
                 backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.9)',
                 border: `2px dashed ${borderColor}`,
@@ -2537,37 +2092,36 @@ export default function NewTimelineView({
                 style={{ backgroundColor: '#3B82F6' }}
               >
                 <Clock className="w-4 h-4 text-white" />
-              </div>
-              <span className="text-sm font-semibold" style={{ color: textColor }}>
-                今日已过去
-                {timePassed.hours > 0 && ` ${timePassed.hours}小时`}
-                {timePassed.mins > 0 && ` ${timePassed.mins}分钟`}
+            </div>
+            <span className="text-sm font-semibold" style={{ color: textColor }}>
+              今日已过去
+              {timePassed.hours > 0 && ` ${timePassed.hours}小时`}
+              {timePassed.mins > 0 && ` ${timePassed.mins}分钟`}
+            </span>
+          </button>
+          
+          {/* 金币显示按钮 */}
+          <button
+            onClick={() => setShowGoldModal(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-full transition-all hover:scale-105 shadow-lg"
+            style={{ 
+              backgroundColor: goldBalance >= 0 
+                ? (isDark ? 'rgba(255,215,0,0.2)' : 'rgba(255,215,0,0.15)')
+                : (isDark ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.15)'),
+              border: goldBalance >= 0 ? `2px solid #FFD700` : `2px solid #EF4444`,
+            }}
+            title="点击查看金币明细和奖励商店"
+          >
+            <span className="text-xl">💰</span>
+            <div className="flex flex-col items-start">
+              <span className="text-xs opacity-80" style={{ color: goldBalance >= 0 ? '#FFD700' : '#EF4444' }}>
+                金币
               </span>
-            </button>
-            
-            {/* 金币显示按钮 */}
-            <button
-              onClick={() => setShowGoldModal(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-full transition-all hover:scale-105 shadow-lg whitespace-nowrap"
-              style={{ 
-                backgroundColor: goldBalance >= 0 
-                  ? (isDark ? 'rgba(255,215,0,0.2)' : 'rgba(255,215,0,0.15)')
-                  : (isDark ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.15)'),
-                border: goldBalance >= 0 ? `2px solid #FFD700` : `2px solid #EF4444`,
-              }}
-              title="点击查看金币明细和奖励商店"
-            >
-              <span className="text-xl">💰</span>
-              <div className="flex flex-col items-start">
-                <span className="text-xs opacity-80" style={{ color: goldBalance >= 0 ? '#FFD700' : '#EF4444' }}>
-                  金币
-                </span>
-                <span className="text-sm font-bold" style={{ color: goldBalance >= 0 ? '#FFD700' : '#EF4444' }}>
-                  {goldBalance >= 0 ? goldBalance : `${goldBalance}`}
-                </span>
-              </div>
-            </button>
-          </div>
+              <span className="text-sm font-bold" style={{ color: goldBalance >= 0 ? '#FFD700' : '#EF4444' }}>
+                {goldBalance >= 0 ? goldBalance : `${goldBalance}`}
+              </span>
+            </div>
+          </button>
         </div>
       )}
       
@@ -2606,188 +2160,6 @@ export default function NewTimelineView({
         />
       )}
       
-
-      {/* 快捷补录弹层 */}
-      {quickBackfillDraft && (() => {
-        const selectedGoalIds = Object.keys(quickBackfillDraft.longTermGoals || {});
-        const activeGoalId = selectedGoalIds[0] || '';
-        const activeGap = quickBackfillDraft.suggestedGapIndex >= 0
-          ? detectedBackfillGaps[quickBackfillDraft.suggestedGapIndex]
-          : null;
-
-        return (
-          <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40 px-2 pt-10 backdrop-blur-[6px]">
-            <div
-              className="w-full max-w-md overflow-hidden rounded-t-[30px] bg-[#fcfcfd] shadow-[0_-18px_48px_rgba(15,23,42,0.18)]"
-              style={{
-                maxHeight: 'calc(100vh - 18px)',
-                paddingBottom: 'calc(86px + env(safe-area-inset-bottom))',
-              }}
-            >
-              <div className="sticky top-0 z-[2] bg-[#fcfcfd]/96 px-4 pt-2 pb-3 backdrop-blur-xl">
-                <div className="mx-auto mb-2 h-1.5 w-12 rounded-full bg-[#d7dbe4]" />
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-[12px] font-medium tracking-[0.12em] text-[#98a2b3]">快捷补录</div>
-                    <div className="mt-0.5 text-[17px] font-semibold text-[#111827]">像原生底部抽屉一样快填</div>
-                  </div>
-                  <button
-                    onClick={() => setQuickBackfillDraft(null)}
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f1f5f9] text-[#475467]"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-3 overflow-y-auto px-4 pb-4">
-                <div className="rounded-[20px] bg-gradient-to-r from-[#fff7ed] to-[#fff1f2] p-3 shadow-sm">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#c2410c]">自动补录到间隔时间内</div>
-                      <div className="mt-1 text-[14px] font-semibold text-[#7c2d12]">
-                        {activeGap
-                          ? `${formatBackfillTimeValue(activeGap.startTime)} - ${formatBackfillTimeValue(activeGap.endTime)} · ${activeGap.durationMinutes} 分钟`
-                          : '当前没有可用间隔，已给你一个默认时间段'}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => applyGapToQuickBackfill(getNearestGapIndex())}
-                      className="shrink-0 rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold text-[#ea580c] shadow-sm"
-                    >
-                      自动选中
-                    </button>
-                  </div>
-
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => navigateQuickBackfillGap(-1)}
-                      disabled={detectedBackfillGaps.length === 0 || quickBackfillDraft.suggestedGapIndex <= 0}
-                      className="rounded-full bg-white px-3 py-2 text-[13px] font-medium text-[#111827] shadow-sm disabled:opacity-40"
-                    >
-                      上一个间隔
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => navigateQuickBackfillGap(1)}
-                      disabled={detectedBackfillGaps.length === 0 || quickBackfillDraft.suggestedGapIndex >= detectedBackfillGaps.length - 1}
-                      className="rounded-full bg-white px-3 py-2 text-[13px] font-medium text-[#111827] shadow-sm disabled:opacity-40"
-                    >
-                      下一个间隔
-                    </button>
-                  </div>
-                </div>
-
-                <div className="rounded-[20px] bg-[#f8fafc] p-3 shadow-sm">
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#98a2b3]">标题</div>
-                    <button
-                      type="button"
-                      onClick={handleQuickBackfillSmartAssign}
-                      disabled={isSmartAssigning}
-                      className="rounded-full bg-[#111827] px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-50"
-                    >
-                      {isSmartAssigning ? '分配中...' : '智能分配'}
-                    </button>
-                  </div>
-                  <input
-                    value={quickBackfillDraft.title}
-                    onChange={(e) => setQuickBackfillDraft((prev) => prev ? { ...prev, title: e.target.value } : prev)}
-                    className="w-full rounded-[16px] border border-[#e5e7eb] bg-white px-4 py-3 text-[15px] text-[#111827] outline-none"
-                    placeholder="只写标题，例如：补录刚刚那段画画时间"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-[20px] bg-[#f8fafc] p-3 shadow-sm">
-                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#98a2b3]">开始</div>
-                    <input
-                      type="time"
-                      value={quickBackfillDraft.startTime}
-                      onChange={(e) => setQuickBackfillDraft((prev) => prev ? { ...prev, startTime: e.target.value, suggestedGapIndex: -1 } : prev)}
-                      className="w-full rounded-[16px] border border-[#e5e7eb] bg-white px-3 py-3 text-[14px] text-[#111827] outline-none"
-                    />
-                  </div>
-                  <div className="rounded-[20px] bg-[#f8fafc] p-3 shadow-sm">
-                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#98a2b3]">结束</div>
-                    <input
-                      type="time"
-                      value={quickBackfillDraft.endTime}
-                      onChange={(e) => setQuickBackfillDraft((prev) => prev ? { ...prev, endTime: e.target.value, suggestedGapIndex: -1 } : prev)}
-                      className="w-full rounded-[16px] border border-[#e5e7eb] bg-white px-3 py-3 text-[14px] text-[#111827] outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="rounded-[20px] bg-[#f8fafc] p-3 shadow-sm">
-                  <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#98a2b3]">已分配标签</div>
-                  <div className="rounded-[16px] bg-white px-3 py-3">
-                    {quickBackfillDraft.tags.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
-                        {quickBackfillDraft.tags.map((tagName) => {
-                          const matchedTag = availableTagOptions.find((tag) => tag.name === tagName);
-                          return (
-                            <span
-                              key={tagName}
-                              className="rounded-full border border-[#e2e8f0] bg-[#f8fafc] px-3 py-1.5 text-[13px] font-medium text-[#111827]"
-                            >
-                              {matchedTag?.emoji || '🏷️'} {tagName}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="text-[13px] leading-6 text-[#98a2b3]">
-                        点上面的“智能分配”，系统会直接把合适标签填好。
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="rounded-[20px] bg-[#f8fafc] p-3 shadow-sm">
-                  <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#98a2b3]">目标</div>
-                  <select
-                    value={activeGoalId}
-                    onChange={(e) => setQuickBackfillDraft((prev) => prev ? {
-                      ...prev,
-                      longTermGoals: e.target.value ? { [e.target.value]: 100 } : {},
-                    } : prev)}
-                    className="w-full rounded-[16px] border border-[#e5e7eb] bg-white px-4 py-3 text-[14px] text-[#111827] outline-none"
-                  >
-                    <option value="">暂不关联目标</option>
-                    {goals.map((goal) => (
-                      <option key={goal.id} value={goal.id}>{goal.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div
-                className="fixed left-1/2 z-[71] flex w-[calc(100%-16px)] max-w-md -translate-x-1/2 gap-2 bg-[#fcfcfd]/96 px-4 pt-2 backdrop-blur-xl"
-                style={{
-                  bottom: 'calc(8px + env(safe-area-inset-bottom))',
-                  paddingBottom: 'calc(8px + env(safe-area-inset-bottom))',
-                }}
-              >
-                <button
-                  onClick={() => setQuickBackfillDraft(null)}
-                  className="flex-1 rounded-full bg-[#eef2f6] px-4 py-3 text-[14px] font-medium text-[#111827]"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={handleSaveQuickBackfill}
-                  className="flex-1 rounded-full bg-[#0A84FF] px-4 py-3 text-[14px] font-semibold text-white shadow-[0_10px_24px_rgba(10,132,255,0.24)]"
-                >
-                  保存补录
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
 
       {/* 关键结果填写弹层 */}
       {goalContributionTaskId && (() => {
@@ -2915,20 +2287,7 @@ export default function NewTimelineView({
                 </div>
 
                 <div>
-                  <div className="mb-2 flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#9ca3af]">
-                    <span>关联目标</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowContributionGoalCreator((prev) => !prev);
-                        setGoalContributionError(null);
-                        setGoalContributionSuccess(null);
-                      }}
-                      className="rounded-full bg-[#edf5ff] px-3 py-1 text-[11px] font-semibold normal-case tracking-normal text-[#0A84FF]"
-                    >
-                      {showContributionGoalCreator ? '收起新建' : '新建目标+关键结果'}
-                    </button>
-                  </div>
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#9ca3af]">关联目标</div>
                   <select
                     value={draft.goalId}
                     onChange={(e) => handleGoalContributionDraftChange(goalContributionTaskId, {
@@ -2949,50 +2308,6 @@ export default function NewTimelineView({
                       <option key={goal.id} value={goal.id}>{goal.name}</option>
                     ))}
                   </select>
-
-                  {showContributionGoalCreator && (
-                    <div className="mt-3 rounded-[20px] border border-[#dbeafe] bg-[#f8fbff] p-3">
-                      <div className="text-sm font-medium text-[#111827]">直接在这里新建</div>
-                      <div className="mt-3 space-y-3">
-                        <input
-                          value={newContributionGoalName}
-                          onChange={(e) => setNewContributionGoalName(e.target.value)}
-                          className="w-full rounded-[16px] border border-[#dbe4f0] bg-white px-4 py-3 text-sm text-[#111827] outline-none"
-                          placeholder="关联目标名称，例如：做家务"
-                        />
-                        <input
-                          value={newContributionGoalMetricName}
-                          onChange={(e) => setNewContributionGoalMetricName(e.target.value)}
-                          className="w-full rounded-[16px] border border-[#dbe4f0] bg-white px-4 py-3 text-sm text-[#111827] outline-none"
-                          placeholder="关键结果名称，例如：把垃圾收拾起来"
-                        />
-                        <div className="grid grid-cols-[1fr_96px] gap-3">
-                          <input
-                            type="number"
-                            min={1}
-                            value={newContributionGoalMetricTarget}
-                            onChange={(e) => setNewContributionGoalMetricTarget(e.target.value)}
-                            className="w-full rounded-[16px] border border-[#dbe4f0] bg-white px-4 py-3 text-sm text-[#111827] outline-none"
-                            placeholder="目标次数"
-                          />
-                          <input
-                            value={newContributionGoalMetricUnit}
-                            onChange={(e) => setNewContributionGoalMetricUnit(e.target.value)}
-                            className="w-full rounded-[16px] border border-[#dbe4f0] bg-white px-4 py-3 text-sm text-[#111827] outline-none"
-                            placeholder="单位"
-                          />
-                        </div>
-                        <div className="text-xs text-[#6b7280]">百分比仍然去目标页面设置，这里只顺手创建目标、关键结果和次数。</div>
-                        <button
-                          type="button"
-                          onClick={handleCreateContributionGoal}
-                          className="w-full rounded-[16px] bg-[#0A84FF] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(10,132,255,0.2)]"
-                        >
-                          确认新建并开始填写
-                        </button>
-                      </div>
-                    </div>
-                  )}
                 </div>
 
                 {currentGoal && (
@@ -3114,7 +2429,6 @@ export default function NewTimelineView({
         const trigger = task.mandatoryReflection.trigger;
         const questions = MANDATORY_REFLECTION_QUESTIONS[trigger];
         const isReady = questions.every((question) => (mandatoryReflectionDraft[question] || '').trim().length > 0);
-        const questionCount = questions.length;
 
         return (
           <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 px-3 pt-6 backdrop-blur-sm">
@@ -3122,7 +2436,7 @@ export default function NewTimelineView({
               className="w-full max-w-md overflow-y-auto rounded-t-[28px] bg-[#fffaf7] p-4 shadow-[0_30px_80px_rgba(15,23,42,0.28)]"
               style={{
                 maxHeight: 'calc(100vh - 24px)',
-                paddingBottom: 'calc(124px + env(safe-area-inset-bottom))',
+                paddingBottom: 'calc(148px + env(safe-area-inset-bottom))',
               }}
             >
               <div className="flex items-start gap-3 rounded-[24px] border border-red-300 bg-red-50 px-4 py-4 text-red-900">
@@ -3130,7 +2444,7 @@ export default function NewTimelineView({
                 <div>
                   <div className="text-base font-bold">总部追责记录 · 必填</div>
                   <div className="mt-1 text-sm leading-6">
-                    该任务已经触发{trigger === 'start_delay' ? '启动拖延' : '严重低效率'}追责。你必须如实填写，提交后总部会永久留档，并在后续问责时根据你的回答继续深度追问；第二题会自动生成一条补救任务进入时间轴，并自动附上目标与标签。当前不允许退出、不允许跳过、不允许删除任务。
+                    该任务已经触发{trigger === 'start_delay' ? '启动拖延' : '严重低效率'}追责。你必须如实填写，提交后任务才允许继续完成；当前不允许退出、不允许跳过、不允许删除任务。
                   </div>
                 </div>
               </div>
@@ -3138,42 +2452,31 @@ export default function NewTimelineView({
               <div className="mt-4 rounded-[22px] bg-white p-4 shadow-sm">
                 <div className="text-xs uppercase tracking-[0.18em] text-[#9ca3af]">任务</div>
                 <div className="mt-2 text-lg font-semibold text-[#111827]">{task.title}</div>
-                <div className="mt-2 flex items-center justify-between gap-3 text-sm">
-                  <span className="text-[#b42318]">
-                    触发时间：{new Date(task.mandatoryReflection.triggeredAt).toLocaleString('zh-CN')}
-                  </span>
-                  <span className="rounded-full bg-[#fff1ee] px-3 py-1 text-xs font-semibold text-[#b42318]">
-                    共 {questionCount} 个问题
-                  </span>
+                <div className="mt-2 text-sm text-[#b42318]">
+                  触发时间：{new Date(task.mandatoryReflection.triggeredAt).toLocaleString('zh-CN')}
                 </div>
               </div>
 
               <div className="mt-4 space-y-4">
-                {questions.map((question, index) => {
-                  const placeholder = index === 0
-                    ? '必须如实填写你此刻实际在做什么，以及为什么没有按任务开始。总部后续会据此深度追问。'
-                    : '必须填写一个可立刻执行的补救动作。提交后会自动生成同名补救任务，并自动补上目标和标签。';
-
-                  return (
+                {questions.map((question, index) => (
                   <div key={question} className="rounded-[22px] bg-white p-4 shadow-sm">
                     <div className="text-sm font-semibold text-[#111827]">{index + 1}. {question}</div>
                     <textarea
                       value={mandatoryReflectionDraft[question] || ''}
                       onChange={(e) => setMandatoryReflectionDraft((prev) => ({ ...prev, [question]: e.target.value }))}
-                      rows={3}
+                      rows={4}
                       className="mt-3 w-full rounded-[18px] border border-[#f0d5d0] bg-[#fff7f5] px-4 py-3 text-sm text-[#111827] outline-none"
-                      placeholder={placeholder}
+                      placeholder="必须如实填写。总部后续会据此问责。"
                     />
                   </div>
-                  );
-                })}
+                ))}
               </div>
 
               <div
                 className="fixed left-1/2 z-[81] flex w-[calc(100%-24px)] max-w-md -translate-x-1/2 gap-3 rounded-t-[24px] bg-white/96 px-4 pt-3 shadow-[0_-12px_30px_rgba(15,23,42,0.08)] backdrop-blur"
                 style={{
-                  bottom: 'calc(68px + env(safe-area-inset-bottom))',
-                  paddingBottom: 'calc(10px + env(safe-area-inset-bottom))',
+                  bottom: 'calc(88px + env(safe-area-inset-bottom))',
+                  paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
                 }}
               >
                 <button
@@ -3189,17 +2492,6 @@ export default function NewTimelineView({
                     }));
                     const matchedGoals = getMatchedGoalsForTask(task);
                     const primaryGoal = matchedGoals[0];
-                    const remedialActionTitle = answers[1]?.answer || '';
-                    const remedialTaskPayload = buildRemedialTaskPayload(task, remedialActionTitle);
-                    const createdRemedialTask = remedialTaskPayload ? onTaskCreate(remedialTaskPayload) : undefined;
-                    const remedialTaskSummary = remedialTaskPayload
-                      ? {
-                          title: remedialTaskPayload.title,
-                          tags: remedialTaskPayload.tags || [],
-                          goalId: Object.keys(remedialTaskPayload.longTermGoals || {})[0],
-                          createdTaskId: createdRemedialTask && typeof createdRemedialTask === 'object' && 'id' in createdRemedialTask ? (createdRemedialTask as { id?: string }).id : undefined,
-                        }
-                      : undefined;
 
                     onTaskUpdate(task.id, {
                       mandatoryReflection: {
@@ -3211,7 +2503,7 @@ export default function NewTimelineView({
                       },
                     });
 
-                    syncReflectionToHQ(task, trigger, answers, remedialTaskSummary);
+                    syncReflectionToHQ(task, trigger, answers);
 
                     if (primaryGoal) {
                       const existingRecord = existingGoalContributionRecords.find((record) => record.taskId === task.id && record.goalId === primaryGoal.id);
@@ -3396,82 +2688,90 @@ export default function NewTimelineView({
                     <label className="text-xs font-semibold" style={{ color: isDark ? '#ffffff' : '#000000' }}>💰 金币奖励</label>
                     <button
                       onClick={async () => {
-                        const taskTitle = currentEditData.title?.trim();
-
-                        if (!taskTitle) {
+                        console.log('🎨 智能分配按钮被点击');
+                        const taskTitle = currentEditData.title;
+                        
+                        if (!taskTitle || taskTitle.trim() === '') {
                           alert('请先输入任务标题');
                           return;
                         }
-
+                        
+                        // 立即设置加载状态
                         setIsSmartAssigning(true);
-
+                        
                         try {
-                          const tagStore = useTagStore.getState();
-                          const allTags = tagStore.getAllTags().filter(tag => !tag.isDisabled);
-                          const availableTagNames = allTags.map(tag => tag.name);
-                          const learnedTags = TagLearningService.suggestTags(taskTitle)
-                            .map(item => item.tag)
-                            .filter(tag => availableTagNames.includes(tag));
-                          const storeRecommendedTags = tagStore.getRecommendedTags(taskTitle, 5)
-                            .filter(tag => availableTagNames.includes(tag));
-                          const matchedGoals = useGoalStore.getState().findMatchingGoals(taskTitle, [...learnedTags, ...storeRecommendedTags]);
+                          console.log('🤖 开始AI智能分配...');
+                          
+                          // 导入 aiService
+                          const { aiService } = await import('@/services/aiService');
+                          
+                          // 获取用户已有的标签
+                          const allTags = useTagStore.getState().getAllTags();
+                          const userTags = allTags.map(tag => tag.name);
+                          const userTagsStr = userTags.length > 0 
+                            ? `\n\n**用户已有标签（优先使用）：**\n${userTags.join('、')}\n请优先从用户已有标签中选择。`
+                            : '';
+                          
+                          const prompt = `请根据任务标题"${taskTitle}"，智能推荐以下内容（请严格按照JSON格式返回，不要有任何其他文字）：${userTagsStr}
 
-                          let aiTags: string[] = [];
-                          let aiGoal = '';
-                          let aiLocation = '';
-                          let aiGoldReward: number | undefined;
+{
+  "goldReward": 推荐的金币奖励数值（数字，范围10-500，根据任务难度和时长），
+  "tags": 推荐的标签数组（最多3个中文标签，例如：["学习", "工作"]${userTags.length > 0 ? `，优先从：${userTags.join('、')} 中选择` : ''}），
+  "goals": 推荐的关联目标（字符串，例如："月入5w"、"健康生活"），
+  "location": 推荐的位置（字符串，例如："厨房"、"卧室"、"工作区"）
+}
 
-                          try {
-                            const { aiService } = await import('@/services/aiService');
-                            const response = await aiService.chat([
-                              {
-                                role: 'system',
-                                content: '你是任务智能分配助手，必须优先参考用户历史标签、现有标签与目标，只返回JSON。',
-                              },
-                              {
-                                role: 'user',
-                                content: `任务标题：${taskTitle}\n可选标签：${availableTagNames.join('、') || '无'}\n历史偏好标签：${learnedTags.join('、') || '无'}\n系统推荐标签：${storeRecommendedTags.join('、') || '无'}\n可选目标：${goals.map(goal => goal.name).join('、') || '无'}\n请返回严格 JSON：{"goldReward":数字,"tags":["标签1","标签2"],"goal":"目标名或空字符串","location":"位置或空字符串"}`,
-                              },
-                            ]);
+**示例：**
+任务："学习英语1小时"
+返回：{"goldReward": 100, "tags": ["学习", "英语"], "goals": "提升英语水平", "location": "工作区"}
 
-                            if (response.success && response.content) {
-                              let jsonContent = response.content.trim();
-                              const fencedMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-                              if (fencedMatch) {
-                                jsonContent = fencedMatch[1].trim();
-                              }
-                              const parsed = JSON.parse(jsonContent.match(/\{[\s\S]*\}/)?.[0] || jsonContent);
-                              aiTags = Array.isArray(parsed.tags) ? parsed.tags : [];
-                              aiGoal = typeof parsed.goal === 'string' ? parsed.goal : '';
-                              aiLocation = typeof parsed.location === 'string' ? parsed.location : '';
-                              aiGoldReward = typeof parsed.goldReward === 'number' ? parsed.goldReward : undefined;
-                            }
-                          } catch (aiError) {
-                            console.warn('编辑弹窗智能分配 AI 解析失败，已回退到本地学习规则:', aiError);
+任务："洗碗"
+返回：{"goldReward": 30, "tags": ["家务", "厨房"], "goals": "保持整洁", "location": "厨房"}
+
+只返回JSON，不要其他内容。`;
+                          
+                          const response = await aiService.chat([
+                            { role: 'system', content: '你是一个任务分析助手，根据任务标题智能推荐金币奖励、标签、目标和位置。' },
+                            { role: 'user', content: prompt }
+                          ]);
+                          
+                          console.log('🤖 AI返回结果:', response);
+                          
+                          if (!response.success || !response.content) {
+                            alert(response.error || '智能分配失败，请重试');
+                            return;
                           }
-
-                          const mergedTags = Array.from(new Set([
-                            ...learnedTags,
-                            ...storeRecommendedTags,
-                            ...aiTags,
-                            ...(currentEditData.tags || []),
-                          ])).filter(tag => availableTagNames.includes(tag)).slice(0, 4);
-
-                          const matchedGoal = goals.find(goal => goal.name === aiGoal)
-                            || matchedGoals[0]
-                            || goals.find(goal => goal.name === currentEditData.goals);
-
+                          
+                          // 解析AI返回的JSON
+                          let jsonContent = response.content.trim();
+                          const jsonMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+                          if (jsonMatch) {
+                            jsonContent = jsonMatch[1].trim();
+                          } else {
+                            const braceMatch = jsonContent.match(/(\{[\s\S]*\})/);
+                            if (braceMatch) {
+                              jsonContent = braceMatch[1];
+                            }
+                          }
+                          
+                          const aiSuggestion = JSON.parse(jsonContent);
+                          console.log('✅ 解析成功:', aiSuggestion);
+                          
+                          // 自动填充表单
                           setEditedTaskData({
                             ...currentEditData,
-                            goldReward: aiGoldReward ?? currentEditData.goldReward,
-                            tags: mergedTags,
-                            goals: matchedGoal?.name || aiGoal || currentEditData.goals,
-                            location: aiLocation || currentEditData.location,
+                            goldReward: aiSuggestion.goldReward || currentEditData.goldReward,
+                            tags: aiSuggestion.tags || currentEditData.tags,
+                            goals: aiSuggestion.goals || currentEditData.goals,
+                            location: aiSuggestion.location || currentEditData.location
                           });
+                          
+                          console.log('✅ 智能分配完成');
                         } catch (error) {
                           console.error('❌ 智能分配失败:', error);
                           alert(`智能分配失败：${error instanceof Error ? error.message : '未知错误'}`);
                         } finally {
+                          // 无论成功还是失败，都要恢复按钮状态
                           setIsSmartAssigning(false);
                         }
                       }}
@@ -3753,30 +3053,22 @@ export default function NewTimelineView({
                 
                 <button
                   onClick={() => {
+                    // 保存任务数据
                     const verification = taskVerifications[editingTask];
                     const images = taskImages[editingTask];
-                    const normalizedTags = Array.from(new Set((currentEditData.tags || []).filter(Boolean)));
-                    const previousTags = task.tags || [];
-
+                    
                     onTaskUpdate(editingTask, {
                       ...currentEditData,
-                      tags: normalizedTags,
+                      // 保存验证设置
                       verificationEnabled: verification?.enabled || false,
                       startKeywords: verification?.startKeywords || [],
                       completeKeywords: verification?.completionKeywords || [],
+                      // 保存照片
                       images: images || [],
                       coverImageUrl: images && images.length > 0 ? images[0].url : undefined,
+                      // 保存计划拍照次数
                       plannedImageCount: verification?.plannedImageCount || 0,
                     });
-
-                    if (normalizedTags.length > 0) {
-                      const tagsChanged = normalizedTags.length !== previousTags.length
-                        || normalizedTags.some((tag) => !previousTags.includes(tag));
-
-                      if (tagsChanged || !task.title) {
-                        TagLearningService.learnFromUserChoice(currentEditData.title || task.title, normalizedTags);
-                      }
-                    }
                     
                     setEditingTask(null);
                     setEditedTaskData(null);
@@ -3942,7 +3234,6 @@ export default function NewTimelineView({
                          ? Math.max(0, Math.floor((actualEndTime.getTime() - new Date(taskRecord.scheduledStart).getTime()) / 60000))
                          : 0;
                        const isLowEfficiencyOvertime = actualDurationMinutes >= ((taskRecord?.durationMinutes || block.duration || 0) + LOW_EFFICIENCY_DELAY_MINUTES);
-                       const shouldRequireLowEfficiencyReflection = isLowEfficiencyOvertime && lowEfficiencyStrikeCount + 1 >= LOW_EFFICIENCY_FORM_THRESHOLD;
                        
                        // 馃敡 璁＄畻閲戝竵濂栧姳锛堟彁鍓嶅畬鎴愬鍔?0%锛塦r
                        const scheduledEndTime = new Date(block.endTime);
@@ -3968,7 +3259,7 @@ export default function NewTimelineView({
                          actualImageCount,
                          actualEndTime,
                          goldReward,
-                         forceMandatoryReflection: shouldRequireLowEfficiencyReflection,
+                         forceMandatoryReflection: isLowEfficiencyOvertime,
                        });
                        setEfficiencyModalOpen(true);
                      }}
@@ -5123,8 +4414,7 @@ export default function NewTimelineView({
           isOpen={efficiencyModalOpen}
           onClose={() => {
             if (efficiencyModalTask.forceMandatoryReflection) {
-              setEfficiencyModalOpen(false);
-              setEfficiencyModalTask(null);
+              ensureMandatoryReflection(efficiencyModalTask.id, 'low_efficiency');
               return;
             }
             setEfficiencyModalOpen(false);
@@ -5135,9 +4425,7 @@ export default function NewTimelineView({
             const actualDuration = task?.scheduledStart
               ? Math.max(0, Math.floor((efficiencyModalTask.actualEndTime.getTime() - new Date(task.scheduledStart).getTime()) / 60000))
               : (task?.durationMinutes || 0);
-            const isCurrentLowEfficiency = actualDuration >= ((task?.durationMinutes || 0) + LOW_EFFICIENCY_DELAY_MINUTES);
-            const shouldRequireLowEfficiencyReflection = isCurrentLowEfficiency && (lowEfficiencyStrikeCount + 1 >= LOW_EFFICIENCY_FORM_THRESHOLD);
-            const nextLowEfficiencyStrikeCount = isCurrentLowEfficiency ? lowEfficiencyStrikeCount + 1 : 0;
+            const shouldRequireLowEfficiencyReflection = !!efficiencyModalTask.forceMandatoryReflection;
 
             if (shouldRequireLowEfficiencyReflection) {
               onTaskUpdate(efficiencyModalTask.id, {
@@ -5151,13 +4439,11 @@ export default function NewTimelineView({
                 completionTimeout: taskFinishTimeouts[efficiencyModalTask.id],
               });
 
-              setLowEfficiencyStrikeCount(nextLowEfficiencyStrikeCount);
               setEfficiencyModalOpen(false);
               ensureMandatoryReflection(efficiencyModalTask.id, 'low_efficiency');
               return;
             }
 
-            setLowEfficiencyStrikeCount(nextLowEfficiencyStrikeCount);
             updateTaskEfficiency(
               efficiencyModalTask.id,
               efficiency,
@@ -5215,7 +4501,8 @@ export default function NewTimelineView({
             onClose={() => {
               const currentTask = allTasks.find((item) => item.id === editingTask);
               if (isMandatoryReflectionPending(currentTask)) {
-                alert('该任务已触发强制追责表单，请在启动任务或完成任务时先提交后再继续。');
+                alert('该任务已触发强制追责表单，提交前不能直接关闭。');
+                openMandatoryReflection(editingTask, currentTask?.mandatoryReflection?.trigger || 'low_efficiency');
                 return;
               }
               setEditingTask(null);
@@ -5227,7 +4514,8 @@ export default function NewTimelineView({
             onDelete={(taskId) => {
               const currentTask = allTasks.find((item) => item.id === taskId);
               if (isMandatoryReflectionPending(currentTask)) {
-                alert('该任务已触发强制追责表单，请在启动任务或完成任务时先提交后再继续。');
+                alert('该任务已触发强制追责表单，提交前禁止删除任务。');
+                openMandatoryReflection(taskId, currentTask?.mandatoryReflection?.trigger || 'low_efficiency');
                 return;
               }
               if (onTaskDelete) {
