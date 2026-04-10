@@ -86,7 +86,6 @@ export default function InboxPanel({ isDark = false, bgColor = '#ffffff' }: Inbo
   // 智能分析任务（识别持续时间和金币）
   const analyzeTask = (title: string): { duration: number; goldReward: number } => {
     let duration = 30; // 默认30分钟
-    let goldReward = 50; // 默认50金币
 
     // 识别时间关键词
     if (title.includes('小时') || title.includes('hour')) {
@@ -97,17 +96,7 @@ export default function InboxPanel({ isDark = false, bgColor = '#ffffff' }: Inbo
       if (match) duration = parseInt(match[1]);
     }
 
-    // 根据关键词判断任务类型和金币
-    if (title.includes('学习') || title.includes('阅读') || title.includes('练习')) {
-      goldReward = 80;
-    } else if (title.includes('工作') || title.includes('报告') || title.includes('会议')) {
-      goldReward = 100;
-    } else if (title.includes('运动') || title.includes('健身')) {
-      goldReward = 60;
-    }
-
-    // 根据时长调整金币
-    goldReward = Math.floor(goldReward * (duration / 30));
+    const goldReward = Math.round(duration / 30) * 100;
 
     return { duration, goldReward };
   };

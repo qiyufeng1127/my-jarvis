@@ -98,8 +98,18 @@ export const useTaskStore = create<TaskState>()(
         ? Array.from(new Set([...(taskData.identityTags || []), 'system:backfill-record']))
         : (taskData.identityTags || []);
       const taskTitle = taskData.title || '';
-      const taskTags = taskData.tags || [];
-      const taskGoldReward = isBackfillRecord ? 0 : (taskData.goldReward || 0);
+      const taskDescription = taskData.description || '';
+      const { smartCalculateGoldReward } = await import('@/utils/goldCalculator');
+      const { useTagStore } = await import('@/stores/tagStore');
+      const tagStore = useTagStore.getState();
+      const taskTags = tagStore.resolveAutoTags(`${taskTitle} ${taskDescription}`.trim(), taskData.tags || [], 3);
+      const autoGoldReward = smartCalculateGoldReward(
+        taskData.durationMinutes || 30,
+        taskData.taskType || 'work',
+        taskTags,
+        taskTitle
+      );
+      const taskGoldReward = isBackfillRecord ? 0 : (taskData.goldReward ?? autoGoldReward);
       
       const newTask: Task = {
         id: crypto.randomUUID(),
@@ -133,6 +143,10 @@ export const useTaskStore = create<TaskState>()(
       set((state) => ({
         tasks: [...state.tasks, newTask],
       }));
+
+      if (taskTags.length > 0) {
+        tagStore.learnTagSelection(`${taskTitle} ${taskDescription}`.trim(), taskTags);
+      }
       
       // 记录用户活动（添加任务）
       const { activityMonitorService } = await import('@/services/activityMonitorService');
@@ -153,9 +167,29 @@ export const useTaskStore = create<TaskState>()(
       const existingTask = get().tasks.find((t) => t.id === id);
       if (!existingTask) return;
 
+      const nextTitle = updates.title ?? existingTask.title;
+      const nextDescription = updates.description ?? existingTask.description ?? '';
+      const shouldRefreshTags = Array.isArray(updates.tags) || updates.title !== undefined || updates.description !== undefined;
+      let nextTags = updates.tags ?? existingTask.tags ?? [];
+
+      if (shouldRefreshTags) {
+        const { useTagStore } = await import('@/stores/tagStore');
+        const tagStore = useTagStore.getState();
+        nextTags = tagStore.resolveAutoTags(`${nextTitle} ${nextDescription}`.trim(), nextTags, 3);
+
+        if (nextTags.length > 0) {
+          tagStore.learnTagSelection(
+            `${nextTitle} ${nextDescription}`.trim(),
+            nextTags,
+            existingTask.tags || []
+          );
+        }
+      }
+
       const updatedTask = {
         ...existingTask,
         ...updates,
+        tags: nextTags,
         updatedAt: new Date(),
       } as Task;
       
@@ -372,7 +406,7 @@ export const useTaskStore = create<TaskState>()(
     // 更新金币余额
     const { useGoldStore } = await import('@/stores/goldStore');
     const goldStore = useGoldStore.getState();
-    goldStore.addGold(finalGold, 'task_completion', taskId, task.title);
+    goldStore.addGold(finalGold, 'task_completion', taskId, task.title, `task-completion:${taskId}`);
     
     // 同步到标签统计
     const { tagSyncService } = await import('@/services/tagSyncService');

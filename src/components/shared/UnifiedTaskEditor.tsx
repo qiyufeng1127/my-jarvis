@@ -2,9 +2,8 @@ import { useState, useRef } from 'react';
 import { X, ChevronUp, ChevronDown, Clock, Coins, Plus, MapPin, Settings, ArrowUp, ArrowDown, Calendar } from 'lucide-react';
 import { useGoalStore } from '@/stores/goalStore';
 import { useWorkflowStore } from '@/stores/workflowStore';
-import { useTagStore, type TagData } from '@/stores/tagStore';
+import { useTagStore } from '@/stores/tagStore';
 import { useKeyboardAvoidance } from '@/hooks';
-import { TagLearningService } from '@/services/tagLearningService';
 import { AISmartProcessor } from '@/services/aiSmartService';
 
 interface UnifiedTaskEditorProps {
@@ -47,77 +46,19 @@ export default function UnifiedTaskEditor({
   onConfirm,
   isDark = false 
 }: UnifiedTaskEditorProps) {
-  const { addTag, getTagByName, addTagToFolder, getAllFolders, getAllTags, resolveAutoTags } = useTagStore();
+  const { addTag, getTagByName, addTagToFolder, getAllFolders, resolveAutoTags, learnTagSelection } = useTagStore();
   const scrollRef = useRef<HTMLDivElement>(null);
   const { handleFocusCapture, scrollIntoSafeView } = useKeyboardAvoidance(scrollRef);
 
-  const pickSmartTags = (taskTitle: string, existingTags: string[] = []) => {
-    const resolvedExistingTags = resolveAutoTags(taskTitle, existingTags, 3);
-    if (resolvedExistingTags.length > 0) {
-      return resolvedExistingTags;
-    }
-
-    const activeTags = getAllTags()
-      .filter((tag: TagData) => !tag.isDisabled)
-      .sort((a: TagData, b: TagData) => b.usageCount - a.usageCount);
-
-    const activeTagNames = new Set(activeTags.map((tag: TagData) => tag.name));
-    const learnedTags = useTagStore.getState().getRecommendedTags(taskTitle, 5);
-    const normalizedTitle = taskTitle.toLowerCase();
-    const matches = activeTags.filter((tag: TagData) => {
-      const normalizedTag = tag.name.toLowerCase();
-      return normalizedTitle.includes(normalizedTag) || normalizedTag.includes(normalizedTitle);
-    });
-
-    const fallbackKeywordMap: Array<{ keyword: string; tags: string[] }> = [
-      { keyword: '洗', tags: ['洗漱', '清洁', '家务'] },
-      { keyword: '刷牙', tags: ['洗漱', '清洁'] },
-      { keyword: '洗澡', tags: ['洗漱', '清洁'] },
-      { keyword: '衣', tags: ['洗衣', '家务'] },
-      { keyword: '收拾', tags: ['整理', '家务'] },
-      { keyword: '整理', tags: ['整理', '家务'] },
-      { keyword: '打扫', tags: ['清洁', '家务'] },
-      { keyword: '厨房', tags: ['做饭', '日常'] },
-      { keyword: '做饭', tags: ['做饭', '日常'] },
-      { keyword: '吃饭', tags: ['吃饭', '日常'] },
-      { keyword: '工作', tags: ['工作'] },
-      { keyword: '写', tags: ['工作', '创作'] },
-      { keyword: '画', tags: ['创作', '插画'] },
-      { keyword: '拍', tags: ['拍摄', '工作'] },
-      { keyword: '学习', tags: ['学习'] },
-      { keyword: '运动', tags: ['运动', '健康'] },
-      { keyword: '睡', tags: ['休息', '睡眠'] },
-      { keyword: '吃药', tags: ['健康'] },
-    ];
-
-    const keywordTags = resolveAutoTags(
-      taskTitle,
-      fallbackKeywordMap
-        .filter(({ keyword }) => normalizedTitle.includes(keyword))
-        .flatMap(({ tags }) => tags),
-      3
-    );
-
-    const preferredTags = [
-      ...learnedTags,
-      ...matches.map((tag: TagData) => tag.name),
-      ...keywordTags,
-      ...existingTags.filter(tagName => activeTagNames.has(tagName)),
-    ];
-    const smartTags = dedupeTags(preferredTags).slice(0, 3);
-
-    if (smartTags.length > 0) {
-      return smartTags;
-    }
-
-    return [];
+  const pickSmartTags = (taskTitle: string, existingTags: string[] = [], noteText = '') => {
+    return resolveAutoTags(`${taskTitle} ${noteText}`.trim(), existingTags, 3);
   };
 
   const normalizeTaskDraft = (task: any, fallbackIndex: number) => {
     const { title, note } = splitTaskTitleAndNote(task.title || task.description || '');
     const smartTitle = title || `任务${fallbackIndex + 1}`;
     const noteText = note || (task.note || '').trim();
-    const smartTags = pickSmartTags(smartTitle, Array.isArray(task.tags) ? task.tags : []);
+    const smartTags = pickSmartTags(smartTitle, Array.isArray(task.tags) ? task.tags : [], noteText);
 
     return {
       ...task,
@@ -317,7 +258,7 @@ export default function UnifiedTaskEditor({
       
       // 重新推断所有属性
       newTasks[index].location = AISmartProcessor.inferLocation(safeTitle);
-      newTasks[index].tags = pickSmartTags(safeTitle, newTasks[index].tags);
+      newTasks[index].tags = pickSmartTags(safeTitle, newTasks[index].tags, newTasks[index].description || newTasks[index].note || '');
       newTasks[index].task_type = AISmartProcessor.inferTaskType(safeTitle);
       newTasks[index].category = AISmartProcessor.inferCategory(safeTitle);
       newTasks[index].goal = AISmartProcessor.identifyGoal(safeTitle);
@@ -332,8 +273,8 @@ export default function UnifiedTaskEditor({
       
       console.log(`🔄 自动更新: 位置=${newTasks[index].location}, 标签=${newTasks[index].tags.join(',')}, 颜色=${newTasks[index].color}, 时长=${newDuration}分钟, 金币=${newTasks[index].gold}`);
       
-      // 🎓 标签学习：记录用户修改后的标签
-      TagLearningService.learnFromUserChoice(safeTitle, newTasks[index].tags);
+      // 记录统一标签学习
+      learnTagSelection(`${safeTitle} ${newTasks[index].description || newTasks[index].note || ''}`.trim(), newTasks[index].tags);
       
       // 🏷️ 自动同步标签到标签管理系统
       syncTagsToStore(newTasks[index].tags);
@@ -465,6 +406,10 @@ export default function UnifiedTaskEditor({
 
   const handleConfirm = async () => {
     console.log('🚀 [推送到时间轴] 开始推送任务...');
+
+    editingTasks.forEach(task => {
+      learnTagSelection(`${task.title || ''} ${task.description || task.note || ''}`.trim(), Array.isArray(task.tags) ? task.tags : []);
+    });
     
     // 添加新目标到长期目标系统
     for (const task of editingTasks) {

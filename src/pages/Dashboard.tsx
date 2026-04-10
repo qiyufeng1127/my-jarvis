@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
 import FloatingAIChat from '@/components/ai/FloatingAIChat';
@@ -9,7 +9,6 @@ import { taskMonitorService } from '@/services/taskMonitorService';
 import { backgroundTaskScheduler } from '@/services/backgroundTaskScheduler';
 
 export default function Dashboard() {
-  const tasks = useTaskStore((state) => state.tasks);
   const loadTasks = useTaskStore((state) => state.loadTasks);
   const updateTask = useTaskStore((state) => state.updateTask);
   const createTask = useTaskStore((state) => state.createTask);
@@ -19,11 +18,6 @@ export default function Dashboard() {
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [isAISmartOpen, setIsAISmartOpen] = useState(false);
   const [currentModule, setCurrentModule] = useState<string>('timeline'); // 跟踪当前模块
-
-  const scheduledTasks = useMemo(
-    () => tasks.filter((task) => task.scheduledStart && task.scheduledEnd),
-    [tasks]
-  );
 
   useEffect(() => {
     document.title = 'ManifestOS - 主控面板';
@@ -123,7 +117,6 @@ export default function Dashboard() {
             {/* 日历内容 */}
             <div className="flex-1 overflow-hidden">
               <TimelineCalendar
-                tasks={tasks}
                 onTaskUpdate={updateTask}
                 onTaskCreate={createTask}
                 onTaskDelete={deleteTask}

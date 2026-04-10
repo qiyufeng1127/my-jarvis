@@ -91,14 +91,7 @@ function App() {
           console.warn('⚠️ 后台任务调度服务启动失败:', err);
         }
         
-        // 🎯 启动活动监控服务（替代每日成本检查）
-        try {
-          const { activityMonitorService } = await import('@/services/activityMonitorService');
-          activityMonitorService.start();
-          console.log('🎯 活动监控服务已启动');
-        } catch (err) {
-          console.warn('⚠️ 活动监控服务启动失败:', err);
-        }
+        // 🎯 活动监控服务已停用，避免自动触发界面弹窗
         
         // 🔔 启动连胜提醒服务
         try {

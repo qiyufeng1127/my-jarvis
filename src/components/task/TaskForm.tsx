@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X, Calendar, Clock, Target, Zap } from 'lucide-react';
 import { Button, Input, Modal } from '@/components/ui';
 import { TASK_TYPE_CONFIG } from '@/constants';
+import { useTagStore } from '@/stores/tagStore';
 import type { Task, TaskType } from '@/types';
 
 interface TaskFormProps {
@@ -12,6 +13,7 @@ interface TaskFormProps {
 }
 
 export default function TaskForm({ isOpen, onClose, onSubmit, initialData }: TaskFormProps) {
+  const { resolveAutoTags } = useTagStore();
   const [formData, setFormData] = useState<Partial<Task>>(
     initialData || {
       title: '',
@@ -24,7 +26,11 @@ export default function TaskForm({ isOpen, onClose, onSubmit, initialData }: Tas
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    const resolvedTags = resolveAutoTags(`${formData.title || ''} ${formData.description || ''}`.trim(), formData.tags || [], 3);
+    onSubmit({
+      ...formData,
+      tags: resolvedTags,
+    });
     onClose();
   };
 

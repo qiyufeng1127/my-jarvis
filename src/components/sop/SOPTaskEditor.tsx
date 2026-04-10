@@ -12,11 +12,10 @@ interface SOPTaskEditorProps {
 
 export default function SOPTaskEditor({ taskId, folderId, onClose }: SOPTaskEditorProps) {
   const { getTaskById, createTask, updateTask } = useSOPStore();
-  const { getAllTags } = useTagStore();
+  const { resolveAutoTags, learnTagSelection } = useTagStore();
   const { goals } = useGoalStore();
   
   const task = taskId ? getTaskById(taskId) : null;
-  const allTags = getAllTags();
   
   // 基础信息
   const [title, setTitle] = useState(task?.title || '');
@@ -26,7 +25,9 @@ export default function SOPTaskEditor({ taskId, folderId, onClose }: SOPTaskEdit
   const [location, setLocation] = useState(task?.location || '');
   
   // 标签
-  const [selectedTags, setSelectedTags] = useState<string[]>(task?.tags || []);
+  const [selectedTags, setSelectedTags] = useState<string[]>(
+    task?.tags || resolveAutoTags(`${task?.title || ''} ${task?.description || ''}`.trim(), [], 3)
+  );
   const [newTag, setNewTag] = useState('');
   
   // 关联目标
@@ -46,6 +47,16 @@ export default function SOPTaskEditor({ taskId, folderId, onClose }: SOPTaskEdit
     task?.verificationComplete?.requirement || ''
   );
   
+  useEffect(() => {
+    const autoTags = resolveAutoTags(`${title} ${description}`.trim(), selectedTags, 3);
+    setSelectedTags(prev => {
+      const manualOnly = prev.filter(tag => !autoTags.includes(tag));
+      return [...autoTags, ...manualOnly].slice(0, 3);
+    });
+  }, [title, description, resolveAutoTags]);
+
+  const autoSuggestedTags = resolveAutoTags(`${title} ${description}`.trim(), selectedTags, 3);
+
   const handleAddTag = () => {
     if (newTag.trim() && !selectedTags.includes(newTag.trim())) {
       setSelectedTags([...selectedTags, newTag.trim()]);
@@ -85,6 +96,8 @@ export default function SOPTaskEditor({ taskId, folderId, onClose }: SOPTaskEdit
       alert('无效的文件夹');
       return;
     }
+
+    learnTagSelection(`${title} ${description}`.trim(), selectedTags);
     
     const taskData = {
       title,
@@ -223,6 +236,17 @@ export default function SOPTaskEditor({ taskId, folderId, onClose }: SOPTaskEdit
               >
                 <Plus size={20} />
               </button>
+            </div>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {autoSuggestedTags.map(tag => (
+                <button
+                  key={`auto-${tag}`}
+                  onClick={() => !selectedTags.includes(tag) && setSelectedTags([...selectedTags, tag].slice(0, 3))}
+                  className="px-3 py-1 rounded-full text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                >
+                  推荐 #{tag}
+                </button>
+              ))}
             </div>
             <div className="flex flex-wrap gap-2">
               {selectedTags.map(tag => (

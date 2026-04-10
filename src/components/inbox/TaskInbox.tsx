@@ -541,7 +541,7 @@ export default function TaskInbox({ isDark = false, bgColor = '#ffffff' }: TaskI
                 title: task.title,
                 description: task.description || '',
                 durationMinutes: task.estimated_duration || 30,
-                goldReward: task.gold || Math.floor((task.estimated_duration || 30) * 1.5),
+                goldReward: Math.round((task.estimated_duration || 30) / 30) * 100,
                 scheduledStart,
                 scheduledEnd: new Date(scheduledStart.getTime() + (task.estimated_duration || 30) * 60000),
                 taskType: task.task_type || 'life',

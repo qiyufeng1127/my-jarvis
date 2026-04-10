@@ -176,9 +176,10 @@ export function calculateActualGoldReward(
 
   // 金币倍率：普通任务10，站立任务15
   const ratePerMinute = posture === 'standing' ? 15 : 10;
+  const effectiveMinutes = Math.min(actualMinutes, estimatedMinutes);
   
-  // 基础金币：实际完成时长（分钟） × 倍率
-  const baseGold = Math.round(actualMinutes * ratePerMinute);
+  // 基础金币：按实际完成时长与计划时长取较小值
+  const baseGold = Math.round(effectiveMinutes * ratePerMinute);
   
   let finalGold = baseGold;
   let penalty = 0;
@@ -188,15 +189,13 @@ export function calculateActualGoldReward(
   const isHistoricalTask = taskStartTime && taskStartTime < new Date();
   
   if (isHistoricalTask) {
-    // 补录历史任务：不计算拖延，直接给予全额金币
+    // 补录历史任务：按实际完成时长与计划时长取较小值
     finalGold = baseGold;
-    reason = `补录历史任务（${actualMinutes}分钟），获得全额金币`;
+    reason = `补录历史任务（按${effectiveMinutes}分钟结算），获得${finalGold}金币`;
   } else if (actualMinutes > estimatedMinutes) {
-    // 判断是否超时完成（实际时长 > 预计时长）
-    // 超时完成：直接返回 0 金币（无奖励）
-    finalGold = 0;
-    penalty = baseGold;
-    reason = `任务超时完成（实际${actualMinutes}分钟 > 预计${estimatedMinutes}分钟），无金币奖励`;
+    // 超时完成：只按计划时长计算，不额外增加金币
+    finalGold = baseGold;
+    reason = `任务超时完成（实际${actualMinutes}分钟 > 计划${estimatedMinutes}分钟），按计划时长${estimatedMinutes}分钟结算`;
   } else if (startVerificationTimeout) {
     // 启动验证超时：扣除 30% 金币
     penalty = Math.round(baseGold * 0.3);

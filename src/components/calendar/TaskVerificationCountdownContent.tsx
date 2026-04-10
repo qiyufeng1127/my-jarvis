@@ -48,6 +48,10 @@ export default function TaskVerificationCountdownContent({
   onTimeoutUpdate,
 }: TaskVerificationCountdownContentProps) {
   const { penaltyGold, addGold } = useGoldStore();
+  const buildTransactionKey = useCallback(
+    (type: string, uniquePart: string) => `${taskId}:${type}:${uniquePart}`,
+    [taskId]
+  );
   
   // 持久化key
   const storageKey = `countdown_${taskId}`;
@@ -205,7 +209,13 @@ export default function TaskVerificationCountdownContent({
         // 扣除所有错过的金币
         const penaltyPerTimeout = Math.floor(goldReward * 0.2);
         const totalPenalty = penaltyPerTimeout * missedTimeouts;
-        penaltyGold(totalPenalty, `启动拖延（后台累计${missedTimeouts}次）`, taskId, taskTitle);
+        penaltyGold(
+          totalPenalty,
+          `启动拖延（后台累计${missedTimeouts}次）`,
+          taskId,
+          taskTitle,
+          buildTransactionKey('background-start-delay', `${start.toISOString()}:${missedTimeouts}`)
+        );
         
         // 触发拖延通知和语音播报
         notificationService.notifyProcrastination(taskTitle, missedTimeouts);
@@ -287,7 +297,13 @@ export default function TaskVerificationCountdownContent({
       }
       
       const penaltyAmount = Math.floor(goldReward * 0.2);
-      penaltyGold(penaltyAmount, `启动超时（第${state.startTimeoutCount + 1}次）`, taskId, taskTitle);
+      penaltyGold(
+        penaltyAmount,
+        `启动超时（第${state.startTimeoutCount + 1}次）`,
+        taskId,
+        taskTitle,
+        buildTransactionKey('start-timeout', state.startDeadline)
+      );
       console.log(`⚠️ 启动超时！扣除${penaltyAmount}金币（${state.startTimeoutCount + 1}次）`);
       
       // 🔧 标记这个deadline已经扣过币了
@@ -329,7 +345,13 @@ export default function TaskVerificationCountdownContent({
       }
       
       const penaltyAmount = Math.floor(goldReward * 0.2);
-      penaltyGold(penaltyAmount, `完成超时（第${state.completeTimeoutCount + 1}次）`, taskId, taskTitle);
+      penaltyGold(
+        penaltyAmount,
+        `完成超时（第${state.completeTimeoutCount + 1}次）`,
+        taskId,
+        taskTitle,
+        buildTransactionKey('complete-timeout', state.taskDeadline)
+      );
       console.log(`⚠️ 完成超时！扣除${penaltyAmount}金币（${state.completeTimeoutCount + 1}次）`);
       
       // 🔧 标记这个deadline已经扣过币了
@@ -636,7 +658,13 @@ export default function TaskVerificationCountdownContent({
       if (isWithinStartWindow) {
         // 2分钟内完成启动，奖励50%金币
         const bonusGold = Math.floor(goldReward * 0.5);
-        addGold(bonusGold, `按时启动任务（奖励50%）`, taskId, taskTitle);
+        addGold(
+          bonusGold,
+          `按时启动任务（奖励50%）`,
+          taskId,
+          taskTitle,
+          buildTransactionKey('start-on-time-no-verification', now.toISOString())
+        );
         console.log(`✅ 按时启动任务，获得${bonusGold}金币奖励`);
       } else {
         // 提前启动或普通启动，无拖延惩罚
@@ -790,7 +818,16 @@ export default function TaskVerificationCountdownContent({
         addLog('❌ 验证失败: ' + (verifyResult.message || '未匹配到关键词'));
         
         const penaltyAmount = Math.floor(goldReward * 0.2);
-        penaltyGold(penaltyAmount, `${isStartVerification ? '启动' : '完成'}验证失败`, taskId, taskTitle);
+        penaltyGold(
+          penaltyAmount,
+          `${isStartVerification ? '启动' : '完成'}验证失败`,
+          taskId,
+          taskTitle,
+          buildTransactionKey(
+            isStartVerification ? 'start-verify-fail' : 'complete-verify-fail',
+            `${state.status}:${state.startTimeoutCount}:${state.completeTimeoutCount}`
+          )
+        );
         addLog(`💸 扣除${penaltyAmount}金币`);
         
         // 返回倒计时
@@ -836,7 +873,13 @@ export default function TaskVerificationCountdownContent({
         
         // 奖励金币
         const bonusGold = Math.floor(goldReward * 0.5);
-        addGold(bonusGold, `按时启动任务`, taskId, taskTitle);
+        addGold(
+          bonusGold,
+          `按时启动任务`,
+          taskId,
+          taskTitle,
+          buildTransactionKey('start-bonus', now.toISOString())
+        );
         addLog(`💰 获得${bonusGold}金币`);
         
         // 触发通知
@@ -875,7 +918,13 @@ export default function TaskVerificationCountdownContent({
         
         if (isEarly) {
           const bonusGold = Math.floor(goldReward * 0.5);
-          addGold(bonusGold, `提前完成任务`, taskId, taskTitle);
+          addGold(
+            bonusGold,
+            `提前完成任务`,
+            taskId,
+            taskTitle,
+            buildTransactionKey('early-complete-bonus', now.toISOString())
+          );
           addLog(`💰 提前完成，获得${bonusGold}金币`);
           
           // 显示庆祝特效
@@ -934,7 +983,16 @@ export default function TaskVerificationCountdownContent({
       
       // 扣除金币
       const penaltyAmount = Math.floor(goldReward * 0.2);
-      penaltyGold(penaltyAmount, `${isStartVerification ? '启动' : '完成'}验证异常`, taskId, taskTitle);
+      penaltyGold(
+        penaltyAmount,
+        `${isStartVerification ? '启动' : '完成'}验证异常`,
+        taskId,
+        taskTitle,
+        buildTransactionKey(
+          isStartVerification ? 'start-verify-error' : 'complete-verify-error',
+          `${state.status}:${state.startTimeoutCount}:${state.completeTimeoutCount}`
+        )
+      );
       addLog(`💸 扣除${penaltyAmount}金币`);
       
       // 返回倒计时
@@ -988,7 +1046,13 @@ export default function TaskVerificationCountdownContent({
       
       if (isEarly) {
         const bonusGold = Math.floor(goldReward * 0.5);
-        addGold(bonusGold, `提前完成任务（奖励50%）`, taskId, taskTitle);
+        addGold(
+          bonusGold,
+          `提前完成任务（奖励50%）`,
+          taskId,
+          taskTitle,
+          buildTransactionKey('early-complete-no-verification', now.toISOString())
+        );
         console.log(`✅ 提前完成任务，获得${bonusGold}金币奖励`);
         
         // 显示庆祝特效

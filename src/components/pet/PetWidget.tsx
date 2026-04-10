@@ -1,17 +1,8 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { usePetStore } from '@/stores/petStore';
 
 export const PetWidget: React.FC = () => {
-  const { currentPet, feedPet, playWithPet, healPet, updatePetStatus } = usePetStore();
-
-  useEffect(() => {
-    // 定期更新宠物状态
-    const interval = setInterval(() => {
-      updatePetStatus();
-    }, 60000); // 每分钟更新一次
-
-    return () => clearInterval(interval);
-  }, [updatePetStatus]);
+  const { currentPet, feedPet, playWithPet, healPet } = usePetStore();
 
   if (!currentPet) {
     return (

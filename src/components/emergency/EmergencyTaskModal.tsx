@@ -6,6 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import { useEmergencyTaskStore } from '@/stores/emergencyTaskStore';
 import { useTaskStore } from '@/stores/taskStore';
+import { useTagStore } from '@/stores/tagStore';
 import { activityMonitorService } from '@/services/activityMonitorService';
 import { AlertCircle, RefreshCw, X, Camera, CheckCircle } from 'lucide-react';
 import { baiduImageRecognition } from '@/services/baiduImageRecognition';
@@ -17,6 +18,7 @@ interface EmergencyTaskModalProps {
 export default function EmergencyTaskModal({ enableVoice = false }: EmergencyTaskModalProps) {
   const { currentTask, completeCurrentTask, failCurrentTask, replaceCurrentTask } = useEmergencyTaskStore();
   const { createTask } = useTaskStore();
+  const { resolveAutoTags } = useTagStore();
   
   const [isVisible, setIsVisible] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -92,6 +94,11 @@ export default function EmergencyTaskModal({ enableVoice = false }: EmergencyTas
 
     // 1. 创建事件卡片
     const now = new Date();
+    const resolvedTags = resolveAutoTags(
+      `${currentTask.title} ${currentTask.description || ''}`.trim(),
+      ['紧急任务'],
+      3
+    );
     createTask({
       title: `🚨 ${currentTask.title}`,
       description: currentTask.description || '紧急任务',
@@ -101,7 +108,7 @@ export default function EmergencyTaskModal({ enableVoice = false }: EmergencyTas
       scheduledEnd: now,
       actualStart: now,
       actualEnd: now,
-      tags: ['紧急任务'],
+      tags: resolvedTags,
       priority: 1, // 最高优先级
       durationMinutes: 0,
       growthDimensions: {},

@@ -15,7 +15,6 @@ import {
   type TaskVerification
 } from '@/services/taskVerificationService';
 import TaskVerificationDialog from './TaskVerificationDialog';
-import TaskStatusIndicator from './TaskStatusIndicator';
 import NowTimeline from './NowTimeline';
 import { useAIStore } from '@/stores/aiStore';
 import { useGoldStore } from '@/stores/goldStore';
@@ -111,6 +110,7 @@ export default function NewTimelineView({
   
   // 使用任务store
   const updateTaskEfficiency = useTaskStore(state => state.updateTaskEfficiency);
+  const completeTaskFromStore = useTaskStore(state => state.completeTask);
   
   // 效率模态框状态
   const [efficiencyModalOpen, setEfficiencyModalOpen] = useState(false);
@@ -1107,17 +1107,12 @@ export default function NewTimelineView({
         // 如果达到目标数量，自动完成任务
         if (newCount >= targetCount) {
           console.log('🎉 照片任务已完成！');
-          
-          // 计算金币奖励 - 使用新的金币计算器
-          const duration = task.durationMinutes || 60;
-          const posture = smartDetectTaskPosture(task.taskType, task.tags, task.title);
-          const goldReward = task.goldReward || calculateGoldReward(duration, posture);
-          
-          // 添加金币
-          addGold(goldReward, `完成任务：${task.title}`, taskId, task.title);
-          
+
+          const completionResult = await completeTaskFromStore(taskId);
+          const earnedGold = completionResult?.goldEarned || 0;
+
           // 显示庆祝效果
-          setCelebrationGold(goldReward);
+          setCelebrationGold(earnedGold);
           setShowCelebration(true);
           
           // 播放音效
@@ -1125,7 +1120,7 @@ export default function NewTimelineView({
           SoundEffects.playCoinSound();
           
           // 语音提示
-          VoiceReminder.congratulateCompletion(task.title, goldReward);
+          VoiceReminder.congratulateCompletion(task.title, earnedGold);
           
           // 更新任务状态为完成
           onTaskUpdate(taskId, { status: 'completed', isCompleted: true });
@@ -1705,10 +1700,7 @@ export default function NewTimelineView({
           SoundEffects.playSuccessSound();
           SoundEffects.playCoinSound();
           
-          // 添加金币
-          addGold(finalGold, `完成任务：${task.title}${bonusMessage}`, taskId, task.title);
-          
-          // 显示庆祝效果
+          // 显示庆祝效果（金币已由统一结算入口处理，这里只展示）
           setCelebrationGold(finalGold);
           setShowCelebration(true);
           
@@ -1805,8 +1797,8 @@ export default function NewTimelineView({
       const now = new Date();
       const actualDuration = Math.floor((now.getTime() - actualStartTime.getTime()) / 60000);
       
-      const goldReward = task.goldReward || Math.floor((task.durationMinutes || 60) * 0.8);
-      addGold(goldReward, `完成任务：${task.title}`, taskId, task.title);
+      const completionResult = await completeTaskFromStore(taskId);
+      const goldReward = completionResult?.goldEarned || 0;
       setCelebrationGold(goldReward);
       setShowCelebration(true);
       SoundEffects.playSuccessSound();
@@ -1959,10 +1951,8 @@ export default function NewTimelineView({
       const now = new Date();
       const actualDuration = Math.floor((now.getTime() - actualStartTime.getTime()) / 60000);
       
-      const goldReward = task.goldReward || Math.floor((task.durationMinutes || 60) * 0.8);
-      
-      // 添加金币
-      addGold(goldReward, `完成任务：${task.title}`, taskId, task.title);
+      const completionResult = await completeTaskFromStore(taskId);
+      const goldReward = completionResult?.goldEarned || 0;
       
       // 显示庆祝效果
       setCelebrationGold(goldReward);
@@ -3839,19 +3829,7 @@ export default function NewTimelineView({
                           return null;
                         })()}
                         
-                        {/* 状态指示器 */}
-                        {block.status === 'in_progress' && (
-                          <div className="mb-1">
-                            <TaskStatusIndicator
-                              status={block.status}
-                              taskTitle={block.title}
-                              taskColor={block.color}
-                              isProcrastinating={taskVerifications[block.id]?.isProcrastinating}
-                              isLowEfficiency={taskVerifications[block.id]?.isLowEfficiency}
-                            />
-                          </div>
-                        )}
-                        
+
                         <div className={`${isMobile ? 'text-[9px]' : 'text-xs'} opacity-90`}>
                           {block.goalText}
                           {block.isCompleted && (block.sourceBadges || []).includes('总部联动') && (
@@ -3947,30 +3925,7 @@ export default function NewTimelineView({
                               </button>
                             )}
                             
-                            {taskVerifications[block.id]?.status === 'started' && !block.isCompleted && (
-                              <div 
-                                className={` rounded-full font-bold`}
-                                style={{ 
-                                  backgroundColor: 'rgba(34,197,94,0.3)',
-                                  color: 'rgba(255,255,255,0.95)',
-                                }}
-                              >
-                                鉁呭凡鍚姩
-                              </div>
-                            )}
-                            
-                            {block.status === 'in_progress' && (
-                              <div 
-                                className="px-2 py-0.5 text-xs rounded-full font-bold"
-                                style={{ 
-                                  backgroundColor: 'rgba(34,197,94,0.3)',
-                                  color: 'rgba(255,255,255,0.95)',
-                                }}
-                              >
-                                进行中
-                              </div>
-                            )}
-                            
+
                             <button
                               onClick={() => {
                                 const taskData = allTasks.find(t => t.id === block.id);
@@ -4354,29 +4309,6 @@ export default function NewTimelineView({
                         </button>
                       )}
                        
-                       {/* 宸插惎鍔ㄦ爣璇?*/}
-                       {taskVerifications[block.id]?.status === 'started' && !block.isCompleted && (
-                         <div 
-                           className="px-4 py-1.5 rounded-full font-bold text-sm"
-                           style={{ 
-                             backgroundColor: 'rgba(34,197,94,0.3)',
-                             color: 'rgba(255,255,255,0.95)',
-                           }}
-                         >
-                           鉁?宸插惎鍔?                         </div>
-                       )}
-                      
-                      {block.status === 'in_progress' && (
-                        <div 
-                          className="px-4 py-1.5 rounded-full font-bold text-sm"
-                          style={{ 
-                            backgroundColor: 'rgba(34,197,94,0.3)',
-                            color: 'rgba(255,255,255,0.95)',
-                          }}
-                        >
-                          进行中...
-                        </div>
-                      )}
                       
                       <button
                         onClick={() => toggleExpand(block.id)}
