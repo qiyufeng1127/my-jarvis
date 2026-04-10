@@ -608,5 +608,5 @@ class HabitMonitorService {
   }
 }
 
-export const habitMonitorService = new TagSyncService();
+export const habitMonitorService = new HabitMonitorService();
 

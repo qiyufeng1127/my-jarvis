@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Camera, Check, ChevronDown, ChevronUp, Edit2, Trash2, GripVertical, Star, Clock, FileText, Upload, X, ShieldAlert, Zap, Sparkles } from 'lucide-react';
 import eventBus from '@/utils/eventBus';
 import type { Task, LongTermGoal } from '@/types';
@@ -77,9 +77,6 @@ export default function NewTimelineView({
   // 检测是否为移动设备
   const [isMobile, setIsMobile] = useState(false);
   
-  // 添加定时刷新状态，用于触发倒计时检查
-  const [currentTime, setCurrentTime] = useState(new Date());
-  
   // 使用金币store
   const goldBalance = useGoldStore(state => state.balance);
   const goals = useGoalStore(state => state.goals);
@@ -149,15 +146,6 @@ export default function NewTimelineView({
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
   
-  // 每秒更新当前时间，用于触发倒计时检查
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-    
-    return () => clearInterval(timer);
-  }, []);
-  
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [editingTask, setEditingTask] = useState<string | null>(null);
   const [draggedTask, setDraggedTask] = useState<string | null>(null);
@@ -184,12 +172,6 @@ export default function NewTimelineView({
   const [verifyingTask, setVerifyingTask] = useState<string | null>(null); // 正在验证的任务
   const [verifyingType, setVerifyingType] = useState<'start' | 'complete' | null>(null); // 验证类型
   
-  // 🔧 新增：间隔任务创建状态
-  const [creatingGapTask, setCreatingGapTask] = useState<{
-    startTime: Date;
-    endTime: Date;
-    maxDuration: number;
-  } | null>(null);
   const [taskStartTimeouts, setTaskStartTimeouts] = useState<Record<string, boolean>>({}); // 启动验证超时标记
   const [taskFinishTimeouts, setTaskFinishTimeouts] = useState<Record<string, boolean>>({}); // 完成验证超时标记
   const [taskActualStartTimes, setTaskActualStartTimes] = useState<Record<string, Date>>({}); // 任务实际启动时间
@@ -342,7 +324,7 @@ export default function NewTimelineView({
   };
   
   // 编辑任务的状态
-  const [editedTaskData, setEditedTaskData] = useState<Task | null>(null);
+  const [creatingTaskDraft, setCreatingTaskDraft] = useState<Task | null>(null);
   
   // 任务重复设置状态
   const [recurrenceDialogTask, setRecurrenceDialogTask] = useState<Task | null>(null);
@@ -352,6 +334,10 @@ export default function NewTimelineView({
   
   // 使用金币系统
   const { addGold, penaltyGold } = useGoldStore();
+  const buildTimelineTransactionKey = useCallback(
+    (type: string, uniquePart: string) => `timeline:${type}:${uniquePart}`,
+    []
+  );
   
   // 使用标签系统
   const { recordTagUsage } = useTagStore();
@@ -454,6 +440,75 @@ export default function NewTimelineView({
     const b = parseInt(hex.substr(4, 2), 16);
     const brightness = (r * 299 + g * 587 + b * 114) / 1000;
     return brightness < 128;
+  };
+  
+  const createTaskDraft = (startTime: Date, durationMinutes = 30): Task => {
+    const safeDuration = Math.max(5, durationMinutes || 30);
+    const endTime = new Date(startTime.getTime() + safeDuration * 60000);
+
+    return {
+      id: `draft-${Date.now()}`,
+      userId: 'local-user',
+      title: '',
+      description: '',
+      taskType: 'work',
+      priority: 2,
+      durationMinutes: safeDuration,
+      scheduledStart: new Date(startTime),
+      scheduledEnd: endTime,
+      actualStart: undefined,
+      actualEnd: undefined,
+      growthDimensions: {},
+      longTermGoals: {},
+      identityTags: [],
+      enableProgressCheck: false,
+      progressChecks: [],
+      penaltyGold: 0,
+      status: 'pending',
+      goldEarned: 0,
+      tags: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+  };
+
+  const openTaskCreateModal = (startTime: Date, durationMinutes = 30) => {
+    setCreatingTaskDraft(createTaskDraft(startTime, durationMinutes));
+  };
+
+  const handleCreateTaskFromDraft = (updates: Partial<Task>) => {
+    if (!creatingTaskDraft) return;
+
+    console.log('🧭 [timeline] handleCreateTaskFromDraft', {
+      updates,
+      creatingTaskDraft,
+    });
+
+    const nextTitle = (updates.title ?? creatingTaskDraft.title ?? '').trim();
+    if (!nextTitle) {
+      alert('请先填写任务标题');
+      return;
+    }
+
+    const scheduledStart = updates.scheduledStart
+      ? new Date(updates.scheduledStart)
+      : new Date(creatingTaskDraft.scheduledStart || new Date());
+    const durationMinutes = Math.max(5, updates.durationMinutes || creatingTaskDraft.durationMinutes || 30);
+    const scheduledEnd = updates.scheduledEnd
+      ? new Date(updates.scheduledEnd)
+      : new Date(scheduledStart.getTime() + durationMinutes * 60000);
+
+    onTaskCreate({
+      ...updates,
+      title: nextTitle,
+      scheduledStart: scheduledStart.toISOString(),
+      scheduledEnd: scheduledEnd.toISOString(),
+      durationMinutes,
+      taskType: updates.taskType || creatingTaskDraft.taskType || 'work',
+      status: updates.status || 'pending',
+    });
+
+    setCreatingTaskDraft(null);
   };
   
   // 根据背景色获取文字颜色
@@ -854,7 +909,7 @@ export default function NewTimelineView({
   };
 
   // 转换任务为时间块（使用合并后的任务列表）
-  const timeBlocks = allTasks
+  const timeBlocks = useMemo(() => allTasks
     .filter((task) => {
       if (!task.scheduledStart) return false;
       const taskDate = new Date(task.scheduledStart);
@@ -925,30 +980,33 @@ export default function NewTimelineView({
         return a.isMutterRecord ? -1 : 1;
       }
       return a.startTime.getTime() - b.startTime.getTime();
-    });
+    }), [allTasks, selectedDate, activeLoop?.taskId, goals]);
 
-  // 计算间隔
-  const gaps: Array<{
-    id: string;
-    startTime: Date;
-    endTime: Date;
-    durationMinutes: number;
-  }> = [];
+  const gaps = useMemo(() => {
+    const nextGaps: Array<{
+      id: string;
+      startTime: Date;
+      endTime: Date;
+      durationMinutes: number;
+    }> = [];
 
-  for (let i = 0; i < timeBlocks.length - 1; i++) {
-    const currentEnd = timeBlocks[i].endTime;
-    const nextStart = timeBlocks[i + 1].startTime;
-    const gapMinutes = (nextStart.getTime() - currentEnd.getTime()) / 60000;
-    
-    if (gapMinutes > 0) {
-      gaps.push({
-        id: `gap-${i}`,
-        startTime: currentEnd,
-        endTime: nextStart,
-        durationMinutes: Math.round(gapMinutes),
-      });
+    for (let i = 0; i < timeBlocks.length - 1; i++) {
+      const currentEnd = timeBlocks[i].endTime;
+      const nextStart = timeBlocks[i + 1].startTime;
+      const gapMinutes = (nextStart.getTime() - currentEnd.getTime()) / 60000;
+      
+      if (gapMinutes > 0) {
+        nextGaps.push({
+          id: `gap-${i}`,
+          startTime: currentEnd,
+          endTime: nextStart,
+          durationMinutes: Math.round(gapMinutes),
+        });
+      }
     }
-  }
+
+    return nextGaps;
+  }, [timeBlocks]);
 
   const toggleExpand = (id: string) => {
     setExpandedCards(prev => {
@@ -1050,10 +1108,10 @@ export default function NewTimelineView({
         }
       });
     };
-    
-    // 每秒检查一次
-    const timer = setInterval(checkTaskTime, 1000);
-    return () => clearInterval(timer);
+
+    checkTaskTime();
+    const timer = window.setInterval(checkTaskTime, 30000);
+    return () => window.clearInterval(timer);
   }, [allTasks, onTaskUpdate]);
   
   // 处理图片上传
@@ -1107,10 +1165,10 @@ export default function NewTimelineView({
         // 如果达到目标数量，自动完成任务
         if (newCount >= targetCount) {
           console.log('🎉 照片任务已完成！');
-
+          
           const completionResult = await completeTaskFromStore(taskId);
           const earnedGold = completionResult?.goldEarned || 0;
-
+          
           // 显示庆祝效果
           setCelebrationGold(earnedGold);
           setShowCelebration(true);
@@ -1438,7 +1496,7 @@ export default function NewTimelineView({
         completeTimeoutCount: 0,
         actualStartTime: now.toISOString(),
       };
-
+      
       localStorage.setItem(`countdown_${taskId}`, JSON.stringify(countdownState));
       backgroundTaskScheduler.updateTaskStatus(taskId, 'task_countdown', {
         taskDeadline: countdownState.taskDeadline,
@@ -1459,19 +1517,19 @@ export default function NewTimelineView({
       console.log('✅ [handleStartTask] 无启动验证，直接启动任务');
     }
       
-    onTaskUpdate(taskId, { 
-      status: 'in_progress',
-      scheduledStart: now.toISOString(),
-      scheduledEnd: endTime.toISOString(),
-    });
+      onTaskUpdate(taskId, { 
+        status: 'in_progress',
+        scheduledStart: now.toISOString(),
+        scheduledEnd: endTime.toISOString(),
+      });
       
-    // 记录实际开始时间
-    setTaskActualStartTimes(prev => ({
-      ...prev,
-      [taskId]: now
-    }));
-
-    console.log('✅ [handleStartTask] 任务已直接启动，开始时间:', now.toISOString(), '结束时间:', endTime.toISOString());
+      // 记录实际开始时间
+      setTaskActualStartTimes(prev => ({
+        ...prev,
+        [taskId]: now
+      }));
+      
+      console.log('✅ [handleStartTask] 任务已直接启动，开始时间:', now.toISOString(), '结束时间:', endTime.toISOString());
   };
   
   // 处理验证图片
@@ -1615,7 +1673,13 @@ export default function NewTimelineView({
             SoundEffects.playCoinSound();
           
           // 添加金币
-          addGold(startGold, `启动任务：${task.title}`, taskId, task.title);
+          addGold(
+            startGold,
+            `启动任务：${task.title}`,
+            taskId,
+            task.title,
+            buildTimelineTransactionKey('start-reward', `${taskId}:${now.toISOString()}`)
+          );
           
           // 显示庆祝效果
           setCelebrationGold(startGold);
@@ -1767,7 +1831,13 @@ export default function NewTimelineView({
             if (newFailedAttempts >= 3) {
               SoundEffects.playAlarmSound();
               VoiceReminder.speak('连续三次验证失败！扣除50金币！请认真完成任务！');
-          penaltyGold(50, `${type === 'start' ? '启动' : '完成'}验证失败：${task.title}`, taskId, task.title);
+              penaltyGold(
+                50,
+                `${type === 'start' ? '启动' : '完成'}验证失败：${task.title}`,
+                taskId,
+                task.title,
+                buildTimelineTransactionKey('verify-fail-3x', `${taskId}:${type}:${newFailedAttempts}`)
+              );
               alert('⚠️ 连续三次验证失败！扣除50金币！');
             } else {
           const errorMsg = error instanceof Error ? error.message : '验证失败';
@@ -2895,561 +2965,49 @@ export default function NewTimelineView({
         );
       })()}
 
-      {/* 编辑任务弹窗 - 紧凑优化版 */}
+      {/* 编辑任务弹窗 - 统一使用紧凑编辑器 */}
       {editingTask && (() => {
         const task = allTasks.find(t => t.id === editingTask);
         if (!task) return null;
         
-        // 初始化编辑数据（首次打开时）
-        if (!editedTaskData || editedTaskData.id !== editingTask) {
-          setTimeout(() => setEditedTaskData(task), 0);
-        }
-        
-        const currentEditData = editedTaskData?.id === editingTask ? editedTaskData : task;
-        
-        console.log('🎨 NewTimelineView 编辑弹窗已渲染 - 智能分配按钮应该可见');
-        
         return (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-3" style={{ paddingBottom: '100px' }}>
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col border border-gray-200 dark:border-gray-700">
-              {/* 头部 - 只显示关闭按钮 */}
-              <div className="flex-shrink-0 px-3 py-2 flex items-center justify-end border-b" style={{ borderColor: isDark ? '#374151' : '#e5e7eb' }}>
-                <button
-                  onClick={() => {
+          <CompactTaskEditModal
+            task={task}
+            onClose={() => setEditingTask(null)}
+            onDelete={onTaskDelete}
+            onSave={(updates) => {
+              onTaskUpdate(editingTask, updates);
                     setEditingTask(null);
-                    setEditedTaskData(null);
-                  }}
-                  className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                >
-                  <X className="w-4 h-4" style={{ color: isDark ? '#ffffff' : '#000000' }} />
-                </button>
-              </div>
-            
-              {/* 表单内容 - 紧凑布局 */}
-              <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                {/* 任务标题 - 直接显示输入框 */}
-                <div>
-                  <input
-                    type="text"
-                    value={currentEditData.title}
-                    onChange={(e) => setEditedTaskData({ ...currentEditData, title: e.target.value })}
-                    onFocus={(e) => {
-                      // 点击时自动滚动到可见区域
-                      setTimeout(() => {
-                        e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                      }, 100);
-                    }}
-                    placeholder="任务标题"
-                    className="w-full px-2.5 py-1.5 rounded-lg border text-base font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                    style={{ 
-                      borderColor: isDark ? '#4b5563' : '#d1d5db',
-                      backgroundColor: isDark ? '#374151' : '#ffffff',
-                      color: isDark ? '#ffffff' : '#000000'
-                    }}
-                  />
-                </div>
-                
-                {/* 任务描述 */}
-                <div>
-                  <label className="block text-xs font-semibold mb-1" style={{ color: isDark ? '#ffffff' : '#000000' }}>📄 任务描述</label>
-                  <textarea
-                    value={currentEditData.description || ''}
-                    onChange={(e) => setEditedTaskData({ ...currentEditData, description: e.target.value })}
-                    onFocus={(e) => {
-                      // 点击时自动滚动到可见区域
-                      setTimeout(() => {
-                        e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                      }, 100);
-                    }}
-                    rows={2}
-                    className="w-full px-2.5 py-1.5 rounded-lg border-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
-                    style={{ 
-                      borderColor: isDark ? '#4b5563' : '#d1d5db',
-                      backgroundColor: isDark ? '#374151' : '#ffffff',
-                      color: isDark ? '#ffffff' : '#000000'
-                    }}
-                    placeholder="详细描述..."
-                  />
-                </div>
-                
-                {/* 时间和时长 - 并排 */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-xs font-semibold mb-1" style={{ color: isDark ? '#ffffff' : '#000000' }}>⏰ 开始时间</label>
-                    <input
-                      type="time"
-                      value={currentEditData.scheduledStart ? new Date(currentEditData.scheduledStart).toTimeString().slice(0, 5) : ''}
-                      onChange={(e) => {
-                        const [hours, minutes] = e.target.value.split(':');
-                        const newDate = new Date(currentEditData.scheduledStart || new Date());
-                        newDate.setHours(parseInt(hours), parseInt(minutes));
-                        setEditedTaskData({ ...currentEditData, scheduledStart: newDate.toISOString() });
-                      }}
-                      onFocus={(e) => {
-                        // 点击时自动滚动到可见区域
-                        setTimeout(() => {
-                          e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }, 100);
-                      }}
-                      className="w-full px-2.5 py-1.5 rounded-lg border-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
-                      style={{ 
-                        borderColor: isDark ? '#4b5563' : '#d1d5db',
-                        backgroundColor: isDark ? '#374151' : '#ffffff',
-                        color: isDark ? '#ffffff' : '#000000'
-                      }}
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs font-semibold mb-1" style={{ color: isDark ? '#ffffff' : '#000000' }}>⏱️ 时长（分）</label>
-                    <input
-                      type="number"
-                      value={currentEditData.durationMinutes}
-                      onChange={(e) => setEditedTaskData({ ...currentEditData, durationMinutes: parseInt(e.target.value) || 0 })}
-                      onFocus={(e) => {
-                        // 点击时自动滚动到可见区域
-                        setTimeout(() => {
-                          e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }, 100);
-                      }}
-                      className="w-full px-2.5 py-1.5 rounded-lg border-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
-                      style={{ 
-                        borderColor: isDark ? '#4b5563' : '#d1d5db',
-                        backgroundColor: isDark ? '#374151' : '#ffffff',
-                        color: isDark ? '#ffffff' : '#000000'
-                      }}
-                      min={5}
-                      max={480}
-                    />
-                  </div>
-                </div>
-                
-                {/* 金币奖励 */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-semibold" style={{ color: isDark ? '#ffffff' : '#000000' }}>💰 金币奖励</label>
-                    <button
-                      onClick={async () => {
-                        console.log('🎨 智能分配按钮被点击');
-                        const taskTitle = currentEditData.title;
-                        
-                        if (!taskTitle || taskTitle.trim() === '') {
-                          alert('请先输入任务标题');
-                          return;
-                        }
-                        
-                        // 立即设置加载状态
-                        setIsSmartAssigning(true);
-                        
-                        try {
-                          console.log('🤖 开始AI智能分配...');
-                          
-                          // 导入 aiService
-                          const { aiService } = await import('@/services/aiService');
-                          
-                          // 获取用户已有的标签
-                          const allTags = useTagStore.getState().getAllTags();
-                          const userTags = allTags.map(tag => tag.name);
-                          const userTagsStr = userTags.length > 0 
-                            ? `\n\n**用户已有标签（优先使用）：**\n${userTags.join('、')}\n请优先从用户已有标签中选择。`
-                            : '';
-                          
-                          const prompt = `请根据任务标题"${taskTitle}"，智能推荐以下内容（请严格按照JSON格式返回，不要有任何其他文字）：${userTagsStr}
-
-{
-  "goldReward": 推荐的金币奖励数值（数字，范围10-500，根据任务难度和时长），
-  "tags": 推荐的标签数组（最多3个中文标签，例如：["学习", "工作"]${userTags.length > 0 ? `，优先从：${userTags.join('、')} 中选择` : ''}），
-  "goals": 推荐的关联目标（字符串，例如："月入5w"、"健康生活"），
-  "location": 推荐的位置（字符串，例如："厨房"、"卧室"、"工作区"）
-}
-
-**示例：**
-任务："学习英语1小时"
-返回：{"goldReward": 100, "tags": ["学习", "英语"], "goals": "提升英语水平", "location": "工作区"}
-
-任务："洗碗"
-返回：{"goldReward": 30, "tags": ["家务", "厨房"], "goals": "保持整洁", "location": "厨房"}
-
-只返回JSON，不要其他内容。`;
-                          
-                          const response = await aiService.chat([
-                            { role: 'system', content: '你是一个任务分析助手，根据任务标题智能推荐金币奖励、标签、目标和位置。' },
-                            { role: 'user', content: prompt }
-                          ]);
-                          
-                          console.log('🤖 AI返回结果:', response);
-                          
-                          if (!response.success || !response.content) {
-                            alert(response.error || '智能分配失败，请重试');
-                            return;
-                          }
-                          
-                          // 解析AI返回的JSON
-                          let jsonContent = response.content.trim();
-                          const jsonMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-                          if (jsonMatch) {
-                            jsonContent = jsonMatch[1].trim();
-                          } else {
-                            const braceMatch = jsonContent.match(/(\{[\s\S]*\})/);
-                            if (braceMatch) {
-                              jsonContent = braceMatch[1];
-                            }
-                          }
-                          
-                          const aiSuggestion = JSON.parse(jsonContent);
-                          console.log('✅ 解析成功:', aiSuggestion);
-                          
-                          // 自动填充表单
-                          const learnedTags = TagLearningService.suggestTags(taskTitle)
-                            .map((item) => item.tag)
-                            .filter((tag) => userTags.includes(tag));
-                          const mergedTags = Array.from(new Set([...(aiSuggestion.tags || []), ...learnedTags])).slice(0, 3);
-                          const matchedGoal = useGoalStore.getState().findMatchingGoals(taskTitle, TagLearningService.extractKeywords(taskTitle))[0];
-
-                          setEditedTaskData({
-                            ...currentEditData,
-                            goldReward: aiSuggestion.goldReward || currentEditData.goldReward,
-                            tags: mergedTags.length > 0 ? mergedTags : (aiSuggestion.tags || currentEditData.tags),
-                            goals: currentEditData.goals || matchedGoal?.name || aiSuggestion.goals || currentEditData.goals,
-                            location: aiSuggestion.location || currentEditData.location
-                          });
-                          
-                          console.log('✅ 智能分配完成');
-                        } catch (error) {
-                          console.error('❌ 智能分配失败:', error);
-                          alert(`智能分配失败：${error instanceof Error ? error.message : '未知错误'}`);
-                        } finally {
-                          // 无论成功还是失败，都要恢复按钮状态
-                          setIsSmartAssigning(false);
-                        }
-                      }}
-                      disabled={isSmartAssigning}
-                      className="px-2 py-0.5 rounded-md text-xs font-bold transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                      style={{
-                        backgroundColor: '#8B5CF6',
-                        color: '#ffffff'
-                      }}
-                    >
-                      {isSmartAssigning ? (
-                        <>
-                          <span className="animate-spin">⏳</span>
-                          <span>分配中...</span>
-                        </>
-                      ) : (
-                        <>
-                          <span>✨</span>
-                          <span>智能分配</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                  <input
-                    type="number"
-                    value={currentEditData.goldReward || 0}
-                    onChange={(e) => setEditedTaskData({ ...currentEditData, goldReward: parseInt(e.target.value) || 0 })}
-                    onFocus={(e) => {
-                      // 点击时自动滚动到可见区域
-                      setTimeout(() => {
-                        e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                      }, 100);
-                    }}
-                    className="w-full px-2.5 py-1.5 rounded-lg border-2 border-yellow-300 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-yellow-500 transition-all bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20"
-                    style={{ color: isDark ? '#ffffff' : '#000000' }}
-                    min={0}
-                  />
-                </div>
-                
-                {/* 标签 */}
-                <div>
-                  <label className="block text-xs font-semibold mb-1" style={{ color: isDark ? '#ffffff' : '#000000' }}>🏷️ 标签</label>
-                  <div className="flex flex-wrap gap-1 mb-1">
-                    {(currentEditData.tags || []).map((tag, idx) => (
-                      <span
-                        key={idx}
-                        className="px-2 py-0.5 rounded-md text-xs font-medium flex items-center gap-1 shadow-sm"
-                        style={{
-                          backgroundColor: isDark ? '#374151' : '#f3f4f6',
-                          color: isDark ? '#ffffff' : '#000000'
-                        }}
-                      >
-                        {tag}
-                        <button
-                          onClick={() => {
-                            const newTags = [...(currentEditData.tags || [])];
-                            newTags.splice(idx, 1);
-                            setEditedTaskData({ ...currentEditData, tags: newTags });
-                          }}
-                          className="hover:bg-red-200 dark:hover:bg-red-800 rounded-full p-0.5"
-                        >
-                          <X className="w-2.5 h-2.5" />
-                        </button>
-                      </span>
-                    ))}
-                    <button
-                      onClick={() => {
-                        const newTag = prompt('✨ 输入新标签：');
-                        if (newTag) {
-                          setEditedTaskData({ 
-                            ...currentEditData, 
-                            tags: [...(currentEditData.tags || []), newTag] 
-                          });
-                        }
-                      }}
-                      className="px-2 py-0.5 rounded-md text-xs font-medium border border-dashed hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                      style={{
-                        borderColor: isDark ? '#4b5563' : '#d1d5db',
-                        color: isDark ? '#ffffff' : '#000000'
-                      }}
-                    >
-                      + 添加标签
-                    </button>
-                  </div>
-                </div>
-                
-                {/* 关联目标 */}
-                <div>
-                  <label className="block text-xs font-semibold mb-1" style={{ color: isDark ? '#ffffff' : '#000000' }}>🎯 关联目标</label>
-                  <div className="flex gap-2">
-                    <select
-                      value={currentEditData.goals || ''}
-                      onChange={(e) => {
-                        if (e.target.value === '__add_new__') {
-                          // 添加新目标
-                          const newGoalName = prompt('✨ 输入新目标名称：');
-                          if (newGoalName && newGoalName.trim()) {
-                            // 创建新目标
-                            const newGoal = useGoalStore.getState().createGoal({
-                              name: newGoalName.trim(),
-                              description: '',
-                              goalType: 'boolean',
-                              isActive: true,
-                            });
-                            // 设置为当前任务的关联目标
-                            setEditedTaskData({ ...currentEditData, goals: newGoal.name });
-                          }
-                        } else {
-                          setEditedTaskData({ ...currentEditData, goals: e.target.value });
-                        }
-                      }}
-                      onFocus={(e) => {
-                        // 点击时自动滚动到可见区域
-                        setTimeout(() => {
-                          e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }, 100);
-                      }}
-                      className="flex-1 px-2.5 py-1.5 rounded-lg border-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 transition-all"
-                      style={{ 
-                        borderColor: isDark ? '#4b5563' : '#d1d5db',
-                        backgroundColor: isDark ? '#374151' : '#ffffff',
-                        color: isDark ? '#ffffff' : '#000000'
-                      }}
-                    >
-                      <option value="">选择目标...</option>
-                      {useGoalStore.getState().getActiveGoals().map((goal) => (
-                        <option key={goal.id} value={goal.name}>
-                          {goal.name}
-                        </option>
-                      ))}
-                      <option value="__add_new__" style={{ fontWeight: 'bold', color: '#10B981' }}>
-                        ➕ 添加新目标
-                      </option>
-                    </select>
-                    {currentEditData.goals && (
-                      <button
-                        onClick={() => setEditedTaskData({ ...currentEditData, goals: '' })}
-                        className="px-2 py-1 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-                        title="清除目标"
-                      >
-                        <X className="w-4 h-4 text-red-500" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-                
-                {/* 位置 */}
-                <div>
-                  <label className="block text-xs font-semibold mb-1" style={{ color: isDark ? '#ffffff' : '#000000' }}>📍 位置</label>
-                  <input
-                    type="text"
-                    value={currentEditData.location || ''}
-                    onChange={(e) => setEditedTaskData({ ...currentEditData, location: e.target.value })}
-                    onFocus={(e) => {
-                      // 点击时自动滚动到可见区域
-                      setTimeout(() => {
-                        e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                      }, 100);
-                    }}
-                    placeholder="例如：厨房、卧室..."
-                    className="w-full px-2.5 py-1.5 rounded-lg border-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
-                    style={{ 
-                      borderColor: isDark ? '#4b5563' : '#d1d5db',
-                      backgroundColor: isDark ? '#374151' : '#ffffff',
-                      color: isDark ? '#ffffff' : '#000000'
-                    }}
-                  />
-                </div>
-                
-                {/* 照片上传 */}
-                <div>
-                  <label className="block text-xs font-semibold mb-1" style={{ color: isDark ? '#ffffff' : '#000000' }}>📷 照片</label>
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {taskImages[editingTask] && taskImages[editingTask].map((image, idx) => (
-                      <div key={image.id} className="relative aspect-square rounded-lg overflow-hidden">
-                        <img src={image.url} alt={`照片 ${idx + 1}`} className="w-full h-full object-cover" />
-                        <button
-                          onClick={() => {
-                            setTaskImages(prev => ({
-                              ...prev,
-                              [editingTask]: prev[editingTask].filter(img => img.id !== image.id)
-                            }));
-                          }}
-                          className="absolute top-0.5 right-0.5 p-0.5 bg-red-500 rounded-full hover:bg-red-600 shadow-sm"
-                        >
-                          <X className="w-2.5 h-2.5 text-white" />
-                        </button>
-                      </div>
-                    ))}
-                    <button
-                      onClick={() => handleOpenImagePicker(editingTask)}
-                      className="aspect-square rounded-lg border-2 border-dashed flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                      style={{
-                        borderColor: isDark ? '#4b5563' : '#d1d5db',
-                        backgroundColor: isDark ? '#374151' : '#f9fafb'
-                      }}
-                    >
-                      <Camera className="w-5 h-5" style={{ color: isDark ? '#9ca3af' : '#6b7280' }} />
-                    </button>
-                  </div>
-                </div>
-                
-                {/* 效率追踪设置（独立功能） */}
-                <div className="border-t pt-2" style={{ borderColor: isDark ? '#374151' : '#e5e7eb' }}>
-                  <label className="block text-xs font-semibold mb-1" style={{ color: isDark ? '#ffffff' : '#000000' }}>
-                    📊 效率追踪
-                  </label>
-                  <div className="p-2 rounded-lg space-y-2" style={{ backgroundColor: isDark ? '#374151' : '#f9fafb' }}>
-                    <div>
-                      <label className="block text-xs font-medium mb-1" style={{ color: isDark ? '#d1d5db' : '#6b7280' }}>
-                        📸 计划拍照次数（用于效率评估）
-                      </label>
-                      <input
-                        type="number"
-                        value={taskVerifications[editingTask]?.plannedImageCount || 0}
-                        onChange={(e) => {
-                          const verification = taskVerifications[editingTask] || {
-                            enabled: false,
-                            startKeywords: [],
-                            completionKeywords: [],
-                            startDeadline: null,
-                            completionDeadline: null,
-                            startFailedAttempts: 0,
-                            startTimeoutCount: 0,
-                            startRetryDeadline: null,
-                            completionFailedAttempts: 0,
-                            completionTimeoutCount: 0,
-                            completionExtensionCount: 0,
-                            plannedImageCount: 0,
-                            status: 'pending' as const,
-                            actualStartTime: null,
-                            actualCompletionTime: null,
-                            startGoldEarned: 0,
-                            completionGoldEarned: 0,
-                            totalGoldPenalty: 0,
-                            startPenaltyGold: 0,
-                          };
-                          
-                          setTaskVerifications(prev => ({
-                            ...prev,
-                            [editingTask]: {
-                              ...verification,
-                              plannedImageCount: parseInt(e.target.value) || 0
-                            }
-                          }));
-                        }}
-                        className="w-full px-2 py-1 rounded-md border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        style={{ 
-                          borderColor: isDark ? '#4b5563' : '#d1d5db',
-                          backgroundColor: isDark ? '#1f2937' : '#ffffff',
-                          color: isDark ? '#ffffff' : '#000000'
-                        }}
-                        min={0}
-                        placeholder="0 = 不限制"
-                      />
-                      <p className="text-xs mt-1" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>
-                        完成任务时会对比实际上传照片数量，评估完成效率
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-                
-              {/* 底部按钮 - 紧凑布局 */}
-              <div className="flex-shrink-0 border-t px-3 py-2 flex gap-2 bg-gray-50 dark:bg-gray-800/50" style={{ borderColor: isDark ? '#374151' : '#e5e7eb' }}>
-                <button
-                  onClick={() => {
-                    if (onTaskDelete && confirm('🗑️ 确定要删除这个任务吗？')) {
-                      onTaskDelete(editingTask);
-                      setEditingTask(null);
-                      setEditedTaskData(null);
-                    }
-                  }}
-                  className="px-4 py-2 rounded-lg font-semibold transition-all active:scale-95 text-sm"
-                  style={{ backgroundColor: '#EF4444', color: 'white' }}
-                >
-                  删除此任务
-                </button>
-                
-                <button
-                  onClick={() => {
-                    // 保存任务数据
-                    const verification = taskVerifications[editingTask];
-                    const images = taskImages[editingTask];
-                    
-                    onTaskUpdate(editingTask, {
-                      ...currentEditData,
-                      // 保存验证设置
-                      verificationEnabled: verification?.enabled || false,
-                      startKeywords: verification?.startKeywords || [],
-                      completeKeywords: verification?.completionKeywords || [],
-                      // 保存照片
-                      images: images || [],
-                      coverImageUrl: images && images.length > 0 ? images[0].url : undefined,
-                      // 保存计划拍照次数
-                      plannedImageCount: verification?.plannedImageCount || 0,
-                    });
-
-                    if ((currentEditData.tags || []).length > 0) {
-                      TagLearningService.learnFromUserChoice(currentEditData.title, currentEditData.tags || []);
-                    }
-                    
-                    setEditingTask(null);
-                    setEditedTaskData(null);
-                  }}
-                  className="flex-1 px-4 py-2 rounded-lg font-bold transition-all active:scale-95 shadow-lg text-sm"
-                  style={{ backgroundColor: '#10B981', color: 'white' }}
-                >
-                  保存
-                </button>
-              </div>
-            </div>
-          </div>
+            }}
+          />
         );
       })()}
+
+      {/* 新建任务弹窗 - 所有时间轴加号统一先填标题和时长 */}
+      {creatingTaskDraft && (
+        <CompactTaskEditModal
+          task={creatingTaskDraft}
+          onClose={() => setCreatingTaskDraft(null)}
+          onSave={handleCreateTaskFromDraft}
+        />
+      )}
       
       {console.log('📊 [timeBlocks] 总数:', timeBlocks.length, '任务:', timeBlocks.map(b => b.title))}
       
       {/* 任务列表容器 - 包含NOW线 */}
       <div className="relative">
         {/* NOW时间线 - 相对于任务列表定位 */}
-        <NowTimeline 
-          timeBlocks={timeBlocks.map(block => ({
-            id: block.id,
-            startTime: block.startTime,
-            endTime: block.endTime,
-            title: block.title,
-          }))}
-          isDark={isDark}
-        />
+        {selectedDate.toDateString() === new Date().toDateString() && timeBlocks.length > 0 && (
+          <NowTimeline 
+            timeBlocks={timeBlocks.map(block => ({
+              id: block.id,
+              startTime: block.startTime,
+              endTime: block.endTime,
+              title: block.title,
+            }))}
+            isDark={isDark}
+          />
+        )}
         
         {timeBlocks.map((block, index) => {
         const isExpanded = expandedCards.has(block.id);
@@ -3584,7 +3142,7 @@ export default function NewTimelineView({
                          : (isHistoricalTask 
                            ? (block.goldReward || 0) 
                            : (isEarly ? Math.floor((block.goldReward || 0) * 0.5) : 0));
-
+                       
                        if (taskRecord) {
                          openTaskCompletionModal({
                            ...taskRecord,
@@ -3829,7 +3387,7 @@ export default function NewTimelineView({
                           return null;
                         })()}
                         
-
+                        
                         <div className={`${isMobile ? 'text-[9px]' : 'text-xs'} opacity-90`}>
                           {block.goalText}
                           {block.isCompleted && (block.sourceBadges || []).includes('总部联动') && (
@@ -3886,7 +3444,7 @@ export default function NewTimelineView({
 
                             <button
                               onClick={() => openGoalContributionModal(block.id)}
-                              className="rounded-full px-2 py-1 text-[10px] font-bold transition-all hover:scale-105"
+                              className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black transition-all hover:scale-110"
                               style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
                               title="填写关键结果"
                             >
@@ -3894,38 +3452,27 @@ export default function NewTimelineView({
                             </button>
                           </div>
 
-                          {/* 右侧：start + 展开 */}
+                          {/* 右侧：精简操作区 */}
                           <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-1.5'}`}>
                             {!block.isCompleted && block.status !== 'in_progress' && taskVerifications[block.id]?.status !== 'started' && (
                               <button
                                 onClick={() => handleStartTask(block.id)}
                                 disabled={startingTask === block.id}
-                                className="px-2 py-0.5 text-xs rounded-full font-bold transition-all hover:scale-105 disabled:opacity-50"
+                                className="px-2.5 py-0.5 text-[11px] rounded-full font-black transition-all hover:scale-105 disabled:opacity-50"
                                 style={{ 
-                                  backgroundColor: taskVerifications[block.id]?.status === 'started' 
-                                    ? 'rgba(34,197,94,0.3)' 
-                                    : 'rgba(255,255,255,0.95)',
-                                  color: taskVerifications[block.id]?.status === 'started'
-                                    ? 'rgba(255,255,255,0.95)'
-                                    : block.color,
+                                  backgroundColor: 'rgba(255,255,255,0.95)',
+                                  color: block.color,
                                 }}
                                 title={
-                                  taskVerifications[block.id]?.status === 'started'
-                                    ? '已启动验证'
-                                    : taskVerifications[block.id]?.enabled 
+                                  taskVerifications[block.id]?.enabled 
                                     ? '拍照验证启动' 
                                     : '开始任务'
                                 }
                               >
-                                {startingTask === block.id 
-                                  ? '⏳' 
-                                  : taskVerifications[block.id]?.status === 'started'
-                                  ? '✅已启动'
-                                  : '*start'}
+                                {startingTask === block.id ? '⏳' : 'start'}
                               </button>
                             )}
                             
-
                             <button
                               onClick={() => {
                                 const taskData = allTasks.find(t => t.id === block.id);
@@ -3933,9 +3480,9 @@ export default function NewTimelineView({
                                   eventBus.emit('openSOPDialog', taskData);
                                 }
                               }}
-                              className="px-2 py-0.5 rounded-full text-xs font-bold transition-all hover:scale-105"
+                              className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black transition-all hover:scale-110"
                               style={{ 
-                                backgroundColor: 'rgba(59, 130, 246, 0.3)',
+                                backgroundColor: 'rgba(255,255,255,0.2)',
                                 color: 'rgb(255, 255, 255)',
                               }}
                               title="保存到SOP"
@@ -3947,7 +3494,7 @@ export default function NewTimelineView({
                               onClick={() => setRecurrenceDialogTask(allTasks.find(t => t.id === block.id) || null)}
                               className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110"
                               style={{ 
-                                backgroundColor: block.isRecurring ? 'rgba(16, 185, 129, 0.3)' : 'rgba(139, 92, 246, 0.3)',
+                                backgroundColor: block.isRecurring ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255,255,255,0.2)',
                               }}
                               title={block.isRecurring ? '已设置重复' : '设置任务重复'}
                             >
@@ -4156,7 +3703,7 @@ export default function NewTimelineView({
                     </div>
 
                     {/* 功能按钮栏 */}
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center justify-between mb-2 gap-2">
                       {/* 左侧功能图标 */}
                       <div className="flex items-center gap-1.5">
                         {/* AI拆解子任务 */}
@@ -4195,7 +3742,7 @@ export default function NewTimelineView({
 
                         <button
                           onClick={() => openGoalContributionModal(block.id)}
-                          className="rounded-full px-2 py-1 text-[10px] font-bold transition-all hover:scale-105"
+                          className="w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-black transition-all hover:scale-110"
                           style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
                           title="填写关键结果"
                         >
@@ -4253,7 +3800,7 @@ export default function NewTimelineView({
                       )}
 
                       {/* 右侧：金币和完成按钮 */}
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <div className="flex items-center gap-1 px-2 py-1 rounded-full" style={{ backgroundColor: 'rgba(255,215,0,0.3)' }}>
                           <span className="text-base">💰</span>
                           <span className="text-xs font-bold">{block.goldReward}</span>
@@ -4289,12 +3836,43 @@ export default function NewTimelineView({
                     </div>
 
                     {/* Start按钮和收起按钮 */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => {
+                            const taskData = allTasks.find(t => t.id === block.id);
+                            if (taskData) {
+                              eventBus.emit('openSOPDialog', taskData);
+                            }
+                          }}
+                          className="w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-black transition-all hover:scale-110"
+                          style={{ 
+                            backgroundColor: 'rgba(255,255,255,0.2)',
+                            color: 'rgb(255, 255, 255)',
+                          }}
+                          title="保存到SOP"
+                        >
+                          SOP
+                        </button>
+
+                        <button
+                          onClick={() => setRecurrenceDialogTask(allTasks.find(t => t.id === block.id) || null)}
+                          className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                          style={{ 
+                            backgroundColor: block.isRecurring ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255,255,255,0.2)',
+                          }}
+                          title={block.isRecurring ? '已设置重复' : '设置任务重复'}
+                        >
+                          <span className="text-sm">🔄</span>
+                        </button>
+                      </div>
+
                     <div className="flex items-center justify-end gap-2">
                       {!block.isCompleted && block.status !== 'in_progress' && taskVerifications[block.id]?.status !== 'started' && (
                         <button
                           onClick={() => handleStartTask(block.id)}
                           disabled={startingTask === block.id}
-                          className="px-4 py-1.5 rounded-full font-bold text-sm transition-all hover:scale-105 disabled:opacity-50"
+                            className="px-3 py-1.5 rounded-full font-black text-[11px] transition-all hover:scale-105 disabled:opacity-50"
                           style={{ 
                             backgroundColor: 'rgba(255,255,255,0.95)',
                             color: block.color,
@@ -4305,10 +3883,9 @@ export default function NewTimelineView({
                               : '开始任务'
                           }
                         >
-                          {startingTask === block.id ? '⏳' : '*start'}
+                            {startingTask === block.id ? '⏳' : 'start'}
                         </button>
                       )}
-                       
                       
                       <button
                         onClick={() => toggleExpand(block.id)}
@@ -4317,6 +3894,7 @@ export default function NewTimelineView({
                       >
                         <ChevronUp className="w-4 h-4" />
                       </button>
+                      </div>
                     </div>
 
                     {/* 展开区域：子任务和文件 */}
@@ -4675,12 +4253,8 @@ export default function NewTimelineView({
                 {/* 间隔按钮 */}
                 <button
                   onClick={() => {
-                    // 🔧 修复：打开任务创建对话框，而不是直接创建任务
-                    setCreatingGapTask({
-                      startTime: gap.startTime,
-                      endTime: gap.endTime,
-                      maxDuration: gap.durationMinutes,
-                    });
+                    // 🔧 修复：所有时间轴加号统一先打开创建弹窗
+                    openTaskCreateModal(gap.startTime, gap.durationMinutes);
                   }}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-full transition-all hover:scale-105"
                   style={{ 
@@ -4739,15 +4313,7 @@ export default function NewTimelineView({
                 }
 
                 const endTime = new Date(startTime.getTime() + 30 * 60000);
-                const newTask = {
-                  title: '新任务',
-                  scheduledStart: startTime.toISOString(),
-                  scheduledEnd: endTime.toISOString(),
-                  durationMinutes: 30,
-                  taskType: 'work',
-                  status: 'pending' as const,
-                };
-                onTaskCreate(newTask);
+                openTaskCreateModal(startTime, Math.max(5, Math.round((endTime.getTime() - startTime.getTime()) / 60000)));
               } catch (error) {
                 console.error('创建今日结束任务失败:', error);
                 alert('创建任务失败: ' + (error instanceof Error ? error.message : String(error)));
@@ -4788,16 +4354,7 @@ export default function NewTimelineView({
             onClick={() => {
               // 使用当前时间作为开始时间
               const now = new Date();
-              const endTime = new Date(now.getTime() + 30 * 60000); // 30分钟后
-              const newTask = {
-                title: '新任务',
-                scheduledStart: now.toISOString(),
-                scheduledEnd: endTime.toISOString(),
-                durationMinutes: 30, // 默认30分钟
-                taskType: 'work',
-                status: 'pending' as const,
-              };
-              onTaskCreate(newTask);
+              openTaskCreateModal(now, 30);
             }}
             className="px-5 py-2 rounded-full font-semibold text-sm transition-all hover:scale-105"
             style={{ 
@@ -4880,8 +4437,8 @@ export default function NewTimelineView({
               values,
             };
 
-            setGoalContributionDrafts((prev) => ({
-              ...prev,
+              setGoalContributionDrafts((prev) => ({
+                ...prev,
               [efficiencyModalTask.id]: nextDraft,
             }));
 
@@ -5052,43 +4609,6 @@ export default function NewTimelineView({
           </div>
         </div>
       )}
-
-      {/* 编辑任务模态框 */}
-      {editingTask && (() => {
-        const task = allTasks.find(t => t.id === editingTask);
-        if (!task) return null;
-        
-        return (
-          <CompactTaskEditModal
-            task={task}
-            onClose={() => {
-              const currentTask = allTasks.find((item) => item.id === editingTask);
-              if (isMandatoryReflectionPending(currentTask)) {
-                alert('该任务已触发强制追责表单，提交前不能直接关闭。');
-                openMandatoryReflection(editingTask, currentTask?.mandatoryReflection?.trigger || 'low_efficiency');
-                return;
-              }
-              setEditingTask(null);
-            }}
-            onSave={(updates) => {
-              onTaskUpdate(editingTask, updates);
-              setEditingTask(null);
-            }}
-            onDelete={(taskId) => {
-              const currentTask = allTasks.find((item) => item.id === taskId);
-              if (isMandatoryReflectionPending(currentTask)) {
-                alert('该任务已触发强制追责表单，提交前禁止删除任务。');
-                openMandatoryReflection(taskId, currentTask?.mandatoryReflection?.trigger || 'low_efficiency');
-                return;
-              }
-              if (onTaskDelete) {
-                onTaskDelete(taskId);
-              }
-              setEditingTask(null);
-            }}
-          />
-        );
-      })()}
       
       {/* 任务重复设置对话框 */}
       {recurrenceDialogTask && (
@@ -5101,131 +4621,6 @@ export default function NewTimelineView({
           onClose={() => setRecurrenceDialogTask(null)}
           isDark={isDark}
         />
-      )}
-      
-      {/* 🔧 新增：间隔任务创建对话框 */}
-      {creatingGapTask && (
-        <div 
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={() => setCreatingGapTask(null)}
-        >
-          <div 
-            className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-            style={{ backgroundColor: isDark ? '#1a1a1a' : '#ffffff' }}
-          >
-            <h3 className="text-xl font-bold mb-4" style={{ color: textColor }}>
-              添加任务到间隔时间
-            </h3>
-            
-            <div className="space-y-4">
-              {/* 时间范围提示 */}
-              <div 
-                className="p-3 rounded-lg text-sm"
-                style={{ 
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-                  color: accentColor 
-                }}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <Clock className="w-4 h-4" />
-                  <span className="font-semibold">可用时间段</span>
-                </div>
-                <div>
-                  {creatingGapTask.startTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} - {creatingGapTask.endTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-                  （最多 {creatingGapTask.maxDuration} 分钟）
-                </div>
-              </div>
-              
-              {/* 任务标题输入 */}
-              <div>
-                <label className="block text-sm font-medium mb-2" style={{ color: textColor }}>
-                  任务标题
-                </label>
-                <input
-                  type="text"
-                  id="gap-task-title"
-                  placeholder="例如：打扫卫生"
-                  className="w-full px-4 py-2 rounded-lg border-2 focus:outline-none focus:border-pink-500"
-                  style={{ 
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#ffffff',
-                    borderColor: borderColor,
-                    color: textColor 
-                  }}
-                  autoFocus
-                />
-              </div>
-              
-              {/* 持续时间输入 */}
-              <div>
-                <label className="block text-sm font-medium mb-2" style={{ color: textColor }}>
-                  持续时间（分钟）
-                </label>
-                <input
-                  type="number"
-                  id="gap-task-duration"
-                  placeholder="30"
-                  min="1"
-                  max={creatingGapTask.maxDuration}
-                  defaultValue={creatingGapTask.maxDuration}
-                  className="w-full px-4 py-2 rounded-lg border-2 focus:outline-none focus:border-pink-500"
-                  style={{ 
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#ffffff',
-                    borderColor: borderColor,
-                    color: textColor 
-                  }}
-                />
-              </div>
-              
-              {/* 按钮组 */}
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={() => setCreatingGapTask(null)}
-                  className="flex-1 px-4 py-2 rounded-lg font-medium transition-colors"
-                  style={{ 
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-                    color: accentColor 
-                  }}
-                >
-                  取消
-                </button>
-                <button
-                  onClick={() => {
-              const titleInput = document.getElementById('gap-task-title') as HTMLInputElement;
-              const durationInput = document.getElementById('gap-task-duration') as HTMLInputElement;
-
-              const title = titleInput?.value.trim() || '新任务';
-              const duration = Math.min(
-                parseInt(durationInput?.value) || creatingGapTask.maxDuration,
-                creatingGapTask.maxDuration
-              );
-
-              const startTime = new Date(creatingGapTask.startTime);
-              const endTime = new Date(startTime.getTime() + duration * 60000);
-
-              setQuickBackfillDraft({
-                title,
-                tags: [],
-                goalId: '',
-                startTime: normalizeTimeInput(startTime),
-                endTime: normalizeTimeInput(endTime),
-                selectedGapIndex: gaps.findIndex((gap) => gap.startTime.getTime() === creatingGapTask.startTime.getTime() && gap.endTime.getTime() === creatingGapTask.endTime.getTime()),
-                previousSuggestedTags: [],
-              });
-              setCreatingGapTask(null);
-            }}
-                  className="flex-1 px-4 py-2 rounded-lg font-bold transition-all hover:scale-105"
-                  style={{ 
-                    backgroundColor: '#C85A7C',
-                    color: 'white' 
-                  }}
-                >
-                  确定添加
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );

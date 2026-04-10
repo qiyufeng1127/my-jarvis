@@ -247,12 +247,41 @@ class BackgroundTaskScheduler {
     }
   }
 
+  private shouldRunTaskChecks() {
+    const settingsStr = localStorage.getItem('notification_settings');
+    if (!settingsStr) return false;
+
+    try {
+      const settings = JSON.parse(settingsStr);
+      if (!settings.browserNotification) {
+        return false;
+      }
+
+      return Boolean(
+        settings.taskStartBeforeReminder ||
+        settings.taskStartReminder ||
+        settings.taskDuringReminder ||
+        settings.taskEndBeforeReminder ||
+        settings.taskEndReminder ||
+        settings.overtimeReminder ||
+        settings.procrastinationReminder
+      );
+    } catch (error) {
+      console.error('读取通知设置失败:', error);
+      return false;
+    }
+  }
+
   /**
    * 检查所有任务
    */
   checkAllTasks() {
-    const schedules = this.loadSchedules();
     const now = new Date();
+    if (!this.shouldRunTaskChecks()) {
+      return;
+    }
+
+    const schedules = this.loadSchedules();
     let schedulesChanged = false;
 
     schedules.forEach(schedule => {

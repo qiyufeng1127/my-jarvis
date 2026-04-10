@@ -226,13 +226,21 @@ export const generateSmartTagAssignment = ({
   const fallbackRecommendedTags = storeRecommendedTags
     .filter((tagName) => availableTagNames.has(tagName));
 
-  const finalSuggestedTags = (suggestedTags.length > 0 ? suggestedTags : fallbackRecommendedTags)
-    .slice(0, 3);
+  const categoryRuleTags = taskCategoryRules
+    .find((rule) => rule.key === currentTaskCategory)?.tags
+    ?.filter((tagName) => availableTagNames.has(tagName)) || [];
+
+  const finalSuggestedTags = Array.from(new Set([
+    ...(suggestedTags.length > 0 ? suggestedTags : []),
+    ...fallbackRecommendedTags,
+    ...categoryRuleTags,
+  ])).slice(0, 3);
 
   const topTagScore = suggestedTags.length > 0
     ? (tagScoreMap.get(suggestedTags[0]) || 0)
     : 0;
-  const isLowConfidenceTagging = topTagScore < 18 && finalSuggestedTags.length <= 1;
+  const hasCategoryFallbackTags = categoryRuleTags.length > 0;
+  const isLowConfidenceTagging = topTagScore < 18 && finalSuggestedTags.length <= 1 && !hasCategoryFallbackTags;
   const conservativeSuggestedTags = isLowConfidenceTagging ? [] : finalSuggestedTags;
 
   const historicalGoldSamples = matchedHistoryTasks

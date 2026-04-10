@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
 import FloatingAIChat from '@/components/ai/FloatingAIChat';
@@ -9,6 +9,7 @@ import { taskMonitorService } from '@/services/taskMonitorService';
 import { backgroundTaskScheduler } from '@/services/backgroundTaskScheduler';
 
 export default function Dashboard() {
+  const tasks = useTaskStore((state) => state.tasks);
   const loadTasks = useTaskStore((state) => state.loadTasks);
   const updateTask = useTaskStore((state) => state.updateTask);
   const createTask = useTaskStore((state) => state.createTask);
@@ -18,6 +19,11 @@ export default function Dashboard() {
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [isAISmartOpen, setIsAISmartOpen] = useState(false);
   const [currentModule, setCurrentModule] = useState<string>('timeline'); // 跟踪当前模块
+
+  const scheduledTasks = useMemo(
+    () => tasks.filter((task) => task.scheduledStart && task.scheduledEnd),
+    [tasks]
+  );
 
   useEffect(() => {
     document.title = 'ManifestOS - 主控面板';
@@ -31,10 +37,10 @@ export default function Dashboard() {
   
   // 当任务列表变化时，重新监控
   useEffect(() => {
-    taskMonitorService.clearAll();
+    const scheduledTaskIds = new Set<string>();
 
     scheduledTasks.forEach((task) => {
-      taskMonitorService.monitorTasks([task]);
+      scheduledTaskIds.add(task.id);
       backgroundTaskScheduler.scheduleTask({
         taskId: task.id,
         taskTitle: task.title,
@@ -49,7 +55,6 @@ export default function Dashboard() {
       });
     });
 
-    const scheduledTaskIds = new Set(scheduledTasks.map((task) => task.id));
     tasks.forEach((task) => {
       if (!scheduledTaskIds.has(task.id)) {
         backgroundTaskScheduler.unscheduleTask(task.id);

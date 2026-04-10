@@ -27,7 +27,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
   const { goals, createGoal, updateGoal, findMatchingGoals } = useGoalStore();
   const { deductGold, balance } = useGoldStore();
   const { tasks } = useTaskStore();
-  const { getAllTags, getTagDurationRecords, getLearnedTagScores, getRecommendedTags, learnTagSelection } = useTagStore();
+  const { getAllTags, getTagDurationRecords, getLearnedTagScores, getRecommendedTags, learnTagSelection, ensureTagsExist } = useTagStore();
   
   const [title, setTitle] = useState(task.title || '');
   const [isTitleAutoFilled, setIsTitleAutoFilled] = useState(false);
@@ -494,10 +494,14 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
     setIsAIAssigning(true);
 
     try {
+      const resolvedSuggestedTags = smartAssignment.suggestedTags.length > 0
+        ? ensureTagsExist(smartAssignment.suggestedTags, smartAssignment.categoryLabel === 'meal' || smartAssignment.categoryLabel === 'toilet' || smartAssignment.categoryLabel === 'shower' || smartAssignment.categoryLabel === 'wash' || smartAssignment.categoryLabel === 'housework' ? 'life_essential' : 'business')
+        : tags;
+
       setDuration(smartAssignment.suggestedDuration);
       setGold(smartAssignment.suggestedGold);
-      setTags(smartAssignment.suggestedTags);
-      setLastSuggestedTags(smartAssignment.suggestedTags);
+      setTags(resolvedSuggestedTags);
+      setLastSuggestedTags(resolvedSuggestedTags);
 
       if (smartAssignment.suggestedGoalId) {
         setSelectedGoalId(smartAssignment.suggestedGoalId);
@@ -512,7 +516,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
         `识别类别：${smartAssignment.categoryLabel || '通用任务'}`,
         `建议时长：${smartAssignment.suggestedDuration} 分钟`,
         `建议金币：${smartAssignment.suggestedGold}`,
-        `建议标签：${smartAssignment.suggestedTags.join('、') || '未找到合适标签'}`,
+        `建议标签：${resolvedSuggestedTags.join('、') || '保持当前标签不变'}`,
         smartAssignment.suggestedGoalId
           ? `关联目标：${goals.find(goal => goal.id === smartAssignment.suggestedGoalId)?.name || '已自动关联'}`
           : '关联目标：未匹配到明确目标，已保持不关联',

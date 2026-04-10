@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useTaskStore } from '@/stores/taskStore';
 import eventBus from '@/utils/eventBus';
 import { 
   Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Inbox, Zap
@@ -10,7 +11,7 @@ import QuickStartView from './QuickStartView';
 import ImportExportButton from './ImportExportButton';
 
 interface TimelineCalendarProps {
-  tasks: Task[];
+  tasks?: Task[];
   onTaskUpdate: (taskId: string, updates: Partial<Task>) => void;
   onTaskCreate: (task: Partial<Task>) => void;
   onTaskDelete: (taskId: string) => void;
@@ -19,13 +20,16 @@ interface TimelineCalendarProps {
 }
 
 export default function TimelineCalendar({
-  tasks,
+  tasks: externalTasks,
   onTaskUpdate,
   onTaskCreate,
   onTaskDelete,
   bgColor = '#ffffff',
   moduleSize, // 接收模块尺寸
 }: TimelineCalendarProps) {
+  const tasks = useTaskStore((state) => state.tasks);
+  const resolvedTasks = externalTasks ?? tasks;
+
   // 检测是否为移动设备
   const [isMobile, setIsMobile] = useState(false);
   
@@ -104,7 +108,7 @@ export default function TimelineCalendar({
     const current = new Date(startDate);
     
     for (let i = 0; i < 42; i++) {
-      const dayTasks = tasks.filter(task => {
+      const dayTasks = resolvedTasks.filter(task => {
         if (!task.scheduledStart) return false;
         const taskDate = new Date(task.scheduledStart);
         return (
@@ -138,7 +142,7 @@ export default function TimelineCalendar({
       const current = new Date(startOfWeek);
       current.setDate(current.getDate() + i);
       
-      const dayTasks = tasks.filter(task => {
+      const dayTasks = resolvedTasks.filter(task => {
         if (!task.scheduledStart) return false;
         const taskDate = new Date(task.scheduledStart);
         return (

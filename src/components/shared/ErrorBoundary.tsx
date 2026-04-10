@@ -84,8 +84,29 @@ class ErrorBoundary extends Component<Props, State> {
   };
 
   render() {
-    // 不显示错误界面，只在控制台输出错误，让开发者可以直接看到并修复
-    // 即使有错误也继续渲染子组件
+    if (this.state.hasError) {
+      if (this.props.fallback) {
+        return this.props.fallback;
+      }
+
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-white px-6 text-center">
+          <div className="max-w-xl space-y-4">
+            <h1 className="text-2xl font-bold text-gray-900">页面加载失败</h1>
+            <p className="text-sm text-gray-600 break-words">
+              {this.state.error?.message || '发生了未知错误'}
+            </p>
+            <button
+              onClick={this.handleReset}
+              className="inline-flex items-center justify-center rounded-lg bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+            >
+              刷新页面
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return this.props.children;
   }
 }

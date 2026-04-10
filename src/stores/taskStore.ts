@@ -76,6 +76,7 @@ export const useTaskStore = create<TaskState>()(
 
   createTask: async (taskData) => {
     try {
+      console.log('🧭 [taskStore] createTask called', taskData);
       // 纯本地模式，使用本地ID
       const userId = 'local-user';
       
@@ -97,16 +98,20 @@ export const useTaskStore = create<TaskState>()(
       const identityTags = isBackfillRecord
         ? Array.from(new Set([...(taskData.identityTags || []), 'system:backfill-record']))
         : (taskData.identityTags || []);
-      const taskTitle = taskData.title || '';
+      const taskTitle = (taskData.title || '').trim();
+      if (!taskTitle) {
+        throw new Error('任务标题不能为空');
+      }
       const taskDescription = taskData.description || '';
       const { smartCalculateGoldReward } = await import('@/utils/goldCalculator');
       const { useTagStore } = await import('@/stores/tagStore');
       const tagStore = useTagStore.getState();
       const taskTags = tagStore.resolveAutoTags(`${taskTitle} ${taskDescription}`.trim(), taskData.tags || [], 3);
+      const ensuredTaskTags = taskTags.length > 0 ? tagStore.ensureTagsExist(taskTags) : taskTags;
       const autoGoldReward = smartCalculateGoldReward(
         taskData.durationMinutes || 30,
         taskData.taskType || 'work',
-        taskTags,
+        ensuredTaskTags,
         taskTitle
       );
       const taskGoldReward = isBackfillRecord ? 0 : (taskData.goldReward ?? autoGoldReward);
@@ -129,7 +134,7 @@ export const useTaskStore = create<TaskState>()(
         penaltyGold: 0,
         status: taskData.status || 'pending',
         goldEarned: 0,
-        tags: taskTags,
+        tags: ensuredTaskTags,
         color: taskData.color,
         location: taskData.location,
         goldReward: taskGoldReward,
@@ -144,8 +149,8 @@ export const useTaskStore = create<TaskState>()(
         tasks: [...state.tasks, newTask],
       }));
 
-      if (taskTags.length > 0) {
-        tagStore.learnTagSelection(`${taskTitle} ${taskDescription}`.trim(), taskTags);
+      if (ensuredTaskTags.length > 0) {
+        tagStore.learnTagSelection(`${taskTitle} ${taskDescription}`.trim(), ensuredTaskTags);
       }
       
       // 记录用户活动（添加任务）
@@ -176,6 +181,7 @@ export const useTaskStore = create<TaskState>()(
         const { useTagStore } = await import('@/stores/tagStore');
         const tagStore = useTagStore.getState();
         nextTags = tagStore.resolveAutoTags(`${nextTitle} ${nextDescription}`.trim(), nextTags, 3);
+        nextTags = nextTags.length > 0 ? tagStore.ensureTagsExist(nextTags) : nextTags;
 
         if (nextTags.length > 0) {
           tagStore.learnTagSelection(

@@ -122,6 +122,7 @@ interface TagState {
   batchSetTagType: (tagNames: string[], tagType: TagType) => void;
   matchExistingTagNames: (candidateTags: string[]) => string[];
   resolveAutoTags: (taskTitle: string, candidateTags?: string[], limit?: number) => string[];
+  ensureTagsExist: (tagNames: string[], tagType?: TagType) => string[];
   
   // 文件夹操作
   createFolder: (name: string, emoji: string, color: string, tagNames?: string[]) => string;
@@ -605,6 +606,22 @@ export const useTagStore = create<TagState>()(
           ...matchedCandidateTags,
           ...learnedTags,
         ])).slice(0, limit);
+      },
+
+      ensureTagsExist: (tagNames, tagType = 'business') => {
+        const normalizedTagNames = Array.from(new Set(
+          tagNames
+            .map((tag) => tag.trim())
+            .filter(Boolean)
+        ));
+
+        normalizedTagNames.forEach((tagName) => {
+          if (!get().getTagByName(tagName)) {
+            get().addTag(tagName, undefined, undefined, tagType);
+          }
+        });
+
+        return normalizedTagNames;
       },
       
       recordTagUsage: (tagName, taskId, taskTitle, duration, isInvalid = false, completionNotes, completionEfficiency) => {
