@@ -36,6 +36,7 @@ interface NotificationSettings {
   voiceRate: number;
   voicePitch: number;
   voiceVolume: number;
+  // 总通知开关：关闭后系统通知 / 语音 / 音效 / 震动全部停用
   browserNotification: boolean;
 }
 
@@ -44,6 +45,10 @@ class NotificationService {
   private settings: NotificationSettings;
   private audioContext: AudioContext | null = null;
   private isPlayingSound: boolean = false; // 🔧 防止音效重复播放
+
+  private isNotificationsEnabled(): boolean {
+    return this.settings.browserNotification;
+  }
 
   constructor() {
     this.checkPermission();
@@ -176,33 +181,29 @@ class NotificationService {
         return;
       }
 
-      // 检查权限
+      // 不再自动请求权限，避免任何自动弹窗
       if (this.permission !== 'granted') {
-        const granted = await this.requestPermission();
-        if (!granted) {
-          console.warn('⚠️ 通知权限未授予');
-          return;
-        }
+        console.log('⏭️ 通知权限未授予，跳过系统通知');
+        return;
       }
+
+      const notificationOptions = {
+        icon: options?.icon || '/favicon.ico',
+        badge: options?.badge || '/favicon.ico',
+        body: options?.body,
+        tag: options?.tag,
+        requireInteraction: false,
+        silent: true,
+        vibrate: undefined as number[] | undefined,
+      };
 
       // 优先使用 Service Worker 发送通知（支持后台）
       if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
         try {
           const registration = await navigator.serviceWorker.ready;
-          await registration.showNotification(title, {
-            icon: options?.icon || '/favicon.ico',
-            badge: options?.badge || '/favicon.ico',
-            body: options?.body,
-            tag: options?.tag,
-            requireInteraction: options?.requireInteraction || false,
-            silent: options?.silent || false,
-            vibrate: options?.vibrate || [200, 100, 200], // 振动模式
-            data: {
-              url: window.location.href,
-            },
-          });
+          await registration.showNotification(title, notificationOptions);
           
-          console.log('✅ 通过 Service Worker 发送通知');
+          console.log('✅ 通过 Service Worker 发送静默通知');
           return;
         } catch (swError) {
           console.warn('⚠️ Service Worker 通知失败，使用普通通知:', swError);
@@ -210,19 +211,11 @@ class NotificationService {
       }
 
       // 降级：使用普通通知
-      const notification = new Notification(title, {
-        icon: options?.icon || '/favicon.ico',
-        badge: options?.badge || '/favicon.ico',
-        body: options?.body,
-        tag: options?.tag,
-        requireInteraction: options?.requireInteraction || false,
-        silent: options?.silent || false,
-      });
+      const notification = new Notification(title, notificationOptions);
 
-      // 点击通知时聚焦窗口
+      // 点击通知时只关闭通知，不聚焦窗口、不跳转
       notification.onclick = () => {
         try {
-          window.focus();
           notification.close();
         } catch (err) {
           console.error('❌ 通知点击处理失败:', err);
@@ -235,24 +228,13 @@ class NotificationService {
       };
 
       // 自动关闭（5秒后）
-      if (!options?.requireInteraction) {
-        setTimeout(() => {
-          try {
-            notification.close();
-          } catch (err) {
-            console.error('❌ 关闭通知失败:', err);
-          }
-        }, 5000);
-      }
-      
-      // 振动反馈
-      if ('vibrate' in navigator && options?.vibrate) {
+      setTimeout(() => {
         try {
-          navigator.vibrate(options.vibrate);
+          notification.close();
         } catch (err) {
-          console.error('❌ 振动失败:', err);
+          console.error('❌ 关闭通知失败:', err);
         }
-      }
+      }, 5000);
     } catch (error) {
       console.error('❌ 发送通知失败:', error);
       // 不抛出错误，避免影响应用运行
@@ -266,7 +248,7 @@ class NotificationService {
     console.log('🔊 [playSound] 被调用:', type);
 
     this.loadSettings();
-    if (!this.settings.browserNotification) {
+    if (!this.isNotificationsEnabled()) {
       console.log('⏭️ 提醒总开关已关闭，跳过音效播放');
       return;
     }
@@ -389,7 +371,7 @@ class NotificationService {
    */
   vibrate(pattern: number | number[] = [200, 100, 200]) {
     this.loadSettings();
-    if (!this.settings.browserNotification) {
+    if (!this.isNotificationsEnabled()) {
       console.log('⏭️ 提醒总开关已关闭，跳过震动');
       return;
     }
@@ -410,7 +392,7 @@ class NotificationService {
   speak(text: string) {
     this.loadSettings();
 
-    if (!this.settings.browserNotification) {
+    if (!this.isNotificationsEnabled()) {
       console.log('⏭️ 提醒总开关已关闭，跳过语音播报');
       return;
     }
@@ -527,8 +509,12 @@ class NotificationService {
   async notifyTaskStartBefore(taskTitle: string, minutesBefore: number, hasVerification: boolean = false) {
     console.log('📢 [notifyTaskStartBefore] 被调用:', { taskTitle, minutesBefore, hasVerification });
 
-    // 🔧 重新加载设置
     this.loadSettings();
+
+    if (!this.isNotificationsEnabled()) {
+      console.log('⏭️ [notifyTaskStartBefore] 提醒总开关已关闭');
+      return;
+    }
 
     // 检查设置
     if (!this.settings.taskStartBeforeReminder) {
@@ -576,6 +562,11 @@ class NotificationService {
 
     this.loadSettings();
 
+    if (!this.isNotificationsEnabled()) {
+      console.log('⏭️ 任务总提醒已关闭');
+      return;
+    }
+
     // 检查设置 - 使用正确的设置项
     if (!this.settings.taskStartReminder) {
       console.log('⏭️ 任务开始提醒已关闭');
@@ -614,6 +605,11 @@ class NotificationService {
 
     // 🔧 重新加载设置
     this.loadSettings();
+
+    if (!this.isNotificationsEnabled()) {
+      console.log('⏭️ [notifyTaskDuring] 提醒总开关已关闭');
+      return;
+    }
 
     // 检查设置
     if (!this.settings.taskDuringReminder) {
@@ -654,6 +650,11 @@ class NotificationService {
 
     // 🔧 重新加载设置，确保使用最新的用户设置
     this.loadSettings();
+
+    if (!this.isNotificationsEnabled()) {
+      console.log('⏭️ [notifyTaskEnding] 提醒总开关已关闭');
+      return;
+    }
 
     // 检查设置 - 使用正确的设置项
     if (!this.settings.taskEndBeforeReminder) {
@@ -702,6 +703,11 @@ class NotificationService {
     // 🔧 重新加载设置
     this.loadSettings();
 
+    if (!this.isNotificationsEnabled()) {
+      console.log('⏭️ [notifyTaskEnd] 提醒总开关已关闭');
+      return;
+    }
+
     // 检查设置 - 使用正确的设置项
     if (!this.settings.taskEndReminder) {
       console.log('⏭️ [notifyTaskEnd] 任务结束提醒已关闭');
@@ -743,6 +749,11 @@ class NotificationService {
     // 🔧 重新加载设置
     this.loadSettings();
 
+    if (!this.isNotificationsEnabled()) {
+      console.log('⏭️ [notifyVerificationUrgent] 提醒总开关已关闭');
+      return;
+    }
+
     // 检查设置
     if (!this.settings.verificationUrgentReminder) {
       console.log('⏭️ [notifyVerificationUrgent] 紧急验证提醒已关闭');
@@ -779,6 +790,12 @@ class NotificationService {
    */
   async notifyVerificationSuccess(taskTitle: string, type: 'start' | 'completion') {
     console.log('📢 验证成功通知:', taskTitle, type);
+    this.loadSettings();
+
+    if (!this.isNotificationsEnabled()) {
+      console.log('⏭️ 验证总提醒已关闭');
+      return;
+    }
 
     // 检查设置
     const shouldNotify = type === 'start' 
@@ -811,6 +828,12 @@ class NotificationService {
    */
   async notifyVerificationFailed(taskTitle: string, type: 'start' | 'completion', reason: string) {
     console.log('📢 验证失败通知:', taskTitle, type, reason);
+    this.loadSettings();
+
+    if (!this.isNotificationsEnabled()) {
+      console.log('⏭️ 验证总提醒已关闭');
+      return;
+    }
 
     // 检查设置
     const shouldNotify = type === 'start' 
@@ -844,6 +867,12 @@ class NotificationService {
    */
   async notifyGoldEarned(taskTitle: string, goldAmount: number) {
     console.log('📢 金币获得通知:', taskTitle, goldAmount);
+    this.loadSettings();
+
+    if (!this.isNotificationsEnabled()) {
+      console.log('⏭️ 金币提醒总开关已关闭');
+      return;
+    }
 
     // 检查设置
     if (!this.settings.goldChange) {
@@ -877,6 +906,12 @@ class NotificationService {
    */
   async notifyGoldDeducted(reason: string, goldAmount: number) {
     console.log('📢 金币扣除通知:', reason, goldAmount);
+    this.loadSettings();
+
+    if (!this.isNotificationsEnabled()) {
+      console.log('⏭️ 金币提醒总开关已关闭');
+      return;
+    }
 
     // 检查设置
     if (!this.settings.goldDeductionReminder) {
@@ -911,6 +946,12 @@ class NotificationService {
    */
   async notifyOvertime(taskTitle: string, type: 'start' | 'completion') {
     console.log('📢 超时提醒通知:', taskTitle, type);
+    this.loadSettings();
+
+    if (!this.isNotificationsEnabled()) {
+      console.log('⏭️ 超时提醒总开关已关闭');
+      return;
+    }
 
     // 检查设置
     if (!this.settings.overtimeReminder) {
@@ -946,6 +987,12 @@ class NotificationService {
    */
   async notifyProcrastination(taskTitle: string, count: number) {
     console.log('📢 拖延提醒通知:', taskTitle, count);
+    this.loadSettings();
+
+    if (!this.isNotificationsEnabled()) {
+      console.log('⏭️ 拖延提醒总开关已关闭');
+      return;
+    }
 
     // 检查设置
     if (!this.settings.procrastinationReminder) {

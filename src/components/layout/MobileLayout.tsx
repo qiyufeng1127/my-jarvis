@@ -3,10 +3,8 @@ import eventBus from '@/utils/eventBus';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
 import { useGoldStore } from '@/stores/goldStore';
-import { useTutorialStore } from '@/stores/tutorialStore';
 import { useLevelStore } from '@/stores/levelStore';
 import { X, GripVertical, Settings, MoreHorizontal } from 'lucide-react';
-import NotificationContainer from '@/components/ui/NotificationContainer';
 // import AISmartInput from '@/components/ai/AISmartInput'; // 临时注释
 import FloatingAIChat from '@/components/ai/FloatingAIChat';
 import {
@@ -20,8 +18,6 @@ import GoalHomeView from '@/components/goals/GoalHomeView';
 import JournalModule from '@/components/journal/JournalModule';
 import PanoramaMemory from '@/components/memory/PanoramaMemory';
 import DailyReceipt from '@/components/receipt/DailyReceipt';
-import MobileWelcome from '@/components/tutorial/MobileWelcome';
-import OnboardingTooltip, { ONBOARDING_STEPS } from '@/components/tutorial/OnboardingTooltip';
 import { TagManagerV2 } from '@/components/tags';
 import UserProfileCardsWrapper from '@/components/profile/UserProfileCardsWrapper';
 import DailyReviewModal from '@/components/review/DailyReviewModal';
@@ -76,16 +72,13 @@ const ALL_NAV_ITEMS: NavItem[] = [
 ];
 
 export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {}) {
-  const { loadTasks } = useTaskStore();
-  const { loadGrowthData } = useGrowthStore();
-  const { balance } = useGoldStore();
-  const { 
-    activeOnboarding, 
-    setActiveOnboarding,
-    completeOnboarding,
-    shouldShowOnboarding 
-  } = useTutorialStore();
-  const { currentLevel, currentExp, getCurrentLevelConfig, getNextLevelConfig } = useLevelStore();
+  const loadTasks = useTaskStore((state) => state.loadTasks);
+  const loadGrowthData = useGrowthStore((state) => state.loadGrowthData);
+  const balance = useGoldStore((state) => state.balance);
+  const currentLevel = useLevelStore((state) => state.currentLevel);
+  const currentExp = useLevelStore((state) => state.currentExp);
+  const getCurrentLevelConfig = useLevelStore((state) => state.getCurrentLevelConfig);
+  const getNextLevelConfig = useLevelStore((state) => state.getNextLevelConfig);
   
   // 防止整个页面滚动
   useEffect(() => {
@@ -179,15 +172,6 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
     loadTasks();
     loadGrowthData();
   }, [loadTasks, loadGrowthData]);
-
-  // 首次访问时显示引导
-  useEffect(() => {
-    if (shouldShowOnboarding('home')) {
-      setTimeout(() => {
-        setActiveOnboarding('home');
-      }, 1000);
-    }
-  }, [shouldShowOnboarding, setActiveOnboarding]);
 
   // 保存导航栏配置
   useEffect(() => {
@@ -313,32 +297,11 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         width: '100vw',
       }}
     >
-      {/* 通知容器 */}
-      <NotificationContainer />
-
-      {/* 移动端欢迎界面 */}
-      <MobileWelcome />
-
       {/* 每日小票 */}
       <DailyReceipt 
         isOpen={showReceipt} 
         onClose={() => setShowReceipt(false)} 
       />
-
-      {/* 新手引导 */}
-      {activeOnboarding && ONBOARDING_STEPS[activeOnboarding as keyof typeof ONBOARDING_STEPS] && (
-        <OnboardingTooltip
-          steps={ONBOARDING_STEPS[activeOnboarding as keyof typeof ONBOARDING_STEPS]}
-          onComplete={() => {
-            completeOnboarding(activeOnboarding);
-            setActiveOnboarding(null);
-          }}
-          onSkip={() => {
-            completeOnboarding(activeOnboarding);
-            setActiveOnboarding(null);
-          }}
-        />
-      )}
 
       {/* 主内容区域 - 只有这个区域可以滚动 */}
       <div 

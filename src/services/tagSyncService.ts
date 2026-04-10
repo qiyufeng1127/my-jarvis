@@ -8,6 +8,8 @@ import { useTagStore } from '@/stores/tagStore';
 import type { Task } from '@/types';
 
 class TagSyncService {
+  private unsubscribe: (() => void) | null = null;
+
   /**
    * 当任务完成时，同步数据到标签
    */

@@ -83,18 +83,14 @@ class BackgroundNotificationService {
    * 请求所有必要的权限
    */
   private async requestPermissions() {
-    // 1. 通知权限
-    if ('Notification' in window && Notification.permission !== 'granted') {
-      const permission = await Notification.requestPermission();
-      console.log('📢 通知权限:', permission);
-    }
-    
-    // 2. 后台同步权限（如果支持）
+    // 禁止自动请求通知权限，避免任何自动弹窗
+    console.log('⏭️ 跳过自动权限请求');
+
+    // 后台能力检测仍可保留，但不触发弹窗
     if ('serviceWorker' in navigator && 'sync' in ServiceWorkerRegistration.prototype) {
       console.log('✅ 支持后台同步');
     }
-    
-    // 3. 持久化存储权限
+
     if ('storage' in navigator && 'persist' in navigator.storage) {
       const isPersisted = await navigator.storage.persist();
       console.log('💾 持久化存储:', isPersisted);
@@ -194,6 +190,14 @@ class BackgroundNotificationService {
    */
   private async checkTasks() {
     try {
+      const settingsStr = localStorage.getItem('notification_settings');
+      if (settingsStr) {
+        const settings = JSON.parse(settingsStr);
+        if (!settings.browserNotification) {
+          return;
+        }
+      }
+
       // 从 localStorage 读取任务数据
       const tasksStr = localStorage.getItem('manifestos-tasks-storage');
       if (!tasksStr) return;

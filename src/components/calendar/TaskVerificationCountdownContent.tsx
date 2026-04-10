@@ -1167,11 +1167,12 @@ export default function TaskVerificationCountdownContent({
             onClick={() => handleStartTask()}
             className="px-6 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all flex items-center gap-1.5"
             style={{
-              backgroundColor: '#10B981',
-              color: '#ffffff',
+              backgroundColor: '#6E7FA6',
+              color: '#F8F5EF',
+              boxShadow: '0 8px 18px rgba(110,127,166,0.22)',
             }}
           >
-            <span>✅</span>
+            <span>🚀</span>
             <span>提前启动</span>
           </button>
         )}
@@ -1183,23 +1184,25 @@ export default function TaskVerificationCountdownContent({
               onClick={() => handleStartTask(true)}
               className="flex-1 px-4 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-1.5"
               style={{
-                backgroundColor: '#3B82F6',
-                color: '#ffffff',
+                backgroundColor: '#6E7FA6',
+                color: '#F8F5EF',
+                boxShadow: '0 8px 18px rgba(110,127,166,0.22)',
               }}
             >
-              <span>📷</span>
-              <span>拍摄照片</span>
+              <span>🚀</span>
+              <span>拍照启动</span>
             </button>
             <button 
               onClick={() => handleStartTask(false)}
               className="flex-1 px-4 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-1.5"
               style={{
-                backgroundColor: '#8B5CF6',
-                color: '#ffffff',
+                backgroundColor: '#A46F5A',
+                color: '#F8F5EF',
+                boxShadow: '0 8px 18px rgba(164,111,90,0.22)',
               }}
             >
-              <span>🖼️</span>
-              <span>上传照片</span>
+              <span>🔥</span>
+              <span>上传启动</span>
             </button>
           </div>
         )}
@@ -1229,9 +1232,9 @@ export default function TaskVerificationCountdownContent({
         </div>
         
         {/* 顶部状态文字 */}
-        <div className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: '#666' }}>
-          <span>⏰</span>
-          <span>启动倒计时</span>
+        <div className="text-xs font-black mb-1 flex items-center gap-1.5 tracking-wide" style={{ color: '#6E7FA6' }}>
+          <span>🚀</span>
+          <span>立即启动</span>
         </div>
         
         {/* 启动倒计时（无背景） */}
@@ -1270,11 +1273,12 @@ export default function TaskVerificationCountdownContent({
             disabled={isUploading}
             className="px-6 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center gap-1.5"
             style={{
-              backgroundColor: '#10B981',
-              color: '#ffffff',
+              backgroundColor: '#6E7FA6',
+              color: '#F8F5EF',
+              boxShadow: '0 8px 18px rgba(110,127,166,0.22)',
             }}
           >
-            <span>✅</span>
+            <span>🚀</span>
             <span>启动任务</span>
           </button>
         )}
@@ -1287,8 +1291,9 @@ export default function TaskVerificationCountdownContent({
               disabled={isUploading}
               className="flex-1 px-4 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
               style={{
-                backgroundColor: '#3B82F6',
-                color: '#ffffff',
+                backgroundColor: '#6E7FA6',
+                color: '#F8F5EF',
+                boxShadow: '0 8px 18px rgba(110,127,166,0.22)',
               }}
             >
               {isUploading ? (
@@ -1298,8 +1303,8 @@ export default function TaskVerificationCountdownContent({
                 </>
               ) : (
                 <>
-                  <span>📷</span>
-                  <span>拍摄照片</span>
+                  <span>🚀</span>
+                  <span>拍照启动</span>
                 </>
               )}
             </button>
@@ -1308,8 +1313,9 @@ export default function TaskVerificationCountdownContent({
               disabled={isUploading}
               className="flex-1 px-4 py-2 rounded-full text-sm font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
               style={{
-                backgroundColor: '#8B5CF6',
-                color: '#ffffff',
+                backgroundColor: '#A46F5A',
+                color: '#F8F5EF',
+                boxShadow: '0 8px 18px rgba(164,111,90,0.22)',
               }}
             >
               {isUploading ? (
@@ -1319,8 +1325,8 @@ export default function TaskVerificationCountdownContent({
                 </>
               ) : (
                 <>
-                  <span>🖼️</span>
-                  <span>上传照片</span>
+                  <span>🔥</span>
+                  <span>上传启动</span>
                 </>
               )}
             </button>
@@ -1420,8 +1426,8 @@ export default function TaskVerificationCountdownContent({
         
         {/* 顶部状态文字 */}
         <div className="text-xs font-medium mb-1 flex items-center gap-1" style={{ color: '#666' }}>
-          <span>⏰</span>
-          <span>启动倒计时</span>
+          <span>⏱️</span>
+          <span>任务剩余</span>
         </div>
         
         {/* 启动倒计时（无背景） */}

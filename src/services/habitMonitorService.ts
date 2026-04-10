@@ -7,9 +7,11 @@ import type { BadHabit } from '@/types/habitTypes';
  * 坏习惯监控服务
  * 自动监控时间轴事件并根据规则记录坏习惯
  */
-class HabitMonitorService {
+class TagSyncService {
   private initialized = false;
   private checkInterval: NodeJS.Timeout | null = null;
+  private dailySettlementTimeout: NodeJS.Timeout | null = null;
+  private dailySettlementInterval: NodeJS.Timeout | null = null;
 
   initialize() {
     if (this.initialized) return;
@@ -33,6 +35,14 @@ class HabitMonitorService {
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
       this.checkInterval = null;
+    }
+    if (this.dailySettlementTimeout) {
+      clearTimeout(this.dailySettlementTimeout);
+      this.dailySettlementTimeout = null;
+    }
+    if (this.dailySettlementInterval) {
+      clearInterval(this.dailySettlementInterval);
+      this.dailySettlementInterval = null;
     }
     this.initialized = false;
     console.log('🏺 坏习惯监控服务已停止');

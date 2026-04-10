@@ -54,16 +54,10 @@ export default function EmergencyTaskSettings() {
   // 手动测试触发
   const handleTestTrigger = () => {
     if (tasks.length === 0) {
-      alert('请先添加至少一个紧急任务');
       return;
     }
 
-    const task = triggerRandomTask();
-    if (task) {
-      alert('测试触发成功！紧急任务弹窗应该已显示');
-    } else {
-      alert('触发失败：没有可用的任务');
-    }
+    triggerRandomTask();
   };
 
   const resetForm = () => {
@@ -120,9 +114,7 @@ export default function EmergencyTaskSettings() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('确定要删除这个紧急任务吗？')) {
-      deleteTask(id);
-    }
+    deleteTask(id);
   };
 
   const getFrequencyText = (task: EmergencyTask) => {

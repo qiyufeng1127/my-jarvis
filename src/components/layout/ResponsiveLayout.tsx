@@ -7,44 +7,40 @@ interface ResponsiveLayoutProps {
   onModuleChange?: (module: string) => void;
 }
 
+const isMobileDevice = () => {
+  const userAgent = navigator.userAgent.toLowerCase();
+  return /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
+};
+
 export default function ResponsiveLayout({ onOpenAISmart, onModuleChange }: ResponsiveLayoutProps) {
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return isMobileDevice() || window.matchMedia('(max-width: 767px)').matches;
+  });
 
   useEffect(() => {
-    // 检测设备类型
-    const checkDevice = () => {
-      const userAgent = navigator.userAgent.toLowerCase();
-      const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
-      const isSmallScreen = window.innerWidth < 768;
-      
-      setIsMobile(isMobileDevice || isSmallScreen);
+    const mediaQuery = window.matchMedia('(max-width: 767px)');
+
+    const updateLayoutMode = (matches: boolean) => {
+      setIsMobile((current) => {
+        const next = isMobileDevice() || matches;
+        return current === next ? current : next;
+      });
     };
 
-    checkDevice();
-    window.addEventListener('resize', checkDevice);
+    updateLayoutMode(mediaQuery.matches);
 
-    return () => window.removeEventListener('resize', checkDevice);
+    const handleChange = (event: MediaQueryListEvent) => {
+      updateLayoutMode(event.matches);
+    };
+
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
 
-  // 手机端使用 MobileLayout
   if (isMobile) {
     return <MobileLayout onModuleChange={onModuleChange} />;
   }
 
-  // 电脑端使用 CustomizableDashboard
   return <CustomizableDashboard onOpenAISmart={onOpenAISmart} onModuleChange={onModuleChange} />;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-

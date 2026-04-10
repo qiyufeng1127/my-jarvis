@@ -5,9 +5,9 @@ import { useGoldStore } from '@/stores/goldStore';
 import { useTaskStore } from '@/stores/taskStore';
 import { useTagStore } from '@/stores/tagStore';
 import { useKeyboardAvoidance } from '@/hooks';
-import { smartCalculateGoldReward } from '@/utils/goldCalculator';
-import type { Task, LongTermGoal, TaskType } from '@/types';
+import type { Task, LongTermGoal } from '@/types';
 import type { SubTask } from '@/services/taskVerificationService';
+import { generateSmartTagAssignment } from '@/utils/smartTagAssignment';
 
 interface CompactTaskEditModalProps {
   task: Task;

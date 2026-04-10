@@ -93,16 +93,12 @@ export const useTaskStore = create<TaskState>()(
         : undefined;
 
       const scheduledStartDate = scheduledStartStr ? new Date(scheduledStartStr) : undefined;
-      const isBackfillRecord = !!scheduledStartDate
-        && scheduledStartDate.getTime() < Date.now()
-        && (taskData.title === '新任务' || taskData.title === '补录记录');
+      const isBackfillRecord = (taskData.identityTags || []).includes('system:backfill-record');
       const identityTags = isBackfillRecord
         ? Array.from(new Set([...(taskData.identityTags || []), 'system:backfill-record']))
         : (taskData.identityTags || []);
-      const taskTitle = isBackfillRecord ? '补录记录' : (taskData.title || '');
-      const taskTags = isBackfillRecord
-        ? []
-        : (taskData.tags || []);
+      const taskTitle = taskData.title || '';
+      const taskTags = taskData.tags || [];
       const taskGoldReward = isBackfillRecord ? 0 : (taskData.goldReward || 0);
       
       const newTask: Task = {

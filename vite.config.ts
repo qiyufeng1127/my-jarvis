@@ -16,11 +16,7 @@ export default defineConfig({
     host: true, // 允许局域网访问
     open: true,
     strictPort: false, // 如果端口被占用，自动尝试下一个端口
-    hmr: {
-      protocol: 'ws',
-      host: 'localhost',
-      port: 3000,
-    },
+    hmr: false, // 彻底关闭开发环境自动热更新/自动刷新，避免页面状态被重置
     proxy: {
       // 代理 DeepSeek AI 请求，解决本地开发 CORS 问题
       '/ai-api': {
@@ -44,4 +40,3 @@ export default defineConfig({
     sourcemap: false,
   },
 })
-

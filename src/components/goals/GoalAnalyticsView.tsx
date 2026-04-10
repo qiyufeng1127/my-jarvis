@@ -30,6 +30,10 @@ function formatHours(minutes: number) {
   return `${(minutes / 60).toFixed(1)} h`;
 }
 
+function getRecordDurationMax(durationMinutes: number) {
+  return Math.max(1, durationMinutes);
+}
+
 function getComparisonTone(current: number, target: number) {
   if (current >= target) return '#34c759';
   if (target <= 0) return '#34c759';
@@ -349,7 +353,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
 
   if (selectedRecord && editorDraft) {
     const originalDuration = Math.max(selectedRecord.durationMinutes || 0, 1);
-    const durationMax = Math.max(originalDuration * 2, 240);
+    const durationMax = getRecordDurationMax(originalDuration);
     const durationPercent = Math.round((editorDraft.durationMinutes / originalDuration) * 100);
     const sliderFillPercent = Math.min(100, (editorDraft.durationMinutes / Math.max(durationMax, 1)) * 100);
     const originalMarkerPercent = Math.min(100, (originalDuration / Math.max(durationMax, 1)) * 100);
@@ -377,8 +381,10 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
                       <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7aa7d9]">历史记录编辑态</div>
                       <div className="mt-1 text-[22px] font-semibold tracking-[-0.04em] text-[#111827]">{selectedRecord.taskTitle}</div>
                     </div>
-                    <div className="rounded-full bg-[#edf5ff] px-3 py-1 text-[22px] font-semibold tracking-[-0.04em] text-[#0A84FF]">
-                      {durationPercent}%
+                    <div className="rounded-[22px] bg-[#edf5ff] px-3 py-2 text-right text-[#0A84FF]">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#7aa7d9]">有效率</div>
+                      <div className="mt-1 text-[22px] font-semibold tracking-[-0.04em]">{durationPercent}%</div>
+                      <div className="mt-1 text-xs font-medium text-[#5b8fd6]">{editorDraft.durationMinutes} / {originalDuration} 分钟</div>
                     </div>
                   </div>
                   <div className="mt-2 text-sm text-[#6b7280]">在这里直接调整有效时间和本次实际关键结果，风格与时间轴弹窗保持一致。</div>
@@ -396,9 +402,11 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
                   <div>
                     <div className="text-xs font-medium uppercase tracking-[0.18em] text-[#9ca3af]">当前换算</div>
                     <div className="mt-2 text-[18px] font-medium text-[#6b7280]">{formatHours(editorDraft.durationMinutes)}</div>
+                    <div className="mt-2 text-xs text-[#9ca3af]">有效时间 / 总时长：{editorDraft.durationMinutes} / {originalDuration} 分钟</div>
                   </div>
-                  <div className="rounded-full bg-[#edf5ff] px-3 py-1 text-[24px] font-semibold tracking-[-0.04em] text-[#0A84FF]">
-                    {durationPercent}%
+                  <div className="rounded-[20px] bg-[#edf5ff] px-3 py-2 text-right text-[#0A84FF]">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#7aa7d9]">有效率</div>
+                    <div className="mt-1 text-[24px] font-semibold tracking-[-0.04em]">{durationPercent}%</div>
                   </div>
                 </div>
 

@@ -28,8 +28,7 @@ import { useTaskHistoryStore } from '@/stores/taskHistoryStore';
 import CelebrationEffect from '@/components/effects/CelebrationEffect';
 import { 
   adjustTaskStartTime, 
-  adjustTaskEndTime, 
-  calculateActualDuration 
+  adjustTaskEndTime
 } from '@/utils/timelineAdjuster';
 import { 
   calculateActualGoldReward, 
@@ -118,11 +117,15 @@ export default function NewTimelineView({
   const [efficiencyModalTask, setEfficiencyModalTask] = useState<{
     id: string;
     title: string;
-    plannedImageCount: number;
-    actualImageCount: number;
     actualEndTime: Date;
-    goldReward?: number; // 🔧 新增：金币奖励数量
+    actualDurationMinutes: number;
+    goldReward?: number;
     forceMandatoryReflection?: boolean;
+    matchedGoals: LongTermGoal[];
+    initialGoalId: string;
+    initialValues: Record<string, string>;
+    initialNote: string;
+    initialEffectiveMinutes: number;
   } | null>(null);
   const [mandatoryReflectionTaskId, setMandatoryReflectionTaskId] = useState<string | null>(null);
   const [mandatoryReflectionDraft, setMandatoryReflectionDraft] = useState<Record<string, string>>({});
@@ -902,6 +905,7 @@ export default function NewTimelineView({
         startTime,
         endTime,
         duration: task.durationMinutes || 60,
+        status: task.status,
         color: taskColor, // 使用任务的颜色
         category: task.taskType,
         description: task.description,
@@ -1423,71 +1427,56 @@ export default function NewTimelineView({
     }
 
     const now = new Date();
-    const originalScheduledStart = task.scheduledStart ? new Date(task.scheduledStart) : now;
-    const isEarlyStart = now.getTime() < originalScheduledStart.getTime();
+    const duration = task.duration || task.durationMinutes || 30;
+    const endTime = new Date(now.getTime() + duration * 60 * 1000);
     
-    // 检查是否配置了启动验证
-    if (verification?.enabled && verification?.startKeywords?.length > 0) {
-      console.log('📷 [handleStartTask] 任务有启动验证，创建启动倒计时状态');
-      console.log(`⏰ [handleStartTask] 是否提前开始: ${isEarlyStart ? '是' : '否'}`);
+    // 手动点击 start：说明用户现在就要开始，直接进入任务进行中
+    // 自动到预设时间时，TaskVerificationCountdownContent 仍会负责进入 2 分钟启动倒计时
+    if (verification?.enabled) {
+      console.log('✅ [handleStartTask] 手动点击 start，跳过启动倒计时，直接开始任务');
 
-      // 关键修复：提前开始时，不应立刻从当前时刻计算“启动超时”
-      // 应该保留原计划开始时间，并把2分钟宽限期算在计划开始时间之后
-      const startDeadline = isEarlyStart
-        ? new Date(originalScheduledStart.getTime() + 2 * 60 * 1000)
-        : new Date(now.getTime() + 2 * 60 * 1000);
-      
-      // 创建启动倒计时状态
       const countdownState = {
-        status: 'start_countdown',
-        startDeadline: startDeadline.toISOString(),
-        taskDeadline: null,
+        status: 'task_countdown',
+        startDeadline: null,
+        taskDeadline: endTime.toISOString(),
         startTimeoutCount: 0,
         completeTimeoutCount: 0,
-        actualStartTime: null,
+        actualStartTime: now.toISOString(),
       };
-      
-      // 保存到localStorage
-      localStorage.setItem(`countdown_${taskId}`, JSON.stringify(countdownState));
-      console.log('✅ [handleStartTask] 已创建启动倒计时状态:', countdownState);
 
-      // 同步到后台调度，避免前后台状态不一致
-      backgroundTaskScheduler.updateTaskStatus(taskId, 'start_countdown', {
-        startDeadline: countdownState.startDeadline,
-        startTimeoutCount: countdownState.startTimeoutCount,
+      localStorage.setItem(`countdown_${taskId}`, JSON.stringify(countdownState));
+      backgroundTaskScheduler.updateTaskStatus(taskId, 'task_countdown', {
+        taskDeadline: countdownState.taskDeadline,
+        actualStartTime: countdownState.actualStartTime,
+        startTimeoutCount: 0,
       });
-      
-      // 关键修复：不要在点击开始时覆盖原 scheduledStart
-      // 否则会把“原计划开始时间”抹掉，导致提前开始被误判为超时
-      onTaskUpdate(taskId, { 
-        status: 'waiting_start',
-      });
-      
-      // 展开任务卡片，显示倒计时组件
-      setExpandedTasks(prev => new Set([...prev, taskId]));
-      
-      console.log('✅ [handleStartTask] 已进入启动倒计时阶段，任务卡片已展开');
-    } else {
-      // 没有启动验证，直接启动任务
-      console.log('✅ [handleStartTask] 无启动验证，直接启动任务');
-      
-      const duration = task.duration || task.durationMinutes || 30;
-      const endTime = new Date(now.getTime() + duration * 60 * 1000);
-      
-      onTaskUpdate(taskId, { 
-        status: 'in_progress',
-        scheduledStart: now.toISOString(),
-        scheduledEnd: endTime.toISOString(),
-      });
-      
-      // 记录实际开始时间
-      setTaskActualStartTimes(prev => ({
+
+      setTaskVerifications(prev => ({
         ...prev,
-        [taskId]: now
+        [taskId]: {
+          ...prev[taskId],
+          status: 'started',
+          actualStartTime: now,
+          startFailedAttempts: 0,
+        },
       }));
-      
-      console.log('✅ [handleStartTask] 任务已直接启动，开始时间:', now.toISOString(), '结束时间:', endTime.toISOString());
+    } else {
+      console.log('✅ [handleStartTask] 无启动验证，直接启动任务');
     }
+      
+    onTaskUpdate(taskId, { 
+      status: 'in_progress',
+      scheduledStart: now.toISOString(),
+      scheduledEnd: endTime.toISOString(),
+    });
+      
+    // 记录实际开始时间
+    setTaskActualStartTimes(prev => ({
+      ...prev,
+      [taskId]: now
+    }));
+
+    console.log('✅ [handleStartTask] 任务已直接启动，开始时间:', now.toISOString(), '结束时间:', endTime.toISOString());
   };
   
   // 处理验证图片
@@ -1734,6 +1723,7 @@ export default function NewTimelineView({
             status: 'completed', 
             isCompleted: true,
             scheduledEnd: now.toISOString(),
+            endTime: now.toISOString(),
           });
           
           // 发送任务完成通知
@@ -1748,6 +1738,14 @@ export default function NewTimelineView({
               console.log(`📊 记录标签使用: ${tagName} - ${actualDuration}分钟`);
             });
           }
+
+          openTaskCompletionModal({
+            ...task,
+            status: 'completed',
+            isCompleted: true,
+            scheduledEnd: now.toISOString(),
+            endTime: now.toISOString(),
+          }, now, finalGold);
           
           console.log('✅ 任务完成验证成功，时间已自动修正');
         }
@@ -1817,7 +1815,9 @@ export default function NewTimelineView({
       // 更新任务状态，记录实际结束时间
       onTaskUpdate(taskId, { 
         status: 'completed',
-        endTime: now.toISOString()
+        isCompleted: true,
+        endTime: now.toISOString(),
+        scheduledEnd: now.toISOString(),
       });
 
       if (activeLoop?.taskId === taskId) {
@@ -1843,6 +1843,14 @@ export default function NewTimelineView({
           console.log(`📊 记录标签使用: ${tagName} - ${actualDuration}分钟（实际时长）`);
         });
       }
+
+      openTaskCompletionModal({
+        ...task,
+        status: 'completed',
+        isCompleted: true,
+        endTime: now.toISOString(),
+        scheduledEnd: now.toISOString(),
+      }, now, goldReward);
       return;
     }
     
@@ -1967,7 +1975,9 @@ export default function NewTimelineView({
       // 更新任务状态，记录实际结束时间
       onTaskUpdate(taskId, { 
         status: 'completed',
-        endTime: now.toISOString()
+        isCompleted: true,
+        endTime: now.toISOString(),
+        scheduledEnd: now.toISOString(),
       });
 
       if (activeLoop?.taskId === taskId) {
@@ -1985,6 +1995,14 @@ export default function NewTimelineView({
           console.log(`📊 记录标签使用: ${tagName} - ${actualDuration}分钟（实际时长）`);
         });
       }
+
+      openTaskCompletionModal({
+        ...task,
+        status: 'completed',
+        isCompleted: true,
+        endTime: now.toISOString(),
+        scheduledEnd: now.toISOString(),
+      }, now, goldReward);
     }
   };
 
@@ -2078,20 +2096,84 @@ export default function NewTimelineView({
     return matched.slice(0, 3);
   };
 
+  const getTaskActualDuration = (task: Task) => {
+    const actualStart = task.actualStart
+      ? new Date(task.actualStart)
+      : task.startTime
+        ? new Date(task.startTime)
+        : task.scheduledStart
+          ? new Date(task.scheduledStart)
+          : null;
+    const actualEnd = task.actualEnd
+      ? new Date(task.actualEnd)
+      : task.endTime
+        ? new Date(task.endTime)
+        : task.actualEndTime
+          ? new Date(task.actualEndTime)
+          : task.scheduledEnd
+            ? new Date(task.scheduledEnd)
+            : null;
+
+    if (!actualStart || !actualEnd || Number.isNaN(actualStart.getTime()) || Number.isNaN(actualEnd.getTime())) {
+      return Math.max(1, task.actualDuration || task.durationMinutes || 0);
+    }
+
+    return Math.max(1, Math.round((actualEnd.getTime() - actualStart.getTime()) / 60000));
+  };
+
   const createContributionDraft = (task: Task, matchedGoals: LongTermGoal[]) => {
     const primaryGoal = matchedGoals[0];
     const existingRecord = existingGoalContributionRecords.find((record) => record.taskId === task.id && record.goalId === primaryGoal?.id);
+    const actualDuration = getTaskActualDuration(task);
 
     return {
       goalId: primaryGoal?.id || '',
       note: existingRecord?.note || '',
-      durationMinutes: String(existingRecord?.durationMinutes ?? task.durationMinutes ?? 0),
+      durationMinutes: String(existingRecord?.durationMinutes ?? actualDuration),
       values: (primaryGoal?.dimensions || []).reduce<Record<string, string>>((acc, dimension) => {
         const existingValue = existingRecord?.dimensionResults.find((item) => item.dimensionId === dimension.id)?.value;
-        acc[dimension.id] = existingValue !== undefined ? String(existingValue) : '';
+        acc[dimension.id] = existingValue !== undefined ? String(existingValue) : '0';
         return acc;
       }, {}),
     };
+  };
+
+  const openTaskCompletionModal = (task: Task, actualEndTime: Date, goldReward: number) => {
+    const isHistoricalGapTask = isHistoricalGapRecordTask(task);
+
+    if (isHistoricalGapTask) {
+      onTaskUpdate(task.id, {
+        scheduledEnd: actualEndTime.toISOString(),
+        endTime: actualEndTime.toISOString(),
+        isCompleted: true,
+        status: 'completed'
+      });
+      return;
+    }
+
+    const matchedGoals = getMatchedGoalsForTask(task);
+    const baseDraft = createContributionDraft(task, matchedGoals);
+    const actualDurationMinutes = task.scheduledStart
+      ? Math.max(0, Math.floor((actualEndTime.getTime() - new Date(task.scheduledStart).getTime()) / 60000))
+      : 0;
+    const effectiveMinutes = Math.max(0, Math.min(Number(baseDraft?.durationMinutes ?? actualDurationMinutes), actualDurationMinutes));
+    const overtimeCount = Math.max(0, Math.floor(actualDurationMinutes / Math.max(task.durationMinutes || 1, 1)) - 1);
+    const isLowEfficiencyOvertime = overtimeCount >= LOW_EFFICIENCY_TIMEOUT_THRESHOLD;
+
+    setEfficiencyModalTask({
+      id: task.id,
+      title: task.title,
+      actualEndTime,
+      actualDurationMinutes,
+      goldReward,
+      forceMandatoryReflection: isLowEfficiencyOvertime,
+      matchedGoals,
+      initialGoalId: baseDraft?.goalId || '',
+      initialValues: baseDraft?.values || {},
+      initialNote: baseDraft?.note || '',
+      initialEffectiveMinutes: effectiveMinutes,
+    });
+    setEfficiencyModalOpen(true);
   };
 
   const getGoalContributionStep = (dimension: LongTermGoal['dimensions'][number]) => {
@@ -2104,7 +2186,7 @@ export default function NewTimelineView({
     handleGoalContributionDraftChange(taskId, {
       values: {
         ...(goalContributionDrafts[taskId]?.values || {}),
-        [dimensionId]: safeValue === 0 ? '' : String(safeValue),
+        [dimensionId]: String(safeValue),
       },
     });
   };
@@ -2154,11 +2236,12 @@ export default function NewTimelineView({
     }));
   };
 
-  const handleSaveGoalContribution = () => {
-    if (!goalContributionTaskId) return;
+  const handleSaveGoalContribution = (taskIdOverride?: string, draftOverride?: { goalId: string; note: string; durationMinutes: string; values: Record<string, string> }) => {
+    const activeTaskId = taskIdOverride || goalContributionTaskId;
+    if (!activeTaskId) return;
 
-    const task = allTasks.find((item) => item.id === goalContributionTaskId);
-    const draft = goalContributionDrafts[goalContributionTaskId];
+    const task = allTasks.find((item) => item.id === activeTaskId);
+    const draft = draftOverride || goalContributionDrafts[activeTaskId];
     const goal = goals.find((item) => item.id === draft?.goalId);
 
     if (!task || !draft || !goal) {
@@ -2166,9 +2249,8 @@ export default function NewTimelineView({
       return;
     }
 
-    const effectiveDuration = Math.max(0, Number(draft.durationMinutes || 0));
-    const plannedDuration = Math.max(task.durationMinutes || 0, 1);
-    const effectiveRatio = effectiveDuration / plannedDuration;
+    const actualDuration = getTaskActualDuration(task);
+    const effectiveDuration = Math.max(0, Math.min(Number(draft.durationMinutes || 0), actualDuration));
 
     const dimensionResults = goal.dimensions
       .map((dimension) => ({
@@ -2429,6 +2511,10 @@ export default function NewTimelineView({
         const currentGoal = goals.find((item) => item.id === draft.goalId) || matchedGoals[0];
         const currentGoalIncome = currentGoal?.currentIncome || 0;
         const currentGoalTargetIncome = currentGoal?.targetIncome || 0;
+        const actualDuration = getTaskActualDuration(currentTask);
+        const currentDurationValue = Math.min(Number(draft.durationMinutes || actualDuration), actualDuration);
+        const durationPercent = Math.round((currentDurationValue / actualDuration) * 100);
+        const sliderFillPercent = Math.min(100, (currentDurationValue / actualDuration) * 100);
 
         return (
           <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 px-3 pt-6 backdrop-blur-sm">
@@ -2477,11 +2563,15 @@ export default function NewTimelineView({
                       <div>
                         <div className="text-xs font-medium uppercase tracking-[0.18em] text-[#9ca3af]">当前换算</div>
                         <div className="mt-2 text-[18px] font-medium text-[#6b7280]">
-                          {(Number(draft.durationMinutes || currentTask.durationMinutes || 0) / 60).toFixed(1)} 小时
+                          {(currentDurationValue / 60).toFixed(1)} 小时
                         </div>
+                        <div className="mt-2 text-xs text-[#9ca3af]">有效时间 / 总时长：{currentDurationValue} / {actualDuration} 分钟</div>
                       </div>
-                      <div className="rounded-full bg-[#edf5ff] px-3 py-1 text-[24px] font-semibold tracking-[-0.04em] text-[#0A84FF]">
-                        {Math.round((Number(draft.durationMinutes || currentTask.durationMinutes || 0) / Math.max(currentTask.durationMinutes || 1, 1)) * 100)}%
+                      <div className="rounded-[20px] bg-[#edf5ff] px-3 py-2 text-right text-[#0A84FF]">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#7aa7d9]">有效率</div>
+                        <div className="mt-1 text-[24px] font-semibold tracking-[-0.04em]">
+                          {durationPercent}%
+                        </div>
                       </div>
                     </div>
 
@@ -2490,31 +2580,21 @@ export default function NewTimelineView({
                       <div
                         className="pointer-events-none absolute top-1/2 h-2 -translate-y-1/2 rounded-full bg-[#0A84FF] shadow-[0_0_18px_rgba(10,132,255,0.35)]"
                         style={{
-                          width: `${Math.min(
-                            100,
-                            (Number(draft.durationMinutes || currentTask.durationMinutes || 0) /
-                              Math.max(Math.max((currentTask.durationMinutes || 60) * 2, 240), 1)) *
-                              100
-                          )}%`,
+                          width: `${sliderFillPercent}%`,
                         }}
                       />
                       <div
                         className="pointer-events-none absolute top-1/2 z-[1] h-4 w-[2px] -translate-y-1/2 rounded-full bg-[#111827]/30"
                         style={{
-                          left: `${Math.min(
-                            100,
-                            ((currentTask.durationMinutes || 0) /
-                              Math.max(Math.max((currentTask.durationMinutes || 60) * 2, 240), 1)) *
-                              100
-                          )}%`,
+                          left: '100%',
                         }}
                       />
                       <input
                         type="range"
                         min={0}
-                        max={Math.max((currentTask.durationMinutes || 60) * 2, 240)}
-                        step={5}
-                        value={Number(draft.durationMinutes || currentTask.durationMinutes || 0)}
+                        max={actualDuration}
+                        step={1}
+                        value={currentDurationValue}
                         onChange={(e) => handleGoalContributionDraftChange(goalContributionTaskId, { durationMinutes: e.target.value })}
                         className="relative z-[2] h-8 w-full cursor-pointer appearance-none bg-transparent accent-[#0A84FF]"
                       />
@@ -2522,8 +2602,8 @@ export default function NewTimelineView({
 
                     <div className="mt-2 flex items-center justify-between text-xs text-[#9ca3af]">
                       <span>0 分钟</span>
-                      <span>原任务 {currentTask.durationMinutes || 0} 分钟</span>
-                      <span>{Math.max((currentTask.durationMinutes || 60) * 2, 240)} 分钟</span>
+                      <span>实际完成 {actualDuration} 分钟</span>
+                      <span>{actualDuration} 分钟</span>
                     </div>
                   </div>
 
@@ -2532,13 +2612,13 @@ export default function NewTimelineView({
                       <div>
                         <div className="text-sm text-[#6b7280]">有效时间</div>
                         <div className="mt-2 text-[42px] font-semibold tracking-[-0.06em] text-[#111827]">
-                          {Number(draft.durationMinutes || currentTask.durationMinutes || 0)}
+                          {currentDurationValue}
                         </div>
                         <div className="text-base text-[#6b7280]">分钟</div>
                       </div>
                       <div className="rounded-[18px] bg-[#f5f9ff] px-3 py-2 text-right">
-                        <div className="text-xs uppercase tracking-[0.16em] text-[#9ca3af]">默认值</div>
-                        <div className="mt-1 text-sm font-semibold text-[#111827]">{currentTask.durationMinutes || 0} 分钟</div>
+                        <div className="text-xs uppercase tracking-[0.16em] text-[#9ca3af]">总时长</div>
+                        <div className="mt-1 text-sm font-semibold text-[#111827]">{actualDuration} 分钟</div>
                       </div>
                     </div>
                   </div>
@@ -2611,13 +2691,26 @@ export default function NewTimelineView({
                                 −
                               </button>
 
-                              <div className="flex flex-1 items-center justify-center rounded-[18px] border border-[#dbe4f0] bg-[#fcfcfd] px-3 py-3 shadow-sm">
-                                <div className="text-center leading-none">
-                                  <div className="text-[24px] font-semibold tracking-[-0.04em] text-[#111827]">
-                                    {draft.values[dimension.id] || '0'}
-                                  </div>
-                                  <div className="mt-1 text-[11px] text-[#6b7280]">本次增加 {dimension.unit}</div>
-                                </div>
+                              <div className="flex flex-1 items-center rounded-[18px] border border-[#dbe4f0] bg-[#fcfcfd] px-3 py-2 shadow-sm">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={step}
+                                  inputMode="decimal"
+                                  value={draft.values[dimension.id] ?? '0'}
+                                  onChange={(e) => {
+                                    const nextRawValue = e.target.value;
+
+                                    handleGoalContributionDraftChange(goalContributionTaskId, {
+                                      values: {
+                                        ...(goalContributionDrafts[goalContributionTaskId]?.values || {}),
+                                        [dimension.id]: nextRawValue === '' ? '' : nextRawValue,
+                                      },
+                                    });
+                                  }}
+                                  className="w-full bg-transparent text-center text-[24px] font-semibold tracking-[-0.04em] text-[#111827] outline-none"
+                                />
+                                <div className="ml-2 shrink-0 text-[11px] text-[#6b7280]">{dimension.unit}</div>
                               </div>
 
                               <button
@@ -3428,14 +3521,16 @@ export default function NewTimelineView({
                   const isInProgress = block.status === 'in_progress';
                   const isCompleted = block.isCompleted;
                   
-                  // 显示条件：预设时间已到达 且 未完成，且不是“间隔补录记录”任务
+                  // 显示条件：已到预设开始时间，或任务已经手动开始；且未完成
+                  // 历史补录记录默认不显示，但手动开始后允许显示完成倒计时
                   const taskRecord = allTasks.find((item) => item.id === block.id);
-                  const shouldShow = hasReachedStartTime && !isCompleted && !isHistoricalGapRecordTask(taskRecord);
+                  const isHistoricalBackfill = isHistoricalGapRecordTask(taskRecord);
+                  const shouldShow = (hasReachedStartTime || isInProgress) && !isCompleted && (!isHistoricalBackfill || isInProgress);
                   
                   return shouldShow;
                 })() && (
                   <TaskVerificationCountdownContent
-                     key={block.id}
+                     key={`${block.id}-${block.status}-${block.startTime.getTime()}-${block.endTime.getTime()}`}
                      taskId={block.id}
                      taskTitle={block.title}
                      scheduledStart={block.startTime}
@@ -3484,30 +3579,6 @@ export default function NewTimelineView({
                          status: 'completed'
                        });
                        
-                       const isHistoricalGapTask = isHistoricalGapRecordTask(taskRecord);
-
-                       // 🎯 所有普通任务完成时都显示效率评估模态框；过去的间隔补录记录任务不进入该流程
-                       if (isHistoricalGapTask) {
-                         onTaskUpdate(block.id, {
-                           scheduledEnd: actualEndTime.toISOString(),
-                           endTime: actualEndTime.toISOString(),
-                           isCompleted: true,
-                           status: 'completed'
-                         });
-                         return;
-                       }
-                       
-                       // 🎯 所有普通任务完成时都显示效率评估模态框
-                       const verification = taskVerifications[block.id];
-                       const plannedImageCount = verification?.plannedImageCount || 0;
-                       const actualImageCount = taskImages[block.id]?.length || 0;
-                       const actualDurationMinutes = taskRecord?.scheduledStart
-                         ? Math.max(0, Math.floor((actualEndTime.getTime() - new Date(taskRecord.scheduledStart).getTime()) / 60000))
-                         : 0;
-                       const overtimeCount = Math.max(0, Math.floor(actualDurationMinutes / Math.max(taskRecord?.durationMinutes || block.duration || 1, 1)) - 1);
-                       const isLowEfficiencyOvertime = overtimeCount >= LOW_EFFICIENCY_TIMEOUT_THRESHOLD;
-                       
-                       // 馃敡 璁＄畻閲戝竵濂栧姳锛堟彁鍓嶅畬鎴愬鍔?0%锛塦r
                        const scheduledEndTime = new Date(block.endTime);
                        const scheduledStartTime = new Date(block.startTime);
                        const now = new Date();
@@ -3523,17 +3594,16 @@ export default function NewTimelineView({
                          : (isHistoricalTask 
                            ? (block.goldReward || 0) 
                            : (isEarly ? Math.floor((block.goldReward || 0) * 0.5) : 0));
-                       
-                       setEfficiencyModalTask({
-                         id: block.id,
-                         title: block.title,
-                         plannedImageCount,
-                         actualImageCount,
-                         actualEndTime,
-                         goldReward,
-                         forceMandatoryReflection: isLowEfficiencyOvertime,
-                       });
-                       setEfficiencyModalOpen(true);
+
+                       if (taskRecord) {
+                         openTaskCompletionModal({
+                           ...taskRecord,
+                           status: 'completed',
+                           isCompleted: true,
+                           endTime: actualEndTime.toISOString(),
+                           scheduledEnd: actualEndTime.toISOString(),
+                         }, actualEndTime, goldReward);
+                       }
                      }}
                      onTimeoutUpdate={(startTimeoutCount, completeTimeoutCount) => {
                        // 保存超时数据到任务对象
@@ -4718,14 +4788,30 @@ export default function NewTimelineView({
           <button
             onClick={() => {
               try {
-                // 固定添加30分钟的任务
+                const now = new Date();
                 const startTime = new Date(timeUntilEnd.startTime);
+
+                if (startTime.getTime() < now.getTime()) {
+                  setQuickBackfillDraft({
+                    title: '',
+                    tags: [],
+                    goalId: '',
+                    startTime: normalizeTimeInput(startTime),
+                    endTime: normalizeTimeInput(new Date(startTime.getTime() + 30 * 60000)),
+                    selectedGapIndex: -1,
+                    previousSuggestedTags: [],
+                    note: '',
+                    values: {},
+                  });
+                  return;
+                }
+
                 const endTime = new Date(startTime.getTime() + 30 * 60000);
                 const newTask = {
                   title: '新任务',
                   scheduledStart: startTime.toISOString(),
                   scheduledEnd: endTime.toISOString(),
-                  durationMinutes: 30, // 固定30分钟
+                  durationMinutes: 30,
                   taskType: 'work',
                   status: 'pending' as const,
                 };
@@ -4804,73 +4890,92 @@ export default function NewTimelineView({
             setEfficiencyModalOpen(false);
             setEfficiencyModalTask(null);
           }}
-          onConfirm={(efficiency, notes) => {
+          onConfirm={({ effectiveMinutes, goalId, values, note }) => {
             const task = allTasks.find((item) => item.id === efficiencyModalTask.id);
             const actualDuration = task?.scheduledStart
               ? Math.max(0, Math.floor((efficiencyModalTask.actualEndTime.getTime() - new Date(task.scheduledStart).getTime()) / 60000))
-              : (task?.durationMinutes || 0);
+              : (task?.durationMinutes || efficiencyModalTask.actualDurationMinutes || 0);
+            const safeEffectiveMinutes = Math.max(0, Math.min(effectiveMinutes, actualDuration));
+            const efficiency = actualDuration > 0 ? Math.round((safeEffectiveMinutes / actualDuration) * 100) : 0;
             const shouldRequireLowEfficiencyReflection = !!efficiencyModalTask.forceMandatoryReflection;
 
-            if (shouldRequireLowEfficiencyReflection) {
-              onTaskUpdate(efficiencyModalTask.id, {
-                scheduledEnd: efficiencyModalTask.actualEndTime.toISOString(),
-                endTime: efficiencyModalTask.actualEndTime.toISOString(),
-                completionEfficiency: efficiency,
-                efficiencyLevel: efficiency >= 80 ? 'excellent' : efficiency >= 60 ? 'good' : efficiency >= 40 ? 'average' : 'poor',
-                completionNotes: notes,
-                actualDuration,
-                startVerificationTimeout: taskStartTimeouts[efficiencyModalTask.id],
-                completionTimeout: taskFinishTimeouts[efficiencyModalTask.id],
-              });
+            if (!goalId) {
+              setGoalContributionError('请选择一个目标后再保存关键结果。');
+              return false;
+            }
 
-              setEfficiencyModalOpen(false);
-              ensureMandatoryReflection(efficiencyModalTask.id, 'low_efficiency');
-              return;
+            const selectedGoal = goals.find((item) => item.id === goalId);
+            if (!selectedGoal) {
+              setGoalContributionError('未找到对应目标，请重新选择。');
+              return false;
+            }
+
+            const dimensionResults = selectedGoal.dimensions
+              .map((dimension) => ({
+                dimensionId: dimension.id,
+                value: Number(values[dimension.id] || 0),
+              }))
+              .filter((dimension) => dimension.value > 0);
+
+            if (dimensionResults.length === 0) {
+              setGoalContributionError('请至少填写一个大于 0 的关键结果。');
+              return false;
             }
 
             updateTaskEfficiency(
               efficiencyModalTask.id,
               efficiency,
-              efficiencyModalTask.actualImageCount
+              taskImages[efficiencyModalTask.id]?.length || 0
             );
 
             onTaskUpdate(efficiencyModalTask.id, {
               scheduledEnd: efficiencyModalTask.actualEndTime.toISOString(),
               endTime: efficiencyModalTask.actualEndTime.toISOString(),
-              isCompleted: true,
+              isCompleted: !shouldRequireLowEfficiencyReflection,
               status: 'completed',
               completionEfficiency: efficiency,
               efficiencyLevel: efficiency >= 80 ? 'excellent' : efficiency >= 60 ? 'good' : efficiency >= 40 ? 'average' : 'poor',
-              completionNotes: notes,
+              completionNotes: note,
               actualDuration,
               startVerificationTimeout: taskStartTimeouts[efficiencyModalTask.id],
               completionTimeout: taskFinishTimeouts[efficiencyModalTask.id],
             });
 
-            if (task) {
-              const matchedGoals = getMatchedGoalsForTask(task);
-              const baseDraft = createContributionDraft(task, matchedGoals);
-              setGoalContributionDrafts((prev) => ({
-                ...prev,
-                [task.id]: {
-                  ...(prev[task.id] || baseDraft),
-                  durationMinutes: prev[task.id]?.durationMinutes || String(actualDuration),
-                  note: prev[task.id]?.note || notes || baseDraft.note,
-                },
-              }));
-              setGoalContributionTaskId(task.id);
+            const nextDraft = {
+              goalId,
+              note,
+              durationMinutes: String(safeEffectiveMinutes),
+              values,
+            };
+
+            setGoalContributionDrafts((prev) => ({
+              ...prev,
+              [efficiencyModalTask.id]: nextDraft,
+            }));
+
+            setGoalContributionError(null);
+            handleSaveGoalContribution(efficiencyModalTask.id, nextDraft);
+
+            if (shouldRequireLowEfficiencyReflection) {
+              ensureMandatoryReflection(efficiencyModalTask.id, 'low_efficiency');
             }
 
             setEfficiencyModalOpen(false);
             setEfficiencyModalTask(null);
+            return true;
           }}
           taskTitle={efficiencyModalTask.title}
-          plannedImageCount={efficiencyModalTask.plannedImageCount}
-          actualImageCount={efficiencyModalTask.actualImageCount}
+          actualDurationMinutes={efficiencyModalTask.actualDurationMinutes}
           isDark={isDark}
           accentColor={accentColor}
           goldReward={efficiencyModalTask.goldReward || 0}
           forceMandatoryReflection={!!efficiencyModalTask.forceMandatoryReflection}
+          matchedGoals={efficiencyModalTask.matchedGoals}
+          allGoals={goals}
+          initialGoalId={efficiencyModalTask.initialGoalId}
+          initialValues={efficiencyModalTask.initialValues}
+          initialNote={efficiencyModalTask.initialNote}
+          initialEffectiveMinutes={efficiencyModalTask.initialEffectiveMinutes}
         />
       )}
       

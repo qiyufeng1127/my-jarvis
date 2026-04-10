@@ -14,6 +14,10 @@ class StreakReminderService {
    * 启动提醒服务
    */
   start() {
+    if (this.reminderTimer) {
+      return;
+    }
+
     // 每小时检查一次
     this.reminderTimer = setInterval(() => {
       this.checkAndRemind();

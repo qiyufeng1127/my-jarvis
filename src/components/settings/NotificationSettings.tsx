@@ -34,6 +34,7 @@ interface NotificationSettings {
   voiceRate: number;
   voicePitch: number;
   voiceVolume: number;
+  // 总通知开关：关闭后系统通知 / 语音 / 音效 / 震动全部停用
   browserNotification: boolean;
 }
 
@@ -109,34 +110,28 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
     setTestingVoice(true);
     
     try {
-      // 1. 初始化语音（激活语音功能，需要用户交互）
+      if (!settings.browserNotification || !settings.voiceEnabled) {
+        setTestingVoice(false);
+        return;
+      }
+
+      // 仅测试语音，不触发系统通知
       await notificationService.initSpeech();
-      
-      // 2. 重新加载设置确保使用最新的
       notificationService.reloadSettings();
+      notificationService.speak('语音播报测试成功，当前仅进行静默语音测试，不会弹出通知或跳转页面。');
       
-      // 3. 测试通知（包含声音、震动、语音）
-      notificationService.notifyTaskStart('测试任务', true);
-      
-      // 4. 额外测试纯语音播报
-      setTimeout(() => {
-        notificationService.speak('语音播报测试成功！您现在可以听到语音提醒了。');
-      }, 1000);
-      
-      setTimeout(() => setTestingVoice(false), 5000);
+      setTimeout(() => setTestingVoice(false), 3000);
     } catch (error) {
       console.error('测试语音失败:', error);
-      alert('语音测试失败，请检查浏览器设置是否允许自动播放音频');
       setTestingVoice(false);
     }
   };
 
   const requestNotificationPermission = async () => {
-    const granted = await notificationService.requestPermission();
-    if (granted) {
-      alert('通知权限已授予！');
-    } else {
-      alert('通知权限被拒绝，请在浏览器设置中手动开启。');
+    try {
+      await notificationService.requestPermission();
+    } catch (error) {
+      console.error('请求通知权限失败:', error);
     }
   };
 
@@ -431,14 +426,14 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
         
         <SettingToggle
           label="启用语音播报"
-          description="使用系统语音引擎播报通知"
+          description={settings.browserNotification ? '使用系统语音引擎播报通知' : '需先打开通知总开关'}
           checked={settings.voiceEnabled}
           onChange={(checked) => updateSetting('voiceEnabled', checked)}
           isDark={isDark}
           accentColor={accentColor}
         />
         
-        {settings.voiceEnabled && (
+        {settings.browserNotification && settings.voiceEnabled && (
           <div className="space-y-4 pl-4 border-l-2" style={{ borderColor: accentColor }}>
             {/* 语速 */}
             <div>
@@ -525,11 +520,11 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
 
       {/* 浏览器通知 */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>浏览器通知</h3>
+        <h3 className="text-lg font-semibold" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>通知总开关</h3>
         
         <SettingToggle
-          label="启用浏览器通知"
-          description="在系统通知栏显示提醒（需要授权）"
+          label="启用通知"
+          description="关闭后系统通知、语音、音效、震动全部停用"
           checked={settings.browserNotification}
           onChange={(checked) => updateSetting('browserNotification', checked)}
           isDark={isDark}
@@ -553,10 +548,10 @@ export default function NotificationSettingsPanel({ isDark, accentColor }: Notif
         <div className="text-sm opacity-70 bg-blue-500/10 border border-blue-500/30 rounded-lg p-3" style={{ color: isDark ? '#ffffff' : '#1f2937' }}>
           <p className="font-semibold mb-1">💡 提示：</p>
           <ul className="list-disc list-inside space-y-1">
-            <li>语音播报即使在后台也能听到</li>
-            <li>浏览器通知需要授予权限</li>
+            <li>关闭通知总开关后，系统通知、语音、音效、震动会全部停止</li>
+            <li>通知权限仍需要手动授予</li>
             <li>PWA 模式下通知效果更好</li>
-            <li>建议同时开启语音和通知</li>
+            <li>全程不会自动弹窗、自动跳转到时间轴</li>
           </ul>
         </div>
       </div>

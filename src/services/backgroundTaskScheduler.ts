@@ -37,6 +37,18 @@ class BackgroundTaskScheduler {
   private checkInterval: number | null = null;
   private isInitialized = false;
 
+  private areTaskDetailsEqual(a: ScheduledTask, b: ScheduledTask) {
+    return (
+      a.taskTitle === b.taskTitle &&
+      a.scheduledStart === b.scheduledStart &&
+      a.scheduledEnd === b.scheduledEnd &&
+      a.goldReward === b.goldReward &&
+      a.hasVerification === b.hasVerification &&
+      JSON.stringify(a.startKeywords || []) === JSON.stringify(b.startKeywords || []) &&
+      JSON.stringify(a.completeKeywords || []) === JSON.stringify(b.completeKeywords || [])
+    );
+  }
+
   constructor() {
     this.init();
   }
@@ -48,9 +60,6 @@ class BackgroundTaskScheduler {
     if (this.isInitialized) return;
 
     console.log('🚀 [后台任务调度] 初始化服务');
-
-    // 请求通知权限
-    await notificationService.requestPermission();
 
     // 注册 Service Worker
     await this.registerServiceWorker();
@@ -128,15 +137,18 @@ class BackgroundTaskScheduler {
       clearInterval(this.checkInterval);
     }
 
-    // 每10秒检查一次任务
-    this.checkInterval = window.setInterval(() => {
+    const runCheck = () => {
+      if (document.hidden) return;
       this.checkAllTasks();
-    }, 10000);
+    };
+
+    // 每60秒检查一次任务，避免高频轮询导致界面抖动
+    this.checkInterval = window.setInterval(runCheck, 60000);
 
     // 立即执行一次检查
     this.checkAllTasks();
 
-    console.log('⏰ [后台任务调度] 定时检查已启动（每10秒）');
+    console.log('⏰ [后台任务调度] 定时检查已启动（每60秒）');
   }
 
   /**
@@ -241,58 +253,74 @@ class BackgroundTaskScheduler {
   checkAllTasks() {
     const schedules = this.loadSchedules();
     const now = new Date();
+    let schedulesChanged = false;
 
     schedules.forEach(schedule => {
       const task = this.loadTaskDetails(schedule.taskId);
       if (!task) return;
 
-      this.checkTask(schedule, task, now);
+      const changed = this.checkTask(schedule, task, now);
+      if (changed) {
+        schedulesChanged = true;
+      }
     });
 
-    // 保存更新后的状态
-    this.saveSchedules(schedules);
+    // 只有状态真的变化时才保存，避免轮询不断写 localStorage
+    if (schedulesChanged) {
+      this.saveSchedules(schedules);
+    }
   }
 
   /**
    * 检查单个任务
    */
   private checkTask(schedule: TaskScheduleState, task: ScheduledTask, now: Date) {
+    let changed = false;
     const liveTask = this.getLiveTask(schedule.taskId);
     if (!liveTask || !liveTask.scheduledStart || !liveTask.scheduledEnd) {
       this.unscheduleTask(schedule.taskId);
-      return;
+      return false;
     }
 
-    task.taskTitle = liveTask.title;
-    task.scheduledStart = new Date(liveTask.scheduledStart).toISOString();
-    task.scheduledEnd = new Date(liveTask.scheduledEnd).toISOString();
-    task.goldReward = liveTask.goldReward || 0;
-    task.hasVerification = Boolean(
-      liveTask.verificationEnabled || liveTask.verificationStart || liveTask.verificationComplete
-    );
-    task.startKeywords = liveTask.startKeywords;
-    task.completeKeywords = liveTask.completeKeywords;
+    const nextTaskDetails: ScheduledTask = {
+      taskId: schedule.taskId,
+      taskTitle: liveTask.title,
+      scheduledStart: new Date(liveTask.scheduledStart).toISOString(),
+      scheduledEnd: new Date(liveTask.scheduledEnd).toISOString(),
+      goldReward: liveTask.goldReward || 0,
+      hasVerification: Boolean(
+        liveTask.verificationEnabled || liveTask.verificationStart || liveTask.verificationComplete
+      ),
+      startKeywords: liveTask.startKeywords,
+      completeKeywords: liveTask.completeKeywords,
+    };
 
     if (
-      schedule.scheduledStart !== task.scheduledStart ||
-      schedule.scheduledEnd !== task.scheduledEnd
+      schedule.scheduledStart !== nextTaskDetails.scheduledStart ||
+      schedule.scheduledEnd !== nextTaskDetails.scheduledEnd
     ) {
-      schedule.scheduledStart = task.scheduledStart;
-      schedule.scheduledEnd = task.scheduledEnd;
+      schedule.scheduledStart = nextTaskDetails.scheduledStart;
+      schedule.scheduledEnd = nextTaskDetails.scheduledEnd;
       schedule.status = 'waiting_start';
       schedule.startDeadline = null;
       schedule.taskDeadline = null;
       schedule.actualStartTime = null;
       schedule.remindersTriggered = [];
+      changed = true;
     }
 
-    this.saveTaskDetails(task);
+    if (!this.areTaskDetailsEqual(task, nextTaskDetails)) {
+      this.saveTaskDetails(nextTaskDetails);
+      task = nextTaskDetails;
+    }
 
     const scheduledStart = new Date(schedule.scheduledStart);
     const scheduledEnd = new Date(schedule.scheduledEnd);
 
     // 1. 检查任务开始前提醒
-    this.checkTaskStartBeforeReminder(schedule, task, now, scheduledStart);
+    if (this.checkTaskStartBeforeReminder(schedule, task, now, scheduledStart)) {
+      changed = true;
+    }
 
     // 2. 检查是否到达任务开始时间（只发送通知，不修改状态）
     if (schedule.status === 'waiting_start' && now >= scheduledStart) {
@@ -304,6 +332,7 @@ class BackgroundTaskScheduler {
         notificationService.notifyTaskStart(task.taskTitle, task.hasVerification);
         
         schedule.remindersTriggered.push(reminderKey);
+        changed = true;
       }
     }
 
@@ -326,12 +355,16 @@ class BackgroundTaskScheduler {
 
     // 4. 检查任务进行中提醒
     if (schedule.status === 'task_countdown' && schedule.actualStartTime) {
-      this.checkTaskDuringReminder(schedule, task, now);
+      if (this.checkTaskDuringReminder(schedule, task, now)) {
+        changed = true;
+      }
     }
 
     // 5. 检查任务即将结束提醒
     if (schedule.status === 'task_countdown' && schedule.taskDeadline) {
-      this.checkTaskEndingReminder(schedule, task, now);
+      if (this.checkTaskEndingReminder(schedule, task, now)) {
+        changed = true;
+      }
     }
 
     // 6. 检查任务倒计时超时（只发送通知，不修改状态）
@@ -347,9 +380,12 @@ class BackgroundTaskScheduler {
           notificationService.notifyProcrastination(task.taskTitle, schedule.completeTimeoutCount + 1);
           
           schedule.remindersTriggered.push(reminderKey);
+          changed = true;
         }
       }
     }
+
+    return changed;
   }
 
   /**
@@ -361,14 +397,17 @@ class BackgroundTaskScheduler {
     now: Date,
     scheduledStart: Date
   ) {
-    if (schedule.status !== 'waiting_start') return;
+    if (schedule.status !== 'waiting_start') return false;
 
     const settingsStr = localStorage.getItem('notification_settings');
-    if (!settingsStr) return;
+    if (!settingsStr) return false;
 
     try {
       const settings = JSON.parse(settingsStr);
-      if (!settings.taskStartBeforeReminder) return;
+      if (!settings.browserNotification) {
+        return false;
+      }
+      if (!settings.taskStartBeforeReminder) return false;
 
       const reminderMinutes = settings.taskStartBeforeMinutes || 2;
       const reminderTime = new Date(scheduledStart.getTime() - reminderMinutes * 60 * 1000);
@@ -380,10 +419,13 @@ class BackgroundTaskScheduler {
         console.log(`⏰ [后台任务调度] 任务开始前提醒（${reminderMinutes}分钟）: ${task.taskTitle}`);
         notificationService.notifyTaskStartBefore(task.taskTitle, reminderMinutes, task.hasVerification);
         schedule.remindersTriggered.push(reminderKey);
+        return true;
       }
     } catch (error) {
       console.error('读取通知设置失败:', error);
     }
+
+    return false;
   }
 
   /**
@@ -395,11 +437,14 @@ class BackgroundTaskScheduler {
     now: Date
   ) {
     const settingsStr = localStorage.getItem('notification_settings');
-    if (!settingsStr) return;
+    if (!settingsStr) return false;
 
     try {
       const settings = JSON.parse(settingsStr);
-      if (!settings.taskDuringReminder) return;
+      if (!settings.browserNotification) {
+        return false;
+      }
+      if (!settings.taskDuringReminder) return false;
 
       const intervalMinutes = settings.taskDuringMinutes || 10;
       const startTime = new Date(schedule.actualStartTime!);
@@ -414,11 +459,14 @@ class BackgroundTaskScheduler {
           console.log(`⏰ [后台任务调度] 任务进行中提醒（${elapsedMinutes}分钟）: ${task.taskTitle}`);
           notificationService.notifyTaskDuring(task.taskTitle, elapsedMinutes);
           schedule.remindersTriggered.push(reminderKey);
+          return true;
         }
       }
     } catch (error) {
       console.error('读取通知设置失败:', error);
     }
+
+    return false;
   }
 
   /**
@@ -430,11 +478,14 @@ class BackgroundTaskScheduler {
     now: Date
   ) {
     const settingsStr = localStorage.getItem('notification_settings');
-    if (!settingsStr) return;
+    if (!settingsStr) return false;
 
     try {
       const settings = JSON.parse(settingsStr);
-      if (!settings.taskEndBeforeReminder) return;
+      if (!settings.browserNotification) {
+        return false;
+      }
+      if (!settings.taskEndBeforeReminder) return false;
 
       const reminderMinutes = settings.taskEndBeforeMinutes || 5;
       const deadline = new Date(schedule.taskDeadline!);
@@ -448,10 +499,13 @@ class BackgroundTaskScheduler {
         console.log(`⏰ [后台任务调度] 任务即将结束（${reminderMinutes}分钟）: ${task.taskTitle}`);
         notificationService.notifyTaskEnding(task.taskTitle, reminderMinutes, task.hasVerification);
         schedule.remindersTriggered.push(reminderKey);
+        return true;
       }
     } catch (error) {
       console.error('读取通知设置失败:', error);
     }
+
+    return false;
   }
 
   /**

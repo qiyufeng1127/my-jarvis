@@ -5,12 +5,13 @@ import type { HabitCandidate, HabitFrequency, HabitType } from '@/types/habit';
 
 class HabitRecognitionService {
   private checkInterval: NodeJS.Timeout | null = null;
+  private initialTimeout: NodeJS.Timeout | null = null;
   
   /**
    * 启动习惯识别服务
    */
   start() {
-    if (this.checkInterval) return;
+    if (this.checkInterval || this.initialTimeout) return;
     
     // 每天检查一次（凌晨1点）
     const now = new Date();
@@ -20,7 +21,8 @@ class HabitRecognitionService {
     
     const timeUntilCheck = tomorrow.getTime() - now.getTime();
     
-    setTimeout(() => {
+    this.initialTimeout = setTimeout(() => {
+      this.initialTimeout = null;
       this.analyzeAndGenerateCandidates();
       
       // 之后每24小时检查一次
@@ -36,6 +38,11 @@ class HabitRecognitionService {
    * 停止服务
    */
   stop() {
+    if (this.initialTimeout) {
+      clearTimeout(this.initialTimeout);
+      this.initialTimeout = null;
+    }
+
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
       this.checkInterval = null;

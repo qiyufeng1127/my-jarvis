@@ -3,6 +3,9 @@ import { useTaskStore } from '@/stores/taskStore';
 import type { Task } from '@/types';
 
 class HabitReverseDetectionService {
+  private dailyCheckInterval: NodeJS.Timeout | null = null;
+  private initialTimeout: NodeJS.Timeout | null = null;
+
   /**
    * 检查反向检测规则（每天凌晨执行）
    */
@@ -94,6 +97,8 @@ class HabitReverseDetectionService {
    * 启动定时检查（每天凌晨1点）
    */
   start() {
+    if (this.dailyCheckInterval || this.initialTimeout) return;
+
     // 计算到明天凌晨1点的时间
     const now = new Date();
     const tomorrow = new Date(now);
@@ -102,21 +107,30 @@ class HabitReverseDetectionService {
     
     const timeUntilCheck = tomorrow.getTime() - now.getTime();
     
-    setTimeout(() => {
+    this.initialTimeout = setTimeout(() => {
+      this.initialTimeout = null;
       this.checkReverseDetectionRules();
       
       // 之后每24小时检查一次
-      setInterval(() => {
+      this.dailyCheckInterval = setInterval(() => {
         this.checkReverseDetectionRules();
       }, 24 * 60 * 60 * 1000);
     }, timeUntilCheck);
     
     console.log('🌙 反向检测服务已启动');
   }
-  
-  /**
-   * 手动触发检查（用于测试）
-   */
+
+  stop() {
+    if (this.initialTimeout) {
+      clearTimeout(this.initialTimeout);
+      this.initialTimeout = null;
+    }
+
+    if (this.dailyCheckInterval) {
+      clearInterval(this.dailyCheckInterval);
+      this.dailyCheckInterval = null;
+    }
+  }
   manualCheck() {
     this.checkReverseDetectionRules();
   }

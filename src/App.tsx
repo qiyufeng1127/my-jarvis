@@ -3,8 +3,6 @@ import { useEffect } from 'react';
 import { useUserStore } from '@/stores/userStore';
 import { useThemeStore } from '@/stores/themeStore';
 import { migrateStorage, shouldMigrate } from '@/utils/migrateStorage';
-import { notificationService } from '@/services/notificationService';
-import { useGlobalMobileViewportVars } from '@/hooks';
 
 // 页面组件
 import Dashboard from '@/pages/Dashboard';
@@ -12,16 +10,15 @@ import Welcome from '@/pages/Welcome';
 import BaiduAITest from '@/pages/BaiduAITest';
 import DesignSystemDemo from '@/pages/DesignSystemDemo';
 import DiarySystemTest from '@/pages/DiarySystemTest';
+import MemoryTestPage from '@/pages/MemoryTestPage';
 import SOPLibrary from '@/components/sop/SOPLibrary';
+import HabitPage from '@/pages/HabitPage';
 
 // 通知系统
-import NotificationToast from '@/components/notifications/NotificationToast';
 
-// 新手引导
-import { OnboardingTutorial } from '@/components/onboarding/OnboardingTutorial';
+// 新手引导已移除
 
-// 紧急任务系统
-import EmergencyTaskTrigger from '@/components/emergency/EmergencyTaskTrigger';
+// 紧急任务系统弹窗已移除
 
 // 错误边界
 import ErrorBoundary from '@/components/shared/ErrorBoundary';
@@ -29,8 +26,6 @@ import ErrorBoundary from '@/components/shared/ErrorBoundary';
 function App() {
   const { initializeUser } = useUserStore();
   const { effectiveTheme, updateEffectiveTheme } = useThemeStore();
-
-  useGlobalMobileViewportVars();
 
   // 初始化主题
   useEffect(() => {
@@ -186,8 +181,6 @@ function App() {
       });
     };
   }, []);
-  
-  // 语音播报改为仅在设置页中由用户手动激活，这里不再全局自动触发
 
   // 全局错误处理器 - 防止白屏
   useEffect(() => {
@@ -273,16 +266,7 @@ function App() {
   return (
     <ErrorBoundary>
       <Router>
-        <div className="min-h-screen transition-colors" style={{ backgroundColor: '#fefaf0', margin: 0, padding: 0 }}>
-          {/* 全局通知系统 */}
-          <NotificationToast />
-          
-          {/* 新手引导 */}
-          <OnboardingTutorial />
-          
-          {/* 紧急任务触发器 */}
-          <EmergencyTaskTrigger />
-          
+        <div className="min-h-screen bg-white dark:bg-black transition-colors">
           <Routes>
             {/* 主控面板 */}
             <Route path="/" element={<Dashboard />} />
@@ -291,7 +275,7 @@ function App() {
             <Route path="/sop" element={<SOPLibrary />} />
             
             {/* 习惯追踪 */}
-            <Route path="/habit" element={<Dashboard />} />
+            <Route path="/habit" element={<HabitPage />} />
             
             {/* 欢迎页 */}
             <Route path="/welcome" element={<Welcome />} />
@@ -304,6 +288,9 @@ function App() {
             
             {/* 日记系统测试页 */}
             <Route path="/diary-test" element={<DiarySystemTest />} />
+            
+            {/* 记忆测试页 */}
+            <Route path="/memory-test" element={<MemoryTestPage />} />
             
             {/* 其他路由 */}
             <Route path="*" element={<Dashboard />} />

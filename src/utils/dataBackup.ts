@@ -9,7 +9,6 @@ import { useMemoryStore } from '@/stores/memoryStore';
 import { useUserStore } from '@/stores/userStore';
 import { useThemeStore } from '@/stores/themeStore';
 import { useNotificationStore } from '@/stores/notificationStore';
-import { useTutorialStore } from '@/stores/tutorialStore';
 import { useAIStore } from '@/stores/aiStore';
 
 interface BackupData {
@@ -27,7 +26,6 @@ interface BackupData {
     user: any;
     theme: any;
     notifications: any;
-    tutorial: any;
     ai: any;
   };
 }
@@ -52,7 +50,6 @@ export const exportAllData = () => {
         user: useUserStore.getState(),
         theme: useThemeStore.getState(),
         notifications: useNotificationStore.getState(),
-        tutorial: useTutorialStore.getState(),
         ai: useAIStore.getState(),
       },
     };
@@ -144,9 +141,6 @@ export const importAllData = (file: File): Promise<boolean> => {
         if (backupData.data.notifications) {
           useNotificationStore.setState(backupData.data.notifications);
         }
-        if (backupData.data.tutorial) {
-          useTutorialStore.setState(backupData.data.tutorial);
-        }
         if (backupData.data.ai) {
           useAIStore.setState(backupData.data.ai);
         }
@@ -172,21 +166,18 @@ export const importAllData = (file: File): Promise<boolean> => {
  * 清空所有数据（慎用！）
  */
 export const clearAllData = () => {
-  if (confirm('⚠️ 确定要清空所有数据吗？此操作不可恢复！\n\n建议先导出备份再清空。')) {
-    try {
-      // 清空所有 localStorage
-      localStorage.clear();
-      
-      // 刷新页面以重新初始化
-      window.location.reload();
-      
-      console.log('✅ 所有数据已清空');
-      return true;
-    } catch (error) {
-      console.error('❌ 清空数据失败:', error);
-      return false;
-    }
+  try {
+    // 清空所有 localStorage
+    localStorage.clear();
+    
+    // 刷新页面以重新初始化
+    window.location.reload();
+    
+    console.log('✅ 所有数据已清空');
+    return true;
+  } catch (error) {
+    console.error('❌ 清空数据失败:', error);
+    return false;
   }
-  return false;
 };
 
