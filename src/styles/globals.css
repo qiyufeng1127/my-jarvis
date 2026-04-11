@@ -7,9 +7,9 @@
    ============================================ */
 
 :root {
-  --mobile-bottom-nav-height: 64px;
-  --mobile-bottom-nav-safe-area: env(safe-area-inset-bottom, 0px);
-  --mobile-bottom-nav-total-height: calc(var(--mobile-bottom-nav-height) + var(--mobile-bottom-nav-safe-area));
+  --mobile-bottom-nav-height: 56px;
+  --mobile-bottom-nav-safe-area: 0px;
+  --mobile-bottom-nav-total-height: var(--mobile-bottom-nav-height);
   /* 温暖治愈色系 - 基于用户提供的配色 */
   --color-primary: #DD617C;      /* 粉红色 */
   --color-secondary: #6D9978;    /* 绿色 */
@@ -131,11 +131,11 @@ body {
     left: 0 !important;
     right: 0 !important;
     width: 100vw !important;
-    height: var(--mobile-bottom-nav-total-height) !important;
-    min-height: var(--mobile-bottom-nav-total-height) !important;
-    max-height: var(--mobile-bottom-nav-total-height) !important;
+    height: var(--mobile-bottom-nav-height) !important;
+    min-height: var(--mobile-bottom-nav-height) !important;
+    max-height: var(--mobile-bottom-nav-height) !important;
     margin: 0 !important;
-    padding-bottom: 0 !important;
+    padding: 0 !important;
     transform: none !important;
     -webkit-transform: none !important;
     translate: 0 0 !important;
