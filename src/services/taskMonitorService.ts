@@ -9,10 +9,8 @@ import type { Task } from '@/types';
 interface NotificationSettings {
   taskStartBeforeReminder: boolean;
   taskStartBeforeMinutes: number;
-  taskStartReminder: boolean;
   taskEndBeforeReminder: boolean;
   taskEndBeforeMinutes: number;
-  taskEndReminder: boolean;
 }
 
 class TaskMonitorService {
@@ -23,10 +21,8 @@ class TaskMonitorService {
     const defaults: NotificationSettings = {
       taskStartBeforeReminder: true,
       taskStartBeforeMinutes: 2,
-      taskStartReminder: true,
       taskEndBeforeReminder: true,
-      taskEndBeforeMinutes: 5,
-      taskEndReminder: true,
+      taskEndBeforeMinutes: 0,
     };
 
     try {
@@ -95,12 +91,6 @@ class TaskMonitorService {
       );
     }
 
-    if (settings.taskStartReminder) {
-      this.scheduleReminder(`${task.id}-start`, startTime.getTime() - now.getTime(), () => {
-        notificationService.notifyTaskStart(task.title, hasVerification);
-      });
-    }
-
     if (settings.taskEndBeforeReminder) {
       const beforeEndTime = new Date(
         endTime.getTime() - settings.taskEndBeforeMinutes * 60 * 1000
@@ -118,12 +108,6 @@ class TaskMonitorService {
       );
     }
 
-    if (settings.taskEndReminder) {
-      this.scheduleReminder(`${task.id}-end`, endTime.getTime() - now.getTime(), () => {
-        notificationService.notifyTaskEnd(task.title, hasVerification);
-      });
-    }
-
     console.log(`✅ [任务监控] 开始监控任务: ${task.title}`);
   }
 
@@ -133,9 +117,7 @@ class TaskMonitorService {
   stopMonitoring(taskId: string) {
     const timers = [
       `${taskId}-start-before`,
-      `${taskId}-start`,
       `${taskId}-warning`,
-      `${taskId}-end`,
     ];
 
     timers.forEach((key) => {
@@ -174,12 +156,6 @@ class TaskMonitorService {
     console.log('🧹 [任务监控] 清除所有监控');
   }
 
-  /**
-   * 请求通知权限
-   */
-  async requestNotificationPermission() {
-    return await notificationService.requestPermission();
-  }
 }
 
 export const taskMonitorService = new TaskMonitorService();

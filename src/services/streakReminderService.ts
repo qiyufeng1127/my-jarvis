@@ -81,15 +81,6 @@ class StreakReminderService {
   private sendReminder(streakDays: number, todayCompleted: number) {
     const remaining = 3 - todayCompleted;
 
-    // 浏览器通知
-    notificationService.show({
-      title: '⚠️ 连胜即将中断！',
-      body: `你已经连续${streakDays}天保持自律，今天还需完成${remaining}个任务才能保持连胜！`,
-      icon: '🔥',
-      tag: 'streak-reminder',
-    });
-
-    // 语音播报
     notificationService.speak(
       `注意！你已经连续${streakDays}天保持自律，今天还需完成${remaining}个任务才能保持连胜！加油！`
     );

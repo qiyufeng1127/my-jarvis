@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Task, TaskStatus, TaskType } from '@/types';
-import { taskMonitorService } from '@/services/taskMonitorService';
 import { backgroundTaskScheduler } from '@/services/backgroundTaskScheduler';
 
 const hasTaskVerification = (task: Partial<Task>) => Boolean(
@@ -9,14 +8,12 @@ const hasTaskVerification = (task: Partial<Task>) => Boolean(
 );
 
 const syncTaskSchedule = (task: Task) => {
-  taskMonitorService.stopMonitoring(task.id);
   backgroundTaskScheduler.unscheduleTask(task.id);
 
   if (!task.scheduledStart || !task.scheduledEnd) {
     return;
   }
 
-  taskMonitorService.startMonitoring(task);
   backgroundTaskScheduler.scheduleTask({
     taskId: task.id,
     taskTitle: task.title,
@@ -222,7 +219,6 @@ export const useTaskStore = create<TaskState>()(
   deleteTask: async (id) => {
     try {
       // 停止监控并取消后台调度
-      taskMonitorService.stopMonitoring(id);
       backgroundTaskScheduler.unscheduleTask(id);
       
       // 从本地删除

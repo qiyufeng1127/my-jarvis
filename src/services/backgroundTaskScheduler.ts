@@ -253,18 +253,15 @@ class BackgroundTaskScheduler {
 
     try {
       const settings = JSON.parse(settingsStr);
-      if (!settings.browserNotification) {
-        return false;
-      }
 
       return Boolean(
-        settings.taskStartBeforeReminder ||
-        settings.taskStartReminder ||
-        settings.taskDuringReminder ||
-        settings.taskEndBeforeReminder ||
-        settings.taskEndReminder ||
-        settings.overtimeReminder ||
-        settings.procrastinationReminder
+        settings.voiceEnabled &&
+        (
+          settings.taskStartBeforeReminder ||
+          settings.taskEndBeforeReminder ||
+          settings.overtimeReminder ||
+          settings.procrastinationReminder
+        )
       );
     } catch (error) {
       console.error('读取通知设置失败:', error);
@@ -351,7 +348,7 @@ class BackgroundTaskScheduler {
       changed = true;
     }
 
-    // 2. 检查是否到达任务开始时间（只发送通知，不修改状态）
+    // 2. 检查是否到达任务开始时间（启动倒计时与后续拖延逻辑交给倒计时组件处理）
     if (schedule.status === 'waiting_start' && now >= scheduledStart) {
       const reminderKey = `task-start-${schedule.taskId}`;
       if (!schedule.remindersTriggered.includes(reminderKey)) {
@@ -374,7 +371,7 @@ class BackgroundTaskScheduler {
           console.log(`⚠️ [后台任务调度] 启动超时: ${task.taskTitle}`);
           
           // 触发超时通知
-          notificationService.notifyOvertime(task.taskTitle, 'start');
+          notificationService.notifyOvertime(task.taskTitle, 'start', (schedule.startTimeoutCount + 1) * 20);
           notificationService.notifyProcrastination(task.taskTitle, schedule.startTimeoutCount + 1);
           
           schedule.remindersTriggered.push(reminderKey);
@@ -382,14 +379,6 @@ class BackgroundTaskScheduler {
       }
     }
 
-    // 4. 检查任务进行中提醒
-    if (schedule.status === 'task_countdown' && schedule.actualStartTime) {
-      if (this.checkTaskDuringReminder(schedule, task, now)) {
-        changed = true;
-      }
-    }
-
-    // 5. 检查任务即将结束提醒
     if (schedule.status === 'task_countdown' && schedule.taskDeadline) {
       if (this.checkTaskEndingReminder(schedule, task, now)) {
         changed = true;
@@ -405,7 +394,7 @@ class BackgroundTaskScheduler {
           console.log(`⚠️ [后台任务调度] 完成超时: ${task.taskTitle}`);
           
           // 触发超时通知
-          notificationService.notifyOvertime(task.taskTitle, 'completion');
+          notificationService.notifyOvertime(task.taskTitle, 'completion', (schedule.completeTimeoutCount + 1) * 20);
           notificationService.notifyProcrastination(task.taskTitle, schedule.completeTimeoutCount + 1);
           
           schedule.remindersTriggered.push(reminderKey);
@@ -433,9 +422,6 @@ class BackgroundTaskScheduler {
 
     try {
       const settings = JSON.parse(settingsStr);
-      if (!settings.browserNotification) {
-        return false;
-      }
       if (!settings.taskStartBeforeReminder) return false;
 
       const reminderMinutes = settings.taskStartBeforeMinutes || 2;
@@ -458,47 +444,6 @@ class BackgroundTaskScheduler {
   }
 
   /**
-   * 检查任务进行中提醒
-   */
-  private checkTaskDuringReminder(
-    schedule: TaskScheduleState,
-    task: ScheduledTask,
-    now: Date
-  ) {
-    const settingsStr = localStorage.getItem('notification_settings');
-    if (!settingsStr) return false;
-
-    try {
-      const settings = JSON.parse(settingsStr);
-      if (!settings.browserNotification) {
-        return false;
-      }
-      if (!settings.taskDuringReminder) return false;
-
-      const intervalMinutes = settings.taskDuringMinutes || 10;
-      const startTime = new Date(schedule.actualStartTime!);
-      const elapsedMs = now.getTime() - startTime.getTime();
-      const elapsedMinutes = Math.floor(elapsedMs / 60000);
-
-      // 检查是否到达提醒时间点
-      if (elapsedMinutes > 0 && elapsedMinutes % intervalMinutes === 0) {
-        const reminderKey = `task-during-${elapsedMinutes}`;
-        
-        if (!schedule.remindersTriggered.includes(reminderKey)) {
-          console.log(`⏰ [后台任务调度] 任务进行中提醒（${elapsedMinutes}分钟）: ${task.taskTitle}`);
-          notificationService.notifyTaskDuring(task.taskTitle, elapsedMinutes);
-          schedule.remindersTriggered.push(reminderKey);
-          return true;
-        }
-      }
-    } catch (error) {
-      console.error('读取通知设置失败:', error);
-    }
-
-    return false;
-  }
-
-  /**
    * 检查任务即将结束提醒
    */
   private checkTaskEndingReminder(
@@ -511,12 +456,9 @@ class BackgroundTaskScheduler {
 
     try {
       const settings = JSON.parse(settingsStr);
-      if (!settings.browserNotification) {
-        return false;
-      }
       if (!settings.taskEndBeforeReminder) return false;
 
-      const reminderMinutes = settings.taskEndBeforeMinutes || 5;
+      const reminderMinutes = settings.taskEndBeforeMinutes || 0;
       const deadline = new Date(schedule.taskDeadline!);
       const timeLeft = deadline.getTime() - now.getTime();
       const minutesLeft = Math.floor(timeLeft / 60000);

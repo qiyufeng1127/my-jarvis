@@ -349,13 +349,8 @@ export class RPGAchievementService {
     // 更新store
     rpgStore.unlockAchievement(achievementId);
     
-    // 显示解锁动画和通知
-    RPGNotificationService.show({
-      type: 'success',
-      title: `🏆 成就解锁！`,
-      message: `${achievement.icon} ${achievement.title} - ${achievement.description}`,
-      duration: 5000,
-    });
+    // 显示语音提示
+    RPGNotificationService.showAchievementUnlocked(achievement.title, achievement.icon);
     
     // 奖励经验和金币
     const expReward = 100;

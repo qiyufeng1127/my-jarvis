@@ -12,7 +12,7 @@ class AIIntegrationService {
   /**
    * 处理用户输入（主入口）
    */
-  async handleUserInput(userInput: string): Promise<{
+  async handleUserInput(userInput: string, inputMode?: 'auto' | 'goal' | 'task' | 'timeline' | 'thought'): Promise<{
     success: boolean;
     response: string;
     actions?: Array<{
@@ -37,6 +37,7 @@ class AIIntegrationService {
       const result = await aiAssistantService.processUserInput(userInput, {
         conversationHistory,
         userBehavior,
+        inputMode,
       });
       
       if (!result.success) {

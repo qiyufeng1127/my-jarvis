@@ -304,7 +304,8 @@ export async function generateSubTasks(
 export class VoiceReminder {
   // 任务开始提醒
   static remindTaskStart(taskTitle: string, keywords: string[]) {
-    notificationService.notifyTaskStart(taskTitle, true);
+    void keywords;
+    notificationService.speak(`${taskTitle}现在开始。`);
   }
   
   // 10秒倒计时提醒
@@ -360,7 +361,8 @@ export class VoiceReminder {
   
   // 启动成功获得金币
   static congratulateStartSuccess(taskTitle: string, goldEarned: number) {
-    notificationService.notifyVerificationSuccess(taskTitle, 'start');
+    void goldEarned;
+    notificationService.speak(`${taskTitle}已成功开始。`);
   }
   
   // 任务即将结束提醒（前1分钟或前10分钟）
@@ -370,17 +372,20 @@ export class VoiceReminder {
   
   // 任务完成提醒
   static remindTaskCompletion(taskTitle: string, keywords: string[]) {
-    notificationService.notifyTaskEnd(taskTitle, true);
+    void keywords;
+    notificationService.speak(`${taskTitle}已完成。`);
   }
   
   // 提前完成祝贺
   static congratulateEarlyCompletion(taskTitle: string, goldEarned: number) {
-    notificationService.notifyVerificationSuccess(taskTitle, 'completion');
+    void goldEarned;
+    notificationService.speak(`${taskTitle}已提前完成，做得很好。`);
   }
   
   // 任务完成祝贺
   static congratulateCompletion(taskTitle: string, goldEarned: number) {
-    notificationService.notifyVerificationSuccess(taskTitle, 'completion');
+    void goldEarned;
+    notificationService.speak(`${taskTitle}已完成。`);
   }
   
   // 通用语音播报

@@ -37,7 +37,7 @@ interface AIStore {
   setMaxTokens: (maxTokens: number) => void;
   isConfigured: () => boolean;
   chat: (messages: AIMessage[]) => Promise<AIResponse>;
-  chatStream: (messages: AIMessage[], onChunk: (chunk: string) => void) => Promise<AIResponse>;
+  chatStream: (messages: AIMessage[], onChunk: (chunk: string) => void, options?: { maxTokens?: number; temperature?: number }) => Promise<AIResponse>;
 }
 
 export const useAIStore = create<AIStore>()(
@@ -113,6 +113,7 @@ export const useAIStore = create<AIStore>()(
           }, 60000);
 
           const requestEndpoint = resolveApiEndpoint(config.apiEndpoint);
+          console.log('[AIStore.chatStream] 即将发起 fetch', { requestEndpoint });
 
           const response = await fetch(requestEndpoint, {
             method: 'POST',
@@ -191,8 +192,15 @@ export const useAIStore = create<AIStore>()(
         }
       },
 
-      chatStream: async (messages, onChunk) => {
+      chatStream: async (messages, onChunk, options) => {
         const { config, isConfigured } = get();
+        console.log('[AIStore.chatStream] 被调用', {
+          configured: isConfigured(),
+          endpoint: config.apiEndpoint,
+          model: config.model,
+          messageCount: messages.length,
+          options,
+        });
 
         if (!isConfigured()) {
           return {
@@ -206,6 +214,8 @@ export const useAIStore = create<AIStore>()(
             endpoint: resolveApiEndpoint(config.apiEndpoint),
             model: config.model,
             stream: true,
+            maxTokens: options?.maxTokens ?? config.maxTokens,
+            temperature: options?.temperature ?? config.temperature,
           });
 
           // 添加超时控制（120秒，流式响应可能更慢）
@@ -226,8 +236,8 @@ export const useAIStore = create<AIStore>()(
             body: JSON.stringify({
               model: config.model,
               messages: messages,
-              temperature: config.temperature,
-              max_tokens: config.maxTokens,
+              temperature: options?.temperature ?? config.temperature,
+              max_tokens: options?.maxTokens ?? config.maxTokens,
               stream: true, // 启用流式响应
             }),
             signal: controller.signal,
@@ -271,6 +281,7 @@ export const useAIStore = create<AIStore>()(
           }
 
           console.log('📖 [AI流式请求] 开始读取流...');
+          let chunkCount = 0;
 
           while (true) {
             const { done, value } = await reader.read();
@@ -281,6 +292,8 @@ export const useAIStore = create<AIStore>()(
             }
 
             const chunk = decoder.decode(value, { stream: true });
+            chunkCount += 1;
+            console.log('[AIStore.chatStream] 原始 chunk', { chunkCount, chunk });
             const lines = chunk.split('\n').filter(line => line.trim() !== '');
 
             for (const line of lines) {

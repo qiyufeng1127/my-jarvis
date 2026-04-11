@@ -113,8 +113,57 @@ function getFullSystemPrompt(): string {
 参数：type（daily/weekly/monthly）, date
 
 ### 10. goal_manage - 目标管理
-识别特征：目标、长期计划
-参数：action（create/update/query）, name, description
+识别特征：目标、长期计划、OKR、关键结果、阶段规划、整段目标文档解析
+参数支持两种模式：
+
+- 单个目标：
+  action（create/update/query）, name, description
+
+- 整段文档智能解析：
+  action（analyze_document/create_from_document）
+  document（原始全文）
+  goals（数组，每个目标一项）
+
+当用户发送的是一整段目标文档时，你必须优先按“总目标”维度拆分，而不是只拆解其中一条。你需要：
+1. 识别全文里有几个“总目标”
+2. 对每个总目标提取：goalTitle、dailyInvestment、dailyInvestmentHours、deadline
+3. 对每个总目标下的每条“关键结果”逐条拆分
+4. 每条关键结果都要提取：name、targetValue、unit
+5. 如果文本里同时出现“0.25小时（15分钟）”这类写法，要同时保留小时值和分钟值
+6. 如果总目标没有明确截止日期，也要保留为 null，不要乱猜
+7. 如果用户写的是“本周 / 这周 / 本月 / 这个月 / 10天后 / 3天内 / 周末前”这类相对时间，必须换算成真实日期范围：startDate 填今天或该周期起点，deadline 填真实截止日期，不能直接原样返回相对描述
+
+goal_manage 返回示例：
+用户发送整段 4 月目标文档时：
+{
+  "intent": "goal_manage",
+  "confidence": 0.96,
+  "action": "analyze_document",
+  "parameters": {
+    "document": "原始全文",
+    "goals": [
+      {
+        "goalTitle": "每日发布照相馆小红书笔记，全月累计更新到位",
+        "description": "4月核心目标",
+        "deadline": null,
+        "dailyInvestment": {
+          "raw": "0.25小时（15分钟）",
+          "hours": 0.25,
+          "minutes": 15
+        },
+        "keyResults": [
+          {
+            "name": "全月发布照相馆小红书笔记",
+            "targetValue": 19,
+            "unit": "条"
+          }
+        ]
+      }
+    ]
+  },
+  "response": "我已经按整份文档拆解出了多个总目标，并提取了每日投入时间和关键结果。",
+  "needsConfirmation": false
+}
 
 ### 11. conversation - 纯对话
 识别特征：问候、闲聊、寻求建议、情感支持
@@ -268,16 +317,221 @@ function getPersonalityPrompt(personality: any): string {
   return prompt;
 }
 
+function normalizeGoalTimeline(goal: any) {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  const toStartOfDay = (date: Date) => {
+    const result = new Date(date);
+    result.setHours(0, 0, 0, 0);
+    return result;
+  };
+
+  const toEndOfDay = (date: Date) => {
+    const result = new Date(date);
+    result.setHours(23, 59, 59, 999);
+    return result;
+  };
+
+  const startDate = goal?.startDate
+    ? toStartOfDay(new Date(goal.startDate))
+    : startOfToday;
+
+  const resolveTimeline = (value: any) => {
+    if (!value) return { startDate, deadline: undefined as Date | undefined };
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      return { startDate, deadline: toEndOfDay(value) };
+    }
+
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return { startDate, deadline: undefined as Date | undefined };
+
+      if (/(这个月|本月)/.test(trimmed)) {
+        const monthStart = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+        const monthEnd = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
+        return {
+          startDate: toStartOfDay(monthStart),
+          deadline: toEndOfDay(monthEnd),
+        };
+      }
+
+      if (/(这周|本周)/.test(trimmed)) {
+        const currentDay = startDate.getDay();
+        const offsetToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+        const weekStart = new Date(startDate);
+        weekStart.setDate(startDate.getDate() + offsetToMonday);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        return {
+          startDate: toStartOfDay(weekStart),
+          deadline: toEndOfDay(weekEnd),
+        };
+      }
+
+      if (/(周末前|这周末前|本周末前)/.test(trimmed)) {
+        const currentDay = startDate.getDay();
+        const offsetToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+        const weekStart = new Date(startDate);
+        weekStart.setDate(startDate.getDate() + offsetToMonday);
+        const weekend = new Date(weekStart);
+        weekend.setDate(weekStart.getDate() + 6);
+        return {
+          startDate: toStartOfDay(weekStart),
+          deadline: toEndOfDay(weekend),
+        };
+      }
+
+      const dayCount = trimmed.match(/(\d+)\s*天(之内|内|后|之后|前|之前)?/);
+      if (dayCount) {
+        const days = parseInt(dayCount[1], 10);
+        const result = new Date(startDate);
+        result.setDate(result.getDate() + days);
+        return {
+          startDate,
+          deadline: toEndOfDay(result),
+        };
+      }
+
+      const exactDay = trimmed.match(/(\d{1,2})\s*[日号]\s*(之前|前|内|截止)?/);
+      if (exactDay) {
+        const result = new Date(startDate.getFullYear(), startDate.getMonth(), parseInt(exactDay[1], 10));
+        return {
+          startDate,
+          deadline: toEndOfDay(result),
+        };
+      }
+
+      const monthDay = trimmed.match(/(\d{1,2})月(\d{1,2})\s*[日号]?\s*(之前|前|内|截止)?/);
+      if (monthDay) {
+        const result = new Date(startDate.getFullYear(), parseInt(monthDay[1], 10) - 1, parseInt(monthDay[2], 10));
+        return {
+          startDate,
+          deadline: toEndOfDay(result),
+        };
+      }
+
+      const parsedDate = new Date(trimmed);
+      if (!Number.isNaN(parsedDate.getTime())) {
+        return {
+          startDate,
+          deadline: toEndOfDay(parsedDate),
+        };
+      }
+    }
+
+    return { startDate, deadline: undefined as Date | undefined };
+  };
+
+  const resolvedTimeline = resolveTimeline(goal?.deadline);
+  const resolvedStartDate = goal?.startDate ? startDate : resolvedTimeline.startDate;
+  const deadline = resolvedTimeline.deadline;
+  const estimatedDailyHours = typeof goal?.dailyInvestment?.hours === 'number'
+    ? goal.dailyInvestment.hours
+    : typeof goal?.dailyInvestmentHours === 'number'
+    ? goal.dailyInvestmentHours
+    : typeof goal?.estimatedDailyHours === 'number'
+    ? goal.estimatedDailyHours
+    : 0;
+
+  const estimatedTotalHours = deadline
+    ? Number((estimatedDailyHours * Math.max(1, Math.ceil((deadline.getTime() - resolvedStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1)).toFixed(1))
+    : Number((goal?.estimatedTotalHours || 0).toFixed?.(1) || goal?.estimatedTotalHours || 0);
+
+  return {
+    ...goal,
+    startDate: resolvedStartDate.toISOString(),
+    deadline: deadline ? deadline.toISOString() : goal?.deadline || null,
+    estimatedDailyHours,
+    estimatedTotalHours,
+  };
+}
+
 /**
  * AI 助手服务类
  */
 class AIAssistantService {
+  private buildModeInstruction(inputMode?: 'auto' | 'goal' | 'task' | 'timeline' | 'thought') {
+    switch (inputMode) {
+      case 'goal':
+        return `\n\n## 当前强制模式：关于目标\n用户刚刚主动点了“关于目标”模式。你必须优先把这次输入识别为 goal_manage，而不是任务分解、碎碎念或其他类型。\n如果用户发送的是整段目标文档，你必须输出适配目标板块的数据结构：每个总目标都要有 goalTitle、deadline、dailyInvestment、keyResults，不能把整份文本压成一段描述。\n`; 
+      case 'task':
+        return `\n\n## 当前强制模式：任务分解\n用户刚刚主动点了“任务分解”模式。你必须优先把这次输入识别为 task_create 或任务拆解，不要识别成目标管理。\n`;
+      case 'timeline':
+        return `\n\n## 当前强制模式：时间轴操作\n用户刚刚主动点了“时间轴操作”模式。你必须优先把这次输入识别为时间轴操作，不要拆成普通任务。\n`;
+      case 'thought':
+        return `\n\n## 当前强制模式：碎碎念\n用户刚刚主动点了“碎碎念”模式。你必须优先把这次输入识别为 thought_record 或 conversation，不要识别成目标或任务。\n`;
+      default:
+        return '';
+    }
+  }
+
+  private looksLikeGoalDocument(userInput: string) {
+    const normalized = userInput.trim();
+    if (!normalized) return false;
+
+    return normalized.length >= 80
+      || /关键结果|总目标|每日投入|核心目标|截至|截止|月目标|周目标|目标拆解|目标分析/.test(normalized)
+      || /\n/.test(normalized);
+  }
+
+  private isGoalDocumentResult(result: any) {
+    return result?.intent === 'goal_manage'
+      && (result?.action === 'analyze_document' || result?.action === 'create_from_document')
+      && Array.isArray(result?.parameters?.goals);
+  }
+
+  private buildGoalDocumentRetryPrompt(userInput: string) {
+    return [
+      '你现在必须把下面内容当成“整段目标文档”处理，而不是普通聊天。',
+      '你只能返回 JSON，不要解释，不要 markdown，不要补充说明。',
+      '返回格式必须是：',
+      '{',
+      '  "intent": "goal_manage",',
+      '  "confidence": 0.95,',
+      '  "action": "analyze_document",',
+      '  "parameters": {',
+      '    "document": "原始全文",',
+      '    "goals": [',
+      '      {',
+      '        "goalTitle": "总目标标题",',
+      '        "description": "所属阶段或补充说明",',
+      '        "deadline": "截止日期文本，没有就用 null",',
+      '        "dailyInvestment": {',
+      '          "raw": "原始投入文本，没有就用空字符串",',
+      '          "hours": 0.25,',
+      '          "minutes": 15',
+      '        },',
+      '        "dailyInvestmentHours": 0.25,',
+      '        "keyResults": [',
+      '          { "name": "关键结果名", "targetValue": 10, "unit": "张" }',
+      '        ]',
+      '      }',
+      '    ]',
+      '  },',
+      '  "response": "我已经按整份文档拆解出了多个总目标，并提取了每日投入时间和关键结果。",',
+      '  "needsConfirmation": false',
+      '}',
+      '',
+      '要求：',
+      '1. 必须按“总目标”维度拆分整份文档',
+      '2. 不要把整份内容压成一段 description',
+      '3. 保留 deadline 原文，没有就用 null',
+      '4. 每条关键结果拆成 name、targetValue、unit',
+      '5. 如果出现“0.25小时（15分钟）”，hours=0.25，minutes=15，raw 保留原文',
+      '',
+      '目标文档如下：',
+      userInput,
+    ].join('\n');
+  }
+
   /**
    * 处理用户输入，返回结构化响应
    */
   async processUserInput(userInput: string, context?: {
     conversationHistory?: any[];
     userBehavior?: any;
+    inputMode?: 'auto' | 'goal' | 'task' | 'timeline' | 'thought';
   }): Promise<{
     success: boolean;
     intent?: string;
@@ -296,8 +550,9 @@ class AIAssistantService {
       console.log('📝 [AI助手] 系统提示词长度:', systemPrompt.length);
       
       // 构建消息
+      const modeInstruction = this.buildModeInstruction(context?.inputMode);
       const messages: any[] = [
-        { role: 'system', content: systemPrompt },
+        { role: 'system', content: systemPrompt + modeInstruction },
         ...(context?.conversationHistory || []),
         { role: 'user', content: userInput },
       ];
@@ -317,7 +572,35 @@ class AIAssistantService {
       console.log('✅ [AI助手] AI 返回内容:', response.content);
       
       // 解析 JSON 响应
-      const result = this.parseAIResponse(response.content);
+      let result = this.parseAIResponse(response.content);
+
+      if (context?.inputMode === 'goal' && this.looksLikeGoalDocument(userInput) && !this.isGoalDocumentResult(result)) {
+        console.warn('⚠️ [AI助手] 关于目标模式首轮未返回文档结构，触发二次强制重试');
+
+        const retryResponse = await aiService.chat([
+          { role: 'system', content: systemPrompt + modeInstruction },
+          { role: 'user', content: this.buildGoalDocumentRetryPrompt(userInput) },
+        ]);
+
+        if (retryResponse.success && retryResponse.content) {
+          console.log('✅ [AI助手] 关于目标模式重试返回:', retryResponse.content);
+          const retryResult = this.parseAIResponse(retryResponse.content);
+          if (this.isGoalDocumentResult(retryResult)) {
+            result = retryResult;
+          } else {
+            return {
+              success: false,
+              error: '关于目标模式下，AI 没有返回结构化目标文档结果',
+            };
+          }
+        } else {
+          return {
+            success: false,
+            error: retryResponse.error || '关于目标模式重试失败',
+          };
+        }
+      }
+      
       console.log('📊 [AI助手] 解析结果:', result);
       
       return {
@@ -406,7 +689,10 @@ class AIAssistantService {
         case 'query_stats':
           return await this.queryStats(parameters);
         case 'goal_manage':
-          return await this.manageGoal(parameters);
+          return await this.manageGoal({
+            ...parameters,
+            action,
+          });
         case 'conversation':
           // 纯对话，不需要执行操作
           return { success: true, message: '对话' };
@@ -639,6 +925,86 @@ class AIAssistantService {
   
   private async manageGoal(params: any) {
     const goalStore = useGoalStore.getState();
+
+    if (params.action === 'analyze_document' || params.action === 'create_from_document') {
+      const parsedGoals = Array.isArray(params.goals) ? params.goals.map(normalizeGoalTimeline) : [];
+
+      if (parsedGoals.length === 0) {
+        return {
+          success: true,
+          message: '已识别为目标文档，但暂时没有解析出可创建的总目标。',
+          data: {
+            mode: 'document_analysis',
+            document: params.document || '',
+            goals: [],
+          },
+        };
+      }
+
+      const createdGoals = params.action === 'create_from_document'
+        ? parsedGoals.map((goal: any, index: number) => {
+            const keyResults = Array.isArray(goal.keyResults) ? goal.keyResults : [];
+            const dailyInvestment = goal.dailyInvestment || {};
+            const estimatedDailyHours = typeof dailyInvestment.hours === 'number'
+              ? dailyInvestment.hours
+              : typeof goal.dailyInvestmentHours === 'number'
+              ? goal.dailyInvestmentHours
+              : 0;
+
+            const dimensions = keyResults.length > 0
+              ? keyResults.map((kr: any, krIndex: number) => ({
+                  id: `metric-${Date.now()}-${index}-${krIndex}`,
+                  name: kr.name || `关键结果${krIndex + 1}`,
+                  unit: kr.unit || '项',
+                  targetValue: Number(kr.targetValue || 1),
+                  currentValue: Number(kr.currentValue || 0),
+                  weight: Math.round(100 / keyResults.length),
+                })).map((dimension: any, dimensionIndex: number, list: any[]) => ({
+                  ...dimension,
+                  weight: dimensionIndex === list.length - 1
+                    ? 100 - list.slice(0, -1).reduce((sum, item) => sum + item.weight, 0)
+                    : dimension.weight,
+                }))
+              : [{
+                  id: `metric-${Date.now()}-${index}-0`,
+                  name: goal.goalTitle || `目标${index + 1}`,
+                  unit: '项',
+                  targetValue: 1,
+                  currentValue: 0,
+                  weight: 100,
+                }];
+
+            return goalStore.createGoal({
+              name: goal.goalTitle || `目标${index + 1}`,
+              description: goal.description || params.document || '',
+              goalType: 'numeric',
+              startDate: goal.startDate ? new Date(goal.startDate) : undefined,
+              endDate: goal.deadline ? new Date(goal.deadline) : undefined,
+              deadline: goal.deadline ? new Date(goal.deadline) : undefined,
+              estimatedTotalHours: goal.estimatedTotalHours || 0,
+              estimatedDailyHours,
+              dimensions,
+              targetValue: dimensions.reduce((sum: number, item: any) => sum + Number(item.targetValue || 0), 0),
+              currentValue: dimensions.reduce((sum: number, item: any) => sum + Number(item.currentValue || 0), 0),
+              unit: dimensions[0]?.unit || '',
+              isActive: true,
+            });
+          })
+        : [];
+
+      return {
+        success: true,
+        message: params.action === 'create_from_document'
+          ? `已根据目标文档创建 ${createdGoals.length} 个总目标`
+          : `已智能拆解整份目标文档，共识别 ${parsedGoals.length} 个总目标`,
+        data: {
+          mode: 'document_analysis',
+          document: params.document || '',
+          goals: parsedGoals,
+          createdGoals,
+        },
+      };
+    }
     
     if (params.action === 'create') {
       const goal = goalStore.createGoal({

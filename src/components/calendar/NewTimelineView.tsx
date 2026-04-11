@@ -1696,10 +1696,8 @@ export default function NewTimelineView({
             scheduledEnd: newEndTime.toISOString(),
           });
           
-          // 发送任务开始通知
-          notificationService.notifyTaskStart(task.title, false).catch(err => 
-            console.error('发送任务开始通知失败:', err)
-          );
+          // 发送任务开始语音
+          notificationService.speak(`${task.title}现在开始。`);
             
           console.log('✅ 任务启动验证成功，时间已自动修正');
         } else {
@@ -1782,10 +1780,8 @@ export default function NewTimelineView({
             endTime: now.toISOString(),
           });
           
-          // 发送任务完成通知
-          notificationService.notifyTaskEnd(task.title, false).catch(err => 
-            console.error('发送任务完成通知失败:', err)
-          );
+          // 发送任务完成语音
+          notificationService.speak(`${task.title}已完成。`);
           
           // 记录标签使用时长
           if (task.tags && task.tags.length > 0) {

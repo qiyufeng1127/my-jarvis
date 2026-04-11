@@ -35,7 +35,7 @@ export interface ChatMessage {
   
   // 执行的操作
   actions?: Array<{
-    type: 'create_task' | 'update_task' | 'delete_task' | 'add_memory' | 'add_journal' | 'create_goal';
+    type: string;
     description: string;
     data?: any;
   }>;

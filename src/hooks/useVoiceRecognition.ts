@@ -34,6 +34,8 @@ interface UseVoiceRecognitionOptions {
   lang?: string;
   continuous?: boolean;
   interimResults?: boolean;
+  autoStart?: boolean;
+  restartOnEnd?: boolean;
   onResult?: (transcript: string) => void;
   onError?: (error: string) => void;
 }
@@ -43,6 +45,8 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
     lang = 'zh-CN',
     continuous = false,
     interimResults = false,
+    autoStart = false,
+    restartOnEnd = false,
     onResult,
     onError,
   } = options;
@@ -53,57 +57,70 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
   const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
 
   useEffect(() => {
-    // 检查浏览器是否支持语音识别
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    
-    if (SpeechRecognition) {
-      setIsSupported(true);
-      const recognitionInstance = new SpeechRecognition();
-      recognitionInstance.continuous = continuous;
-      recognitionInstance.interimResults = interimResults;
-      recognitionInstance.lang = lang;
+    const RecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-      recognitionInstance.onstart = () => {
-        setIsListening(true);
-      };
-
-      recognitionInstance.onend = () => {
-        setIsListening(false);
-      };
-
-      recognitionInstance.onresult = (event: SpeechRecognitionEvent) => {
-        const results = event.results;
-        const lastResult = results[results.length - 1];
-        const transcriptText = lastResult[0].transcript;
-        
-        setTranscript(transcriptText);
-        
-        if (onResult && lastResult.isFinal) {
-          onResult(transcriptText);
-        }
-      };
-
-      recognitionInstance.onerror = (event: SpeechRecognitionErrorEvent) => {
-        console.error('语音识别错误:', event.error);
-        setIsListening(false);
-        
-        if (onError) {
-          onError(event.error);
-        }
-      };
-
-      setRecognition(recognitionInstance);
-    } else {
+    if (!RecognitionCtor) {
       setIsSupported(false);
       console.warn('当前浏览器不支持语音识别');
+      return;
     }
 
-    return () => {
-      if (recognition) {
-        recognition.abort();
+    setIsSupported(true);
+    const recognitionInstance = new RecognitionCtor();
+    recognitionInstance.continuous = continuous;
+    recognitionInstance.interimResults = interimResults;
+    recognitionInstance.lang = lang;
+
+    recognitionInstance.onstart = () => {
+      setIsListening(true);
+    };
+
+    recognitionInstance.onend = () => {
+      setIsListening(false);
+      if (restartOnEnd) {
+        window.setTimeout(() => {
+          try {
+            recognitionInstance.start();
+          } catch (error) {
+            console.error('重启语音识别失败:', error);
+          }
+        }, 180);
       }
     };
-  }, [lang, continuous, interimResults]);
+
+    recognitionInstance.onresult = (event: SpeechRecognitionEvent) => {
+      const results = event.results;
+      const lastResult = results[results.length - 1];
+      const transcriptText = lastResult[0].transcript.trim();
+
+      setTranscript(transcriptText);
+
+      if (onResult && lastResult.isFinal) {
+        onResult(transcriptText);
+      }
+    };
+
+    recognitionInstance.onerror = (event: SpeechRecognitionErrorEvent) => {
+      console.error('语音识别错误:', event.error);
+      setIsListening(false);
+      onError?.(event.error);
+    };
+
+    setRecognition(recognitionInstance);
+
+    return () => {
+      recognitionInstance.abort();
+    };
+  }, [lang, continuous, interimResults, onResult, onError, restartOnEnd]);
+
+  useEffect(() => {
+    if (!autoStart || !recognition || isListening) return;
+    try {
+      recognition.start();
+    } catch (error) {
+      console.error('启动语音识别失败:', error);
+    }
+  }, [autoStart, recognition, isListening]);
 
   const startListening = useCallback(() => {
     if (recognition && !isListening) {
@@ -134,4 +151,3 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
     resetTranscript,
   };
 }
-

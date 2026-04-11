@@ -19,14 +19,14 @@ export function useAIAssistant() {
   /**
    * 发送消息给 AI
    */
-  const sendMessage = useCallback(async (message: string) => {
+  const sendMessage = useCallback(async (message: string, inputMode?: 'auto' | 'goal' | 'task' | 'timeline' | 'thought') => {
     if (!message.trim()) return null;
     
     setIsProcessing(true);
     setError(null);
     
     try {
-      const result = await aiIntegrationService.handleUserInput(message);
+      const result = await aiIntegrationService.handleUserInput(message, inputMode);
       
       if (!result.success) {
         setError(result.error || '处理失败');

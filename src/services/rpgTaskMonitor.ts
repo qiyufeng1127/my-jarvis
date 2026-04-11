@@ -104,35 +104,11 @@ export class RPGTaskMonitor {
     
     console.log('⏰ 任务超时:', task.title, '延迟', delayMinutes, '分钟');
     
-    // 显示轻量警示（iOS风格，不打断操作）
-    RPGNotificationService.show({
-      type: 'warning',
-      title: '⏰ 任务超时提醒',
-      message: `「${task.title}」已超时 ${delayMinutes} 分钟`,
-      duration: 5000,
-      actions: [
-        {
-          label: '继续',
-          onClick: () => {
-            console.log('用户选择继续任务');
-          }
-        },
-        {
-          label: '标记完成',
-          onClick: async () => {
-            console.log('用户选择标记完成');
-            await useTaskStore.getState().completeTask(task.id);
-          }
-        },
-        {
-          label: '生成改进任务',
-          onClick: async () => {
-            console.log('用户选择生成改进任务');
-            await this.generateImprovementTaskForTimeout(task);
-          }
-        }
-      ]
-    });
+    // 语音提醒
+    RPGNotificationService.showWarning(
+      '任务超时提醒',
+      `「${task.title}」已超时 ${delayMinutes} 分钟`
+    );
     
     // 更新负向雷达图
     RPGRadarUpdater.updateRadarOnTaskFail(
@@ -157,13 +133,8 @@ export class RPGTaskMonitor {
   private static handleTaskWarning(task: any, minutesLeft: number): void {
     console.log('⚠️ 任务即将超时:', task.title, '剩余', minutesLeft, '分钟');
     
-    // 轻量提示，不打断操作
-    RPGNotificationService.show({
-      type: 'info',
-      title: '⏱️ 时间提醒',
-      message: `「${task.title}」还剩 ${minutesLeft} 分钟`,
-      duration: 3000,
-    });
+    // 语音提醒
+    RPGNotificationService.showTaskReminder(task.title, minutesLeft);
   }
   
   /**
@@ -174,40 +145,11 @@ export class RPGTaskMonitor {
     
     console.log('🐢 任务低效:', task.title, '效率', efficiency, '%');
     
-    // 显示轻量警示
-    RPGNotificationService.show({
-      type: 'warning',
-      title: '🐢 效率提醒',
-      message: `「${task.title}」耗时超过预期，当前效率 ${efficiency}%`,
-      duration: 5000,
-      actions: [
-        {
-          label: '继续',
-          onClick: () => {
-            console.log('用户选择继续任务');
-          }
-        },
-        {
-          label: '休息一下',
-          onClick: () => {
-            console.log('用户选择休息');
-            RPGNotificationService.show({
-              type: 'success',
-              title: '😌 休息一下',
-              message: '适当休息可以提高效率，5分钟后继续！',
-              duration: 3000,
-            });
-          }
-        },
-        {
-          label: '生成改进任务',
-          onClick: async () => {
-            console.log('用户选择生成改进任务');
-            await this.generateImprovementTaskForLowEfficiency(task);
-          }
-        }
-      ]
-    });
+    // 语音提醒
+    RPGNotificationService.showWarning(
+      '效率提醒',
+      `「${task.title}」耗时超过预期，当前效率 ${efficiency}%`
+    );
     
     // 更新负向雷达图
     RPGRadarUpdater.updateRadarOnTaskFail(
@@ -246,12 +188,7 @@ export class RPGTaskMonitor {
     
     rpgStore.addDailyTask(improvementTask);
     
-    RPGNotificationService.show({
-      type: 'success',
-      title: '✨ 改进任务已生成',
-      message: '明天完成改进任务可获得双倍奖励！',
-      duration: 3000,
-    });
+    RPGNotificationService.showImprovementComplete('超时改进任务');
     
     console.log('✅ 已生成超时改进任务:', improvementTask.title);
   }
@@ -276,12 +213,7 @@ export class RPGTaskMonitor {
     
     rpgStore.addDailyTask(improvementTask);
     
-    RPGNotificationService.show({
-      type: 'success',
-      title: '✨ 改进任务已生成',
-      message: '使用番茄工作法可以提高专注力！',
-      duration: 3000,
-    });
+    RPGNotificationService.showImprovementComplete('效率改进任务');
     
     console.log('✅ 已生成效率改进任务:', improvementTask.title);
   }

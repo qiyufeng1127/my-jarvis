@@ -5,6 +5,167 @@
 
 import { AI_PROMPTS } from './aiPrompts';
 import { useAIStore } from '@/stores/aiStore';
+import type { NavigationDifficultyDetourResult, NavigationPlannerResult, NavigationPreferences } from '@/types/navigation';
+
+const toPromptMessage = (
+  promptKey: keyof typeof AI_PROMPTS,
+  variables: Record<string, any>
+) => {
+  const prompt = AI_PROMPTS[promptKey];
+  let userMessage = prompt.userTemplate;
+  for (const [key, value] of Object.entries(variables)) {
+    const placeholder = `\${${key}}`;
+    userMessage = userMessage.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), String(value));
+  }
+
+  return {
+    prompt,
+    messages: [
+      { role: 'system' as const, content: prompt.system },
+      { role: 'user' as const, content: userMessage },
+    ],
+  };
+};
+
+const tryParseJsonObject = (content: string) => {
+  const trimmed = content.trim();
+  if (!trimmed) return null;
+
+  const candidates = [trimmed];
+  const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fencedMatch?.[1]) candidates.push(fencedMatch[1].trim());
+
+  for (const candidate of candidates) {
+    if (!candidate.startsWith('{') && !candidate.startsWith('[')) continue;
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // ignore
+    }
+  }
+
+  return null;
+};
+
+const normalizePlannerResult = (parsed: any): NavigationPlannerResult | null => {
+  if (!parsed || typeof parsed !== 'object') return null;
+
+  const executionSteps = Array.isArray(parsed.executionSteps) ? parsed.executionSteps : [];
+  const timelineGroups = Array.isArray(parsed.timelineGroups) ? parsed.timelineGroups : [];
+
+  if (executionSteps.length === 0 && timelineGroups.length === 0) return null;
+
+  return {
+    sessionTitle: typeof parsed.sessionTitle === 'string' && parsed.sessionTitle.trim() ? parsed.sessionTitle.trim() : '导航模式',
+    summary: typeof parsed.summary === 'string' ? parsed.summary.trim() : '',
+    executionSteps,
+    timelineGroups: timelineGroups.map((group: any) => ({
+      ...group,
+      stepIds: Array.isArray(group?.stepIds) && group.stepIds.length
+        ? group.stepIds
+        : executionSteps.filter((step: any) => step.groupId === group?.id).map((step: any) => step.id),
+    })),
+  };
+};
+
+const parseEventStreamPlannerResult = (content: string, requireDone: boolean) => {
+  const trimmed = content.trim();
+  if (!trimmed) return null;
+
+  const lines = trimmed
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => line.replace(/^```(?:json)?$/i, '').replace(/^```$/i, '').trim())
+    .filter(Boolean);
+
+  const groups: NavigationPlannerResult['timelineGroups'] = [];
+  const steps: NavigationPlannerResult['executionSteps'] = [];
+  let sessionTitle = '导航模式';
+  let summary = '';
+  let hasDone = false;
+
+  for (const line of lines) {
+    try {
+      const event = JSON.parse(line);
+      if (event.type === 'title' && event.sessionTitle) sessionTitle = event.sessionTitle;
+      if (event.type === 'summary' && event.summary) summary = event.summary;
+      if (event.type === 'group' && event.group) groups.push(event.group);
+      if (event.type === 'step' && event.step) steps.push(event.step);
+      if (event.type === 'done') hasDone = true;
+    } catch {
+      // ignore non-complete line
+    }
+  }
+
+  if (requireDone && !hasDone) return null;
+  if (groups.length === 0 && steps.length === 0) return null;
+
+  return {
+    sessionTitle,
+    summary,
+    executionSteps: steps,
+    timelineGroups: groups.map((group) => ({
+      ...group,
+      stepIds: steps.filter((step) => step.groupId === group.id).map((step) => step.id),
+    })),
+  } satisfies NavigationPlannerResult;
+};
+
+const hasMeaningfulPlannerContent = (result: NavigationPlannerResult) => {
+  if (!result.executionSteps.length || !result.timelineGroups.length) return false;
+
+  const normalizedStepTitles = result.executionSteps
+    .map((step) => String(step.title || '').trim())
+    .filter(Boolean);
+  const uniqueStepTitles = new Set(normalizedStepTitles.map((title) => title.replace(/\s+/g, '')));
+  if (uniqueStepTitles.size < Math.max(2, Math.ceil(normalizedStepTitles.length / 3))) {
+    return false;
+  }
+
+  const repeatedBadPatterns = normalizedStepTitles.filter((title) => /^(先开始[:：]|先做一下[:：]|先只做第一下[:：])/.test(title)).length;
+  if (repeatedBadPatterns >= Math.max(2, Math.ceil(normalizedStepTitles.length / 3))) {
+    return false;
+  }
+
+  const genericGuidanceCount = result.executionSteps.filter((step) => {
+    const guidance = String(step.guidance || '').trim();
+    return !guidance || /按现在最顺手的方式|先动起来就可以|接着做/.test(guidance);
+  }).length;
+  if (genericGuidanceCount >= Math.max(3, Math.ceil(result.executionSteps.length / 2))) {
+    return false;
+  }
+
+  return true;
+};
+
+const tryParsePlannerResult = (content: string): NavigationPlannerResult | null => {
+  const parsedObject = tryParseJsonObject(content);
+  const normalizedObject = normalizePlannerResult(parsedObject);
+  if (normalizedObject) return normalizedObject;
+
+  return parseEventStreamPlannerResult(content, true);
+};
+
+const derivePartialPlannerResult = (content: string): Partial<NavigationPlannerResult> | null => {
+  const parsedObject = tryParseJsonObject(content);
+  const normalizedObject = normalizePlannerResult(parsedObject);
+  if (normalizedObject) {
+    return normalizedObject;
+  }
+
+  const partial = parseEventStreamPlannerResult(content, false);
+  if (!partial) {
+    return null;
+  }
+
+  return {
+    sessionTitle: partial.sessionTitle,
+    summary: partial.summary,
+    executionSteps: partial.executionSteps.length ? partial.executionSteps : undefined,
+    timelineGroups: partial.timelineGroups.length ? partial.timelineGroups : undefined,
+  };
+};
 
 /**
  * AI 调用响应
@@ -37,14 +198,7 @@ export class AIUnifiedService {
       };
     }
 
-    const prompt = AI_PROMPTS[promptKey];
-    
-    // 替换模板变量
-    let userMessage = prompt.userTemplate;
-    for (const [key, value] of Object.entries(variables)) {
-      const placeholder = `\${${key}}`;
-      userMessage = userMessage.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), String(value));
-    }
+    const { prompt, messages } = toPromptMessage(promptKey, variables);
 
     try {
       const response = await fetch(config.apiEndpoint, {
@@ -55,10 +209,7 @@ export class AIUnifiedService {
         },
         body: JSON.stringify({
           model: config.model || 'deepseek-chat',
-          messages: [
-            { role: 'system', content: prompt.system },
-            { role: 'user', content: userMessage }
-          ],
+          messages,
           temperature: prompt.temperature,
           max_tokens: prompt.maxTokens,
         }),
@@ -267,7 +418,140 @@ export class AIUnifiedService {
   }
 
   // ============================================
-  // 6. 智能对话
+  // 6. 导航模式规划
+  // ============================================
+
+  /**
+   * 生成导航模式的微步骤与时间轴任务组
+   */
+  static async planNavigationSession(
+    rawInput: string,
+    preferences: NavigationPreferences,
+    onPartial?: (partial: Partial<NavigationPlannerResult>) => void,
+  ): Promise<{
+    success: boolean;
+    data?: NavigationPlannerResult;
+    error?: string;
+  }> {
+    const aiStore = useAIStore.getState();
+    console.log('[导航服务] 进入 planNavigationSession', {
+      rawInput,
+      hasOnPartial: !!onPartial,
+      configured: aiStore.isConfigured(),
+      model: aiStore.config.model,
+      endpoint: aiStore.config.apiEndpoint,
+    });
+    if (!aiStore.isConfigured()) {
+      return {
+        success: false,
+        error: '导航智能拆解不可用：AI 未配置，请先完成 API 配置',
+      };
+    }
+
+    const variables = {
+      rawInput,
+      customPrompt: preferences.customPrompt,
+      granularity: preferences.granularity,
+      easyStartMode: preferences.easyStartMode,
+      sideTaskIntensity: preferences.sideTaskIntensity,
+      tone: preferences.tone,
+      homeLayout: preferences.homeLayout,
+      parsedRules: JSON.stringify(preferences.parsedRules, null, 2),
+      currentTime: new Date().toLocaleString('zh-CN'),
+    };
+
+    if (onPartial) {
+      const { messages } = toPromptMessage('NAVIGATION_MODE_PLANNER', variables);
+      let fullContent = '';
+      let lastPartialSignature = '';
+      console.log('[导航服务] 进入流式分支', { messagesCount: messages.length });
+
+      const streamResult = await aiStore.chatStream(
+        messages,
+        (chunk) => {
+          console.log('[导航服务] 收到 chunk', chunk);
+          fullContent += chunk;
+          const partial = derivePartialPlannerResult(fullContent);
+          if (partial) {
+            const signature = JSON.stringify({
+              title: partial.sessionTitle || '',
+              summary: partial.summary || '',
+              groups: partial.timelineGroups?.map((group) => group.id) || [],
+              steps: partial.executionSteps?.map((step) => step.id) || [],
+            });
+            if (signature !== lastPartialSignature) {
+              lastPartialSignature = signature;
+              onPartial(partial);
+            }
+          }
+        },
+        {
+          maxTokens: Math.min(1200, AI_PROMPTS.NAVIGATION_MODE_PLANNER.maxTokens),
+          temperature: AI_PROMPTS.NAVIGATION_MODE_PLANNER.temperature,
+        }
+      );
+
+      const finalParsed = streamResult.content ? tryParsePlannerResult(streamResult.content) : null;
+      console.log('[导航服务] 流式请求完成', { streamResult, finalParsed });
+      if (streamResult.success && finalParsed && hasMeaningfulPlannerContent(finalParsed)) {
+        return {
+          success: true,
+          data: finalParsed,
+        };
+      }
+
+      return {
+        success: false,
+        error: streamResult.error || (finalParsed ? '导航智能拆解质量过低：结果像在重复原话，请调整提示词后重试' : '导航智能拆解失败：AI 返回内容不符合预期格式'),
+      };
+    }
+
+    const aiResult = await this.callAI('NAVIGATION_MODE_PLANNER', variables);
+
+    if (aiResult.success && aiResult.data && hasMeaningfulPlannerContent(aiResult.data as NavigationPlannerResult)) {
+      return {
+        success: true,
+        data: aiResult.data as NavigationPlannerResult,
+      };
+    }
+
+    return {
+      success: false,
+      error: aiResult.success ? '导航智能拆解质量过低：结果像在重复原话，请调整提示词后重试' : (aiResult.error || '导航智能拆解失败，请稍后重试'),
+    };
+  }
+
+  static async resolveNavigationDifficulty(
+    context: {
+      rawInput: string;
+      sessionTitle: string;
+      currentStepTitle: string;
+      currentStepGuidance: string;
+      recentSteps: Array<{ title: string; guidance: string }>;
+      userDifficulty: string;
+    },
+    preferences: NavigationPreferences
+  ): Promise<{
+    success: boolean;
+    data?: NavigationDifficultyDetourResult;
+    error?: string;
+  }> {
+    return await this.callAI('NAVIGATION_DIFFICULTY_GUIDE', {
+      rawInput: context.rawInput,
+      sessionTitle: context.sessionTitle,
+      currentStepTitle: context.currentStepTitle,
+      currentStepGuidance: context.currentStepGuidance,
+      recentSteps: JSON.stringify(context.recentSteps, null, 2),
+      userDifficulty: context.userDifficulty,
+      customPrompt: preferences.customPrompt,
+      tone: preferences.tone,
+      homeLayout: preferences.homeLayout,
+      currentTime: new Date().toLocaleString('zh-CN'),
+    });
+  }
+
+  // ============================================
+  // 7. 智能对话
   // ============================================
   
   /**

@@ -282,6 +282,65 @@ work, study, life, housework, health, social, hobby, startup, finance, family
     maxTokens: 500,
   } as AIPromptConfig,
 
+  NAVIGATION_DIFFICULTY_GUIDE: {
+    description: '当用户执行中遇到困难时，生成温柔的引导和临时绕行小步骤',
+    system: '你是一个温柔的执行陪伴助手。用户在导航模式里卡住了，你要先接住她此刻的状态，再帮她把注意力轻轻带回一条更容易执行的路上。只返回 JSON，不要解释。',
+    userTemplate: `用户正在执行导航模式时遇到困难，请帮她设计一个非常温柔、非常低门槛的过渡方案。
+
+【原始任务】
+\${rawInput}
+
+【当前导航标题】
+\${sessionTitle}
+
+【当前卡住的步骤】
+- 标题：\${currentStepTitle}
+- 引导：\${currentStepGuidance}
+
+【最近执行上下文】
+\${recentSteps}
+
+【用户刚刚说的困难】
+\${userDifficulty}
+
+【用户偏好】
+- 语气：\${tone}
+- 长期提示词：\${customPrompt}
+- 家里动线：\${homeLayout}
+- 当前时间：\${currentTime}
+
+规则：
+1. 先理解用户现在想做什么、卡在哪里，不要批评，不要命令。
+2. assistantMessage 要像真人陪伴，温柔、口语化、有安抚感，长度控制在 2-4 句。
+3. 允许先顺着用户当下更想做的事走一点点，但最终要慢慢带回原来的主路线。
+4. detourSteps 必须是 2-4 个非常具体、非常容易执行的小步骤，门槛低。
+5. detourGroup.title 要像时间轴里会出现的话，口语化、有生活感。
+6. detourGroup.description 要说明这是一小段临时绕路，但语气要自然温柔。
+7. 如果用户表达的是“我现在想先做别的”，可以先安排一个短暂过渡动作，再设计回到原步骤的桥接动作。
+8. 最后一个 detourStep 最好能自然衔接回当前卡住的原步骤。
+9. 输出必须是有效 JSON。
+
+只返回以下结构：
+{
+  "assistantMessage": "温柔回应",
+  "detourGroup": {
+    "title": "时间轴标题",
+    "description": "时间轴描述"
+  },
+  "detourSteps": [
+    {
+      "title": "步骤标题",
+      "guidance": "一句轻引导",
+      "focusMinutes": 3,
+      "estimatedMinutes": 2,
+      "location": "卧室"
+    }
+  ]
+}`,
+    temperature: 0.9,
+    maxTokens: 1200,
+  } as AIPromptConfig,
+
   // ============================================
   // 7. 成长故事生成器
   // ============================================
@@ -363,34 +422,92 @@ work, study, life, housework, health, social, hobby, startup, finance, family
   // ============================================
   // 10. 文件验证助手
   // ============================================
-  FILE_VERIFIER: {
-    description: '验证用户上传的文件是否符合任务要求',
-    system: '你是一个任务验证专家，负责通过文件信息验证用户是否真实执行了任务。',
-    userTemplate: `**任务信息：**
-- 任务标题：\${taskTitle}
-- 验证要求：\${requirement}
+  // ============================================
+  // 10. 导航模式规划
+  // ============================================
+  NAVIGATION_MODE_PLANNER: {
+    description: '将用户口语化的一串任务整理为导航执行步骤和时间轴任务组',
+    system: '你是一个导航模式规划助手，专门帮助用户把一串口语化任务整理成超容易执行的微步骤，并同时产出粗粒度的时间轴任务组。输出时优先采用逐行事件流格式，不要写解释。',
+    userTemplate: `请根据以下信息，为用户生成导航模式结果。
 
-**文件信息：**
-- 文件名：\${fileName}
-- 文件大小：\${fileSize} MB
-- 文件类型：\${fileType}
+【用户当前输入】
+\${rawInput}
 
-**你的职责：**
-1. 分析文件名是否与任务相关
-2. 判断文件类型是否符合要求
-3. 评估文件大小是否合理
-4. 给出验证结果和置信度
+【用户长期提示词】
+\${customPrompt}
 
-**返回JSON格式：**
-{
-  "isValid": true/false,
-  "confidence": 0.0-1.0的置信度,
-  "reason": "验证结果说明（简短，50字以内）"
-}
+【拆分偏好】
+- 步骤粒度：\${granularity}
+- 起步风格：\${easyStartMode}
+- 顺手任务强度：\${sideTaskIntensity}
+- 语气：\${tone}
 
-只返回JSON，不要其他内容。`,
-    temperature: 0.3,
-    maxTokens: 300,
+【用户家庭动线】
+\${homeLayout}
+
+【结构化偏好】
+\${parsedRules}
+
+【当前时间】
+\${currentTime}
+
+你必须遵守这些规则：
+1. executionSteps 是给用户执行时看的，必须非常容易执行、低阻力、适合 ADHD 启动困难用户。
+2. 如果是中等以上任务，executionSteps 尽量控制在 6-9 步；如果本身任务极短，就保持更短，不要为了凑步骤而扩展。
+3. 第一步必须尽可能无痛快速启动。
+4. 只有当用户明确提到“起床”或“不想起床”或“需要起床”时，才允许加入起床诱惑型步骤。
+5. 如果涉及出门，要加入一个更容易出门的诱因，并结合顺手任务。
+6. 如果涉及做饭，要给出 5 分钟左右能完成、相对有营养的方案。
+7. 如果开始做工作，要提醒整理工作区。
+8. 如果从楼上下楼，要考虑顺手带洗衣物或不属于卧室的东西。
+9. timelineGroups 是最后写入时间轴的粗粒度任务块，必须自然、完整，不能太碎，数量尽量 2-5 个。
+10. guidance 要短、轻、温和，不要说教，不要幼稚。
+11. timelineGroups.title 必须像用户自己会说的话，口语化、温柔、有生活感。
+12. timelineGroups.description 必须非常短，可为空；不要写执行步骤明细、不要写“包含X个步骤”、不要写具体备注列表。
+13. summary 保持 1 句话即可，简短直接。
+14. 先理解用户真正想完成的事情，再进行拆解；不要只是把用户原话拆成几句再重复输出。
+15. 每个 step.title 必须是一个“可立即执行的动作”或“明确的启动动作”，不能只是把原句换个说法。
+16. 相邻步骤之间必须有推进关系：启动 → 过渡 → 完成/衔接，不允许多个步骤表达同一件事。
+17. 如果用户一句话里包含多个场景（例如卧室、卫生间、厨房、工作区），要按动线重新组织，而不是照抄原始语序。
+18. 除非用户原话本身非常短，否则不要让 2 个以上步骤使用几乎相同的标题。
+19. 禁止低质量复读，尤其禁止这类输出：
+   - “先开始：用户原话”
+   - “先做一下：用户原话”
+   - “按现在最顺手的方式继续做”反复出现
+   - 只是在每一步里重复“起床穿衣服/洗漱/下楼”但没有推进关系
+20. 在你输出任何 group 和 step 之前，先在心里完成这 3 件事：
+   - 提炼用户真正目标
+   - 按场景或动线分成 2-5 个任务块
+   - 给每个任务块设计具体、低阻力、能推进的动作链
+
+【最重要的输出格式要求】
+请使用“逐行事件流”输出，每一行都是一条合法 JSON，不能用 markdown 代码块，不能补充解释。
+按下面顺序尽快开始输出，想到一条就输出一条，不要等全部想完再一起输出：
+
+先输出 1 行 title：
+{"type":"title","sessionTitle":"导航标题"}
+
+然后输出若干行 group：
+{"type":"group","group":{"id":"g1","title":"时间轴大任务标题","description":"可选描述","stepIds":[]}}
+
+然后输出若干行 step：
+{"type":"step","step":{"id":"s1","groupId":"g1","title":"步骤标题","guidance":"一句轻引导","focusMinutes":5,"estimatedMinutes":3,"location":"卧室"}}
+
+最后输出 1 行 summary：
+{"type":"summary","summary":"简短总结"}
+
+最后输出 1 行 done：
+{"type":"done"}
+
+注意：
+- 每行必须是完整 JSON
+- 不要输出数组
+- 不要输出完整大 JSON 对象
+- 不要解释
+- step 的 groupId 必须对应前面已经出现过的 group.id
+- 当你确定一个 group 或 step 后就立刻输出，不要等待全部完成。`,
+    temperature: 0.45,
+    maxTokens: 900,
   } as AIPromptConfig,
 };
 
@@ -408,5 +525,7 @@ export const PROMPT_USAGE = {
   SUGGESTIONS: '用于生成个性化建议',
   IMAGE_VERIFIER: '用于验证任务完成图片',
   FILE_VERIFIER: '用于验证任务完成文件',
+  NAVIGATION_MODE_PLANNER: '用于生成导航模式的微步骤与时间轴任务组',
+  NAVIGATION_DIFFICULTY_GUIDE: '用于在执行中遇到困难时生成温柔绕行步骤',
 };
 

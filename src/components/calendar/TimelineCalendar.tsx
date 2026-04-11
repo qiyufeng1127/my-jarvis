@@ -1,14 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTaskStore } from '@/stores/taskStore';
-import eventBus from '@/utils/eventBus';
 import { 
-  Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Inbox, Zap
+  ChevronLeft, ChevronRight, Calendar as CalendarIcon
 } from 'lucide-react';
 import type { Task } from '@/types';
 import NewTimelineView from './NewTimelineView';
 import InboxView from './InboxView';
 import QuickStartView from './QuickStartView';
 import ImportExportButton from './ImportExportButton';
+import NavigationModeView from '@/components/navigation/NavigationModeView';
 
 interface TimelineCalendarProps {
   tasks?: Task[];
@@ -50,8 +50,7 @@ export default function TimelineCalendar({
   const [calendarView, setCalendarView] = useState<'week' | 'month'>(isMobile ? 'week' : 'month');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isEditingTask, setIsEditingTask] = useState(false); // 新增：跟踪是否正在编辑任务
-  const [showInbox, setShowInbox] = useState(false); // 新增：是否显示收集箱
-  const [showQuickStart, setShowQuickStart] = useState(false); // 新增：是否显示快捷开始
+  const [activeView, setActiveView] = useState<'timeline' | 'inbox' | 'quickStart' | 'navigation'>('timeline');
   
   const timelineRef = useRef<HTMLDivElement>(null);
   
@@ -453,14 +452,13 @@ export default function TimelineCalendar({
           <div className="flex items-center gap-2">
             <button
               onClick={() => {
-                setShowInbox(false);
-                setShowQuickStart(false);
+                setActiveView('timeline');
               }}
               className={`flex items-center justify-center w-10 h-10 rounded-lg transition-all ${
-                !showInbox && !showQuickStart ? 'shadow-sm' : ''
+                activeView === 'timeline' ? 'shadow-sm' : ''
               }`}
               style={{
-                backgroundColor: !showInbox && !showQuickStart ? hoverBg : 'transparent',
+                backgroundColor: activeView === 'timeline' ? hoverBg : 'transparent',
               }}
               title="时间轴"
             >
@@ -469,14 +467,13 @@ export default function TimelineCalendar({
             
             <button
               onClick={() => {
-                setShowInbox(true);
-                setShowQuickStart(false);
+                setActiveView('inbox');
               }}
               className={`relative flex items-center justify-center w-10 h-10 rounded-lg transition-all ${
-                showInbox ? 'shadow-sm' : ''
+                activeView === 'inbox' ? 'shadow-sm' : ''
               }`}
               style={{
-                backgroundColor: showInbox ? hoverBg : 'transparent',
+                backgroundColor: activeView === 'inbox' ? hoverBg : 'transparent',
               }}
               title="收集箱"
             >
@@ -498,14 +495,13 @@ export default function TimelineCalendar({
 
             <button
               onClick={() => {
-                setShowInbox(false);
-                setShowQuickStart(true);
+                setActiveView('quickStart');
               }}
               className={`flex items-center justify-center w-10 h-10 rounded-lg transition-all ${
-                showQuickStart ? 'shadow-sm' : ''
+                activeView === 'quickStart' ? 'shadow-sm' : ''
               }`}
               style={{
-                backgroundColor: showQuickStart ? hoverBg : 'transparent',
+                backgroundColor: activeView === 'quickStart' ? hoverBg : 'transparent',
               }}
               title="快捷开始"
             >
@@ -514,15 +510,17 @@ export default function TimelineCalendar({
 
             <button
               onClick={() => {
-                setShowInbox(false);
-                setShowQuickStart(false);
-                eventBus.emit('timeline:open-quick-backfill');
+                setActiveView('navigation');
               }}
-              className="flex items-center justify-center w-10 h-10 rounded-lg transition-all"
-              style={{ backgroundColor: 'transparent' }}
-              title="快捷补录"
+              className={`flex items-center justify-center w-10 h-10 rounded-lg transition-all ${
+                activeView === 'navigation' ? 'shadow-sm' : ''
+              }`}
+              style={{
+                backgroundColor: activeView === 'navigation' ? hoverBg : 'transparent',
+              }}
+              title="导航模式"
             >
-              <span className="text-xl">📝</span>
+              <span className="text-xl">🧭</span>
             </button>
           </div>
 
@@ -550,7 +548,7 @@ export default function TimelineCalendar({
           ref={timelineRef}
           className="flex-1 overflow-y-auto overflow-x-hidden text-gray-800 dark:text-white"
         >
-          {showQuickStart ? (
+          {activeView === 'quickStart' ? (
             <QuickStartView
               tasks={tasks}
               onTaskCreate={onTaskCreate}
@@ -562,16 +560,14 @@ export default function TimelineCalendar({
               borderColor={borderColor}
               isDark={isDark}
             />
-          ) : showInbox ? (
+          ) : activeView === 'inbox' ? (
             <InboxView
               tasks={tasks}
               onTaskUpdate={onTaskUpdate}
               onTaskCreate={onTaskCreate}
               onTaskDelete={onTaskDelete}
-              onStartTask={(taskId) => {
-                // 切换回时间轴视图
-                setShowInbox(false);
-                setShowQuickStart(false);
+              onStartTask={() => {
+                setActiveView('timeline');
               }}
               bgColor={bgColor}
               textColor={textColor}
@@ -579,6 +575,8 @@ export default function TimelineCalendar({
               borderColor={borderColor}
               isDark={isDark}
             />
+          ) : activeView === 'navigation' ? (
+            <NavigationModeView />
           ) : (
             <NewTimelineView
               tasks={tasks}

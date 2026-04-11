@@ -5,7 +5,6 @@ import FloatingAIChat from '@/components/ai/FloatingAIChat';
 // import AISmartInput from '@/components/ai/AISmartInput'; // 临时注释
 import TimelineCalendar from '@/components/calendar/TimelineCalendar';
 import ResponsiveLayout from '@/components/layout/ResponsiveLayout';
-import { taskMonitorService } from '@/services/taskMonitorService';
 import { backgroundTaskScheduler } from '@/services/backgroundTaskScheduler';
 
 export default function Dashboard() {
@@ -31,7 +30,6 @@ export default function Dashboard() {
     loadGrowthData();
 
     return () => {
-      taskMonitorService.clearAll();
     };
   }, [loadTasks, loadGrowthData]);
   

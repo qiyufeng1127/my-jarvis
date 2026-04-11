@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, X, Minimize2, Maximize2, GripVertical, Settings, Hourglass, ChevronDown, ChevronUp, CheckSquare, Square, Sparkles, User, Trash2 } from 'lucide-react';
+import { Send, X, Minimize2, Maximize2, GripVertical, Settings, Hourglass, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, CheckSquare, Square, Sparkles, User, Trash2, Check, Target } from 'lucide-react';
 import { useGoalStore } from '@/stores/goalStore';
 import { useTagStore } from '@/stores/tagStore';
 import { matchTaskToGoals, generateGoalSuggestionMessage } from '@/services/aiGoalMatcher';
@@ -12,6 +12,7 @@ import AIPersonalitySettings from './AIPersonalitySettings';
 import { processMutter } from '@/services/mutterService';
 import { TagLearningService } from '@/services/tagLearningService';
 import { aiCommandCenter } from '@/services/aiCommandCenter';
+import { aiAssistantService } from '@/services/aiAssistantService';
 import eventBus from '@/utils/eventBus';
 
 // 标签ID到中文的映射
@@ -124,11 +125,56 @@ interface GoalConversationState {
   lastAskedField?: string;
 }
 
+interface GoalDocumentDailyInvestment {
+  raw?: string;
+  hours?: number;
+  minutes?: number;
+}
+
+interface GoalDocumentKeyResult {
+  name: string;
+  targetValue?: number;
+  unit?: string;
+}
+
+interface GoalDocumentItem {
+  goalTitle: string;
+  description?: string;
+  deadline?: string | null;
+  startDate?: string | null;
+  estimatedTotalHours?: number;
+  estimatedDailyHours?: number;
+  dailyInvestment?: GoalDocumentDailyInvestment;
+  dailyInvestmentHours?: number;
+  keyResults?: GoalDocumentKeyResult[];
+}
+
+function formatCompactDateTime(value?: string | null) {
+  if (!value) return '未识别';
+
+  const date = new Date(value);
+  if (!Number.isNaN(date.getTime())) {
+    return date.toLocaleDateString('zh-CN', {
+      month: 'numeric',
+      day: 'numeric',
+    });
+  }
+
+  return value;
+}
+
+interface MessageAction {
+  type: string;
+  description: string;
+  data?: any;
+}
+
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  actions?: MessageAction[];
   tags?: {
     emotions: string[];
     categories: string[];
@@ -156,6 +202,459 @@ interface HabitBasedSuggestion {
   priority: 'low' | 'medium' | 'high';
 }
 
+function formatDateLabel(value?: string | null) {
+  if (!value) return '未识别';
+
+  const date = new Date(value);
+  if (!Number.isNaN(date.getTime())) {
+    return date.toLocaleDateString('zh-CN', {
+      month: 'numeric',
+      day: 'numeric',
+    });
+  }
+
+  return value;
+}
+
+function formatPeriodLabel(goal: GoalDocumentItem) {
+  if (!goal.startDate || !goal.deadline) return '周期待补充';
+
+  const start = new Date(goal.startDate);
+  const end = new Date(goal.deadline);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return '周期待补充';
+
+  const diffDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+  return `${diffDays} 天`;
+}
+
+function formatTotalHours(goal: GoalDocumentItem) {
+  if (typeof goal.estimatedTotalHours !== 'number' || Number.isNaN(goal.estimatedTotalHours)) {
+    return '待计算';
+  }
+
+  return `${goal.estimatedTotalHours} 小时`;
+}
+
+function formatDailyInvestment(goal: GoalDocumentItem) {
+  if (goal.dailyInvestment?.raw) return goal.dailyInvestment.raw;
+
+  const hours = goal.dailyInvestment?.hours ?? goal.dailyInvestmentHours ?? goal.estimatedDailyHours;
+  const minutes = goal.dailyInvestment?.minutes;
+
+  if (typeof hours === 'number' && typeof minutes === 'number') {
+    return `${hours} 小时（${minutes} 分钟）`;
+  }
+
+  if (typeof hours === 'number') return `${hours} 小时`;
+  if (typeof minutes === 'number') return `${minutes} 分钟`;
+  return '未提取';
+}
+
+function GoalDocumentPreview({
+  action,
+  onCreate,
+  isDark = false,
+}: {
+  action: MessageAction;
+  onCreate: (goals: GoalDocumentItem[], document: string) => Promise<void>;
+  isDark?: boolean;
+}) {
+  const data = action.data;
+
+  if (!data || data.mode !== 'document_analysis' || !Array.isArray(data.goals) || data.goals.length === 0) {
+    return null;
+  }
+
+  const goals = data.goals as GoalDocumentItem[];
+  const createdGoals = Array.isArray(data.createdGoals) ? data.createdGoals : [];
+  const isCreated = createdGoals.length > 0;
+  const [editableGoals, setEditableGoals] = useState<GoalDocumentItem[]>(() => goals);
+  const [selectedIndexes, setSelectedIndexes] = useState<number[]>(() => goals.map((_, index) => index));
+  const [activeGoalIndex, setActiveGoalIndex] = useState(0);
+  const [expandedGoalIndexes, setExpandedGoalIndexes] = useState<number[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setEditableGoals(goals);
+    setSelectedIndexes(goals.map((_, index) => index));
+    setActiveGoalIndex(0);
+    setExpandedGoalIndexes([]);
+  }, [data]);
+
+  const updateGoal = (index: number, updates: Partial<GoalDocumentItem>) => {
+    setEditableGoals((prev) => prev.map((goal, goalIndex) => (
+      goalIndex === index ? { ...goal, ...updates } : goal
+    )));
+  };
+
+  const updateKeyResult = (goalIndex: number, krIndex: number, updates: Partial<GoalDocumentKeyResult>) => {
+    setEditableGoals((prev) => prev.map((goal, currentGoalIndex) => {
+      if (currentGoalIndex !== goalIndex) return goal;
+      return {
+        ...goal,
+        keyResults: (goal.keyResults || []).map((kr, currentKrIndex) => (
+          currentKrIndex === krIndex ? { ...kr, ...updates } : kr
+        )),
+      };
+    }));
+  };
+
+  const toggleGoalSelection = (index: number) => {
+    setSelectedIndexes((prev) => (
+      prev.includes(index) ? prev.filter((item) => item !== index) : [...prev, index].sort((a, b) => a - b)
+    ));
+  };
+
+  const toggleGoalExpanded = (index: number) => {
+    setExpandedGoalIndexes((prev) => (
+      prev.includes(index) ? prev.filter((item) => item !== index) : [...prev, index]
+    ));
+  };
+
+  const handleCreate = async () => {
+    const selectedGoals = editableGoals.filter((_, index) => selectedIndexes.includes(index));
+    if (selectedGoals.length === 0 || isSubmitting) return;
+
+    setIsSubmitting(true);
+    try {
+      await onCreate(selectedGoals, data.document || '');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const theme = isDark
+    ? {
+        wrapper: 'mt-4 overflow-hidden rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(26,31,44,0.96),rgba(20,24,35,0.98))] text-white shadow-[0_18px_40px_rgba(0,0,0,0.28)]',
+        header: 'border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(96,165,250,0.22),transparent_45%),linear-gradient(135deg,rgba(34,40,58,0.96),rgba(23,28,40,0.98))] px-4 py-4',
+        badge: 'inline-flex items-center gap-2 rounded-full bg-white/8 px-3 py-1 text-[11px] font-semibold tracking-[0.18em] text-[#8ec5ff] uppercase',
+        title: 'mt-3 text-[18px] font-semibold text-white',
+        desc: 'mt-1 text-sm text-[#b8c3d9]',
+        topbar: 'flex items-center justify-between border-b border-white/8 px-4 py-3 text-xs text-[#aab6cf]',
+        chip: 'rounded-full bg-white/8 px-3 py-1 text-[#c5d7ff]',
+        chipAlt: 'rounded-full bg-white/8 px-3 py-1 text-[#ffcad7]',
+        pager: 'flex items-center justify-between gap-2 border-b border-white/8 px-3 py-2.5 text-xs text-[#c9d5ef]',
+        navBtn: 'inline-flex items-center gap-1 rounded-full bg-white/8 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-35 disabled:cursor-not-allowed',
+        pagerIndexList: 'flex items-center gap-1 overflow-x-auto px-3 py-2 border-b border-white/8',
+        pagerIndexBtn: 'h-7 min-w-7 rounded-full px-2 text-[11px] font-medium border border-white/10 bg-white/5 text-[#c9d5ef]',
+        pagerIndexBtnActive: 'h-7 min-w-7 rounded-full px-2 text-[11px] font-semibold border border-[#60a5fa] bg-[#3b82f6] text-white shadow-[0_6px_16px_rgba(59,130,246,0.24)]',
+        statusPill: 'inline-flex items-center gap-1 rounded-full bg-white/8 px-2.5 py-1 text-[11px] font-medium text-[#d7e3ff]',
+        rail: 'px-2 py-2',
+        card: 'w-full rounded-[18px] border border-white/10 bg-white/6 px-2.5 py-2.5 shadow-[0_8px_18px_rgba(0,0,0,0.18)]',
+        label: 'inline-flex items-center gap-1.5 text-[13px] font-medium text-[#d4def4]',
+        badgeTiny: 'rounded-full bg-white/8 px-2 py-0.5 text-[10px] font-medium text-[#d7e3ff]',
+        input: 'w-full rounded-[12px] border border-white/10 bg-[#111827] px-2.5 py-2 text-[13px] font-semibold text-white outline-none focus:border-[#60a5fa]',
+        subInput: 'w-full rounded-[10px] border border-white/10 bg-[#111827] px-2.5 py-1.5 text-[13px] text-white outline-none focus:border-[#60a5fa]',
+        paragraph: 'mt-1.5 text-[11px] leading-4 text-[#c4cde0]',
+        metricWrap: 'grid grid-cols-2 gap-1.5 mt-2',
+        metricCard: 'rounded-[12px] bg-white/5 px-2.5 py-2',
+        metricLabel: 'text-[10px] font-medium text-[#8fa2c7]',
+        metricValue: 'mt-0.5 text-[13px] font-semibold text-white',
+        dateRow: 'mt-2 flex flex-wrap gap-1.5',
+        datePill: 'rounded-full bg-white/6 px-2.5 py-1.5',
+        dateLabel: 'text-[9px] font-medium tracking-[0.08em] text-[#8fa2c7] uppercase',
+        dateValue: 'mt-0.5 text-[12px] font-semibold text-white',
+        krWrap: 'mt-2 rounded-[14px] bg-white/5 px-2.5 py-2.5',
+        krTitle: 'mb-2 text-[10px] font-semibold tracking-[0.14em] text-[#8ec5ff] uppercase',
+        krItem: 'rounded-[10px] bg-[#0f172a] px-2.5 py-2 text-[13px] text-white',
+        footer: 'border-t border-white/10 bg-white/5 px-4 py-3 text-sm text-[#9ec3ff]',
+        createBtn: 'inline-flex shrink-0 items-center gap-2 rounded-full bg-[#3b82f6] px-4 py-2 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(59,130,246,0.35)] transition-transform hover:scale-[1.02] hover:bg-[#2563eb] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100',
+      }
+    : {
+        wrapper: 'mt-4 overflow-hidden rounded-[24px] border border-[#e7d7ff] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(250,245,255,0.96))] text-[#241438] shadow-[0_18px_40px_rgba(130,84,255,0.12)]',
+        header: 'border-b border-[#eadcff] bg-[radial-gradient(circle_at_top_left,rgba(170,119,255,0.25),transparent_48%),linear-gradient(135deg,#fff8ff,#f7efff)] px-4 py-4',
+        badge: 'inline-flex items-center gap-2 rounded-full bg-[#fff]/70 px-3 py-1 text-[11px] font-semibold tracking-[0.18em] text-[#8d55ff] uppercase',
+        title: 'mt-3 text-[18px] font-semibold text-[#26123d]',
+        desc: 'mt-1 text-sm text-[#70588f]',
+        topbar: 'flex items-center justify-between border-b border-[#f0e7ff] px-4 py-3 text-xs text-[#7a61a1]',
+        chip: 'rounded-full bg-white px-3 py-1 text-[#7d49d9]',
+        chipAlt: 'rounded-full bg-white px-3 py-1 text-[#a06077]',
+        pager: 'flex items-center justify-between gap-2 border-b border-[#f0e7ff] px-3 py-2.5 text-xs text-[#7a61a1]',
+        navBtn: 'inline-flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-[#6e49b2] shadow-[0_4px_12px_rgba(141,85,255,0.12)] disabled:opacity-35 disabled:cursor-not-allowed',
+        pagerIndexList: 'flex items-center gap-1 overflow-x-auto px-3 py-2 border-b border-[#f5efff]',
+        pagerIndexBtn: 'h-7 min-w-7 rounded-full px-2 text-[11px] font-medium border border-[#eadcff] bg-white text-[#7a61a1]',
+        pagerIndexBtnActive: 'h-7 min-w-7 rounded-full px-2 text-[11px] font-semibold border border-[#8d55ff] bg-[#8d55ff] text-white shadow-[0_6px_16px_rgba(141,85,255,0.22)]',
+        statusPill: 'inline-flex items-center gap-1 rounded-full bg-[#f7f1ff] px-2.5 py-1 text-[11px] font-medium text-[#7d49d9]',
+        rail: 'px-2 py-2',
+        card: 'w-full rounded-[18px] border border-[#eee4ff] bg-white/90 px-2.5 py-2.5 shadow-[0_8px_18px_rgba(116,78,160,0.06)]',
+        label: 'inline-flex items-center gap-1.5 text-[13px] font-medium text-[#5b3d89]',
+        badgeTiny: 'rounded-full bg-[#f7f1ff] px-2 py-0.5 text-[10px] font-medium text-[#7d49d9]',
+        input: 'w-full rounded-[12px] border border-[#e8dbff] bg-[#fcfaff] px-2.5 py-2 text-[13px] font-semibold text-[#221033] outline-none focus:border-[#b58aff]',
+        subInput: 'w-full rounded-[10px] border border-[#eadfff] bg-white px-2.5 py-1.5 text-[13px] text-[#301a47] outline-none focus:border-[#b58aff]',
+        paragraph: 'mt-1.5 text-[11px] leading-4 text-[#6f5a89]',
+        metricWrap: 'grid grid-cols-2 gap-1.5 mt-2',
+        metricCard: 'rounded-[12px] bg-[#faf7ff] px-2.5 py-2',
+        metricLabel: 'text-[10px] font-medium text-[#8f74ba]',
+        metricValue: 'mt-0.5 text-[13px] font-semibold text-[#301a47]',
+        dateRow: 'mt-2 flex flex-wrap gap-1.5',
+        datePill: 'rounded-full bg-[#faf7ff] px-2.5 py-1.5',
+        dateLabel: 'text-[9px] font-medium tracking-[0.08em] text-[#8f74ba] uppercase',
+        dateValue: 'mt-0.5 text-[12px] font-semibold text-[#301a47]',
+        krWrap: 'mt-2 rounded-[14px] bg-[#faf7ff] px-2.5 py-2.5',
+        krTitle: 'mb-2 text-[10px] font-semibold tracking-[0.14em] text-[#9065d6] uppercase',
+        krItem: 'rounded-[10px] bg-white px-2.5 py-2 text-[13px] text-[#301a47]',
+        footer: 'border-t border-[#eadcff] bg-[#faf6ff] px-4 py-3 text-sm text-[#6f4ca9]',
+        createBtn: 'inline-flex shrink-0 items-center gap-2 rounded-full bg-[#8d55ff] px-4 py-2 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(141,85,255,0.35)] transition-transform hover:scale-[1.02] hover:bg-[#7c43f2] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100',
+      };
+
+  return (
+    <div className={theme.wrapper}>
+      <div className={theme.header}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className={theme.badge}>
+              <Target className="h-3.5 w-3.5" />
+              目标智能拆解
+            </div>
+            <h4 className={theme.title}>已识别 {editableGoals.length} 个总目标</h4>
+            <p className={theme.desc}>一次只展示 1 个目标，你可以用上一个 / 下一个逐个确认。</p>
+          </div>
+
+          {!isCreated && (
+            <button
+              type="button"
+              onClick={handleCreate}
+              disabled={selectedIndexes.length === 0 || isSubmitting}
+              className={theme.createBtn}
+            >
+              <Check className="h-4 w-4" />
+              {isSubmitting ? '创建中...' : `创建已勾选目标（${selectedIndexes.length}）`}
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className={theme.topbar}>
+        <span>已勾选 {selectedIndexes.length} / {editableGoals.length} 个目标</span>
+        {!isCreated && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedIndexes(editableGoals.map((_, index) => index))}
+              className={theme.chip}
+            >
+              全选
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedIndexes([])}
+              className={theme.chipAlt}
+            >
+              清空
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className={theme.pager}>
+        <button
+          type="button"
+          onClick={() => setActiveGoalIndex((prev) => Math.max(0, prev - 1))}
+          disabled={activeGoalIndex === 0}
+          className={theme.navBtn}
+        >
+          <ChevronLeft className="h-3.5 w-3.5" />
+          上一个
+        </button>
+
+        <div className="flex items-center gap-2">
+          <div className="text-center font-medium">
+            当前目标 {activeGoalIndex + 1} / {editableGoals.length}
+          </div>
+          <span className={theme.statusPill}>
+            {selectedIndexes.includes(activeGoalIndex) ? '已勾选' : '未勾选'}
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setActiveGoalIndex((prev) => Math.min(editableGoals.length - 1, prev + 1))}
+          disabled={activeGoalIndex === editableGoals.length - 1}
+          className={theme.navBtn}
+        >
+          下一个
+          <ChevronRight className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      <div className={theme.pagerIndexList}>
+        {editableGoals.map((_, index) => (
+          <button
+            key={`goal-page-${index}`}
+            type="button"
+            onClick={() => setActiveGoalIndex(index)}
+            className={activeGoalIndex === index ? theme.pagerIndexBtnActive : theme.pagerIndexBtn}
+          >
+            {index + 1}
+          </button>
+        ))}
+      </div>
+
+      <div className={theme.rail}>
+        {editableGoals.slice(activeGoalIndex, activeGoalIndex + 1).map((goal, offset) => {
+          const index = activeGoalIndex + offset;
+          const keyResults = goal.keyResults || [];
+          const isExpanded = expandedGoalIndexes.includes(index);
+
+          return (
+          <div key={`${goal.goalTitle}-${index}`} className={theme.card}>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <label className={theme.label}>
+                <input
+                  type="checkbox"
+                  checked={selectedIndexes.includes(index)}
+                  onChange={() => toggleGoalSelection(index)}
+                  disabled={isCreated}
+                  className="h-4 w-4 rounded"
+                />
+                创建
+              </label>
+              <div className={theme.badgeTiny}>#{index + 1}</div>
+            </div>
+
+            <div className="space-y-1.5">
+              <input
+                type="text"
+                value={goal.goalTitle}
+                onChange={(e) => updateGoal(index, { goalTitle: e.target.value })}
+                disabled={isCreated}
+                className={theme.input}
+              />
+
+              {goal.description && (
+                <p className={theme.paragraph}>{goal.description}</p>
+              )}
+
+              <div className="grid grid-cols-[1.2fr_0.8fr] gap-2 items-start">
+                <div className="space-y-1.5">
+                  <div className={theme.dateRow}>
+                    <div className={theme.datePill}>
+                      <div className={theme.dateLabel}>开始</div>
+                      <div className={theme.dateValue}>{formatCompactDateTime(goal.startDate || null)}</div>
+                    </div>
+                    <div className={theme.datePill}>
+                      <div className={theme.dateLabel}>截止</div>
+                      <div className={theme.dateValue}>{formatCompactDateTime(goal.deadline)}</div>
+                    </div>
+                    <div className={theme.datePill}>
+                      <div className={theme.dateLabel}>周期</div>
+                      <div className={theme.dateValue}>{formatPeriodLabel(goal)}</div>
+                    </div>
+                    <div className={theme.datePill}>
+                      <div className={theme.dateLabel}>总投入</div>
+                      <div className={theme.dateValue}>{formatTotalHours(goal)}</div>
+                    </div>
+                    <div className={theme.datePill}>
+                      <div className={theme.dateLabel}>每日</div>
+                      <div className={theme.dateValue}>{goal.dailyInvestment?.raw || formatDailyInvestment(goal)}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-1.5">
+                  <div>
+                    <div className={theme.metricLabel}>每日投入</div>
+                    <input
+                      type="text"
+                      value={goal.dailyInvestment?.raw || formatDailyInvestment(goal)}
+                      onChange={(e) => updateGoal(index, {
+                        dailyInvestment: {
+                          ...(goal.dailyInvestment || {}),
+                          raw: e.target.value,
+                        },
+                      })}
+                      disabled={isCreated}
+                      className={theme.subInput}
+                    />
+                  </div>
+                  <div>
+                    <div className={theme.metricLabel}>截止日期</div>
+                    <input
+                      type="text"
+                      value={goal.deadline || ''}
+                      onChange={(e) => updateGoal(index, { deadline: e.target.value || null })}
+                      disabled={isCreated}
+                      placeholder="如：2026-04-13"
+                      className={theme.subInput}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className={theme.krWrap}>
+              <button
+                type="button"
+                onClick={() => toggleGoalExpanded(index)}
+                className="flex w-full items-center justify-between gap-2"
+              >
+                <div className="flex items-center gap-2">
+                  <div className={theme.krTitle + ' mb-0'}>关键结果</div>
+                  <span className={theme.badgeTiny}>{keyResults.length} 条</span>
+                </div>
+                <span className="text-xs text-inherit opacity-80">
+                  {isExpanded ? '收起' : '展开'}
+                </span>
+              </button>
+
+              {!isExpanded ? (
+                <div className="mt-1.5 text-[11px] leading-4 opacity-80">
+                  {keyResults.slice(0, 2).map((kr, krIndex) => (
+                    <div key={`${kr.name}-${krIndex}`} className="truncate rounded-full px-2 py-1 bg-black/5 dark:bg-white/5 mb-1 last:mb-0">
+                      {krIndex + 1}. {kr.name}{typeof kr.targetValue === 'number' ? ` · ${kr.targetValue}${kr.unit || ''}` : ''}
+                    </div>
+                  ))}
+                  {keyResults.length > 2 && (
+                    <div className="mt-1">+{keyResults.length - 2} 条，点展开</div>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-2 space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                  {keyResults.map((kr, krIndex) => (
+                    <div key={`${kr.name}-${krIndex}`} className={theme.krItem}>
+                      <div className="grid gap-2 grid-cols-[1fr_72px_62px]">
+                        <input
+                          type="text"
+                          value={kr.name}
+                          onChange={(e) => updateKeyResult(index, krIndex, { name: e.target.value })}
+                          disabled={isCreated}
+                          className={theme.subInput}
+                        />
+                        <input
+                          type="number"
+                          value={typeof kr.targetValue === 'number' ? kr.targetValue : ''}
+                          onChange={(e) => updateKeyResult(index, krIndex, {
+                            targetValue: e.target.value === '' ? undefined : Number(e.target.value),
+                          })}
+                          disabled={isCreated}
+                          className={theme.subInput}
+                        />
+                        <input
+                          type="text"
+                          value={kr.unit || ''}
+                          onChange={(e) => updateKeyResult(index, krIndex, { unit: e.target.value })}
+                          disabled={isCreated}
+                          className={theme.subInput}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          );
+        })}
+      </div>
+
+      {isCreated && (
+        <div className={theme.footer}>
+          已成功创建 {createdGoals.length} 个总目标，可前往目标板块继续微调。
+        </div>
+      )}
+    </div>
+  );
+}
 
 const beautifyAssistantReply = (content: string) => {
   return content
@@ -1164,6 +1663,40 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
     await handlePushToTimeline(tasks);
   };
 
+  const handleCreateGoalsFromDocument = async (goals: GoalDocumentItem[], document: string) => {
+    const result = await aiAssistantService.executeAction('goal_manage', 'create_from_document', {
+      action: 'create_from_document',
+      goals,
+      document,
+    });
+
+    if (!result.success) return;
+
+    const replyText = `✅ ${result.message || '已根据解析结果创建目标'}`;
+
+    setMessages(prev => [...prev, {
+      id: `ai-${Date.now()}`,
+      role: 'assistant',
+      content: beautifyAssistantReply(replyText),
+      timestamp: new Date(),
+      actions: [{
+        type: 'goal_manage',
+        description: result.message || '已根据解析结果创建目标',
+        data: result.data,
+      }],
+    }]);
+
+    addChatMessage({
+      role: 'assistant',
+      content: beautifyAssistantReply(replyText),
+      actions: [{
+        type: 'goal_manage',
+        description: result.message || '已根据解析结果创建目标',
+        data: result.data,
+      }],
+    });
+  };
+
   const handlePushToTimeline = async (tasks: DecomposedTask[]) => {
     if (tasks.length === 0) return;
 
@@ -2126,39 +2659,54 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
 
   const parseGoalEndDate = (text: string) => {
     const now = new Date();
+    const endOfDay = (date: Date) => {
+      const result = new Date(date);
+      result.setHours(23, 59, 59, 999);
+      return result;
+    };
+
+    if (/(这个月|本月)/.test(text)) {
+      return endOfDay(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+    }
+
+    if (/(这周|本周).*(结束|末|内|之前|前|截止)?/.test(text)) {
+      const currentDay = now.getDay();
+      const offsetToSunday = currentDay === 0 ? 0 : 7 - currentDay;
+      const result = new Date(now);
+      result.setDate(now.getDate() + offsetToSunday);
+      return endOfDay(result);
+    }
+
     const exactDay = text.match(/(\d{1,2})\s*[日号]\s*(之前|前|内|截止)/);
     if (exactDay) {
       const day = parseInt(exactDay[1], 10);
-      return new Date(now.getFullYear(), now.getMonth(), day, 23, 59, 59, 999);
+      return endOfDay(new Date(now.getFullYear(), now.getMonth(), day));
     }
 
     const monthDay = text.match(/(\d{1,2})月(\d{1,2})\s*[日号]?\s*(之前|前|内|截止)?/);
     if (monthDay) {
-      return new Date(now.getFullYear(), parseInt(monthDay[1], 10) - 1, parseInt(monthDay[2], 10), 23, 59, 59, 999);
+      return endOfDay(new Date(now.getFullYear(), parseInt(monthDay[1], 10) - 1, parseInt(monthDay[2], 10)));
     }
 
     const dayCount = text.match(/(\d+)\s*天(之内|内|后|之后|前|之前)?/);
     if (dayCount) {
       const result = new Date(now);
       result.setDate(result.getDate() + parseInt(dayCount[1], 10));
-      result.setHours(23, 59, 59, 999);
-      return result;
+      return endOfDay(result);
     }
 
     const weekCount = text.match(/(\d+)\s*周(之内|内|后|之后|前|之前)?/);
     if (weekCount) {
       const result = new Date(now);
       result.setDate(result.getDate() + parseInt(weekCount[1], 10) * 7);
-      result.setHours(23, 59, 59, 999);
-      return result;
+      return endOfDay(result);
     }
 
     const monthCount = text.match(/(\d+)\s*个?月(之内|内|后|之后|前|之前)?/);
     if (monthCount) {
       const result = new Date(now);
       result.setMonth(result.getMonth() + parseInt(monthCount[1], 10));
-      result.setHours(23, 59, 59, 999);
-      return result;
+      return endOfDay(result);
     }
 
     return undefined;
@@ -2554,6 +3102,99 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
     if (contextMode === 'goal') {
       try {
         clearThinkingSteps();
+
+        const looksLikeDocument = message.trim().length >= 80
+          || /关键结果|总目标|每日投入|核心目标|月目标|周目标/.test(message)
+          || /\n/.test(message);
+
+        if (looksLikeDocument) {
+          addThinkingStep('🎯 关于目标模式：检测到整段目标文档');
+          addThinkingStep('🤖 正在调用 AI 解析整份目标文档...');
+
+          const parsingMessage: Message = {
+            id: `ai-parsing-${Date.now()}`,
+            role: 'assistant',
+            content: beautifyAssistantReply('我收到这份目标文档了，正在帮你按“总目标 → 每日投入 → 关键结果”逐层拆解，请稍等一下。'),
+            timestamp: new Date(),
+            thinkingProcess: [
+              '🎯 已识别为整段目标文档',
+              '🧩 正在拆分总目标',
+              '🕒 正在提取每日投入时间',
+              '📌 正在提取关键结果',
+            ],
+            isThinkingExpanded: false,
+          };
+          setMessages(prev => [...prev, parsingMessage]);
+
+          const result = await aiAssistantService.processUserInput(message, {
+            conversationHistory: messages.slice(-10).map(m => ({
+              role: m.role,
+              content: m.content,
+            })),
+            userBehavior: useAIPersonalityStore.getState().userBehavior,
+            inputMode: 'goal',
+          });
+
+          if (!result.success) {
+            const failMessage: Message = {
+              id: `ai-${Date.now()}`,
+              role: 'assistant',
+              content: beautifyAssistantReply(`我刚刚确实尝试用 AI 解析这份目标文档了，但这次没有拿到结构化结果。\n\n可能原因：\n• 当前 API 没有按 JSON 返回\n• 模型把它当成普通聊天了\n• 这次接口响应异常\n\n错误信息：${result.error || '未知错误'}\n\n我这次不会再把整段文档机械地直接建成一个目标。你可以直接再发一次，我继续按“目标文档解析”走。`),
+              timestamp: new Date(),
+              thinkingProcess: [...thinkingSteps],
+              isThinkingExpanded: false,
+            };
+            setMessages(prev => [...prev, failMessage]);
+            return;
+          }
+
+          if (result.intent === 'goal_manage' && result.action && result.parameters) {
+            const executeResult = await aiAssistantService.executeAction(result.intent, result.action, result.parameters);
+
+            if (executeResult.success && executeResult.data?.mode === 'document_analysis') {
+              const replyText = executeResult.message || result.response || '我已经帮你分析好了这份目标文档。';
+
+              const goalReply: Message = {
+                id: `ai-${Date.now()}`,
+                role: 'assistant',
+                content: beautifyAssistantReply(replyText),
+                timestamp: new Date(),
+                thinkingProcess: [...thinkingSteps, '✅ AI 已返回结构化目标结果'],
+                isThinkingExpanded: false,
+                actions: [{
+                  type: 'goal_manage',
+                  description: executeResult.message || '已智能拆解目标文档',
+                  data: executeResult.data,
+                }],
+              };
+
+              setMessages(prev => [...prev, goalReply]);
+              addChatMessage({
+                role: 'assistant',
+                content: beautifyAssistantReply(replyText),
+                actions: [{
+                  type: 'goal_manage',
+                  description: executeResult.message || '已智能拆解目标文档',
+                  data: executeResult.data,
+                }],
+              });
+              setContextMode('normal');
+              return;
+            }
+          }
+
+          const failMessage: Message = {
+            id: `ai-fail-${Date.now()}`,
+            role: 'assistant',
+            content: beautifyAssistantReply('我已经调用了 AI 来解析这份目标文档，但这次接口没有真正返回“可拆成多个目标”的结构化结果，所以我不会继续把它硬建成一个总目标。请你确认当前 API 返回的是标准 JSON，或者换一个更稳定的模型后再试。'),
+            timestamp: new Date(),
+            thinkingProcess: [...thinkingSteps],
+            isThinkingExpanded: false,
+          };
+          setMessages(prev => [...prev, failMessage]);
+          return;
+        }
+
         await handleGoalInput(message);
       } finally {
         setIsProcessing(false);
@@ -3573,6 +4214,14 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
                   </button>
                 )}
                 
+                {message.actions?.map((action, index) => (
+                  <GoalDocumentPreview
+                    key={`goal-preview-full-${message.id}-${index}`}
+                    action={action}
+                    onCreate={handleCreateGoalsFromDocument}
+                  />
+                ))}
+
                 {/* 显示AI思考过程 */}
                 {message.role === 'assistant' && message.thinkingProcess && message.thinkingProcess.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-gray-200">
@@ -3778,7 +4427,13 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={handleKeyDown}
                     onFocus={() => scrollIntoSafeView(textareaRef.current)}
-                    placeholder="对我说点什么..."
+                    placeholder={contextMode === 'goal'
+                      ? '已进入“关于目标”模式，直接粘贴整段目标文档，我会先做智能目标分析...'
+                      : contextMode === 'income'
+                      ? '已进入“关于收入”模式，直接输入收入内容...'
+                      : contextMode === 'mutter'
+                      ? '已进入“心情碎碎念”模式，直接说你的想法或心情...'
+                      : '对我说点什么...'}
                     className="flex-1 px-3 py-3 rounded-2xl resize-none focus:outline-none text-sm border border-gray-300 focus:border-blue-500 overflow-y-auto bg-white"
                     style={{
                       minHeight: '52px',
@@ -3985,6 +4640,15 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
                           {message.openModuleButton.label}
                         </button>
                       )}
+
+                      {message.actions?.map((action, index) => (
+                        <GoalDocumentPreview
+                          key={`goal-preview-float-${message.id}-${index}`}
+                          action={action}
+                          onCreate={handleCreateGoalsFromDocument}
+                          isDark={theme.isDark}
+                        />
+                      ))}
 
                       {/* 显示AI思考过程 */}
                       {message.role === 'assistant' && message.thinkingProcess && message.thinkingProcess.length > 0 && (
@@ -4221,7 +4885,13 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={handleKeyDown}
                     onFocus={() => scrollIntoSafeView(textareaRef.current)}
-                    placeholder="对我说点什么..."
+                    placeholder={contextMode === 'goal'
+                      ? '已进入“关于目标”模式，直接粘贴整段目标文档，我会先做智能目标分析...'
+                      : contextMode === 'income'
+                      ? '已进入“关于收入”模式，直接输入收入内容...'
+                      : contextMode === 'mutter'
+                      ? '已进入“心情碎碎念”模式，直接说你的想法或心情...'
+                      : '对我说点什么...'}
                     className="flex-1 px-3 py-3 rounded-2xl resize-none focus:outline-none text-sm border overflow-y-auto"
                     style={{
                       backgroundColor: theme.cardBg,
