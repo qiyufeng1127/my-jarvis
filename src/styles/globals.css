@@ -7,7 +7,7 @@
    ============================================ */
 
 :root {
-  --mobile-bottom-nav-height: 76px;
+  --mobile-bottom-nav-height: 64px;
   --mobile-bottom-nav-safe-area: env(safe-area-inset-bottom, 0px);
   --mobile-bottom-nav-total-height: calc(var(--mobile-bottom-nav-height) + var(--mobile-bottom-nav-safe-area));
   /* 温暖治愈色系 - 基于用户提供的配色 */

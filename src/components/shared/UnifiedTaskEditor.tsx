@@ -129,7 +129,7 @@ export default function UnifiedTaskEditor({
   // 添加自定义区域
   const handleAddLocation = () => {
     if (!newLocationName.trim()) {
-      alert('请输入区域名称');
+      console.warn('添加区域失败：区域名称为空');
       return;
     }
     
@@ -137,7 +137,7 @@ export default function UnifiedTaskEditor({
     const exists = locations.some(loc => loc.name === newLocationName.trim());
     
     if (exists) {
-      alert('该区域已存在');
+      console.warn('添加区域失败：区域已存在', newLocationName.trim());
       return;
     }
     
@@ -156,10 +156,8 @@ export default function UnifiedTaskEditor({
 
   // 删除自定义区域
   const handleRemoveLocation = (locationId: string) => {
-    if (confirm('确定要删除这个区域吗？')) {
-      deleteLocation(locationId);
-      console.log(`🗑️ 删除区域: ${locationId}`);
-    }
+    deleteLocation(locationId);
+    console.log(`🗑️ 删除区域: ${locationId}`);
   };
 
   // 上移位置
@@ -1144,22 +1142,22 @@ export default function UnifiedTaskEditor({
             <Plus className="w-4 h-4 md:w-5 md:h-5" />
             <span className="text-sm md:text-base font-medium">添加新任务</span>
           </button>
-        </div>
 
-        {/* 底部按钮 */}
-        <div className="flex-shrink-0 border-t border-gray-200 px-3 md:px-6 py-3 md:py-4 flex space-x-2 md:space-x-3">
-          <button
-            onClick={onClose}
-            className="px-4 md:px-6 py-2.5 md:py-3 rounded-lg bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-700 text-sm md:text-base font-medium transition-colors"
-          >
-            ❌ 取消
-          </button>
-          <button
-            onClick={handleConfirm}
-            className="flex-1 px-3 md:px-4 py-2.5 md:py-3 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 active:from-purple-800 active:to-pink-800 text-white text-sm md:text-base font-bold transition-all transform active:scale-95 md:hover:scale-105 shadow-lg"
-          >
-            🚀 推送到时间轴 ({editingTasks.length})
-          </button>
+          {/* 底部按钮 - 跟随内容滚动到底部显示 */}
+          <div className="border-t border-gray-200 px-1 md:px-3 pt-4 pb-2 md:pb-3 flex space-x-2 md:space-x-3 bg-white/80 backdrop-blur-sm">
+            <button
+              onClick={onClose}
+              className="px-4 md:px-6 py-2.5 md:py-3 rounded-lg bg-gray-100 hover:bg-gray-200 active:bg-gray-300 text-gray-700 text-sm md:text-base font-medium transition-colors"
+            >
+              ❌ 取消
+            </button>
+            <button
+              onClick={handleConfirm}
+              className="flex-1 px-3 md:px-4 py-2.5 md:py-3 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 active:from-purple-800 active:to-pink-800 text-white text-sm md:text-base font-bold transition-all transform active:scale-95 md:hover:scale-105 shadow-lg"
+            >
+              🚀 推送到时间轴 ({editingTasks.length})
+            </button>
+          </div>
         </div>
       </div>
     </div>

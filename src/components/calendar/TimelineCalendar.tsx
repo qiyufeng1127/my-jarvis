@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
+import eventBus from '@/utils/eventBus';
 import { useTaskStore } from '@/stores/taskStore';
 import { 
-  ChevronLeft, ChevronRight, Calendar as CalendarIcon
+  ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Calendar as CalendarIcon
 } from 'lucide-react';
 import type { Task } from '@/types';
 import NewTimelineView from './NewTimelineView';
@@ -9,6 +10,8 @@ import InboxView from './InboxView';
 import QuickStartView from './QuickStartView';
 import ImportExportButton from './ImportExportButton';
 import NavigationModeView from '@/components/navigation/NavigationModeView';
+
+type TimelineActiveView = 'timeline' | 'inbox' | 'quickStart' | 'navigation' | 'navigationTrend';
 
 interface TimelineCalendarProps {
   tasks?: Task[];
@@ -30,15 +33,26 @@ export default function TimelineCalendar({
   const tasks = useTaskStore((state) => state.tasks);
   const resolvedTasks = externalTasks ?? tasks;
 
+  const getInitialActiveView = (): TimelineActiveView => {
+    if (typeof window === 'undefined') return 'timeline';
+    const hash = window.location.hash || '';
+    return hash.includes('nav-trend') ? 'navigationTrend' : 'timeline';
+  };
+
+  const detectMobile = () => {
+    if (typeof window === 'undefined') return false;
+    const userAgent = navigator.userAgent.toLowerCase();
+    const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
+    const isSmallScreen = window.innerWidth < 768;
+    return isMobileDevice || isSmallScreen;
+  };
+
   // 检测是否为移动设备
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(detectMobile);
   
   useEffect(() => {
     const checkMobile = () => {
-      const userAgent = navigator.userAgent.toLowerCase();
-      const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
-      const isSmallScreen = window.innerWidth < 768;
-      setIsMobile(isMobileDevice || isSmallScreen);
+      setIsMobile(detectMobile());
     };
     
     checkMobile();
@@ -47,10 +61,10 @@ export default function TimelineCalendar({
   }, []);
   
   // 手机版默认周视图，电脑版默认月视图
-  const [calendarView, setCalendarView] = useState<'week' | 'month'>(isMobile ? 'week' : 'month');
+  const [calendarView, setCalendarView] = useState<'week' | 'month'>(() => (detectMobile() ? 'week' : 'month'));
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isEditingTask, setIsEditingTask] = useState(false); // 新增：跟踪是否正在编辑任务
-  const [activeView, setActiveView] = useState<'timeline' | 'inbox' | 'quickStart' | 'navigation'>('timeline');
+  const [activeView, setActiveView] = useState<TimelineActiveView>(getInitialActiveView);
   
   const timelineRef = useRef<HTMLDivElement>(null);
   
@@ -60,6 +74,17 @@ export default function TimelineCalendar({
       setCalendarView('week');
     }
   }, [isMobile]);
+
+  useEffect(() => {
+    const handleOpenNavigationTrend = () => {
+      setActiveView('navigationTrend');
+    };
+
+    eventBus.on('timeline:open-navigation-trend', handleOpenNavigationTrend);
+    return () => {
+      eventBus.off('timeline:open-navigation-trend', handleOpenNavigationTrend);
+    };
+  }, []);
   
   // 触摸滑动状态
   const [touchStart, setTouchStart] = useState<number | null>(null);
@@ -180,6 +205,18 @@ export default function TimelineCalendar({
 
   const timelineHeight = getTimelineHeight();
 
+  const goToPreviousWeek = () => {
+    const newDate = new Date(selectedDate);
+    newDate.setDate(newDate.getDate() - 7);
+    setSelectedDate(newDate);
+  };
+
+  const goToNextWeek = () => {
+    const newDate = new Date(selectedDate);
+    newDate.setDate(newDate.getDate() + 7);
+    setSelectedDate(newDate);
+  };
+
   return (
     <div className="flex flex-col h-full bg-white dark:bg-black">
       {/* 上半部分：日历视图 - 编辑任务时隐藏 */}
@@ -190,7 +227,7 @@ export default function TimelineCalendar({
           <div className="px-3 py-2 bg-white dark:bg-black">
             {/* 周数标题 - 可左右滑动 */}
             <div 
-              className="flex items-center justify-center mb-2"
+              className="flex items-center justify-between gap-2 mb-2"
               onTouchStart={(e) => {
                 const touch = e.touches[0];
                 setTouchStart(touch.clientX);
@@ -202,23 +239,37 @@ export default function TimelineCalendar({
                 if (Math.abs(diff) > 50) {
                   if (diff > 0) {
                     // 向右滑动 - 上一周
-                    const newDate = new Date(selectedDate);
-                    newDate.setDate(newDate.getDate() - 7);
-                    setSelectedDate(newDate);
+                    goToPreviousWeek();
                   } else {
                     // 向左滑动 - 下一周
-                    const newDate = new Date(selectedDate);
-                    newDate.setDate(newDate.getDate() + 7);
-                    setSelectedDate(newDate);
+                    goToNextWeek();
                   }
                   setTouchStart(null);
                 }
               }}
               onTouchEnd={() => setTouchStart(null)}
             >
-              <span className="text-sm font-semibold text-gray-800 dark:text-white">
+              <button
+                onClick={goToPreviousWeek}
+                className="w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95"
+                style={{ backgroundColor: hoverBg, color: textColor }}
+                aria-label="上一周"
+              >
+                <ChevronUp className="w-4 h-4" />
+              </button>
+
+              <span className="text-sm font-semibold text-gray-800 dark:text-white text-center flex-1">
                 {selectedDate.toLocaleDateString('zh-CN', { month: 'long' })}第{Math.ceil(selectedDate.getDate() / 7)}周
               </span>
+
+              <button
+                onClick={goToNextWeek}
+                className="w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95"
+                style={{ backgroundColor: hoverBg, color: textColor }}
+                aria-label="下一周"
+              >
+                <ChevronDown className="w-4 h-4" />
+              </button>
             </div>
             
             {/* 星期标题 */}
@@ -522,6 +573,21 @@ export default function TimelineCalendar({
             >
               <span className="text-xl">🧭</span>
             </button>
+
+            <button
+              onClick={() => {
+                setActiveView('navigationTrend');
+              }}
+              className={`flex items-center justify-center w-10 h-10 rounded-lg transition-all ${
+                activeView === 'navigationTrend' ? 'shadow-sm' : ''
+              }`}
+              style={{
+                backgroundColor: activeView === 'navigationTrend' ? hoverBg : 'transparent',
+              }}
+              title="导航可视化"
+            >
+              <span className="text-xl">📈</span>
+            </button>
           </div>
 
           {/* 导入导出按钮 */}
@@ -577,6 +643,8 @@ export default function TimelineCalendar({
             />
           ) : activeView === 'navigation' ? (
             <NavigationModeView />
+          ) : activeView === 'navigationTrend' ? (
+            <NavigationModeView initialScreen="trend" />
           ) : (
             <NewTimelineView
               tasks={tasks}

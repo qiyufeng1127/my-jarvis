@@ -23,9 +23,87 @@ const defaultTheme = {
   label: '海蓝',
 };
 
-function buildGoal(goalData: Partial<LongTermGoal>): LongTermGoal {
+function alignRecentGoalDateToCurrentCycle(date: Date, referenceDate: Date) {
+  const normalizedDate = new Date(date);
+  const normalizedReference = new Date(referenceDate);
+  normalizedDate.setHours(0, 0, 0, 0);
+  normalizedReference.setHours(0, 0, 0, 0);
+
+  if (normalizedDate.getTime() >= normalizedReference.getTime()) {
+    return new Date(date);
+  }
+
+  const adjusted = new Date(
+    normalizedReference.getFullYear(),
+    normalizedDate.getMonth(),
+    normalizedDate.getDate(),
+    date.getHours(),
+    date.getMinutes(),
+    date.getSeconds(),
+    date.getMilliseconds()
+  );
+
+  if (adjusted.getTime() < normalizedReference.getTime()) {
+    adjusted.setFullYear(adjusted.getFullYear() + 1);
+  }
+
+  return adjusted;
+}
+
+function normalizeLegacyRecentGoalDates(goalData: Partial<LongTermGoal>) {
+  const createdAt = goalData.createdAt ? new Date(goalData.createdAt) : new Date();
+  const now = new Date();
+  const daysSinceCreated = Math.abs(now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
   const startDate = goalData.startDate ? new Date(goalData.startDate) : undefined;
   const endDate = goalData.endDate ? new Date(goalData.endDate) : goalData.deadline ? new Date(goalData.deadline) : undefined;
+
+  if (daysSinceCreated > 21 || !startDate || !endDate) {
+    return {
+      startDate,
+      endDate,
+    };
+  }
+
+  const tooOldStart = now.getFullYear() - startDate.getFullYear() >= 1;
+  const tooOldEnd = now.getFullYear() - endDate.getFullYear() >= 1;
+
+  if (!tooOldStart && !tooOldEnd) {
+    return {
+      startDate,
+      endDate,
+    };
+  }
+
+  const normalizedStart = tooOldStart ? alignRecentGoalDateToCurrentCycle(startDate, createdAt) : startDate;
+  const normalizedEndBase = tooOldEnd ? alignRecentGoalDateToCurrentCycle(endDate, normalizedStart || createdAt) : endDate;
+  const normalizedEnd = normalizedStart && normalizedEndBase < normalizedStart
+    ? alignRecentGoalDateToCurrentCycle(normalizedEndBase, normalizedStart)
+    : normalizedEndBase;
+
+  return {
+    startDate: normalizedStart,
+    endDate: normalizedEnd,
+  };
+}
+
+function buildGoal(goalData: Partial<LongTermGoal>): LongTermGoal {
+  const { startDate: normalizedLegacyStartDate, endDate: normalizedLegacyEndDate } = normalizeLegacyRecentGoalDates(goalData);
+
+  const normalizeGoalEndDate = (start?: Date, end?: Date, isCompleted?: boolean) => {
+    if (!start || !end || isCompleted) return end;
+    if (end >= start) return end;
+
+    const adjusted = new Date(start.getFullYear(), end.getMonth(), end.getDate());
+    if (adjusted < start) {
+      adjusted.setFullYear(adjusted.getFullYear() + 1);
+    }
+    adjusted.setHours(23, 59, 59, 999);
+    return adjusted;
+  };
+
+  const startDate = normalizedLegacyStartDate;
+  const rawEndDate = normalizedLegacyEndDate;
+  const endDate = normalizeGoalEndDate(startDate, rawEndDate, goalData.isCompleted);
   const estimatedTotalHours = goalData.estimatedTotalHours ?? 0;
   const durationDays = startDate && endDate
     ? Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1)

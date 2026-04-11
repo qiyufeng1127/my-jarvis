@@ -7,16 +7,24 @@ interface NowTimelineProps {
     endTime: Date;
     title: string;
   }>;
-  isDark: boolean;
 }
 
-export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
+const POSITION_EPSILON = 0.5;
+
+export default function NowTimeline({ timeBlocks }: NowTimelineProps) {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [topPosition, setTopPosition] = useState<number | null>(null);
   const nowLineRef = useRef<HTMLDivElement>(null);
   // 已禁用自动滚动功能，用户可以手动滚动到任意位置
   
-  // 🔧 使用useMemo稳定timeBlocks的引用，避免无限循环
+  // 使用任务内容而不是数组引用生成稳定依赖，避免父组件每次渲染都触发 effect
+  const timeBlocksSignature = useMemo(
+    () => timeBlocks
+      .map((block) => `${block.id}-${block.startTime.getTime()}-${block.endTime.getTime()}-${block.title}`)
+      .join('|'),
+    [timeBlocks]
+  );
+
   const stableTimeBlocks = useMemo(() => {
     return timeBlocks.map(block => ({
       id: block.id,
@@ -24,7 +32,21 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
       endTime: block.endTime.getTime(),
       title: block.title,
     }));
-  }, [timeBlocks]);
+  }, [timeBlocksSignature]);
+
+  const updateTopPosition = (nextPosition: number | null) => {
+    setTopPosition((prev) => {
+      if (prev === null && nextPosition === null) {
+        return prev;
+      }
+
+      if (prev !== null && nextPosition !== null && Math.abs(prev - nextPosition) < POSITION_EPSILON) {
+        return prev;
+      }
+
+      return nextPosition;
+    });
+  };
 
   // 每秒更新当前时间
   useEffect(() => {
@@ -41,7 +63,7 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
     
     // 如果没有任务，不显示
     if (stableTimeBlocks.length === 0) {
-      setTopPosition(null);
+      updateTopPosition(null);
       return;
     }
 
@@ -53,7 +75,7 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
 
     // 如果当前时间在第一个任务之前，显示在顶部
     if (now < dayStart) {
-      setTopPosition(0);
+      updateTopPosition(0);
       return;
     }
 
@@ -67,7 +89,7 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
         totalHeight += containerHeight;
       }
       
-      setTopPosition(totalHeight);
+      updateTopPosition(totalHeight);
       return;
     }
 
@@ -87,7 +109,7 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
           const elapsed = now - blockStart;
           const progress = elapsed / blockDuration;
           const position = accumulatedTop + (progress * defaultHeight);
-          setTopPosition(position);
+          updateTopPosition(position);
           return;
         }
         
@@ -102,7 +124,7 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
         const elapsed = now - blockStart;
         const progress = elapsed / blockDuration;
         const position = accumulatedTop + (progress * containerHeight);
-        setTopPosition(position);
+        updateTopPosition(position);
         return;
       }
       
@@ -113,13 +135,13 @@ export default function NowTimeline({ timeBlocks, isDark }: NowTimelineProps) {
         const gapEnd = nextBlock.startTime;
         
         if (now > blockEnd && now < gapEnd) {
-          setTopPosition(accumulatedTop);
+          updateTopPosition(accumulatedTop);
           return;
         }
       }
     }
     
-    setTopPosition(null);
+    updateTopPosition(null);
   }, [currentTime, stableTimeBlocks]);
 
   // 始终显示 NOW 线

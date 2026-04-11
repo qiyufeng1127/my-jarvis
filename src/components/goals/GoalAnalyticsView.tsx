@@ -359,9 +359,9 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
     const originalMarkerPercent = Math.min(100, (originalDuration / Math.max(durationMax, 1)) * 100);
 
     return (
-      <div className="min-h-full bg-[#efeff4] px-4 pb-10 pt-5">
-        <div className="mx-auto max-w-xl space-y-4 pb-[148px]">
-          <div className="rounded-[32px] bg-white px-5 py-5 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
+      <div className="min-h-full bg-[#efeff4] px-4 pb-6 pt-4">
+        <div className="mx-auto max-w-xl space-y-3 pb-[102px]">
+          <div className="rounded-[28px] bg-white px-4 py-4 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
             <div className="flex items-center justify-between">
               <button onClick={closeRecordEditor} className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f4f4f6] text-[#111827]">
                 <ChevronLeft className="h-5 w-5" />
@@ -370,34 +370,34 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
               <div className="h-10 w-10 rounded-full" />
             </div>
 
-            <div className="mt-5 rounded-[24px] bg-[linear-gradient(180deg,rgba(244,249,255,0.98),rgba(247,248,252,0.95))] px-4 py-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-16 w-16 items-center justify-center rounded-[20px] bg-[radial-gradient(circle_at_30%_20%,#d7ebff,#9fd0ff_58%,#5aa9ff)] text-3xl shadow-[0_10px_24px_rgba(10,132,255,0.18)]">
+            <div className="mt-4 rounded-[22px] bg-[linear-gradient(180deg,rgba(244,249,255,0.98),rgba(247,248,252,0.95))] px-3.5 py-3.5">
+              <div className="flex items-start gap-2.5">
+                <div className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-[radial-gradient(circle_at_30%_20%,#d7ebff,#9fd0ff_58%,#5aa9ff)] text-[28px] shadow-[0_10px_24px_rgba(10,132,255,0.18)]">
                   ⏱️
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center justify-between gap-2">
                     <div>
                       <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7aa7d9]">历史记录编辑态</div>
-                      <div className="mt-1 text-[22px] font-semibold tracking-[-0.04em] text-[#111827]">{selectedRecord.taskTitle}</div>
+                      <div className="mt-1 text-[20px] font-semibold leading-tight tracking-[-0.04em] text-[#111827]">{selectedRecord.taskTitle}</div>
                     </div>
-                    <div className="rounded-[22px] bg-[#edf5ff] px-3 py-2 text-right text-[#0A84FF]">
+                    <div className="rounded-[18px] bg-[#edf5ff] px-3 py-1.5 text-right text-[#0A84FF]">
                       <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#7aa7d9]">有效率</div>
                       <div className="mt-1 text-[22px] font-semibold tracking-[-0.04em]">{durationPercent}%</div>
                       <div className="mt-1 text-xs font-medium text-[#5b8fd6]">{editorDraft.durationMinutes} / {originalDuration} 分钟</div>
                     </div>
                   </div>
-                  <div className="mt-2 text-sm text-[#6b7280]">在这里直接调整有效时间和本次实际关键结果，风格与时间轴弹窗保持一致。</div>
-                  <div className="mt-3 inline-flex rounded-full border border-[#d9ecff] bg-white px-3 py-1 text-xs font-semibold text-[#111827] shadow-sm">
+                  <div className="mt-1 text-xs text-[#6b7280]">在这里直接调整有效时间和本次实际关键结果，风格与时间轴弹窗保持一致。</div>
+                  <div className="mt-2 inline-flex rounded-full border border-[#d9ecff] bg-white px-3 py-1 text-xs font-semibold text-[#111827] shadow-sm">
                     {liveGoal.projectBindings[0]?.name || '目标关联任务'}
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="mt-5 rounded-[22px] bg-[#f7f8fb] p-3">
+            <div className="mt-4 rounded-[20px] bg-[#f7f8fb] p-3">
               <div className="mb-2 text-sm font-medium text-[#111827]">有效时间</div>
-              <div className="rounded-[20px] bg-white px-4 py-4 shadow-sm">
+              <div className="rounded-[18px] bg-white px-4 py-3 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-xs font-medium uppercase tracking-[0.18em] text-[#9ca3af]">当前换算</div>
@@ -410,7 +410,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
                   </div>
                 </div>
 
-                <div className="relative mt-5 px-1">
+                <div className="relative mt-4 px-1">
                   <div className="pointer-events-none absolute left-0 right-0 top-1/2 h-2 -translate-y-1/2 rounded-full bg-[#dbeafe]" />
                   <div
                     className="pointer-events-none absolute top-1/2 h-2 -translate-y-1/2 rounded-full bg-[#0A84FF] shadow-[0_0_18px_rgba(10,132,255,0.35)]"
@@ -438,7 +438,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
                 </div>
               </div>
 
-              <div className="mt-4 rounded-[20px] border border-[#d9ecff] bg-white px-4 py-4">
+              <div className="mt-3 rounded-[18px] border border-[#d9ecff] bg-white px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="text-sm text-[#6b7280]">有效时间</div>
@@ -447,7 +447,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
                       min={0}
                       value={editorDraft.durationMinutes}
                       onChange={(event) => setEditorDraft((draft) => draft ? { ...draft, durationMinutes: Number(event.target.value) } : draft)}
-                      className="mt-2 w-full border-none bg-transparent p-0 text-[42px] font-semibold tracking-[-0.06em] text-[#111827] outline-none"
+                      className="mt-1 w-full border-none bg-transparent p-0 text-[36px] font-semibold tracking-[-0.06em] text-[#111827] outline-none"
                     />
                     <div className="text-base text-[#6b7280]">分钟</div>
                   </div>
@@ -459,16 +459,16 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
               </div>
             </div>
 
-            <div className="mt-5 rounded-[22px] bg-[#f7f8fb] p-3">
-              <div className="mb-3 text-sm font-medium text-[#111827]">填写本次产出</div>
-              <div className="space-y-3">
+            <div className="mt-4 rounded-[20px] bg-[#f7f8fb] p-3">
+              <div className="mb-2 text-sm font-medium text-[#111827]">填写本次产出</div>
+              <div className="space-y-2.5">
                 {liveGoal.dimensions.map((dimension, index) => (
-                  <div key={dimension.id} className="flex items-center gap-3 rounded-[18px] bg-white px-3 py-3 shadow-sm">
+                  <div key={dimension.id} className="flex items-center gap-2.5 rounded-[16px] bg-white px-3 py-2.5 shadow-sm">
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-medium text-[#111827]">{dimension.name}</div>
                       <div className="mt-1 text-xs text-[#9ca3af]">目标 {dimension.targetValue}{dimension.unit} · 当前累计 {dimension.currentValue}{dimension.unit}</div>
                     </div>
-                    <div className="flex w-[128px] items-center rounded-[16px] bg-[#f8fafc] px-3 py-2">
+                    <div className="flex w-[120px] items-center rounded-[14px] bg-[#f8fafc] px-3 py-2">
                       <input
                         type="number"
                         min={0}
@@ -493,7 +493,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
                             [dimension.id]: Math.max(0, (draft.values[dimension.id] || 0) - 1),
                           },
                         } : draft)}
-                        className="flex h-9 w-9 items-center justify-center rounded-full bg-[#eaf3ff] text-xl leading-none text-[#0A84FF]"
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-[#eaf3ff] text-lg leading-none text-[#0A84FF]"
                       >
                         −
                       </button>
@@ -505,7 +505,7 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
                             [dimension.id]: (draft.values[dimension.id] || 0) + (index === 0 ? 1 : 1),
                           },
                         } : draft)}
-                        className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0A84FF] text-xl leading-none text-white shadow-[0_10px_20px_rgba(10,132,255,0.2)]"
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0A84FF] text-lg leading-none text-white shadow-[0_10px_20px_rgba(10,132,255,0.2)]"
                       >
                         +
                       </button>
@@ -516,33 +516,33 @@ export default function GoalAnalyticsView({ goal, onBack }: GoalAnalyticsViewPro
             </div>
 
             <div>
-              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#9ca3af]">关键结果说明</div>
+              <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9ca3af]">关键结果说明</div>
               <textarea
                 value={editorDraft.note}
                 onChange={(event) => setEditorDraft((draft) => draft ? { ...draft, note: event.target.value } : draft)}
-                rows={3}
-                className="w-full rounded-[18px] border border-[#e5e7eb] bg-[#f9fafb] px-4 py-3 text-sm text-[#111827] outline-none"
+                rows={2}
+                className="w-full rounded-[16px] border border-[#e5e7eb] bg-[#f9fafb] px-4 py-3 text-sm text-[#111827] outline-none"
                 placeholder="例如：今天完成 2 条脚本、1 次复盘，推进了目标数据。"
               />
             </div>
           </div>
 
           <div
-            className="fixed left-1/2 z-[60] flex w-[calc(100%-24px)] max-w-xl -translate-x-1/2 gap-3 rounded-t-[24px] bg-white/96 px-4 pt-3 shadow-[0_-12px_30px_rgba(15,23,42,0.08)] backdrop-blur"
+            className="fixed left-1/2 z-[60] flex w-[calc(100%-24px)] max-w-xl -translate-x-1/2 gap-3 rounded-t-[20px] bg-white/96 px-4 pt-3 shadow-[0_-12px_30px_rgba(15,23,42,0.08)] backdrop-blur"
             style={{
-              bottom: 'calc(88px + env(safe-area-inset-bottom))',
-              paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
+              bottom: 'calc(72px + env(safe-area-inset-bottom))',
+              paddingBottom: 'calc(10px + env(safe-area-inset-bottom))',
             }}
           >
             <button
               onClick={closeRecordEditor}
-              className="flex-1 rounded-full bg-[#eef0f6] px-4 py-3 text-sm font-medium text-[#111827]"
+              className="flex-1 rounded-full bg-[#eef0f6] px-4 py-2.5 text-sm font-medium text-[#111827]"
             >
               取消
             </button>
             <button
               onClick={saveRecordEditor}
-              className="flex-1 rounded-full bg-[#0A84FF] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(10,132,255,0.18)]"
+              className="flex-1 rounded-full bg-[#0A84FF] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(10,132,255,0.18)]"
             >
               完成
             </button>

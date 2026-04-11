@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type {
-  NavigationDifficultyDetourResult,
+  NavigationInsertedFlowResult,
   NavigationExecutionStep,
   NavigationHandsFreeState,
   NavigationPlannerResult,
@@ -12,8 +12,12 @@ import { useTaskStore } from '@/stores/taskStore';
 import { useGoalStore } from '@/stores/goalStore';
 import { matchTaskToGoals, convertMatchesToTaskGoals } from '@/services/aiGoalMatcher';
 
-const softenTimelineTitle = (title: string) =>
-  title
+const softenTimelineTitle = (title: string) => {
+  if (/先做\d+分钟|先.*运动|先.*散步|先.*喝水|先.*休息|先.*坐一下/.test(title)) {
+    return title.trim();
+  }
+
+  return title
     .replace(/卧室唤醒与准备/g, '起床穿好衣服下楼啦')
     .replace(/下楼与生活准备/g, '下楼把生活这摊事顺一顺')
     .replace(/工作区启动与设置/g, '收拾一下工作区准备开工啦')
@@ -24,6 +28,7 @@ const softenTimelineTitle = (title: string) =>
     .replace(/设置/g, '弄好')
     .replace(/准备/g, '准备好')
     .trim();
+};
 
 const softenTimelineDescription = (description?: string) => {
   if (!description) return '';
@@ -75,8 +80,110 @@ const createDefaultHandsFree = (): NavigationHandsFreeState => ({
   preferredVoiceMode: 'system',
 });
 
+const mergeInsertedFlowIntoSession = (
+  session: NavigationSession,
+  result: NavigationInsertedFlowResult,
+) => {
+  const now = new Date().toISOString();
+  const currentStepIndex = session.currentStepIndex;
+  const currentStep = session.executionSteps[currentStepIndex];
+  const insertedPlan = result.plan;
+
+  if (!currentStep || !insertedPlan || !Array.isArray(insertedPlan.executionSteps) || insertedPlan.executionSteps.length === 0) {
+    return session;
+  }
+
+  const insertedFlowPrefix = `inserted-${crypto.randomUUID()}`;
+  const groupIdMap = new Map<string, string>();
+
+  const insertedGroups = (insertedPlan.timelineGroups || []).map((group, index) => {
+    const nextGroupId = `${insertedFlowPrefix}-g${index + 1}`;
+    groupIdMap.set(group.id, nextGroupId);
+    return {
+      id: nextGroupId,
+      title: softenTimelineTitle(group.title),
+      description: softenTimelineDescription(group.description),
+      stepIds: [],
+      source: 'inserted_flow' as const,
+    };
+  });
+
+  const fallbackGroupId = insertedGroups[0]?.id || `${insertedFlowPrefix}-g1`;
+  if (insertedGroups.length === 0) {
+    insertedGroups.push({
+      id: fallbackGroupId,
+      title: softenTimelineTitle(insertedPlan.sessionTitle || '临时插入的事情'),
+      description: '',
+      stepIds: [],
+      source: 'inserted_flow' as const,
+    });
+  }
+
+  const insertedSteps = insertedPlan.executionSteps.map((step, index) => {
+    const mappedGroupId = groupIdMap.get(step.groupId) || fallbackGroupId;
+    const nextStepId = `${insertedFlowPrefix}-s${index + 1}`;
+    const nextStep = {
+      id: nextStepId,
+      groupId: mappedGroupId,
+      title: step.title,
+      guidance: step.guidance,
+      focusMinutes: step.focusMinutes,
+      estimatedMinutes: step.estimatedMinutes,
+      location: step.location,
+      status: index === 0 ? 'in_progress' as const : 'pending' as const,
+      startedAt: index === 0 ? now : undefined,
+      sortOrder: currentStepIndex + index,
+      source: 'inserted_flow' as const,
+    };
+
+    const targetGroup = insertedGroups.find((group) => group.id === mappedGroupId);
+    if (targetGroup) {
+      targetGroup.stepIds.push(nextStepId);
+    }
+
+    return nextStep;
+  });
+
+  const executionSteps = [
+    ...session.executionSteps.slice(0, currentStepIndex),
+    ...insertedSteps,
+    {
+      ...currentStep,
+      status: 'pending' as const,
+      startedAt: undefined,
+      completedAt: undefined,
+      skipped: false,
+      sortOrder: currentStepIndex + insertedSteps.length,
+    },
+    ...session.executionSteps.slice(currentStepIndex + 1).map((step, index) => ({
+      ...step,
+      sortOrder: currentStepIndex + insertedSteps.length + 1 + index,
+    })),
+  ];
+
+  const currentGroupIndex = session.timelineGroups.findIndex((group) => group.id === currentStep.groupId);
+  const timelineGroups = currentGroupIndex >= 0
+    ? [
+        ...session.timelineGroups.slice(0, currentGroupIndex),
+        ...insertedGroups,
+        ...session.timelineGroups.slice(currentGroupIndex),
+      ]
+    : [...session.timelineGroups, ...insertedGroups];
+
+  return {
+    ...session,
+    executionSteps,
+    timelineGroups,
+    currentStepIndex,
+    executionScore: clamp(session.executionScore - 3, 0, 100),
+    energyLevel: clamp(session.energyLevel - 1, 0, 100),
+    lastProgressAt: now,
+  };
+};
+
 interface NavigationStoreState {
   currentSession: NavigationSession | null;
+  suspendedSession: NavigationSession | null;
   isGenerating: boolean;
   isSyncingToTimeline: boolean;
   isResolvingDifficulty: boolean;
@@ -84,11 +191,21 @@ interface NavigationStoreState {
   setGenerating: (value: boolean) => void;
   setError: (message: string | null) => void;
   createDraftSession: (rawInput: string) => void;
+  createInsertedFlowDraft: (params: {
+    baseSession: NavigationSession;
+    rawInput: string;
+    assistantMessage: string;
+    returnStepTitle: string;
+  }) => void;
+  restoreSession: (session: NavigationSession) => void;
+  restoreSuspendedSession: () => void;
   setPlannedSession: (rawInput: string, result: NavigationPlannerResult) => void;
   applyStreamingPlan: (rawInput: string, partial: Partial<NavigationPlannerResult>, isFinal?: boolean) => void;
   revealPreviewProgress: () => void;
   updatePreviewGroup: (groupId: string, updates: Partial<NavigationSession['timelineGroups'][number]>) => void;
+  replacePreviewGroups: (groups: NavigationSession['timelineGroups']) => void;
   updatePreviewStep: (stepId: string, updates: Partial<NavigationExecutionStep>) => void;
+  replacePreviewSteps: (steps: NavigationExecutionStep[]) => void;
   movePreviewStep: (stepId: string, direction: 'up' | 'down') => void;
   removePreviewStep: (stepId: string) => void;
   removePreviewGroup: (groupId: string) => void;
@@ -106,7 +223,7 @@ interface NavigationStoreState {
   completeCurrentStep: () => void;
   skipCurrentStep: () => void;
   decayExecutionScore: () => void;
-  resolveDifficulty: (result: NavigationDifficultyDetourResult) => void;
+  resolveDifficulty: (result: NavigationInsertedFlowResult) => void;
   syncSessionToTimeline: () => Promise<void>;
   clearSession: () => void;
 }
@@ -115,6 +232,7 @@ export const useNavigationStore = create<NavigationStoreState>()(
   persist(
     (set, get) => ({
       currentSession: null,
+      suspendedSession: null,
       isGenerating: false,
       isSyncingToTimeline: false,
       isResolvingDifficulty: false,
@@ -129,6 +247,7 @@ export const useNavigationStore = create<NavigationStoreState>()(
             title: '导航模式',
             rawInput,
             status: 'preview',
+            previewMode: 'initial',
             executionSteps: [],
             timelineGroups: [],
             currentStepIndex: 0,
@@ -150,6 +269,61 @@ export const useNavigationStore = create<NavigationStoreState>()(
           error: null,
         });
       },
+      createInsertedFlowDraft: ({ baseSession, rawInput, assistantMessage, returnStepTitle }) => {
+        const now = new Date().toISOString();
+        set({
+          suspendedSession: baseSession,
+          currentSession: {
+            id: crypto.randomUUID(),
+            title: '中途插入事项',
+            rawInput,
+            status: 'preview',
+            previewMode: 'inserted_flow',
+            previewContext: {
+              assistantMessage,
+              returnStepTitle,
+            },
+            executionSteps: [],
+            timelineGroups: [],
+            currentStepIndex: 0,
+            executionScore: baseSession.executionScore,
+            energyLevel: baseSession.energyLevel,
+            recentExecutionGain: 0,
+            lastProgressAt: now,
+            generationStage: 'waiting_ai',
+            generationProgress: {
+              revealedStepCount: 0,
+              totalStepCount: 0,
+              revealedGroupCount: 0,
+              totalGroupCount: 0,
+              done: false,
+            },
+            createdAt: now,
+            handsFree: createDefaultHandsFree(),
+          },
+          error: null,
+          isGenerating: true,
+        });
+      },
+      restoreSession: (session) => {
+        set({
+          currentSession: session,
+          isGenerating: false,
+          isResolvingDifficulty: false,
+          error: null,
+        });
+      },
+      restoreSuspendedSession: () => {
+        const suspendedSession = get().suspendedSession;
+        if (!suspendedSession) return;
+        set({
+          currentSession: suspendedSession,
+          suspendedSession: null,
+          isGenerating: false,
+          isResolvingDifficulty: false,
+          error: null,
+        });
+      },
       setPlannedSession: (rawInput, result) => {
         const now = new Date().toISOString();
         set({
@@ -158,6 +332,7 @@ export const useNavigationStore = create<NavigationStoreState>()(
             title: result.sessionTitle,
             rawInput,
             status: 'preview',
+            previewMode: 'initial',
             executionSteps: result.executionSteps.map((step, index) => ({
               ...step,
               status: 'pending',
@@ -202,6 +377,15 @@ export const useNavigationStore = create<NavigationStoreState>()(
         const nextSummary = partial.summary ?? session.summary;
         const nextTitle = partial.sessionTitle || session.title || '导航模式';
         const hasAnyContent = nextExecutionSteps.length > 0 || nextTimelineGroups.length > 0;
+        const previousProgress = session.generationProgress;
+        const nextTotalStepCount = nextExecutionSteps.length;
+        const nextTotalGroupCount = nextTimelineGroups.length;
+        const nextRevealedStepCount = isFinal
+          ? nextTotalStepCount
+          : Math.min(previousProgress?.revealedStepCount || 0, nextTotalStepCount);
+        const nextRevealedGroupCount = isFinal
+          ? nextTotalGroupCount
+          : Math.min(previousProgress?.revealedGroupCount || 0, nextTotalGroupCount);
 
         set({
           currentSession: {
@@ -210,18 +394,17 @@ export const useNavigationStore = create<NavigationStoreState>()(
             summary: nextSummary,
             executionSteps: nextExecutionSteps,
             timelineGroups: nextTimelineGroups,
-            generationStage: hasAnyContent ? 'building' : 'waiting_ai',
+            generationStage: isFinal ? 'idle' : (hasAnyContent ? 'building' : 'waiting_ai'),
             generationProgress: {
-              revealedStepCount: Math.min(session.generationProgress?.revealedStepCount || 0, nextExecutionSteps.length),
-              totalStepCount: nextExecutionSteps.length,
-              revealedGroupCount: Math.min(session.generationProgress?.revealedGroupCount || 0, nextTimelineGroups.length),
-              totalGroupCount: nextTimelineGroups.length,
+              revealedStepCount: nextRevealedStepCount,
+              totalStepCount: nextTotalStepCount,
+              revealedGroupCount: nextRevealedGroupCount,
+              totalGroupCount: nextTotalGroupCount,
               done: isFinal,
             },
             lastProgressAt: new Date().toISOString(),
           },
           isGenerating: !isFinal,
-          error: null,
         });
       },
       revealPreviewProgress: () => {
@@ -231,23 +414,32 @@ export const useNavigationStore = create<NavigationStoreState>()(
 
         const nextRevealedGroupCount = Math.min(
           session.generationProgress.totalGroupCount,
-          session.generationProgress.revealedGroupCount + (session.generationProgress.revealedGroupCount < session.generationProgress.totalGroupCount ? 1 : 0)
+          session.generationProgress.revealedGroupCount < session.generationProgress.totalGroupCount
+            ? session.generationProgress.revealedGroupCount + 1
+            : session.generationProgress.revealedGroupCount
         );
         const nextRevealedStepCount = Math.min(
           session.generationProgress.totalStepCount,
-          session.generationProgress.revealedStepCount + (session.generationProgress.revealedStepCount < session.generationProgress.totalStepCount ? 1 : 0)
+          session.generationProgress.revealedStepCount < session.generationProgress.totalStepCount
+            ? session.generationProgress.revealedStepCount + 1
+            : session.generationProgress.revealedStepCount
         );
-        const done = nextRevealedGroupCount >= session.generationProgress.totalGroupCount && nextRevealedStepCount >= session.generationProgress.totalStepCount;
+
+        if (
+          nextRevealedGroupCount === session.generationProgress.revealedGroupCount
+          && nextRevealedStepCount === session.generationProgress.revealedStepCount
+        ) {
+          return;
+        }
 
         set({
           currentSession: {
             ...session,
-            generationStage: done ? 'idle' : 'building',
+            generationStage: 'building',
             generationProgress: {
               ...session.generationProgress,
               revealedGroupCount: nextRevealedGroupCount,
               revealedStepCount: nextRevealedStepCount,
-              done,
             },
             lastProgressAt: new Date().toISOString(),
           },
@@ -263,6 +455,16 @@ export const useNavigationStore = create<NavigationStoreState>()(
           },
         });
       },
+      replacePreviewGroups: (groups) => {
+        const session = get().currentSession;
+        if (!session || session.status !== 'preview') return;
+        set({
+          currentSession: {
+            ...session,
+            timelineGroups: groups,
+          },
+        });
+      },
       updatePreviewStep: (stepId, updates) => {
         const session = get().currentSession;
         if (!session || session.status !== 'preview') return;
@@ -270,6 +472,16 @@ export const useNavigationStore = create<NavigationStoreState>()(
           currentSession: {
             ...session,
             executionSteps: session.executionSteps.map((step) => step.id === stepId ? { ...step, ...updates } : step),
+          },
+        });
+      },
+      replacePreviewSteps: (steps) => {
+        const session = get().currentSession;
+        if (!session || session.status !== 'preview') return;
+        set({
+          currentSession: {
+            ...session,
+            executionSteps: steps.map((step, index) => ({ ...step, sortOrder: index })),
           },
         });
       },
@@ -368,6 +580,47 @@ export const useNavigationStore = create<NavigationStoreState>()(
       startSession: () => {
         const session = get().currentSession;
         if (!session || session.executionSteps.length === 0) return;
+
+        if (session.status === 'preview' && session.previewMode === 'inserted_flow') {
+          const suspendedSession = get().suspendedSession;
+          if (!suspendedSession) return;
+          const mergedSession = mergeInsertedFlowIntoSession(suspendedSession, {
+            assistantMessage: session.previewContext?.assistantMessage || '',
+            plan: {
+              sessionTitle: session.title,
+              summary: session.summary || '',
+              executionSteps: session.executionSteps.map((step) => ({
+                id: step.id,
+                groupId: step.groupId,
+                title: step.title,
+                guidance: step.guidance,
+                focusMinutes: step.focusMinutes,
+                estimatedMinutes: step.estimatedMinutes,
+                location: step.location,
+              })),
+              timelineGroups: session.timelineGroups.map((group) => ({
+                id: group.id,
+                title: group.title,
+                description: group.description,
+                stepIds: group.stepIds,
+              })),
+            },
+          });
+
+          set({
+            currentSession: {
+              ...mergedSession,
+              status: 'active',
+              previewMode: undefined,
+              previewContext: undefined,
+            },
+            suspendedSession: null,
+            isGenerating: false,
+            error: null,
+          });
+          return;
+        }
+
         const now = new Date().toISOString();
         const nextSteps = session.executionSteps.map((step, index) =>
           index === 0
@@ -515,70 +768,33 @@ export const useNavigationStore = create<NavigationStoreState>()(
       },
       resolveDifficulty: (result) => {
         const session = get().currentSession;
-        if (!session || session.status !== 'active') return;
+        if (!session) return;
 
-        const now = new Date().toISOString();
-        const currentStepIndex = session.currentStepIndex;
-        const currentStep = session.executionSteps[currentStepIndex];
-        const detourGroupId = `detour-${crypto.randomUUID()}`;
+        if (session.status === 'preview' && session.previewMode === 'inserted_flow') {
+          const suspendedSession = get().suspendedSession;
+          if (!suspendedSession) return;
+          set({
+            currentSession: mergeInsertedFlowIntoSession(suspendedSession, result),
+            suspendedSession: null,
+            isResolvingDifficulty: false,
+            error: null,
+          });
+          return;
+        }
 
-        const detourSteps = result.detourSteps.map((step, index) => ({
-          id: `${detourGroupId}-s${index + 1}`,
-          groupId: detourGroupId,
-          title: step.title,
-          guidance: step.guidance,
-          focusMinutes: step.focusMinutes,
-          estimatedMinutes: step.estimatedMinutes,
-          location: step.location,
-          status: index === 0 ? 'in_progress' as const : 'pending' as const,
-          startedAt: index === 0 ? now : undefined,
-          sortOrder: currentStepIndex + index,
-          source: 'difficulty_detour' as const,
-        }));
-
-        const executionSteps = [
-          ...session.executionSteps.slice(0, currentStepIndex),
-          ...detourSteps,
-          ...(currentStep ? [{
-            ...currentStep,
-            status: 'pending' as const,
-            startedAt: undefined,
-            completedAt: undefined,
-            skipped: false,
-            sortOrder: currentStepIndex + detourSteps.length,
-          }] : []),
-          ...session.executionSteps.slice(currentStepIndex + 1).map((step, index) => ({
-            ...step,
-            sortOrder: currentStepIndex + detourSteps.length + 1 + index,
-          })),
-        ];
+        if (session.status !== 'active') return;
 
         set({
-          currentSession: {
-            ...session,
-            executionSteps,
-            timelineGroups: [
-              ...session.timelineGroups,
-              {
-                id: detourGroupId,
-                title: softenTimelineTitle(result.detourGroup.title),
-                description: softenTimelineDescription(result.detourGroup.description),
-                stepIds: detourSteps.map((step) => step.id),
-                source: 'difficulty_detour',
-              },
-            ],
-            currentStepIndex,
-            executionScore: clamp(session.executionScore - 3, 0, 100),
-            energyLevel: clamp(session.energyLevel - 1, 0, 100),
-          },
+          currentSession: mergeInsertedFlowIntoSession(session, result),
           isResolvingDifficulty: false,
+          error: null,
         });
       },
       syncSessionToTimeline: async () => {
         const session = get().currentSession;
         if (!session || session.finishedAndSyncedToTimeline || session.status !== 'completed') return;
 
-        set({ isSyncingToTimeline: true, error: null });
+        set({ isSyncingToTimeline: true });
 
         try {
           const createTask = useTaskStore.getState().createTask;
@@ -653,18 +869,29 @@ export const useNavigationStore = create<NavigationStoreState>()(
             isSyncingToTimeline: false,
           });
         } catch (error) {
+          console.error('[导航] 写入时间轴失败', error);
           set({
             isSyncingToTimeline: false,
             error: error instanceof Error ? error.message : '写入时间轴失败',
           });
         }
       },
-      clearSession: () => set({ currentSession: null, error: null, isGenerating: false, isSyncingToTimeline: false }),
+      clearSession: () => set({
+        currentSession: null,
+        suspendedSession: null,
+        error: null,
+        isGenerating: false,
+        isSyncingToTimeline: false,
+        isResolvingDifficulty: false,
+      }),
     }),
     {
       name: 'manifestos-navigation-session',
-      version: 2,
-      partialize: (state) => ({ currentSession: state.currentSession }),
+      version: 3,
+      partialize: (state) => ({
+        currentSession: state.currentSession,
+        suspendedSession: state.suspendedSession,
+      }),
     }
   )
 );

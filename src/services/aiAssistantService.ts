@@ -333,6 +333,17 @@ function normalizeGoalTimeline(goal: any) {
     return result;
   };
 
+  const normalizeFutureCycle = (date: Date, baseDate: Date) => {
+    const normalized = new Date(date);
+    if (normalized >= baseDate) return toEndOfDay(normalized);
+
+    const adjusted = new Date(baseDate.getFullYear(), normalized.getMonth(), normalized.getDate());
+    if (adjusted < baseDate) {
+      adjusted.setFullYear(adjusted.getFullYear() + 1);
+    }
+    return toEndOfDay(adjusted);
+  };
+
   const startDate = goal?.startDate
     ? toStartOfDay(new Date(goal.startDate))
     : startOfToday;
@@ -340,7 +351,7 @@ function normalizeGoalTimeline(goal: any) {
   const resolveTimeline = (value: any) => {
     if (!value) return { startDate, deadline: undefined as Date | undefined };
     if (value instanceof Date && !Number.isNaN(value.getTime())) {
-      return { startDate, deadline: toEndOfDay(value) };
+      return { startDate, deadline: normalizeFutureCycle(value, startDate) };
     }
 
     if (typeof value === 'string') {
@@ -398,7 +409,7 @@ function normalizeGoalTimeline(goal: any) {
         const result = new Date(startDate.getFullYear(), startDate.getMonth(), parseInt(exactDay[1], 10));
         return {
           startDate,
-          deadline: toEndOfDay(result),
+          deadline: normalizeFutureCycle(result, startDate),
         };
       }
 
@@ -407,7 +418,7 @@ function normalizeGoalTimeline(goal: any) {
         const result = new Date(startDate.getFullYear(), parseInt(monthDay[1], 10) - 1, parseInt(monthDay[2], 10));
         return {
           startDate,
-          deadline: toEndOfDay(result),
+          deadline: normalizeFutureCycle(result, startDate),
         };
       }
 
@@ -415,7 +426,7 @@ function normalizeGoalTimeline(goal: any) {
       if (!Number.isNaN(parsedDate.getTime())) {
         return {
           startDate,
-          deadline: toEndOfDay(parsedDate),
+          deadline: normalizeFutureCycle(parsedDate, startDate),
         };
       }
     }

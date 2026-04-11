@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useGoldStore } from '@/stores/goldStore';
 import { ImageUploader } from '@/services/taskVerificationService';
 import { notificationService } from '@/services/notificationService';
@@ -65,6 +65,46 @@ export default function TaskVerificationCountdownContent({
     (type: string, uniquePart: string) => `${taskId}:${type}:${uniquePart}`,
     [taskId]
   );
+  const timeoutUpdateRef = useRef(onTimeoutUpdate);
+  const lastHandledTimeoutRef = useRef<{ startDeadline: string | null; taskDeadline: string | null }>({
+    startDeadline: null,
+    taskDeadline: null,
+  });
+  const scheduleTaskRef = useRef((task: Parameters<typeof backgroundTaskScheduler.scheduleTask>[0]) =>
+    backgroundTaskScheduler.scheduleTask(task)
+  );
+  const updateTaskStatusRef = useRef((
+    taskId: string,
+    status: Parameters<typeof backgroundTaskScheduler.updateTaskStatus>[1],
+    data?: Parameters<typeof backgroundTaskScheduler.updateTaskStatus>[2]
+  ) => backgroundTaskScheduler.updateTaskStatus(taskId, status, data));
+  const taskMetaRef = useRef({
+    taskId,
+    taskTitle,
+    goldReward,
+    hasVerification,
+    startKeywords,
+    completeKeywords,
+    scheduledStartIso: scheduledStart.toISOString(),
+    scheduledEndIso: scheduledEnd.toISOString(),
+  });
+
+  useEffect(() => {
+    timeoutUpdateRef.current = onTimeoutUpdate;
+  }, [onTimeoutUpdate]);
+
+  useEffect(() => {
+    taskMetaRef.current = {
+      taskId,
+      taskTitle,
+      goldReward,
+      hasVerification,
+      startKeywords,
+      completeKeywords,
+      scheduledStartIso: scheduledStart.toISOString(),
+      scheduledEndIso: scheduledEnd.toISOString(),
+    };
+  }, [taskId, taskTitle, goldReward, hasVerification, startKeywords, completeKeywords, scheduledStart, scheduledEnd]);
   
   // 持久化key
   const storageKey = `countdown_${taskId}`;
@@ -119,13 +159,11 @@ export default function TaskVerificationCountdownContent({
       console.log(`💾 保存倒计时状态: ${taskTitle}`, normalizedState);
       
       // 通知父组件超时次数更新
-      if (onTimeoutUpdate) {
-        onTimeoutUpdate(normalizedState.startTimeoutCount, normalizedState.completeTimeoutCount);
-      }
+      timeoutUpdateRef.current?.(normalizedState.startTimeoutCount, normalizedState.completeTimeoutCount);
     } catch (error) {
       console.error('❌ 保存倒计时状态失败:', error);
     }
-  }, [storageKey, taskTitle, onTimeoutUpdate, scheduledStart, scheduledEnd]);
+  }, [storageKey, taskTitle, scheduledStart, scheduledEnd]);
   
   // 初始化状态
   const initState = useCallback((): CountdownState => {
@@ -140,8 +178,14 @@ export default function TaskVerificationCountdownContent({
     return createInitialState(scheduledStart, scheduledEnd);
   }, [loadState, taskTitle, scheduledStart, scheduledEnd]);
   
-  // 核心状态
   const [state, setState] = useState<CountdownState>(initState);
+
+  useEffect(() => {
+    lastHandledTimeoutRef.current = {
+      startDeadline: null,
+      taskDeadline: null,
+    };
+  }, [taskId, scheduledStart, scheduledEnd]);
 
   useEffect(() => {
     const nextState = initState();
@@ -158,7 +202,6 @@ export default function TaskVerificationCountdownContent({
     setState(nextState);
     saveState(nextState);
     setHasTriggeredBackgroundPenalty(false);
-    setCurrentTimeoutPenaltyTriggered({ startDeadline: null, taskDeadline: null });
     setTriggeredReminders(new Set());
   }, [initState, saveState, scheduledStart, scheduledEnd, state.scheduledStart, state.scheduledEnd]);
   const [isUploading, setIsUploading] = useState(false);
@@ -173,12 +216,6 @@ export default function TaskVerificationCountdownContent({
   
   // 🔧 记录是否已经触发过后台拖延扣币（避免重复扣币）
   const [hasTriggeredBackgroundPenalty, setHasTriggeredBackgroundPenalty] = useState(false);
-  
-  // 🔧 记录当前超时周期是否已扣币（避免同一周期重复扣币）
-  const [currentTimeoutPenaltyTriggered, setCurrentTimeoutPenaltyTriggered] = useState<{
-    startDeadline: string | null;
-    taskDeadline: string | null;
-  }>({ startDeadline: null, taskDeadline: null });
   
   // 🔧 分步日志显示（直接在界面上显示）
   const [verifyLog, setVerifyLog] = useState<string>('正在验证中，请稍后...');
@@ -214,7 +251,7 @@ export default function TaskVerificationCountdownContent({
   // 🔧 注册任务到后台调度服务
   useEffect(() => {
     console.log(`📋 [组件] 注册任务到后台调度服务: ${taskTitle}`);
-    backgroundTaskScheduler.scheduleTask({
+    scheduleTaskRef.current({
       taskId,
       taskTitle,
       scheduledStart: scheduledStart.toISOString(),
@@ -229,7 +266,7 @@ export default function TaskVerificationCountdownContent({
       // 组件卸载时不取消调度，让后台继续运行
       console.log(`🧹 [组件] 任务组件卸载，但保持后台调度: ${taskTitle}`);
     };
-  }, [taskId, taskTitle, scheduledStart, scheduledEnd, goldReward, hasVerification, startKeywords, completeKeywords]);
+  }, [taskId]);
 
   // 🔧 监听任务时间变化，清除过期的提醒记录
   useEffect(() => {
@@ -297,7 +334,7 @@ export default function TaskVerificationCountdownContent({
       saveState(newState);
       
       // 🔧 同步到后台调度服务
-      backgroundTaskScheduler.updateTaskStatus(taskId, 'start_countdown', {
+      updateTaskStatusRef.current(taskMetaRef.current.taskId, 'start_countdown', {
         startDeadline: deadline.toISOString(),
         startTimeoutCount: missedTimeouts,
       });
@@ -343,10 +380,14 @@ export default function TaskVerificationCountdownContent({
     
     // 启动倒计时超时
     if (state.status === 'start_countdown' && startCountdownLeft === 0 && state.startDeadline) {
-      // 🔧 检查是否已经为这个deadline扣过币了
-      if (currentTimeoutPenaltyTriggered.startDeadline === state.startDeadline) {
-        return; // 已经扣过了，不再重复扣
+      if (lastHandledTimeoutRef.current.startDeadline === state.startDeadline) {
+        return;
       }
+
+      lastHandledTimeoutRef.current = {
+        ...lastHandledTimeoutRef.current,
+        startDeadline: state.startDeadline,
+      };
       
       const penaltyAmount = Math.floor(goldReward * 0.2);
       penaltyGold(
@@ -357,12 +398,6 @@ export default function TaskVerificationCountdownContent({
         buildTransactionKey('start-timeout', state.startDeadline)
       );
       console.log(`⚠️ 启动超时！扣除${penaltyAmount}金币（${state.startTimeoutCount + 1}次）`);
-      
-      // 🔧 标记这个deadline已经扣过币了
-      setCurrentTimeoutPenaltyTriggered(prev => ({
-        ...prev,
-        startDeadline: state.startDeadline
-      }));
       
       // 触发超时提醒
       notificationService.notifyOvertime(taskTitle, 'start', (state.startTimeoutCount + 1) * 20);
@@ -388,10 +423,14 @@ export default function TaskVerificationCountdownContent({
     
     // 任务倒计时超时
     if (state.status === 'task_countdown' && taskCountdownLeft === 0 && state.taskDeadline) {
-      // 🔧 检查是否已经为这个deadline扣过币了
-      if (currentTimeoutPenaltyTriggered.taskDeadline === state.taskDeadline) {
-        return; // 已经扣过了，不再重复扣
+      if (lastHandledTimeoutRef.current.taskDeadline === state.taskDeadline) {
+        return;
       }
+
+      lastHandledTimeoutRef.current = {
+        ...lastHandledTimeoutRef.current,
+        taskDeadline: state.taskDeadline,
+      };
       
       const penaltyAmount = Math.floor(goldReward * 0.2);
       penaltyGold(
@@ -402,12 +441,6 @@ export default function TaskVerificationCountdownContent({
         buildTransactionKey('complete-timeout', state.taskDeadline)
       );
       console.log(`⚠️ 完成超时！扣除${penaltyAmount}金币（${state.completeTimeoutCount + 1}次）`);
-      
-      // 🔧 标记这个deadline已经扣过币了
-      setCurrentTimeoutPenaltyTriggered(prev => ({
-        ...prev,
-        taskDeadline: state.taskDeadline
-      }));
       
       // 触发超时提醒
       notificationService.notifyOvertime(taskTitle, 'completion', (state.completeTimeoutCount + 1) * 20);
@@ -425,12 +458,12 @@ export default function TaskVerificationCountdownContent({
       saveState(newState);
       
       // 🔧 同步到后台调度服务
-      backgroundTaskScheduler.updateTaskStatus(taskId, 'task_countdown', {
+      updateTaskStatusRef.current(taskMetaRef.current.taskId, 'task_countdown', {
         taskDeadline: newDeadline.toISOString(),
         completeTimeoutCount: newState.completeTimeoutCount,
       });
     }
-  }, [state, startCountdownLeft, taskCountdownLeft, goldReward, penaltyGold, taskId, taskTitle, saveState, currentTimeoutPenaltyTriggered]);
+  }, [state, startCountdownLeft, taskCountdownLeft, goldReward, penaltyGold, taskId, taskTitle, saveState]);
   
   // 任务即将结束提醒（完全遵循用户设置）
   useEffect(() => {

@@ -49,12 +49,7 @@ export const notify = {
   },
 
   error: (title: string, message?: string, duration?: number) => {
-    useNotificationStore.getState().addNotification({
-      type: 'error',
-      title,
-      message,
-      duration,
-    });
+    console.error('[notify.error]', { title, message, duration });
   },
 
   warning: (title: string, message?: string, duration?: number) => {

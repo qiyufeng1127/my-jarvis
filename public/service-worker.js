@@ -70,9 +70,20 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       })
-      .catch(() => {
-        // 网络失败时从缓存中获取
-        return caches.match(event.request);
+      .catch(async () => {
+        // 网络失败时从缓存中获取；仍然没有时返回明确的错误响应，避免返回 undefined
+        const cachedResponse = await caches.match(event.request);
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+
+        return new Response('Network error', {
+          status: 503,
+          statusText: 'Service Unavailable',
+          headers: {
+            'Content-Type': 'text/plain; charset=utf-8',
+          },
+        });
       })
   );
 });

@@ -91,6 +91,20 @@ class BackgroundTaskScheduler {
       return;
     }
 
+    if (import.meta.env.DEV) {
+      console.log('🧪 开发环境，跳过 Service Worker 注册');
+
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map((registration) => registration.unregister()));
+        console.log('🧹 已清理开发环境中的 Service Worker 注册');
+      } catch (error) {
+        console.warn('⚠️ 清理 Service Worker 失败:', error);
+      }
+
+      return;
+    }
+
     try {
       const registration = await navigator.serviceWorker.register('/service-worker.js', {
         scope: '/',

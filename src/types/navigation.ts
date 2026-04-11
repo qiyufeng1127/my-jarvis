@@ -11,7 +11,7 @@ export interface NavigationExecutionStep {
   completedAt?: string;
   skipped?: boolean;
   sortOrder: number;
-  source?: 'planned' | 'difficulty_detour';
+  source?: 'planned' | 'difficulty_detour' | 'inserted_flow';
 }
 
 export interface NavigationTimelineGroup {
@@ -21,7 +21,7 @@ export interface NavigationTimelineGroup {
   stepIds: string[];
   actualStart?: string;
   actualEnd?: string;
-  source?: 'planned' | 'difficulty_detour';
+  source?: 'planned' | 'difficulty_detour' | 'inserted_flow';
 }
 
 export interface NavigationStateSnapshot {
@@ -59,11 +59,21 @@ export interface NavigationDifficultyDetourResult {
   }>;
 }
 
+export interface NavigationInsertedFlowResult {
+  assistantMessage: string;
+  plan: NavigationPlannerResult;
+}
+
 export interface NavigationSession {
   id: string;
   title: string;
   rawInput: string;
   status: 'draft' | 'preview' | 'active' | 'paused' | 'completed' | 'cancelled';
+  previewMode?: 'initial' | 'inserted_flow';
+  previewContext?: {
+    assistantMessage?: string;
+    returnStepTitle?: string;
+  };
   executionSteps: NavigationExecutionStep[];
   timelineGroups: NavigationTimelineGroup[];
   currentStepIndex: number;

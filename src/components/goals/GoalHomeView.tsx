@@ -89,9 +89,14 @@ function getDeadlineLabel(goal: LongTermGoal) {
   if (goal.startDate) {
     const startDate = new Date(goal.startDate);
     startDate.setHours(0, 0, 0, 0);
-    const elapsedDays = Math.max(0, Math.ceil((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
 
-    if (diffDays > 0 && elapsedDays > 0) return `已过 ${elapsedDays} 天`;
+    if (startDate > today) {
+      const daysUntilStart = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      return `${daysUntilStart} 天后开始`;
+    }
+
+    const elapsedDays = Math.max(1, Math.ceil((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    if (diffDays > 0) return `已进行 ${elapsedDays} 天`;
   }
 
   if (diffDays === 0) return '今天结束';
@@ -194,7 +199,7 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
   }, [activeHabits, habitTab]);
 
   const groupedGoals: GoalCardGroup[] = [
-    { key: 'active', title: '正在进行', emptyText: '暂无待开始目标。', goals: activeGoals },
+    { key: 'active', title: '正在进行', emptyText: '暂无进行中目标。', goals: activeGoals },
     { key: 'expired', title: '已经过去', emptyText: '暂无已过期或已归档目标。', goals: expiredGoals },
   ];
 

@@ -5,7 +5,88 @@
 
 import { AI_PROMPTS } from './aiPrompts';
 import { useAIStore } from '@/stores/aiStore';
-import type { NavigationDifficultyDetourResult, NavigationPlannerResult, NavigationPreferences } from '@/types/navigation';
+import type { NavigationInsertedFlowResult, NavigationPlannerResult, NavigationPreferences, NavigationSession } from '@/types/navigation';
+
+const normalizeInlineText = (value: string) => value.replace(/\s+/g, ' ').trim();
+
+const pickInsertedFlowLeadTitle = (plan?: NavigationPlannerResult | null) => {
+  if (!plan) return '';
+
+  return normalizeInlineText(
+    plan.timelineGroups[0]?.title
+      || plan.sessionTitle
+      || plan.executionSteps[0]?.title
+      || ''
+  );
+};
+
+const buildInsertedFlowAssistantMessage = (
+  context: {
+    currentStepTitle: string;
+    userDifficulty: string;
+  },
+  plan: NavigationPlannerResult,
+) => {
+  const leadTitle = pickInsertedFlowLeadTitle(plan) || '你现在更想先做的这段事';
+  const currentStepTitle = normalizeInlineText(context.currentStepTitle || '刚才那一步');
+  const userDifficulty = normalizeInlineText(context.userDifficulty || '');
+  const feelsStuck = /(卡住|不会|不想|不太想|没法|做不到|难受|好累|好烦|不知道|不知|先缓|拖延)/.test(userDifficulty);
+
+  if (feelsStuck) {
+    return `好，我们先不硬顶「${currentStepTitle}」。先把「${leadTitle}」这一段顺一顺，我已经帮你拆成更容易开始的小步了。做完这一段后，我们再慢慢接回「${currentStepTitle}」。`;
+  }
+
+  return `好，那我们就先顺着你现在更想做的这段来：先做「${leadTitle}」。我已经把它理成几小步了，你先照着往前走，做完我们再回到「${currentStepTitle}」。`;
+};
+
+const TIMELINE_BAD_TITLE_PATTERNS = [
+  /超简单的开始动作/,
+  /完成一个.*开始动作/,
+  /先开始[:：]?/,
+  /先做一下[:：]?/,
+  /轻轻开始/,
+  /顺手整理/,
+  /顺手收拾/,
+  /按现在最顺手的方式/,
+];
+
+const cleanTimelineTitleText = (title: string) => title
+  .replace(/^\d+[、.．]\s*/, '')
+  .replace(/^先(开始|做一下)[:：]?/, '')
+  .replace(/完成一个超简单的开始动作/g, '')
+  .replace(/完成一个开始动作/g, '')
+  .replace(/轻轻开始/g, '')
+  .replace(/顺手整理好?/g, '')
+  .replace(/顺手收拾好?/g, '')
+  .replace(/按现在最顺手的方式/g, '')
+  .replace(/[，,、]{2,}/g, '、')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const normalizeTimelineGroups = (
+  groups: any[],
+  executionSteps: any[],
+): NavigationPlannerResult['timelineGroups'] => {
+  const validStepIds = new Set(executionSteps.map((step: any) => step.id));
+
+  return groups
+    .map((group: any) => {
+      const stepIds = Array.isArray(group?.stepIds) && group.stepIds.length
+        ? group.stepIds.filter((stepId: string) => validStepIds.has(stepId))
+        : executionSteps.filter((step: any) => step.groupId === group?.id).map((step: any) => step.id);
+      const cleanedTitle = cleanTimelineTitleText(String(group?.title || ''));
+      const resolvedTitle = cleanedTitle || '整理一下这件事';
+
+      return {
+        ...group,
+        title: resolvedTitle,
+        description: typeof group?.description === 'string' ? group.description.trim() : '',
+        stepIds,
+      };
+    })
+    .filter((group: any) => group.stepIds.length > 0 || group.title);
+};
+
 
 const toPromptMessage = (
   promptKey: keyof typeof AI_PROMPTS,
@@ -47,7 +128,7 @@ const tryParseJsonObject = (content: string) => {
   return null;
 };
 
-const normalizePlannerResult = (parsed: any): NavigationPlannerResult | null => {
+const normalizePlannerResult = (parsed: any, rawInput?: string): NavigationPlannerResult | null => {
   if (!parsed || typeof parsed !== 'object') return null;
 
   const executionSteps = Array.isArray(parsed.executionSteps) ? parsed.executionSteps : [];
@@ -59,16 +140,11 @@ const normalizePlannerResult = (parsed: any): NavigationPlannerResult | null => 
     sessionTitle: typeof parsed.sessionTitle === 'string' && parsed.sessionTitle.trim() ? parsed.sessionTitle.trim() : '导航模式',
     summary: typeof parsed.summary === 'string' ? parsed.summary.trim() : '',
     executionSteps,
-    timelineGroups: timelineGroups.map((group: any) => ({
-      ...group,
-      stepIds: Array.isArray(group?.stepIds) && group.stepIds.length
-        ? group.stepIds
-        : executionSteps.filter((step: any) => step.groupId === group?.id).map((step: any) => step.id),
-    })),
+    timelineGroups: normalizeTimelineGroups(timelineGroups, executionSteps),
   };
 };
 
-const parseEventStreamPlannerResult = (content: string, requireDone: boolean) => {
+const parseEventStreamPlannerResult = (content: string, requireDone: boolean, rawInput?: string) => {
   const trimmed = content.trim();
   if (!trimmed) return null;
 
@@ -105,10 +181,7 @@ const parseEventStreamPlannerResult = (content: string, requireDone: boolean) =>
     sessionTitle,
     summary,
     executionSteps: steps,
-    timelineGroups: groups.map((group) => ({
-      ...group,
-      stepIds: steps.filter((step) => step.groupId === group.id).map((step) => step.id),
-    })),
+    timelineGroups: normalizeTimelineGroups(groups, steps),
   } satisfies NavigationPlannerResult;
 };
 
@@ -139,22 +212,22 @@ const hasMeaningfulPlannerContent = (result: NavigationPlannerResult) => {
   return true;
 };
 
-const tryParsePlannerResult = (content: string): NavigationPlannerResult | null => {
+const tryParsePlannerResult = (content: string, rawInput?: string): NavigationPlannerResult | null => {
   const parsedObject = tryParseJsonObject(content);
-  const normalizedObject = normalizePlannerResult(parsedObject);
+  const normalizedObject = normalizePlannerResult(parsedObject, rawInput);
   if (normalizedObject) return normalizedObject;
 
-  return parseEventStreamPlannerResult(content, true);
+  return parseEventStreamPlannerResult(content, true, rawInput);
 };
 
-const derivePartialPlannerResult = (content: string): Partial<NavigationPlannerResult> | null => {
+const derivePartialPlannerResult = (content: string, rawInput?: string): Partial<NavigationPlannerResult> | null => {
   const parsedObject = tryParseJsonObject(content);
-  const normalizedObject = normalizePlannerResult(parsedObject);
+  const normalizedObject = normalizePlannerResult(parsedObject, rawInput);
   if (normalizedObject) {
     return normalizedObject;
   }
 
-  const partial = parseEventStreamPlannerResult(content, false);
+  const partial = parseEventStreamPlannerResult(content, false, rawInput);
   if (!partial) {
     return null;
   }
@@ -166,6 +239,7 @@ const derivePartialPlannerResult = (content: string): Partial<NavigationPlannerR
     timelineGroups: partial.timelineGroups.length ? partial.timelineGroups : undefined,
   };
 };
+
 
 /**
  * AI 调用响应
@@ -464,6 +538,7 @@ export class AIUnifiedService {
       const { messages } = toPromptMessage('NAVIGATION_MODE_PLANNER', variables);
       let fullContent = '';
       let lastPartialSignature = '';
+      let latestMeaningfulPartial: NavigationPlannerResult | null = null;
       console.log('[导航服务] 进入流式分支', { messagesCount: messages.length });
 
       const streamResult = await aiStore.chatStream(
@@ -471,7 +546,7 @@ export class AIUnifiedService {
         (chunk) => {
           console.log('[导航服务] 收到 chunk', chunk);
           fullContent += chunk;
-          const partial = derivePartialPlannerResult(fullContent);
+          const partial = derivePartialPlannerResult(fullContent, rawInput);
           if (partial) {
             const signature = JSON.stringify({
               title: partial.sessionTitle || '',
@@ -481,6 +556,15 @@ export class AIUnifiedService {
             });
             if (signature !== lastPartialSignature) {
               lastPartialSignature = signature;
+              const normalizedPartial: NavigationPlannerResult = {
+                sessionTitle: partial.sessionTitle || '导航模式',
+                summary: partial.summary || '',
+                executionSteps: partial.executionSteps || [],
+                timelineGroups: partial.timelineGroups || [],
+              };
+              if (hasMeaningfulPlannerContent(normalizedPartial)) {
+                latestMeaningfulPartial = normalizedPartial;
+              }
               onPartial(partial);
             }
           }
@@ -491,18 +575,21 @@ export class AIUnifiedService {
         }
       );
 
-      const finalParsed = streamResult.content ? tryParsePlannerResult(streamResult.content) : null;
-      console.log('[导航服务] 流式请求完成', { streamResult, finalParsed });
-      if (streamResult.success && finalParsed && hasMeaningfulPlannerContent(finalParsed)) {
+      const finalParsed = streamResult.content ? tryParsePlannerResult(streamResult.content, rawInput) : null;
+      const resolvedResult = finalParsed && hasMeaningfulPlannerContent(finalParsed)
+        ? finalParsed
+        : latestMeaningfulPartial;
+      console.log('[导航服务] 流式请求完成', { streamResult, finalParsed, latestMeaningfulPartial, resolvedResult });
+      if (streamResult.success && resolvedResult) {
         return {
           success: true,
-          data: finalParsed,
+          data: resolvedResult,
         };
       }
 
       return {
         success: false,
-        error: streamResult.error || (finalParsed ? '导航智能拆解质量过低：结果像在重复原话，请调整提示词后重试' : '导航智能拆解失败：AI 返回内容不符合预期格式'),
+        error: streamResult.error || (finalParsed || latestMeaningfulPartial ? '这次 AI 在收尾时格式有点乱，但前面已经拆出一版结果了' : '导航智能拆解失败：AI 返回内容不符合预期格式'),
       };
     }
 
@@ -517,7 +604,73 @@ export class AIUnifiedService {
 
     return {
       success: false,
-      error: aiResult.success ? '导航智能拆解质量过低：结果像在重复原话，请调整提示词后重试' : (aiResult.error || '导航智能拆解失败，请稍后重试'),
+      error: aiResult.success ? '这次 AI 生成出来的拆解质量不够好，你可以返回改一下描述再试一次' : (aiResult.error || '导航智能拆解失败，请稍后重试'),
+    };
+  }
+
+  static async regenerateTimelineTitles(
+    rawInput: string,
+    currentGroups: NavigationPlannerResult['timelineGroups']
+  ): Promise<{
+    success: boolean;
+    data?: NavigationPlannerResult['timelineGroups'];
+    error?: string;
+  }> {
+    const aiResult = await this.callAI('NAVIGATION_TIMELINE_GROUPER', {
+      rawInput,
+    });
+
+    const titles = Array.isArray(aiResult.data?.titles)
+      ? aiResult.data.titles.map((title: unknown) => cleanTimelineTitleText(String(title || ''))).filter(Boolean)
+      : [];
+
+    if (!aiResult.success || titles.length === 0) {
+      return {
+        success: false,
+        error: aiResult.error || '这次 AI 没有返回可用的时间轴标题',
+      };
+    }
+
+    const nextGroups = currentGroups.map((group, index) => ({
+      ...group,
+      title: titles[index] || group.title,
+    }));
+
+    const hasAnyChange = nextGroups.some((group, index) => group.title !== currentGroups[index]?.title);
+
+    return {
+      success: hasAnyChange,
+      data: nextGroups,
+      error: hasAnyChange ? undefined : '这次生成的时间轴标题和现在差不多',
+    };
+  }
+
+  static async regenerateExecutionSteps(
+    rawInput: string,
+    preferences: NavigationPreferences,
+    currentGroups: NavigationPlannerResult['timelineGroups']
+  ): Promise<{
+    success: boolean;
+    data?: NavigationPlannerResult['executionSteps'];
+    error?: string;
+  }> {
+    const planned = await this.planNavigationSession(rawInput, preferences);
+    if (!planned.success || !planned.data) {
+      return {
+        success: false,
+        error: planned.error || '小步骤重新生成失败',
+      };
+    }
+
+    const currentGroupIds = currentGroups.map((group) => group.id);
+    const nextSteps = planned.data.executionSteps.map((step, index) => ({
+      ...step,
+      groupId: currentGroupIds[index] || currentGroupIds[currentGroupIds.length - 1] || step.groupId,
+    }));
+
+    return {
+      success: true,
+      data: nextSteps,
     };
   }
 
@@ -533,20 +686,70 @@ export class AIUnifiedService {
     preferences: NavigationPreferences
   ): Promise<{
     success: boolean;
-    data?: NavigationDifficultyDetourResult;
+    data?: NavigationInsertedFlowResult;
     error?: string;
   }> {
-    return await this.callAI('NAVIGATION_DIFFICULTY_GUIDE', {
-      rawInput: context.rawInput,
-      sessionTitle: context.sessionTitle,
-      currentStepTitle: context.currentStepTitle,
-      currentStepGuidance: context.currentStepGuidance,
-      recentSteps: JSON.stringify(context.recentSteps, null, 2),
-      userDifficulty: context.userDifficulty,
-      customPrompt: preferences.customPrompt,
-      tone: preferences.tone,
-      homeLayout: preferences.homeLayout,
-      currentTime: new Date().toLocaleString('zh-CN'),
+    const planned = await this.planNavigationSession(context.userDifficulty, preferences);
+    if (!planned.success || !planned.data) {
+      return {
+        success: false,
+        error: planned.error || '这次没整理出可插入的新流程，请换个说法再试一次',
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        assistantMessage: buildInsertedFlowAssistantMessage(context, planned.data),
+        plan: planned.data,
+      },
+    };
+  }
+
+  static async analyzeNavigationCompletion(
+    session: NavigationSession
+  ): Promise<{
+    success: boolean;
+    data?: {
+      analysisTitle: string;
+      summary: string;
+      insights: string[];
+      nextActions: string[];
+    };
+    error?: string;
+  }> {
+    const preStateText = JSON.stringify(session.preState || {}, null, 2);
+    const postStateText = JSON.stringify(session.postState || {}, null, 2);
+    const stepsText = JSON.stringify(session.executionSteps.map((step) => ({
+      title: step.title,
+      guidance: step.guidance,
+      status: step.status,
+      startedAt: step.startedAt,
+      completedAt: step.completedAt,
+      estimatedMinutes: step.estimatedMinutes,
+      focusMinutes: step.focusMinutes,
+      source: step.source,
+    })), null, 2);
+
+    const completedCount = session.executionSteps.filter((step) => step.status === 'completed').length;
+    const skippedCount = session.executionSteps.filter((step) => step.status === 'skipped').length;
+    const actualDurationMinutes = session.startedAt && session.completedAt
+      ? Math.max(1, Math.round((new Date(session.completedAt).getTime() - new Date(session.startedAt).getTime()) / 60000))
+      : '';
+
+    return await this.callAI('NAVIGATION_COMPLETION_ANALYZER', {
+      rawInput: session.rawInput,
+      sessionTitle: session.title,
+      summary: session.summary || '',
+      startedAt: session.startedAt || '',
+      completedAt: session.completedAt || '',
+      actualDurationMinutes,
+      stepCount: session.executionSteps.length,
+      completedCount,
+      skippedCount,
+      preState: preStateText,
+      postState: postStateText,
+      steps: stepsText,
     });
   }
 

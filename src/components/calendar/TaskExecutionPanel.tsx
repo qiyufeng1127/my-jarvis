@@ -118,29 +118,25 @@ export default function TaskExecutionPanel({
   const handleComplete = () => {
     // 如果任务需要完成验证，这里不直接完成，而是由父组件处理验证流程
     // 这个函数会在验证通过后被调用
-    if (confirm('确定要完成这个任务吗？')) {
-      onComplete();
-    }
+    onComplete();
   };
 
   // 放弃任务
   const handleAbandon = () => {
-    if (confirm('放弃任务将扣除 50 金币，确定要放弃吗？')) {
-      // 扣除金币
-      const success = deductGold(50, `放弃任务: ${task.title}`);
-      
-      if (!success) {
-        alert('金币不足，但仍然可以放弃任务');
-      }
-      
-      onAbandon();
+    // 扣除金币
+    const success = deductGold(50, `放弃任务: ${task.title}`);
+
+    if (!success) {
+      console.warn('金币不足，但仍然放弃任务', task.title);
     }
+
+    onAbandon();
   };
 
   // 提交进度
   const handleSubmitProgress = () => {
     if (!progressNote.trim()) {
-      alert('请输入当前进展');
+      console.warn('提交进度失败：当前进展为空');
       return;
     }
     
@@ -152,17 +148,15 @@ export default function TaskExecutionPanel({
 
   // 跳过进度检查
   const handleSkipProgress = () => {
-    if (confirm('跳过进度检查将扣除 20 金币，确定要跳过吗？')) {
-      // 扣除金币
-      const success = deductGold(20, `跳过进度检查: ${task.title}`);
-      
-      if (!success) {
-        alert('金币不足，但仍然可以跳过');
-      }
-      
-      setShowProgressCheck(false);
-      setProgressNote('');
+    // 扣除金币
+    const success = deductGold(20, `跳过进度检查: ${task.title}`);
+
+    if (!success) {
+      console.warn('金币不足，但仍然跳过进度检查', task.title);
     }
+
+    setShowProgressCheck(false);
+    setProgressNote('');
   };
 
   // 计算进度

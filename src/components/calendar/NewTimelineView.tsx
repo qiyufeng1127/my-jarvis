@@ -90,25 +90,29 @@ export default function NewTimelineView({
   const START_DELAY_FORM_THRESHOLD = 10;
   const LOW_EFFICIENCY_TIMEOUT_THRESHOLD = 10;
   const LOW_EFFECTIVE_TIME_RATIO_THRESHOLD = 0.3;
-  const MANDATORY_REFLECTION_QUESTIONS: Record<'start_delay' | 'low_efficiency' | 'no_result', string[]> = {
-    start_delay: [
-      '你此刻实际正在做什么，为什么拖延了？',
-      '你要立刻做什么才能弥补拖延？',
-    ],
-    low_efficiency: [
-      '你此刻实际正在做什么，为什么效率这么低？',
-      '你要立刻做什么才能止损，并让任务重新回到推进状态？',
-    ],
-    no_result: [
-      '你此刻实际正在做什么，为什么这次投入之后没有任何关键结果？',
-      '你要立刻做什么才能补出最小可见结果？',
-    ],
+  const MANDATORY_REFLECTION_PROMPTS: Record<'start_delay' | 'low_efficiency' | 'no_result', string> = {
+    start_delay: '请把这次拖延的真实情况、你刚刚在干什么、以及你接下来立刻要怎么补救，一次性写清楚。',
+    low_efficiency: '请把这次低效率的真实情况、你刚刚在干什么、以及你接下来立刻要怎么止损补救，一次性写清楚。',
+    no_result: '请把这次没有产出的真实情况、你刚刚在干什么、以及你接下来立刻要怎么补出最小结果，一次性写清楚。',
   };
+  const MANDATORY_REFLECTION_QUICK_TEMPLATES = [
+    '我刚刚一直在刷手机，没有进入任务。现在先把手机放远，立刻开始做第一个最小动作。',
+    '我刚刚在发呆和切来切去，没有真正推进任务。现在先只做 5 分钟，把任务重新启动起来。',
+    '我刚刚在做无关的事情，逃避了这个任务。现在先停掉无关事项，补出一个最小结果。',
+    '我其实已经开始了，但过程很低效，一直没有产出。现在先缩小范围，先完成一个最小可见结果。',
+    '我拖着不开始，是因为怕难、怕做不好。现在不再想太多，先完成第一步，再看下一步。',
+    '这次投入后没有关键结果，是因为我没有盯住产出。现在先明确一个结果物，并在这一轮内把它做出来。',
+  ];
+  const MANDATORY_REFLECTION_TEMPLATE_STORAGE_KEY = 'timeline-mandatory-reflection-templates';
+  const REFLECTION_SYNC_WINDOW_STORAGE_KEY = 'timeline-reflection-sync-window-minutes';
   
   // 使用任务store
   const updateTaskEfficiency = useTaskStore(state => state.updateTaskEfficiency);
   const completeTaskFromStore = useTaskStore(state => state.completeTask);
   
+  // 使用真实任务（不再需要示范任务）
+  const allTasks = tasks;
+
   // 效率模态框状态
   const [efficiencyModalOpen, setEfficiencyModalOpen] = useState(false);
   const [efficiencyModalTask, setEfficiencyModalTask] = useState<{
@@ -125,7 +129,12 @@ export default function NewTimelineView({
     initialEffectiveMinutes: number;
   } | null>(null);
   const [mandatoryReflectionTaskId, setMandatoryReflectionTaskId] = useState<string | null>(null);
-  const [mandatoryReflectionDraft, setMandatoryReflectionDraft] = useState<Record<string, string>>({});
+  const [mandatoryReflectionDraft, setMandatoryReflectionDraft] = useState('');
+  const [reflectionSyncWindowMinutes, setReflectionSyncWindowMinutes] = useState('20');
+  const [reflectionTemplates, setReflectionTemplates] = useState<string[]>([]);
+  const [newReflectionTemplate, setNewReflectionTemplate] = useState('');
+  const [editingReflectionTemplate, setEditingReflectionTemplate] = useState<string | null>(null);
+  const [isReflectionTemplateDropdownOpen, setIsReflectionTemplateDropdownOpen] = useState(false);
   
 
 
@@ -144,6 +153,38 @@ export default function NewTimelineView({
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  useEffect(() => {
+    try {
+      const storedWindow = localStorage.getItem(REFLECTION_SYNC_WINDOW_STORAGE_KEY);
+      if (storedWindow && storedWindow.trim()) {
+        setReflectionSyncWindowMinutes(storedWindow);
+      }
+    } catch (error) {
+      console.error('读取问责同步时间失败:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(REFLECTION_SYNC_WINDOW_STORAGE_KEY, reflectionSyncWindowMinutes);
+    } catch (error) {
+      console.error('保存问责同步时间失败:', error);
+    }
+  }, [reflectionSyncWindowMinutes]);
+
+  useEffect(() => {
+    try {
+      const rawTemplates = localStorage.getItem(MANDATORY_REFLECTION_TEMPLATE_STORAGE_KEY);
+      if (!rawTemplates) return;
+      const parsedTemplates = JSON.parse(rawTemplates);
+      if (Array.isArray(parsedTemplates)) {
+        setReflectionTemplates(parsedTemplates.filter((item) => typeof item === 'string' && item.trim().length > 0));
+      }
+    } catch (error) {
+      console.error('读取自定义问责短语失败:', error);
+    }
   }, []);
   
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
@@ -226,8 +267,30 @@ export default function NewTimelineView({
     };
   }, []);
 
+  const restoredTaskStateRef = useRef('');
+
   // 🔄 从任务对象恢复验证设置和照片
   useEffect(() => {
+    const restoredSignature = JSON.stringify(
+      tasks.map((task) => ({
+        id: task.id,
+        verificationEnabled: task.verificationEnabled,
+        startKeywords: task.startKeywords,
+        completeKeywords: task.completeKeywords,
+        scheduledStart: task.scheduledStart,
+        scheduledEnd: task.scheduledEnd,
+        imagesLength: task.images?.length || 0,
+        startVerificationTimeout: task.startVerificationTimeout,
+        completionTimeout: task.completionTimeout,
+      }))
+    );
+
+    if (restoredTaskStateRef.current === restoredSignature) {
+      return;
+    }
+
+    restoredTaskStateRef.current = restoredSignature;
+
     const newVerifications: Record<string, TaskVerification> = {};
     const newImages: Record<string, TaskImage[]> = {};
     const newStartTimeouts: Record<string, boolean> = {};
@@ -397,18 +460,265 @@ export default function NewTimelineView({
     });
   };
 
+  const getReflectionSyncWindowMs = useCallback(() => {
+    const parsedMinutes = Number(reflectionSyncWindowMinutes);
+    const safeMinutes = Number.isFinite(parsedMinutes) ? Math.max(0, parsedMinutes) : 20;
+    return safeMinutes * 60 * 1000;
+  }, [reflectionSyncWindowMinutes]);
+
+  const getAccountabilityReusePayload = useCallback((trigger: 'start_delay' | 'low_efficiency' | 'no_result') => {
+    const now = Date.now();
+    const syncWindowMs = getReflectionSyncWindowMs();
+    const candidates = useHQBridgeStore.getState().accountabilityRecords
+      .filter((record) => now - new Date(record.submittedAt || record.triggeredAt).getTime() <= syncWindowMs)
+      .sort((a, b) => new Date(b.submittedAt || b.triggeredAt).getTime() - new Date(a.submittedAt || a.triggeredAt).getTime());
+
+    const preferred = candidates.find((record) => record.trigger === trigger) || candidates[0];
+    const mergedText = preferred?.answers.map((item) => item.answer.trim()).filter(Boolean).join('\n\n') || '';
+
+    return {
+      submittedAt: preferred?.submittedAt,
+      text: mergedText,
+    };
+  }, []);
+
+  const saveReflectionTemplates = useCallback((templates: string[]) => {
+    setReflectionTemplates(templates);
+    localStorage.setItem(MANDATORY_REFLECTION_TEMPLATE_STORAGE_KEY, JSON.stringify(templates));
+  }, []);
+
+  const handleStartEditingReflectionTemplate = useCallback((template: string) => {
+    setEditingReflectionTemplate(template);
+    setNewReflectionTemplate(template);
+  }, []);
+
+  const handleCancelEditingReflectionTemplate = useCallback(() => {
+    setEditingReflectionTemplate(null);
+    setNewReflectionTemplate('');
+  }, []);
+
+  const handleSaveReflectionTemplate = useCallback(() => {
+    const normalizedTemplate = newReflectionTemplate.trim();
+    if (!normalizedTemplate) return;
+
+    const duplicateExists = reflectionTemplates.some((item) => item === normalizedTemplate && item !== editingReflectionTemplate);
+    const builtInDuplicate = MANDATORY_REFLECTION_QUICK_TEMPLATES.includes(normalizedTemplate) && normalizedTemplate !== editingReflectionTemplate;
+
+    if (duplicateExists || builtInDuplicate) {
+      alert('这个快捷短语已经存在了。');
+      return;
+    }
+
+    if (editingReflectionTemplate) {
+      saveReflectionTemplates(
+        reflectionTemplates.map((item) => item === editingReflectionTemplate ? normalizedTemplate : item)
+      );
+    } else {
+      const nextTemplates = [normalizedTemplate, ...reflectionTemplates].slice(0, 12);
+      saveReflectionTemplates(nextTemplates);
+    }
+
+    setEditingReflectionTemplate(null);
+    setNewReflectionTemplate('');
+  }, [editingReflectionTemplate, newReflectionTemplate, reflectionTemplates, saveReflectionTemplates]);
+
+  const handleRemoveReflectionTemplate = useCallback((template: string) => {
+    saveReflectionTemplates(reflectionTemplates.filter((item) => item !== template));
+    if (editingReflectionTemplate === template) {
+      setEditingReflectionTemplate(null);
+      setNewReflectionTemplate('');
+    }
+  }, [editingReflectionTemplate, reflectionTemplates, saveReflectionTemplates]);
+
+  const applyReflectionTemplate = useCallback((template: string, mode: 'append' | 'replace' = 'append') => {
+    setMandatoryReflectionDraft((prev) => {
+      if (mode === 'replace' || !prev.trim()) {
+        return template;
+      }
+
+      return `${prev.trim()}\n\n${template}`;
+    });
+    setIsReflectionTemplateDropdownOpen(false);
+  }, []);
+
+  const buildReflectionAnswers = useCallback((trigger: 'start_delay' | 'low_efficiency' | 'no_result', rawText: string) => {
+    const text = rawText.trim();
+    const fallbackText = text || '未填写';
+    const segments = text
+      .split(/\n+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const promise = segments[segments.length - 1] || fallbackText;
+
+    return [
+      {
+        question: MANDATORY_REFLECTION_PROMPTS[trigger],
+        answer: fallbackText,
+      },
+      {
+        question: '接下来立刻执行的补救动作',
+        answer: promise,
+      },
+    ];
+  }, []);
+
+  const submitMandatoryReflection = useCallback((task: Task, rawText: string) => {
+    const trigger = task.mandatoryReflection?.trigger || 'low_efficiency';
+    const normalizedText = rawText.trim();
+
+    if (!normalizedText) {
+      alert('请先填写问责内容。');
+      return false;
+    }
+
+    const submittedAt = new Date().toISOString();
+    const answers = buildReflectionAnswers(trigger, normalizedText);
+    const matchedGoals = getMatchedGoalsForTask(task);
+    const primaryGoal = matchedGoals[0];
+
+    onTaskUpdate(task.id, {
+      mandatoryReflection: {
+        ...task.mandatoryReflection,
+        required: true,
+        resolved: true,
+        submittedAt,
+        answers,
+      },
+    });
+
+    const syncWindowMs = getReflectionSyncWindowMs();
+    const relatedPendingTasks = allTasks.filter((item) => {
+      if (item.id === task.id) return false;
+      if (!item.mandatoryReflection?.required || item.mandatoryReflection.resolved) return false;
+
+      const triggeredAt = new Date(item.mandatoryReflection.triggeredAt).getTime();
+      const currentTriggeredAt = new Date(task.mandatoryReflection?.triggeredAt || submittedAt).getTime();
+      return Math.abs(currentTriggeredAt - triggeredAt) <= syncWindowMs;
+    });
+
+    relatedPendingTasks.forEach((pendingTask) => {
+      const pendingTrigger = pendingTask.mandatoryReflection?.trigger || trigger;
+      const pendingAnswers = buildReflectionAnswers(pendingTrigger, normalizedText);
+
+      onTaskUpdate(pendingTask.id, {
+        mandatoryReflection: {
+          ...pendingTask.mandatoryReflection,
+          required: true,
+          resolved: true,
+          submittedAt,
+          answers: pendingAnswers,
+        },
+      });
+
+      const pendingMatchedGoals = getMatchedGoalsForTask(pendingTask);
+      const pendingPrimaryGoal = pendingMatchedGoals[0];
+
+      syncReflectionToHQ(pendingTask, pendingTrigger, pendingAnswers);
+
+      if (pendingPrimaryGoal) {
+        const existingPendingRecord = existingGoalContributionRecords.find((record) => record.taskId === pendingTask.id && record.goalId === pendingPrimaryGoal.id);
+        if (existingPendingRecord) {
+          useGoalContributionStore.getState().updateRecord(existingPendingRecord.id, {
+            accountabilitySnapshot: {
+              trigger: pendingTrigger,
+              painLabel: pendingTrigger === 'start_delay' ? '启动拖延失控' : pendingTrigger === 'low_efficiency' ? '严重低效率' : '无结果',
+              answers: pendingAnswers,
+              submittedAt,
+            },
+          });
+        } else {
+          addGoalContributionRecord({
+            goalId: pendingPrimaryGoal.id,
+            taskId: pendingTask.id,
+            taskTitle: pendingTask.title,
+            startTime: pendingTask.scheduledStart ? new Date(pendingTask.scheduledStart) : undefined,
+            endTime: pendingTask.scheduledEnd ? new Date(pendingTask.scheduledEnd) : undefined,
+            durationMinutes: pendingTask.durationMinutes || 0,
+            note: `【追责记录】${pendingTrigger === 'start_delay' ? '启动拖延' : pendingTrigger === 'low_efficiency' ? '低效率超时' : '无结果'}已自动同步提交`,
+            source: 'timeline',
+            accountabilitySnapshot: {
+              trigger: pendingTrigger,
+              painLabel: pendingTrigger === 'start_delay' ? '启动拖延失控' : pendingTrigger === 'low_efficiency' ? '严重低效率' : '无结果',
+              answers: pendingAnswers,
+              submittedAt,
+            },
+            dimensionResults: [],
+          });
+        }
+      }
+    });
+
+    syncReflectionToHQ(task, trigger, answers);
+
+    if (primaryGoal) {
+      const existingRecord = existingGoalContributionRecords.find((record) => record.taskId === task.id && record.goalId === primaryGoal.id);
+      if (existingRecord) {
+        useGoalContributionStore.getState().updateRecord(existingRecord.id, {
+          accountabilitySnapshot: {
+            trigger,
+            painLabel: trigger === 'start_delay' ? '启动拖延失控' : trigger === 'low_efficiency' ? '严重低效率' : '无结果',
+            answers,
+            submittedAt,
+          },
+        });
+      } else {
+        addGoalContributionRecord({
+          goalId: primaryGoal.id,
+          taskId: task.id,
+          taskTitle: task.title,
+          startTime: task.scheduledStart ? new Date(task.scheduledStart) : undefined,
+          endTime: task.scheduledEnd ? new Date(task.scheduledEnd) : undefined,
+          durationMinutes: task.durationMinutes || 0,
+          note: `【追责记录】${trigger === 'start_delay' ? '启动拖延' : trigger === 'low_efficiency' ? '低效率超时' : '无结果'}已提交`,
+          source: 'timeline',
+          accountabilitySnapshot: {
+            trigger,
+            painLabel: trigger === 'start_delay' ? '启动拖延失控' : trigger === 'low_efficiency' ? '严重低效率' : '无结果',
+            answers,
+            submittedAt,
+          },
+          dimensionResults: [],
+        });
+      }
+    }
+
+    setMandatoryReflectionTaskId(null);
+    setMandatoryReflectionDraft('');
+
+    if (efficiencyModalTask?.id === task.id && efficiencyModalTask.forceMandatoryReflection) {
+      setEfficiencyModalTask((prev) => prev ? { ...prev, forceMandatoryReflection: false } : prev);
+      const matchedGoals = getMatchedGoalsForTask(task);
+      setGoalContributionDrafts((prev) => ({
+        ...prev,
+        [task.id]: prev[task.id] || createContributionDraft(task, matchedGoals),
+      }));
+      setGoalContributionTaskId(task.id);
+      setGoalContributionError(null);
+      setGoalContributionSuccess(`已提交问责，并自动同步到 ${relatedPendingTasks.length} 个待填任务`);
+      setEfficiencyModalOpen(false);
+    }
+
+    return true;
+  }, [
+    addGoalContributionRecord,
+    allTasks,
+    buildReflectionAnswers,
+    efficiencyModalTask,
+    existingGoalContributionRecords,
+    getMatchedGoalsForTask,
+    getReflectionSyncWindowMs,
+    onTaskUpdate,
+    syncReflectionToHQ,
+  ]);
+
   const openMandatoryReflection = (taskId: string, trigger: 'start_delay' | 'low_efficiency' | 'no_result') => {
     const task = allTasks.find((item) => item.id === taskId);
     if (!task) return;
 
-    const existingAnswers = task.mandatoryReflection?.answers || [];
-    const questions = MANDATORY_REFLECTION_QUESTIONS[trigger];
-    const nextDraft = questions.reduce<Record<string, string>>((acc, question, index) => {
-      acc[question] = existingAnswers[index]?.answer || '';
-      return acc;
-    }, {});
+    const reusePayload = getAccountabilityReusePayload(trigger);
+    const existingAnswer = task.mandatoryReflection?.answers?.[0]?.answer || '';
 
-    setMandatoryReflectionDraft(nextDraft);
+    setMandatoryReflectionDraft(existingAnswer || reusePayload.text || '');
     setMandatoryReflectionTaskId(taskId);
   };
 
@@ -516,8 +826,6 @@ export default function NewTimelineView({
     return isColorDark(bgColor) ? '#ffffff' : '#000000';
   };
   
-  // 使用真实任务（不再需要示范任务）
-  const allTasks = tasks;
   const isHistoricalGapRecordTask = (task?: Task | null) => {
     if (!task) return false;
     const hasInternalBackfillFlag = (task.identityTags || []).includes('system:backfill-record');
@@ -2136,7 +2444,7 @@ export default function NewTimelineView({
     console.log('✅ 任务已复制到:', newStart.toISOString());
   };
 
-  const getMatchedGoalsForTask = (task: Task) => {
+  function getMatchedGoalsForTask(task: Task) {
     if (goals.length === 0) return [] as LongTermGoal[];
 
     const explicitGoalText = [
@@ -2150,9 +2458,9 @@ export default function NewTimelineView({
       : useGoalStore.getState().findMatchingGoals(task.title, task.tags || []);
 
     return matched.slice(0, 3);
-  };
+  }
 
-  const getTaskActualDuration = (task: Task) => {
+  function getTaskActualDuration(task: Task) {
     const actualStart = task.actualStart
       ? new Date(task.actualStart)
       : task.startTime
@@ -2175,9 +2483,9 @@ export default function NewTimelineView({
     }
 
     return Math.max(1, Math.round((actualEnd.getTime() - actualStart.getTime()) / 60000));
-  };
+  }
 
-  const createContributionDraft = (task: Task, matchedGoals: LongTermGoal[]) => {
+  function createContributionDraft(task: Task, matchedGoals: LongTermGoal[]) {
     const primaryGoal = matchedGoals[0];
     const existingRecord = existingGoalContributionRecords.find((record) => record.taskId === task.id && record.goalId === primaryGoal?.id);
     const actualDuration = getTaskActualDuration(task);
@@ -2192,7 +2500,7 @@ export default function NewTimelineView({
         return acc;
       }, {}),
     };
-  };
+  }
 
   const openTaskCompletionModal = (task: Task, actualEndTime: Date, goldReward: number) => {
     const isHistoricalGapTask = isHistoricalGapRecordTask(task);
@@ -2229,6 +2537,10 @@ export default function NewTimelineView({
       initialNote: baseDraft?.note || '',
       initialEffectiveMinutes: effectiveMinutes,
     });
+    setGoalContributionDrafts((prev) => ({
+      ...prev,
+      [task.id]: prev[task.id] || baseDraft,
+    }));
     setEfficiencyModalOpen(true);
   };
 
@@ -2557,6 +2869,89 @@ export default function NewTimelineView({
       )}
       
 
+      {/* 任务完成效率弹窗 */}
+      {efficiencyModalTask && (
+        <TaskCompletionEfficiencyModal
+          isOpen={efficiencyModalOpen}
+          onClose={() => {
+            setEfficiencyModalOpen(false);
+            setEfficiencyModalTask(null);
+          }}
+          onConfirm={(payload) => {
+            if (!efficiencyModalTask) return false;
+
+            const task = allTasks.find((item) => item.id === efficiencyModalTask.id);
+            if (!task) return false;
+
+            const effectiveRatio = efficiencyModalTask.actualDurationMinutes > 0
+              ? payload.effectiveMinutes / efficiencyModalTask.actualDurationMinutes
+              : 0;
+            const requiresNoResultReflection = payload.goalId && Object.values(payload.values || {}).every((value) => Number(value || 0) <= 0);
+
+            updateTaskEfficiency(task.id, effectiveRatio, task.actualImageCount || 0);
+
+            const nextDraft = {
+              goalId: payload.goalId,
+              note: payload.note,
+              durationMinutes: String(payload.effectiveMinutes),
+              values: payload.values,
+            };
+
+            setGoalContributionDrafts((prev) => ({
+              ...prev,
+              [task.id]: nextDraft,
+            }));
+
+            if (effectiveRatio < LOW_EFFECTIVE_TIME_RATIO_THRESHOLD) {
+              onTaskUpdate(task.id, {
+                mandatoryReflection: {
+                  required: true,
+                  resolved: false,
+                  trigger: 'low_efficiency',
+                  triggeredAt: new Date().toISOString(),
+                  answers: task.mandatoryReflection?.answers || [],
+                },
+              });
+              setMandatoryReflectionTaskId(task.id);
+              setMandatoryReflectionDraft(getAccountabilityReusePayload('low_efficiency').text);
+              return true;
+            }
+
+            if (requiresNoResultReflection) {
+              onTaskUpdate(task.id, {
+                mandatoryReflection: {
+                  required: true,
+                  resolved: false,
+                  trigger: 'no_result',
+                  triggeredAt: new Date().toISOString(),
+                  answers: task.mandatoryReflection?.answers || [],
+                },
+              });
+              setMandatoryReflectionTaskId(task.id);
+              setMandatoryReflectionDraft(getAccountabilityReusePayload('no_result').text);
+              return true;
+            }
+
+            setGoalContributionTaskId(task.id);
+            setGoalContributionError(null);
+            setGoalContributionSuccess(null);
+            return true;
+          }}
+          taskTitle={efficiencyModalTask.title}
+          actualDurationMinutes={efficiencyModalTask.actualDurationMinutes}
+          isDark={isDark}
+          accentColor={accentColor}
+          goldReward={efficiencyModalTask.goldReward}
+          forceMandatoryReflection={efficiencyModalTask.forceMandatoryReflection}
+          matchedGoals={efficiencyModalTask.matchedGoals}
+          allGoals={goals}
+          initialGoalId={efficiencyModalTask.initialGoalId}
+          initialValues={efficiencyModalTask.initialValues}
+          initialNote={efficiencyModalTask.initialNote}
+          initialEffectiveMinutes={efficiencyModalTask.initialEffectiveMinutes}
+        />
+      )}
+
       {/* 关键结果填写弹层 */}
       {goalContributionTaskId && (() => {
         const currentTask = allTasks.find((item) => item.id === goalContributionTaskId);
@@ -2573,12 +2968,15 @@ export default function NewTimelineView({
         const sliderFillPercent = Math.min(100, (currentDurationValue / actualDuration) * 100);
 
         return (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 px-3 pt-6 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[2147483647] flex items-end justify-center bg-black/45 px-3 pt-6 backdrop-blur-sm"
+            style={{
+              paddingBottom: 'calc(72px + env(safe-area-inset-bottom))',
+            }}
+          >
             <div
-              className="w-full max-w-md overflow-y-auto rounded-t-[28px] bg-white p-4 shadow-[0_30px_80px_rgba(15,23,42,0.22)]"
+              className="flex w-full max-w-md flex-col rounded-t-[28px] bg-white p-4 shadow-[0_30px_80px_rgba(15,23,42,0.22)]"
               style={{
                 maxHeight: 'calc(100vh - 24px)',
-                paddingBottom: 'calc(148px + env(safe-area-inset-bottom))',
               }}
             >
               <div className="flex items-start justify-between gap-3">
@@ -2598,7 +2996,8 @@ export default function NewTimelineView({
                 </button>
               </div>
 
-              <div className="mt-4 space-y-3">
+                <div className="mt-4 flex-1 overflow-y-auto pr-1" style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom))' }}>
+                <div className="space-y-3">
                 {currentGoal && (
                   <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-[18px] bg-[#f7f8fb] px-4 py-3">
@@ -2801,14 +3200,16 @@ export default function NewTimelineView({
                   </div>
                 )}
               </div>
+            </div>
 
-              <div
-                className="fixed left-1/2 z-[60] flex w-[calc(100%-24px)] max-w-md -translate-x-1/2 gap-3 rounded-[24px] bg-white/96 px-4 pt-3 shadow-[0_-12px_30px_rgba(15,23,42,0.08)] backdrop-blur"
-                style={{
-                  bottom: 'calc(76px + env(safe-area-inset-bottom))',
-                  paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
-                }}
-              >
+            <div className="border-t border-[#e5e7eb] bg-white px-4 pt-4"
+              style={{
+                marginLeft: '-16px',
+                marginRight: '-16px',
+                paddingBottom: 'calc(20px + env(safe-area-inset-bottom))',
+              }}
+            >
+              <div className="flex gap-3">
                 <button
                   onClick={() => setGoalContributionTaskId(null)}
                   className="flex-1 rounded-full bg-[#eef0f6] px-4 py-3 text-sm font-medium text-[#111827]"
@@ -2825,8 +3226,9 @@ export default function NewTimelineView({
               </div>
             </div>
           </div>
-        );
-      })()}
+        </div>
+      );
+    })()}
 
       {/* 强制追责表单 */}
       {mandatoryReflectionTaskId && (() => {
@@ -2834,9 +3236,18 @@ export default function NewTimelineView({
         if (!task?.mandatoryReflection) return null;
 
         const trigger = task.mandatoryReflection.trigger;
-        const questions = MANDATORY_REFLECTION_QUESTIONS[trigger];
-        const isReady = questions.every((question) => (mandatoryReflectionDraft[question] || '').trim().length > 0);
-        const secondAnswer = (mandatoryReflectionDraft[questions[1]] || '').trim();
+        const promptText = MANDATORY_REFLECTION_PROMPTS[trigger];
+        const isReady = mandatoryReflectionDraft.trim().length > 0;
+        const recentReuse = getAccountabilityReusePayload(trigger).submittedAt;
+        const builtInReflectionTemplates = MANDATORY_REFLECTION_QUICK_TEMPLATES.map((template) => ({
+          value: template,
+          isCustom: false,
+        }));
+        const customReflectionTemplateItems = reflectionTemplates.map((template) => ({
+          value: template,
+          isCustom: true,
+        }));
+        const allReflectionTemplates = [...builtInReflectionTemplates, ...customReflectionTemplateItems];
 
         return (
           <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 px-3 pt-6 backdrop-blur-sm">
@@ -2852,7 +3263,7 @@ export default function NewTimelineView({
                 <div>
                   <div className="text-base font-bold">总部追责记录 · 必填</div>
                   <div className="mt-1 text-sm leading-6">
-                    该任务已经触发{trigger === 'start_delay' ? '启动拖延' : trigger === 'low_efficiency' ? '低效率' : '无结果'}追责。你必须如实填写；只有在你点击启动任务或完成任务时才会拦截并要求提交，平时不会自动弹出打断你当前填写。
+                    该任务已经触发{trigger === 'start_delay' ? '启动拖延' : trigger === 'low_efficiency' ? '低效率' : '无结果'}追责。你只需要填写这一个输入框，系统会自动同步到 20 分钟内其他同类待填任务。
                   </div>
                 </div>
               </div>
@@ -2863,21 +3274,160 @@ export default function NewTimelineView({
                 <div className="mt-2 text-sm text-[#b42318]">
                   触发时间：{new Date(task.mandatoryReflection.triggeredAt).toLocaleString('zh-CN')}
                 </div>
+                {recentReuse && (
+                  <div className="mt-2 text-xs text-[#7c2d12]">
+                    已自动带入 20 分钟内最近一次填写内容：{new Date(recentReuse).toLocaleString('zh-CN')}
+                  </div>
+                )}
+                <div className="mt-2 text-xs text-[#7c2d12]">
+                  点击短语默认会追加到当前内容；如果想整段替换，可以点旁边的“替换”。
+                </div>
+                <div className="mt-3 rounded-[18px] border border-[#f0d5d0] bg-[#fff7f5] p-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#b45309]">自动同步时间窗口（分钟）</div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {[20, 30, 60, 120].map((minutes) => {
+                      const isActive = reflectionSyncWindowMinutes === String(minutes);
+
+                      return (
+                        <button
+                          key={minutes}
+                          type="button"
+                          onClick={() => setReflectionSyncWindowMinutes(String(minutes))}
+                          className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${isActive ? 'bg-[#b42318] text-white shadow-sm' : 'border border-[#f3c7bd] bg-white text-[#9f1239] hover:scale-[1.02]'}`}
+                        >
+                          {minutes}分钟
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      inputMode="numeric"
+                      value={reflectionSyncWindowMinutes}
+                      onChange={(e) => setReflectionSyncWindowMinutes(e.target.value)}
+                      className="w-28 rounded-[14px] border border-[#f0d5d0] bg-white px-3 py-2 text-sm text-[#111827] outline-none"
+                      placeholder="20"
+                    />
+                    <span className="text-sm text-[#6b7280]">分钟</span>
+                  </div>
+                  <div className="mt-2 text-xs text-[#7c2d12]">
+                    可以直接点上面快捷按钮，也可以自己输入，比如 5、16、30、60、120，都是按分钟计算。
+                  </div>
+                </div>
               </div>
 
-              <div className="mt-4 space-y-4">
-                {questions.map((question, index) => (
-                  <div key={question} className="rounded-[22px] bg-white p-4 shadow-sm">
-                    <div className="text-sm font-semibold text-[#111827]">{index + 1}. {question}</div>
-                    <textarea
-                      value={mandatoryReflectionDraft[question] || ''}
-                      onChange={(e) => setMandatoryReflectionDraft((prev) => ({ ...prev, [question]: e.target.value }))}
-                      rows={4}
-                      className="mt-3 w-full rounded-[18px] border border-[#f0d5d0] bg-[#fff7f5] px-4 py-3 text-sm text-[#111827] outline-none"
-                      placeholder="必须如实填写。总部后续会据此问责。"
+              <div className="mt-4 rounded-[22px] bg-white p-4 shadow-sm">
+                <div className="text-sm font-semibold text-[#111827]">请一次性写完</div>
+                <div className="mt-2 text-sm leading-6 text-[#6b7280]">{promptText}</div>
+
+                <div className="relative mt-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsReflectionTemplateDropdownOpen((prev) => !prev)}
+                    className="flex w-full items-center justify-between rounded-[18px] border border-[#f0d5d0] bg-[#fff7f5] px-4 py-3 text-left text-sm text-[#111827] shadow-sm"
+                  >
+                    <span className="truncate pr-3 text-[#6b7280]">选择快捷短语并填入下面输入框</span>
+                    <ChevronDown className={`h-4 w-4 shrink-0 text-[#9f1239] transition-transform ${isReflectionTemplateDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {isReflectionTemplateDropdownOpen && (
+                    <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-10 max-h-72 overflow-y-auto rounded-[18px] border border-[#f0d5d0] bg-white p-2 shadow-[0_18px_48px_rgba(15,23,42,0.14)]">
+                      {allReflectionTemplates.length > 0 ? (
+                        <div className="space-y-2">
+                          {allReflectionTemplates.map(({ value: template, isCustom }) => (
+                            <div
+                              key={`${isCustom ? 'custom' : 'builtin'}-${template}`}
+                              className="rounded-[14px] border border-[#f3e1dc] bg-[#fffaf8] p-2"
+                            >
+                              <button
+                                type="button"
+                                onClick={() => applyReflectionTemplate(template, 'replace')}
+                                className="w-full rounded-[12px] px-3 py-2 text-left text-sm leading-6 text-[#111827] transition-colors hover:bg-[#fff1eb]"
+                              >
+                                {template}
+                              </button>
+                              <div className="mt-2 flex items-center justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => applyReflectionTemplate(template, 'append')}
+                                  className="rounded-full border border-[#f3c7bd] bg-[#fff3ef] px-3 py-1.5 text-[11px] font-medium text-[#9f1239]"
+                                >
+                                  追加
+                                </button>
+                                {isCustom && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        handleStartEditingReflectionTemplate(template);
+                                        setIsReflectionTemplateDropdownOpen(false);
+                                      }}
+                                      className="inline-flex items-center gap-1 rounded-full border border-[#ead7ff] bg-[#f8f2ff] px-3 py-1.5 text-[11px] font-medium text-[#7c3aed]"
+                                    >
+                                      <Edit2 className="h-3.5 w-3.5" />
+                                      编辑
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveReflectionTemplate(template)}
+                                      className="inline-flex items-center gap-1 rounded-full border border-[#fecaca] bg-[#fff1f2] px-3 py-1.5 text-[11px] font-medium text-[#b91c1c]"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                      删除
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="px-3 py-4 text-center text-sm text-[#9ca3af]">还没有快捷短语，先在下面保存一个吧。</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-3 rounded-[18px] border border-dashed border-[#f3c7bd] bg-[#fff8f4] p-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#b45309]">自定义快捷短语</div>
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      value={newReflectionTemplate}
+                      onChange={(e) => setNewReflectionTemplate(e.target.value)}
+                      className="flex-1 rounded-[14px] border border-[#f0d5d0] bg-white px-3 py-2 text-sm text-[#111827] outline-none"
+                      placeholder="输入你自己的常用问责短语"
                     />
+                    <button
+                      type="button"
+                      onClick={handleSaveReflectionTemplate}
+                      className="rounded-[14px] bg-[#b42318] px-3 py-2 text-sm font-semibold text-white"
+                    >
+                      {editingReflectionTemplate ? '更新' : '保存'}
+                    </button>
                   </div>
-                ))}
+                  {editingReflectionTemplate && (
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={handleCancelEditingReflectionTemplate}
+                        className="text-xs font-medium text-[#7c2d12] underline underline-offset-2"
+                      >
+                        取消编辑
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <textarea
+                  value={mandatoryReflectionDraft}
+                  onChange={(e) => setMandatoryReflectionDraft(e.target.value)}
+                  rows={10}
+                  className="mt-3 w-full rounded-[18px] border border-[#f0d5d0] bg-[#fff7f5] px-4 py-3 text-sm text-[#111827] outline-none"
+                  placeholder="例如：我刚刚刷手机、切任务、发呆了多久，为什么拖延/低效，下一步立刻先做哪一个最小动作。"
+                />
               </div>
 
               <div
@@ -2890,66 +3440,11 @@ export default function NewTimelineView({
                 <button
                   onClick={() => {
                     if (!isReady) {
-                      alert('所有问题都必须填写完成，才允许提交。');
+                      alert('请先填写问责内容。');
                       return;
                     }
 
-                    const answers = questions.map((question) => ({
-                      question,
-                      answer: (mandatoryReflectionDraft[question] || '').trim(),
-                    }));
-                    const matchedGoals = getMatchedGoalsForTask(task);
-                    const primaryGoal = matchedGoals[0];
-
-                    onTaskUpdate(task.id, {
-                      mandatoryReflection: {
-                        ...task.mandatoryReflection,
-                        required: true,
-                        resolved: true,
-                        submittedAt: new Date().toISOString(),
-                        answers,
-                      },
-                    });
-
-                    syncReflectionToHQ(task, trigger, answers);
-
-                    if (primaryGoal) {
-                      const existingRecord = existingGoalContributionRecords.find((record) => record.taskId === task.id && record.goalId === primaryGoal.id);
-                      if (existingRecord) {
-                        useGoalContributionStore.getState().updateRecord(existingRecord.id, {
-                          accountabilitySnapshot: {
-                            trigger,
-                            painLabel: trigger === 'start_delay' ? '启动拖延失控' : '严重低效率',
-                            answers,
-                            submittedAt: new Date().toISOString(),
-                          },
-                        });
-                      } else {
-                        addGoalContributionRecord({
-                          goalId: primaryGoal.id,
-                          taskId: task.id,
-                          taskTitle: task.title,
-                          startTime: task.scheduledStart ? new Date(task.scheduledStart) : undefined,
-                          endTime: task.scheduledEnd ? new Date(task.scheduledEnd) : undefined,
-                          durationMinutes: task.durationMinutes || 0,
-                          note: `【追责记录】${trigger === 'start_delay' ? '启动拖延' : '低效率超时'}已提交`,
-                          source: 'timeline',
-                          accountabilitySnapshot: {
-                            trigger,
-                            painLabel: trigger === 'start_delay' ? '启动拖延失控' : '严重低效率',
-                            answers,
-                            submittedAt: new Date().toISOString(),
-                          },
-                          dimensionResults: [],
-                        });
-                      }
-                    }
-                    setMandatoryReflectionTaskId(null);
-                    setMandatoryReflectionDraft({});
-
-                    if (efficiencyModalTask?.id === task.id && efficiencyModalTask.forceMandatoryReflection) {
-                      setEfficiencyModalTask((prev) => prev ? { ...prev, forceMandatoryReflection: false } : prev);
-                    }
+                    submitMandatoryReflection(task, mandatoryReflectionDraft);
                   }}
                   className="flex-1 rounded-full bg-[#b42318] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
                 >
@@ -3001,7 +3496,6 @@ export default function NewTimelineView({
               endTime: block.endTime,
               title: block.title,
             }))}
-            isDark={isDark}
           />
         )}
         
@@ -3150,13 +3644,28 @@ export default function NewTimelineView({
                        }
                      }}
                      onTimeoutUpdate={(startTimeoutCount, completeTimeoutCount) => {
+                       const taskRecord = allTasks.find((item) => item.id === block.id);
+                       const prevStartTimeoutCount = taskRecord?.startTimeoutCount || 0;
+                       const prevCompleteTimeoutCount = taskRecord?.completeTimeoutCount || 0;
+                       const nextStartTimeoutFlag = startTimeoutCount > 0;
+                       const nextCompleteTimeoutFlag = completeTimeoutCount > 0;
+
+                       if (
+                         prevStartTimeoutCount === startTimeoutCount &&
+                         prevCompleteTimeoutCount === completeTimeoutCount &&
+                         !!taskRecord?.startVerificationTimeout === nextStartTimeoutFlag &&
+                         !!taskRecord?.completionTimeout === nextCompleteTimeoutFlag
+                       ) {
+                         return;
+                       }
+
                        // 保存超时数据到任务对象
                        console.log(`💾 保存超时数据: 启动${startTimeoutCount}次, 完成${completeTimeoutCount}次`);
                        
                        onTaskUpdate(block.id, {
-                         startVerificationTimeout: startTimeoutCount > 0,
+                         startVerificationTimeout: nextStartTimeoutFlag,
                          startTimeoutCount: startTimeoutCount,
-                         completionTimeout: completeTimeoutCount > 0,
+                         completionTimeout: nextCompleteTimeoutFlag,
                          completeTimeoutCount: completeTimeoutCount,
                        });
 
@@ -3168,12 +3677,33 @@ export default function NewTimelineView({
                          ensureMandatoryReflection(block.id, 'low_efficiency');
                        }
                        
-                       if (startTimeoutCount > 0) {
-                         setTaskStartTimeouts(prev => ({ ...prev, [block.id]: true }));
-                       }
-                       if (completeTimeoutCount > 0) {
-                         setTaskFinishTimeouts(prev => ({ ...prev, [block.id]: true }));
-                       }
+                       setTaskStartTimeouts((prev) => {
+                         if (!!prev[block.id] === nextStartTimeoutFlag) {
+                           return prev;
+                         }
+
+                         if (!nextStartTimeoutFlag) {
+                           const next = { ...prev };
+                           delete next[block.id];
+                           return next;
+                         }
+
+                         return { ...prev, [block.id]: true };
+                       });
+
+                       setTaskFinishTimeouts((prev) => {
+                         if (!!prev[block.id] === nextCompleteTimeoutFlag) {
+                           return prev;
+                         }
+
+                         if (!nextCompleteTimeoutFlag) {
+                           const next = { ...prev };
+                           delete next[block.id];
+                           return next;
+                         }
+
+                         return { ...prev, [block.id]: true };
+                       });
                      }}
                      hasVerification={!!taskVerifications[block.id]?.enabled}
                      startKeywords={taskVerifications[block.id]?.startKeywords || ['启动', '开始']}

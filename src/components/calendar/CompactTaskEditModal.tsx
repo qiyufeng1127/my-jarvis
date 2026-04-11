@@ -555,10 +555,10 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
             </div>
           </div>
         )}
-        {/* 表单内容 - 紧凑布局，添加更大的底部内边距避免被按钮遮挡 */}
+        {/* 表单内容 - 紧凑布局，底部按钮跟随内容一起滚动 */}
         <div
           ref={modalContentRef}
-          className="flex-1 overflow-y-auto p-4 pt-5 pb-24 space-y-3 overscroll-contain keyboard-aware-scroll"
+          className="flex-1 overflow-y-auto p-4 pt-5 pb-4 space-y-3 overscroll-contain keyboard-aware-scroll"
         >
           {/* 任务标题 */}
           <div>
@@ -1194,8 +1194,8 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
           </div>
         )}
 
-        {/* 底部按钮 - 固定在弹窗底部 */}
-        <div className="flex-shrink-0 border-t-2 border-gray-200 dark:border-gray-700 px-3 py-3 flex gap-2 bg-white dark:bg-gray-800 shadow-2xl">
+        {/* 底部按钮 - 跟随内容滚动到底部显示 */}
+        <div className="border-t-2 border-gray-200 dark:border-gray-700 pt-4 pb-2 flex gap-2 bg-white dark:bg-gray-900/80">
           <button
             onClick={handleDelete}
             disabled={hasMandatoryReflection}

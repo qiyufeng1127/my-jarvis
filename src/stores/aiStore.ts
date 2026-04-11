@@ -268,10 +268,10 @@ export const useAIStore = create<AIStore>()(
             };
           }
 
-          // 处理流式响应
           const reader = response.body?.getReader();
           const decoder = new TextDecoder();
           let fullContent = '';
+          let sseBuffer = '';
 
           if (!reader) {
             return {
@@ -280,43 +280,63 @@ export const useAIStore = create<AIStore>()(
             };
           }
 
+          const processSSEBuffer = (flush = false) => {
+            const normalizedBuffer = sseBuffer.replace(/\r\n/g, '\n');
+            const events = normalizedBuffer.split('\n\n');
+            sseBuffer = flush ? '' : (events.pop() ?? '');
+
+            for (const eventChunk of events) {
+              const lines = eventChunk
+                .split('\n')
+                .map((line) => line.trim())
+                .filter(Boolean);
+
+              for (const line of lines) {
+                if (!line.startsWith('data:')) continue;
+
+                const data = line.slice(5).trim();
+                if (!data || data === '[DONE]') continue;
+
+                try {
+                  const json = JSON.parse(data);
+                  const content = json.choices?.[0]?.delta?.content || '';
+
+                  if (content) {
+                    fullContent += content;
+                    onChunk(content);
+                  }
+                } catch (e) {
+                  if (flush) {
+                    console.warn('⚠️ [AI流式请求] 解析chunk失败:', data);
+                  } else {
+                    sseBuffer = `${eventChunk}\n\n${sseBuffer}`;
+                    return;
+                  }
+                }
+              }
+            }
+          };
+
           console.log('📖 [AI流式请求] 开始读取流...');
           let chunkCount = 0;
+          let streamEnded = false;
 
-          while (true) {
+          while (!streamEnded) {
             const { done, value } = await reader.read();
             
             if (done) {
+              sseBuffer += decoder.decode();
+              processSSEBuffer(true);
               console.log('✅ [AI流式请求] 流读取完成，总长度:', fullContent.length);
-              break;
+              streamEnded = true;
+              continue;
             }
 
             const chunk = decoder.decode(value, { stream: true });
             chunkCount += 1;
             console.log('[AIStore.chatStream] 原始 chunk', { chunkCount, chunk });
-            const lines = chunk.split('\n').filter(line => line.trim() !== '');
-
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const data = line.slice(6);
-                
-                if (data === '[DONE]') {
-                  continue;
-                }
-
-                try {
-                  const json = JSON.parse(data);
-                  const content = json.choices?.[0]?.delta?.content || '';
-                  
-                  if (content) {
-                    fullContent += content;
-                    onChunk(content); // 实时回调
-                  }
-                } catch (e) {
-                  console.warn('⚠️ [AI流式请求] 解析chunk失败:', data);
-                }
-              }
-            }
+            sseBuffer += chunk;
+            processSSEBuffer(false);
           }
 
           return {

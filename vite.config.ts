@@ -2,6 +2,9 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
+const host = '127.0.0.1'
+const port = 3000
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
@@ -12,11 +15,16 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3000,
-    host: true, // 允许局域网访问
+    port,
+    host,
     open: true,
-    strictPort: false, // 如果端口被占用，自动尝试下一个端口
-    hmr: false, // 彻底关闭开发环境自动热更新/自动刷新，避免页面状态被重置
+    strictPort: true, // 锁定 3000 端口，避免页面和 websocket 端口漂移
+    hmr: {
+      protocol: 'ws',
+      host,
+      port,
+      overlay: false,
+    },
     proxy: {
       // 代理 DeepSeek AI 请求，解决本地开发 CORS 问题
       '/ai-api': {

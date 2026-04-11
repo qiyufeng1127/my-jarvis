@@ -433,25 +433,25 @@ export default function TaskCompletionEfficiencyModal({
               </div>
             </>
           )}
-        </div>
 
-        <div className="flex-shrink-0 p-5 pt-3 border-t-4" style={{ borderColor: palette.rose + '22' }}>
-          <div className="flex gap-3">
-            <button
-              onClick={onClose}
-              disabled={forceMandatoryReflection}
-              className="flex-1 py-3 rounded-2xl font-bold transition-all hover:scale-105 shadow-md disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
-              style={{ backgroundColor: palette.plum + '22', color: palette.plum }}
-            >
-              <span className="text-lg">👋</span> 取消
-            </button>
-            <button
-              onClick={handleConfirm}
-              className="flex-1 py-3 rounded-2xl font-bold text-white transition-all hover:scale-105 shadow-lg"
-              style={{ background: `linear-gradient(135deg, ${palette.rose} 0%, ${palette.plum} 100%)` }}
-            >
-              <span className="text-lg">✨</span> 确认完成并写入
-            </button>
+          <div className="pt-3 border-t-4" style={{ borderColor: palette.rose + '22' }}>
+            <div className="flex gap-3">
+              <button
+                onClick={onClose}
+                disabled={forceMandatoryReflection}
+                className="flex-1 py-3 rounded-2xl font-bold transition-all hover:scale-105 shadow-md disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
+                style={{ backgroundColor: palette.plum + '22', color: palette.plum }}
+              >
+                <span className="text-lg">👋</span> 取消
+              </button>
+              <button
+                onClick={handleConfirm}
+                className="flex-1 py-3 rounded-2xl font-bold text-white transition-all hover:scale-105 shadow-lg"
+                style={{ background: `linear-gradient(135deg, ${palette.rose} 0%, ${palette.plum} 100%)` }}
+              >
+                <span className="text-lg">✨</span> 确认完成并写入
+              </button>
+            </div>
           </div>
         </div>
       </div>

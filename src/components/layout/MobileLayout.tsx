@@ -284,12 +284,12 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
   return (
     <>
     <div 
-      className="fixed inset-0 flex flex-col" 
+      className="fixed inset-0 flex flex-col overflow-hidden mobile-app-shell" 
       style={{ 
-        paddingTop: 'env(safe-area-inset-top)',
+        paddingTop: '0',
         paddingBottom: '0',
         margin: '0',
-        backgroundColor: 'transparent',
+        backgroundColor: '#fefaf0',
         fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
         overflow: 'hidden',
         height: '100dvh',
@@ -303,14 +303,19 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         onClose={() => setShowReceipt(false)} 
       />
 
-      {/* 主内容区域 - 只有这个区域可以滚动 */}
+      {/* 主内容区域 - 统一安全区滚动容器 */}
       <div 
-        className="flex-1 overflow-y-auto overflow-x-hidden"
+        className="flex-1 overflow-y-auto overflow-x-hidden mobile-app-scroll"
         style={{ 
-          WebkitOverflowScrolling: 'touch', // iOS 平滑滚动
-          paddingBottom: '64px',
+          WebkitOverflowScrolling: 'touch',
+          paddingTop: 'var(--app-mobile-top-gap)',
+          paddingBottom: 'var(--app-mobile-bottom-gap)',
+          paddingLeft: '0',
+          paddingRight: '0',
           backgroundColor: '#fefaf0',
           minHeight: 0,
+          scrollPaddingTop: 'var(--app-mobile-top-gap)',
+          scrollPaddingBottom: 'var(--app-mobile-bottom-gap)',
         }}
       >
         {bridgePulse && ['memory', 'goals', 'timeline'].includes(activeTab) && (

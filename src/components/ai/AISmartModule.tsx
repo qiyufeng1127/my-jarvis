@@ -123,7 +123,7 @@ export default function AISmartModule({
 
   const saveApiSettings = () => {
     setShowSettings(false);
-    alert('✅ API 配置已保存！\n\n如果使用时遇到问题，请检查：\n1. API Key 是否正确\n2. 网络连接是否正常\n3. API 接口地址是否正确');
+    console.log('✅ AI API 配置已保存');
   };
 
   // 处理任务编辑器中的按钮点击
@@ -262,24 +262,11 @@ export default function AISmartModule({
                       if (!response.ok) {
                         const errorData = await response.json().catch(() => ({}));
                         console.error('API 测试失败:', response.status, errorData);
-                        
-                        let errorMsg = '❌ 连接失败！\n\n';
-                        errorMsg += `状态码: ${response.status}\n`;
-                        if (errorData.error) {
-                          errorMsg += `错误: ${errorData.error.message || JSON.stringify(errorData.error)}\n`;
-                        }
-                        errorMsg += '\n可能的原因：\n';
-                        errorMsg += '1. API Key 不正确\n';
-                        errorMsg += '2. API 配额已用完\n';
-                        errorMsg += '3. 网络连接问题';
-                        
-                        alert(errorMsg);
                       } else {
-                        alert('✅ 连接成功！API配置正确。');
+                        console.log('✅ AI API 连接成功');
                       }
                     } catch (error: any) {
                       console.error('API连接测试失败:', error);
-                      alert(`❌ 连接失败！\n\n错误详情: ${error.message}\n\n可能是网络问题或 CORS 限制。`);
                     } finally {
                       setIsTesting(false);
                     }
