@@ -41,7 +41,7 @@
     "@vitejs/plugin-react": "^4.2.1",
     "@vercel/node": "^5.3.24",
     "autoprefixer": "^10.4.17",
-    "edge-tts": "^1.2.0",
+    "edge-tts": "^1.0.1",
     "eslint": "^8.56.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
