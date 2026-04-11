@@ -1277,14 +1277,33 @@ function NavigationPreview({
   );
 }
 
+function formatElapsedCompact(startedAt?: string, now = Date.now()) {
+  if (!startedAt) return '00:00';
+  const started = new Date(startedAt).getTime();
+  if (Number.isNaN(started)) return '00:00';
+
+  const elapsedSeconds = Math.max(0, Math.floor((now - started) / 1000));
+  const hours = Math.floor(elapsedSeconds / 3600);
+  const minutes = Math.floor((elapsedSeconds % 3600) / 60);
+  const seconds = elapsedSeconds % 60;
+
+  if (hours > 0) {
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
 function NavigationScene({
   executionScore,
   energyLevel,
   recentGain,
+  elapsedLabel,
 }: {
   executionScore: number;
   energyLevel: number;
   recentGain: number;
+  elapsedLabel: string;
 }) {
   const emoji = getEmojiByScore(executionScore);
   const scale = 0.9 + executionScore / 100 * 0.34;
@@ -1309,6 +1328,7 @@ function NavigationScene({
     <div className="navigation-scene-frame">
       <div className="navigation-scene">
         {recentGain > 0 && <div className="navigation-execution-burst">+{recentGain} 执行力</div>}
+        <div className="navigation-scene-elapsed">{elapsedLabel}</div>
         <div className="navigation-sparkles navigation-sparkles-back" style={{ opacity: sparkleOpacity * 0.4 }} />
         <div className="navigation-sparkles navigation-sparkles-mid" style={{ opacity: sparkleOpacity * 0.68 }} />
         <div className="navigation-snowflakes" aria-hidden="true">
@@ -1466,6 +1486,7 @@ function NavigationStepCard({
   step,
   stepIndex,
   stepCount,
+  elapsedLabel,
   onContinue,
   onOpenDifficulty,
   onOpenFocus,
@@ -1485,6 +1506,7 @@ function NavigationStepCard({
   step: NavigationExecutionStep;
   stepIndex: number;
   stepCount: number;
+  elapsedLabel: string;
   onContinue: () => void;
   onOpenDifficulty: () => void;
   onOpenFocus: () => void;
@@ -1511,6 +1533,7 @@ function NavigationStepCard({
           executionScore={executionScore}
           energyLevel={energyLevel}
           recentGain={recentExecutionGain}
+          elapsedLabel={elapsedLabel}
         />
       </div>
 
@@ -1585,11 +1608,13 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
   const [difficultyMessage, setDifficultyMessage] = useState('');
   const [isResolvingDifficulty, setIsResolvingDifficulty] = useState(false);
   const [voiceStatusText, setVoiceStatusText] = useState('语音未开启');
+  const [elapsedNow, setElapsedNow] = useState(() => Date.now());
   const difficultyRequestIdRef = useRef(0);
   const voiceCommandLockRef = useRef(false);
   const lastVoiceCommandRef = useRef('');
   const lastVoiceCommandAtRef = useRef(0);
   const currentStep = session.executionSteps[session.currentStepIndex];
+  const elapsedLabel = formatElapsedCompact(currentStep?.startedAt || session.startedAt, elapsedNow);
   const isInsertedStep = currentStep?.source === 'difficulty_detour' || currentStep?.source === 'inserted_flow';
   const sceneExecutionScore = sessionMoodScore(currentStep, isInsertedStep, session);
   const sceneEnergyLevel = sessionMoodEnergy(currentStep, isInsertedStep, session);
@@ -1711,6 +1736,17 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
       }
     },
   });
+
+  useEffect(() => {
+    if (session.status !== 'active') return;
+
+    setElapsedNow(Date.now());
+    const timer = window.setInterval(() => {
+      setElapsedNow(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [session.status, currentStep?.startedAt, session.startedAt]);
 
   const handleResolveDifficulty = async (message: string) => {
     if (!currentStep || !message) return;
@@ -1920,6 +1956,7 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
         step={currentStep}
         stepIndex={session.currentStepIndex}
         stepCount={session.executionSteps.length}
+        elapsedLabel={elapsedLabel}
         onContinue={() => {
           stopListening();
           setHandsFreeWaiting(false);
