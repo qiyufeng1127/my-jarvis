@@ -69,44 +69,24 @@
   padding: 0;
 }
 
-html {
-  font-size: 18px; /* 增大基础字体 */
+html, body, #root {
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100%;
+  height: var(--app-visible-viewport-height);
+  min-height: var(--app-visible-viewport-height);
+  background-color: #ffffff !important;
+  overflow: hidden;
+  position: fixed;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  height: 100%;
-  /* 确保完全填充屏幕 */
-  position: fixed;
-  overflow: hidden;
-}
-
-body {
-  font-family: var(--font-sans);
-  color: #000000; /* 统一为纯黑色 */
-  background-color: var(--color-neutral-50);
-  line-height: 1.6; /* 增加行高 */
-  overflow-x: hidden;
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  height: 100%;
-  /* 确保底部没有额外空间 */
-  padding-bottom: 0 !important;
-  /* 完全填充屏幕 */
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
 }
 
 /* 移动端确保页面内容延伸到底部 */
 #root {
-  min-height: 100dvh;
+  min-height: var(--app-visible-viewport-height);
   width: 100%;
-  height: 100%;
+  height: var(--app-visible-viewport-height);
   position: fixed;
   inset: 0;
 }
@@ -116,8 +96,8 @@ body {
   body,
   #root {
     width: 100% !important;
-    height: 100% !important;
-    min-height: 100dvh !important;
+    height: var(--app-visible-viewport-height) !important;
+    min-height: var(--app-visible-viewport-height) !important;
     margin: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;

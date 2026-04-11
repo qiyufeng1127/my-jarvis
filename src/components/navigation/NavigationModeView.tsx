@@ -234,10 +234,10 @@ function difficultyLabel(value?: number) {
 function buildHandsFreeSpeech(step: NavigationExecutionStep) {
   const guidance = step.guidance?.trim();
   if (!guidance) {
-    return `现在这一小步是：${step.title}。做完以后你可以直接说，继续。`;
+    return `现在${step.title}。`;
   }
 
-  return `现在这一小步是：${step.title}。具体提醒是：${guidance}。做完以后你可以直接说，继续，或者说，做完了。想跳过的话你也可以说，跳过。`;
+  return `现在${step.title}，${guidance}。`;
 }
 
 function normalizeVoiceTranscript(transcript: string) {
@@ -553,9 +553,9 @@ function NavigationHandsFreeIntro({
         </div>
 
         <p className="navigation-handsfree-text">
-          开启后，我会自动读出当前步骤标题和备注。你说 <strong>继续</strong>、<strong>做完了</strong>、<strong>下一步</strong>，我就会自动进入下一项并继续播报。
+          开启后，我会自动读出当前步骤的标题和备注，方便你在不方便点屏幕时知道下一步要做什么。
         </p>
-        <p className="navigation-handsfree-text secondary">也支持说：跳过、重说、暂停、恢复。</p>
+        <p className="navigation-handsfree-text secondary">你可以直接说：继续、下一步、完成、跳过、重说、暂停、恢复。</p>
 
         <div className="navigation-handsfree-voice-picker">
           <button
@@ -1529,7 +1529,7 @@ function NavigationStepCard({
       {isVoiceMode && (
         <div className="navigation-voice-status navigation-reference-voice-status">
           <span className={`navigation-voice-dot ${isListening ? 'is-listening' : ''}`} />
-          <span>{isListening ? '正在听你说话…' : '正在等待语音播放结束…'}</span>
+          <span>{isListening ? '正在听你说话…' : '语音已开启'}</span>
           <strong className="navigation-voice-source-inline">{didFallbackToSystem ? '已回退到系统语音' : playbackSource === 'edge' ? 'Edge 自然语音' : '系统语音'}</strong>
           {lastTranscript && <em>“{lastTranscript}”</em>}
         </div>
@@ -1580,8 +1580,7 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
   const [showHandsFreeIntro, setShowHandsFreeIntro] = useState(false);
   const [showDifficultySheet, setShowDifficultySheet] = useState(false);
   const [difficultyInput, setDifficultyInput] = useState('');
-  const [difficultyMessage, setDifficultyMessage] = useState('');
-  const [isResolvingDifficulty, setIsResolvingDifficulty] = useState(false);
+  const [voiceStatusText, setVoiceStatusText] = useState('语音未开启');
   const difficultyRequestIdRef = useRef(0);
   const voiceCommandLockRef = useRef(false);
   const lastVoiceCommandRef = useRef('');
@@ -1608,7 +1607,30 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
   const { isListening, startListening, stopListening, resetTranscript } = useVoiceRecognition({
     continuous: true,
     interimResults: false,
-    restartOnEnd: handsFreeEnabled && waitingForCommand && session.status === 'active',
+    restartOnEnd: handsFreeEnabled && session.status === 'active',
+    onListeningChange: (listening) => {
+      if (!handsFreeEnabled) {
+        setVoiceStatusText('语音未开启');
+        return;
+      }
+      setVoiceStatusText(listening ? '麦克风已开启，正在听你说话…' : '语音模式已开启，正在连接麦克风…');
+    },
+    onError: (error) => {
+      if (!handsFreeEnabled) return;
+      if (error === 'not-allowed' || error === 'service-not-allowed') {
+        setVoiceStatusText('麦克风权限未开启，请允许访问麦克风');
+        return;
+      }
+      if (error === 'audio-capture') {
+        setVoiceStatusText('没有检测到可用麦克风');
+        return;
+      }
+      if (error === 'network') {
+        setVoiceStatusText('语音识别网络异常，请稍后再试');
+        return;
+      }
+      setVoiceStatusText('语音识别暂时不可用');
+    },
     onResult: (transcript) => {
       if (!handsFreeEnabled || voiceCommandLockRef.current) return;
       setLastVoiceTranscript(transcript);
@@ -1624,7 +1646,6 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
 
       if (matchesVoiceCommand(normalized, ['继续', '下一步', '做完了', '完成了', '我好了', '我做完了']) || isWeakConfirmCommand(normalized)) {
         voiceCommandLockRef.current = true;
-        stopListening();
         setHandsFreeWaiting(false);
         playCoinDrop();
         completeCurrentStep();
@@ -1634,7 +1655,6 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
 
       if (matchesVoiceCommand(normalized, ['跳过', '先跳过', '下一个'])) {
         voiceCommandLockRef.current = true;
-        stopListening();
         setHandsFreeWaiting(false);
         useNavigationStore.getState().skipCurrentStep();
         unlockVoiceCommand();
@@ -1643,7 +1663,6 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
 
       if (matchesVoiceCommand(normalized, ['重说', '重复', '再说一遍'])) {
         voiceCommandLockRef.current = true;
-        stopListening();
         setHandsFreeWaiting(false);
         if (speechTextRef.current) {
           speak(speechTextRef.current, {
@@ -1665,7 +1684,6 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
 
       if (matchesVoiceCommand(normalized, ['暂停', '先停一下'])) {
         voiceCommandLockRef.current = true;
-        stopListening();
         setHandsFreeWaiting(false);
         pauseSession();
         pause();
@@ -1685,7 +1703,6 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
   const handleResolveDifficulty = async (message: string) => {
     if (!currentStep || !message) return;
 
-    stopListening();
     setHandsFreeWaiting(false);
     setIsResolvingDifficulty(true);
     setDifficultyInput(message);
@@ -1752,8 +1769,9 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
 
     speechTextRef.current = nextSpeechText;
     voiceCommandLockRef.current = true;
-    stopListening();
     setHandsFreeWaiting(false);
+    resetTranscript();
+    startListening();
     speak(nextSpeechText, {
       onEnd: () => {
         window.setTimeout(() => {
@@ -1761,19 +1779,21 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
           resetTranscript();
           voiceCommandLockRef.current = false;
           startListening();
-        }, 450);
+        }, 150);
       },
       onError: () => {
         window.setTimeout(() => {
           setHandsFreeWaiting(true);
           voiceCommandLockRef.current = false;
           startListening();
-        }, 450);
+        }, 150);
       },
     });
     return () => {
       stop();
-      stopListening();
+      if (!handsFreeEnabled || session.status !== 'active') {
+        stopListening();
+      }
     };
   }, [
     currentStep,
@@ -1800,12 +1820,12 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
   }, [session.status, decayExecutionScore]);
 
   useEffect(() => {
-    if (!handsFreeEnabled || isSpeaking || voiceCommandLockRef.current) return;
+    if (!handsFreeEnabled || voiceCommandLockRef.current || session.status !== 'active') return;
     if (!waitingForCommand && !isListening) {
       setHandsFreeWaiting(true);
       startListening();
     }
-  }, [handsFreeEnabled, isSpeaking, waitingForCommand, isListening, startListening, setHandsFreeWaiting]);
+  }, [handsFreeEnabled, waitingForCommand, isListening, session.status, startListening, setHandsFreeWaiting]);
 
   if (!currentStep) return null;
 

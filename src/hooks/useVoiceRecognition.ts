@@ -38,6 +38,7 @@ interface UseVoiceRecognitionOptions {
   restartOnEnd?: boolean;
   onResult?: (transcript: string) => void;
   onError?: (error: string) => void;
+  onListeningChange?: (listening: boolean) => void;
 }
 
 export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
@@ -49,6 +50,7 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
     restartOnEnd = false,
     onResult,
     onError,
+    onListeningChange,
   } = options;
 
   const [isListening, setIsListening] = useState(false);
@@ -73,10 +75,12 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
 
     recognitionInstance.onstart = () => {
       setIsListening(true);
+      onListeningChange?.(true);
     };
 
     recognitionInstance.onend = () => {
       setIsListening(false);
+      onListeningChange?.(false);
       if (restartOnEnd) {
         window.setTimeout(() => {
           try {
@@ -103,6 +107,7 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
     recognitionInstance.onerror = (event: SpeechRecognitionErrorEvent) => {
       console.error('语音识别错误:', event.error);
       setIsListening(false);
+      onListeningChange?.(false);
       onError?.(event.error);
     };
 
@@ -111,7 +116,7 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
     return () => {
       recognitionInstance.abort();
     };
-  }, [lang, continuous, interimResults, onResult, onError, restartOnEnd]);
+  }, [lang, continuous, interimResults, onResult, onError, onListeningChange, restartOnEnd]);
 
   useEffect(() => {
     if (!autoStart || !recognition || isListening) return;

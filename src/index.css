@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  --mobile-bottom-nav-height: 64px;
+  --mobile-bottom-nav-height: 56px;
   --mobile-bottom-nav-safe-area: 0px;
   --mobile-bottom-nav-total-height: var(--mobile-bottom-nav-height);
   --app-safe-area-top: env(safe-area-inset-top, 0px);
@@ -26,7 +26,8 @@ html, body, #root {
   margin: 0 !important;
   padding: 0 !important;
   width: 100%;
-  height: 100%;
+  height: var(--app-visible-viewport-height);
+  min-height: var(--app-visible-viewport-height);
   background-color: #ffffff !important;
   overflow: hidden;
   position: fixed;
@@ -139,8 +140,8 @@ input, textarea, select {
   html {
     position: fixed !important;
     width: 100% !important;
-    height: 100% !important;
-    min-height: 100dvh !important;
+    height: var(--app-visible-viewport-height) !important;
+    min-height: var(--app-visible-viewport-height) !important;
     overflow: hidden !important;
     background-color: #ffffff !important;
   }
@@ -148,8 +149,8 @@ input, textarea, select {
   body {
     position: fixed !important;
     width: 100% !important;
-    height: 100% !important;
-    min-height: 100dvh !important;
+    height: var(--app-visible-viewport-height) !important;
+    min-height: var(--app-visible-viewport-height) !important;
     overflow: hidden !important;
     background-color: #ffffff !important;
     margin: 0 !important;
@@ -159,8 +160,8 @@ input, textarea, select {
   #root {
     position: fixed !important;
     width: 100% !important;
-    height: 100% !important;
-    min-height: 100dvh !important;
+    height: var(--app-visible-viewport-height) !important;
+    min-height: var(--app-visible-viewport-height) !important;
     overflow: hidden !important;
     background-color: #ffffff !important;
     margin: 0 !important;

@@ -3,7 +3,7 @@
    ============================================ */
 
 :root {
-  --mobile-bottom-nav-height: 64px;
+  --mobile-bottom-nav-height: 56px;
   --mobile-bottom-nav-safe-area: 0px;
   --mobile-bottom-nav-total-height: var(--mobile-bottom-nav-height);
 }
@@ -69,7 +69,7 @@
   height: var(--mobile-bottom-nav-height) !important;
   min-height: var(--mobile-bottom-nav-height) !important;
   max-height: var(--mobile-bottom-nav-height) !important;
-  padding: 4px 2px !important;
+  padding: 2px 2px !important;
   margin: 0 !important;
   border-radius: 0;
   background: transparent;
