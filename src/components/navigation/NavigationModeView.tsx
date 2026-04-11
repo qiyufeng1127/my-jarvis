@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Settings, Sparkles, Volume2, VolumeX, TimerReset, Pause, Play, X, Mic, Brain, Heart, CheckCircle2, Pencil, Trash2, ArrowUp, ArrowDown, ChevronLeft } from 'lucide-react';
+import { Settings, Sparkles, Volume2, VolumeX, TimerReset, Pause, Play, X, Mic, Brain, Heart, CheckCircle2, Pencil, Trash2, ArrowUp, ArrowDown, ChevronLeft, Wand2 } from 'lucide-react';
 import { AIUnifiedService } from '@/services/aiUnifiedService';
 import { useNavigationPreferenceStore } from '@/stores/navigationPreferenceStore';
 import { useNavigationStore } from '@/stores/navigationStore';
@@ -1602,6 +1602,7 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
     [session.executionSteps, session.currentStepIndex]
   );
   const stepSpeechGuardRef = useRef<string>('');
+  const speechTextRef = useRef('');
   const pauseListeningUntilRef = useRef(0);
   const { speak, stop, pause, resume, isSpeaking, isEdgeVoiceConfigured, playbackSource, didFallbackToSystem } = useSpeechSynthesis({ voiceMode: preferredVoiceMode });
   const unlockVoiceCommand = () => {
