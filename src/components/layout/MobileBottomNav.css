@@ -2,12 +2,6 @@
    Mobile Bottom Navigation Styles
    ============================================ */
 
-:root {
-  --mobile-bottom-nav-height: 56px;
-  --mobile-bottom-nav-safe-area: 0px;
-  --mobile-bottom-nav-total-height: var(--mobile-bottom-nav-height);
-}
-
 .mobile-bottom-nav {
   position: fixed !important;
   inset: auto 0 0 0 !important;

@@ -1428,8 +1428,8 @@ function NavigationDifficultySheet({
   );
 }
 
-function sessionMoodScore(step: NavigationExecutionStep, isDetourStep: boolean, session: NavigationSession) {
-  const title = step.title || '';
+function sessionMoodScore(step: NavigationExecutionStep | undefined, isDetourStep: boolean, session: NavigationSession) {
+  const title = step?.title || '';
   const reflection = session.preState?.reflection || '';
   let base = isDetourStep ? 18 : 30;
 
@@ -1445,8 +1445,8 @@ function sessionMoodScore(step: NavigationExecutionStep, isDetourStep: boolean, 
   return Math.max(8, Math.min(100, Math.round((base + session.executionScore) / 2)));
 }
 
-function sessionMoodEnergy(step: NavigationExecutionStep, isDetourStep: boolean, session: NavigationSession) {
-  const title = step.title || '';
+function sessionMoodEnergy(step: NavigationExecutionStep | undefined, isDetourStep: boolean, session: NavigationSession) {
+  const title = step?.title || '';
   const reflection = session.preState?.reflection || '';
   let base = isDetourStep ? 26 : 34;
 
@@ -1472,6 +1472,7 @@ function NavigationStepCard({
   onOpenHandsFree,
   isVoiceMode,
   isListening,
+  voiceStatusText,
   lastTranscript,
   playbackSource,
   didFallbackToSystem,
@@ -1490,6 +1491,7 @@ function NavigationStepCard({
   onOpenHandsFree: () => void;
   isVoiceMode: boolean;
   isListening: boolean;
+  voiceStatusText: string;
   lastTranscript?: string;
   playbackSource: 'system' | 'edge';
   didFallbackToSystem: boolean;
@@ -1529,7 +1531,7 @@ function NavigationStepCard({
       {isVoiceMode && (
         <div className="navigation-voice-status navigation-reference-voice-status">
           <span className={`navigation-voice-dot ${isListening ? 'is-listening' : ''}`} />
-          <span>{isListening ? '正在听你说话…' : '语音已开启'}</span>
+          <span>{voiceStatusText}</span>
           <strong className="navigation-voice-source-inline">{didFallbackToSystem ? '已回退到系统语音' : playbackSource === 'edge' ? 'Edge 自然语音' : '系统语音'}</strong>
           {lastTranscript && <em>“{lastTranscript}”</em>}
         </div>
@@ -1580,6 +1582,8 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
   const [showHandsFreeIntro, setShowHandsFreeIntro] = useState(false);
   const [showDifficultySheet, setShowDifficultySheet] = useState(false);
   const [difficultyInput, setDifficultyInput] = useState('');
+  const [difficultyMessage, setDifficultyMessage] = useState('');
+  const [isResolvingDifficulty, setIsResolvingDifficulty] = useState(false);
   const [voiceStatusText, setVoiceStatusText] = useState('语音未开启');
   const difficultyRequestIdRef = useRef(0);
   const voiceCommandLockRef = useRef(false);
@@ -1827,7 +1831,33 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
     }
   }, [handsFreeEnabled, waitingForCommand, isListening, session.status, startListening, setHandsFreeWaiting]);
 
-  if (!currentStep) return null;
+  useEffect(() => {
+    if (!handsFreeEnabled) {
+      setVoiceStatusText('语音未开启');
+      return;
+    }
+
+    if (!isListening) {
+      setVoiceStatusText('语音模式已开启，正在连接麦克风…');
+      startListening();
+      return;
+    }
+
+    setVoiceStatusText(isSpeaking ? '麦克风已开启，播报中也会继续听你说话…' : '麦克风已开启，正在听你说话…');
+  }, [handsFreeEnabled, isListening, isSpeaking, startListening]);
+
+  if (!currentStep) {
+    return (
+      <div className="navigation-shell navigation-state-shell">
+        <div className="navigation-section">
+          <div className="navigation-group-card">
+            <strong>这次导航暂时没有可执行的步骤</strong>
+            <p>你可以返回上一页重新生成，或者稍后再试。</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="navigation-shell navigation-state-shell">
@@ -1874,6 +1904,7 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
         }}
         isVoiceMode={handsFreeEnabled}
         isListening={isListening}
+        voiceStatusText={voiceStatusText}
         lastTranscript={lastTranscript}
         playbackSource={playbackSource}
         didFallbackToSystem={didFallbackToSystem}
