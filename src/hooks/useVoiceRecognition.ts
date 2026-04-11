@@ -56,7 +56,19 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [isSupported, setIsSupported] = useState(false);
-  const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const isListeningRef = useRef(false);
+  const onResultRef = useRef(onResult);
+  const onErrorRef = useRef(onError);
+  const onListeningChangeRef = useRef(onListeningChange);
+  const restartOnEndRef = useRef(restartOnEnd);
+
+  useEffect(() => {
+    onResultRef.current = onResult;
+    onErrorRef.current = onError;
+    onListeningChangeRef.current = onListeningChange;
+    restartOnEndRef.current = restartOnEnd;
+  }, [onResult, onError, onListeningChange, restartOnEnd]);
 
   useEffect(() => {
     const RecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -74,14 +86,16 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
     recognitionInstance.lang = lang;
 
     recognitionInstance.onstart = () => {
+      isListeningRef.current = true;
       setIsListening(true);
-      onListeningChange?.(true);
+      onListeningChangeRef.current?.(true);
     };
 
     recognitionInstance.onend = () => {
+      isListeningRef.current = false;
       setIsListening(false);
-      onListeningChange?.(false);
-      if (restartOnEnd) {
+      onListeningChangeRef.current?.(false);
+      if (restartOnEndRef.current) {
         window.setTimeout(() => {
           try {
             recognitionInstance.start();
@@ -99,49 +113,54 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
 
       setTranscript(transcriptText);
 
-      if (onResult && lastResult.isFinal) {
-        onResult(transcriptText);
+      if (lastResult.isFinal) {
+        onResultRef.current?.(transcriptText);
       }
     };
 
     recognitionInstance.onerror = (event: SpeechRecognitionErrorEvent) => {
       console.error('语音识别错误:', event.error);
+      isListeningRef.current = false;
       setIsListening(false);
-      onListeningChange?.(false);
-      onError?.(event.error);
+      onListeningChangeRef.current?.(false);
+      onErrorRef.current?.(event.error);
     };
 
-    setRecognition(recognitionInstance);
+    recognitionRef.current = recognitionInstance;
 
     return () => {
+      recognitionRef.current = null;
       recognitionInstance.abort();
     };
-  }, [lang, continuous, interimResults, onResult, onError, onListeningChange, restartOnEnd]);
+  }, [lang, continuous, interimResults]);
 
   useEffect(() => {
-    if (!autoStart || !recognition || isListening) return;
+    const recognition = recognitionRef.current;
+    if (!autoStart || !recognition || isListeningRef.current) return;
     try {
       recognition.start();
     } catch (error) {
       console.error('启动语音识别失败:', error);
     }
-  }, [autoStart, recognition, isListening]);
+  }, [autoStart]);
 
   const startListening = useCallback(() => {
-    if (recognition && !isListening) {
+    const recognition = recognitionRef.current;
+    if (recognition && !isListeningRef.current) {
       try {
         recognition.start();
       } catch (error) {
         console.error('启动语音识别失败:', error);
       }
     }
-  }, [recognition, isListening]);
+  }, []);
 
   const stopListening = useCallback(() => {
-    if (recognition && isListening) {
+    const recognition = recognitionRef.current;
+    if (recognition && isListeningRef.current) {
       recognition.stop();
     }
-  }, [recognition, isListening]);
+  }, []);
 
   const resetTranscript = useCallback(() => {
     setTranscript('');

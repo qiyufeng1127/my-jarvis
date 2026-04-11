@@ -13,30 +13,31 @@
   width: 100vw !important;
   min-width: 100vw !important;
   max-width: 100vw !important;
-  height: var(--mobile-bottom-nav-height) !important;
-  min-height: var(--mobile-bottom-nav-height) !important;
-  max-height: var(--mobile-bottom-nav-height) !important;
-  background-color: #ffffff !important;
-  border: none !important;
-  padding: 0 !important;
+  height: var(--mobile-bottom-nav-total-height) !important;
+  min-height: var(--mobile-bottom-nav-total-height) !important;
+  max-height: var(--mobile-bottom-nav-total-height) !important;
+  padding: 0 0 var(--mobile-bottom-nav-safe-area) 0 !important;
   margin: 0 !important;
+  border: none !important;
   box-shadow: none !important;
   overflow: hidden !important;
   transform: none !important;
   -webkit-transform: none !important;
   translate: 0 0 !important;
+  background: #ffffff !important;
+  background-clip: padding-box !important;
 }
 
 /* 暗色模式 */
 .dark .mobile-bottom-nav {
-  background-color: #1f2937 !important;
+  background: #1f2937 !important;
 }
 
 .mobile-bottom-nav__container {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: var(--mobile-bottom-nav-safe-area);
   z-index: 1;
   display: flex;
   align-items: stretch;

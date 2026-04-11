@@ -1608,7 +1608,7 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
       voiceCommandLockRef.current = false;
     }, 900);
   };
-  const { isListening, startListening, stopListening, resetTranscript } = useVoiceRecognition({
+  const { isListening, startListening, stopListening, resetTranscript, isSupported: isVoiceRecognitionSupported } = useVoiceRecognition({
     continuous: true,
     interimResults: false,
     restartOnEnd: handsFreeEnabled && session.status === 'active',
@@ -1837,6 +1837,11 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
       return;
     }
 
+    if (!isVoiceRecognitionSupported) {
+      setVoiceStatusText('当前设备不支持语音识别');
+      return;
+    }
+
     if (!isListening) {
       setVoiceStatusText('语音模式已开启，正在连接麦克风…');
       startListening();
@@ -1844,7 +1849,7 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
     }
 
     setVoiceStatusText(isSpeaking ? '麦克风已开启，播报中也会继续听你说话…' : '麦克风已开启，正在听你说话…');
-  }, [handsFreeEnabled, isListening, isSpeaking, startListening]);
+  }, [handsFreeEnabled, isVoiceRecognitionSupported, isListening, isSpeaking, startListening]);
 
   if (!currentStep) {
     return (

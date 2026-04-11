@@ -309,13 +309,13 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         style={{ 
           WebkitOverflowScrolling: 'touch',
           paddingTop: 'var(--app-mobile-top-gap)',
-          paddingBottom: 'var(--mobile-bottom-nav-height)',
+          paddingBottom: 'var(--app-mobile-bottom-gap)',
           paddingLeft: '0',
           paddingRight: '0',
           backgroundColor: '#fefaf0',
           minHeight: 0,
           scrollPaddingTop: 'var(--app-mobile-top-gap)',
-          scrollPaddingBottom: 'var(--mobile-bottom-nav-height)',
+          scrollPaddingBottom: 'var(--app-mobile-bottom-gap)',
         }}
       >
         {bridgePulse && ['memory', 'goals', 'timeline'].includes(activeTab) && (

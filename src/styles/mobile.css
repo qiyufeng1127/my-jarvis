@@ -235,25 +235,6 @@
   padding-right: env(safe-area-inset-right);
 }
 
-/* 移动端底部导航栏 - 完全紧贴屏幕底部 */
-.mobile-bottom-nav {
-  position: fixed !important;
-  bottom: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  border: none !important;
-  box-shadow: none !important;
-  background-color: #ffffff !important;
-  z-index: 9999 !important;
-}
-
-/* 暗色模式 */
-.dark .mobile-bottom-nav {
-  background-color: #1f2937 !important;
-}
-
 /* 移动端视口修复 - 防止底部黑条 */
 @media (max-width: 768px) {
   html {
