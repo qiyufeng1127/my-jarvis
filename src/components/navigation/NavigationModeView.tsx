@@ -1775,27 +1775,33 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
   useEffect(() => {
     if (!handsFreeEnabled || !currentStep || session.status !== 'active') return;
 
-    const nextSpeechText = buildHandsFreeSpeech(currentStep);
-    if (speechTextRef.current === nextSpeechText && (isSpeaking || waitingForCommand)) return;
+    const stepSpeechKey = `${currentStep.id}:${currentStep.title}:${currentStep.guidance}`;
+    if (stepSpeechGuardRef.current === stepSpeechKey) return;
 
-    speechTextRef.current = nextSpeechText;
+    stepSpeechGuardRef.current = stepSpeechKey;
+    speechTextRef.current = buildHandsFreeSpeech(currentStep);
+    pauseListeningUntilRef.current = Date.now() + 1200;
     voiceCommandLockRef.current = true;
     setHandsFreeWaiting(false);
     stopListening();
     resetTranscript();
-    speak(nextSpeechText, {
+    speak(speechTextRef.current, {
       onEnd: () => {
         window.setTimeout(() => {
+          if (!handsFreeEnabled || session.status !== 'active') return;
           setHandsFreeWaiting(true);
           resetTranscript();
           voiceCommandLockRef.current = false;
+          pauseListeningUntilRef.current = 0;
           startListening();
         }, 40);
       },
       onError: () => {
         window.setTimeout(() => {
+          if (!handsFreeEnabled || session.status !== 'active') return;
           setHandsFreeWaiting(true);
           voiceCommandLockRef.current = false;
+          pauseListeningUntilRef.current = 0;
           startListening();
         }, 40);
       },
@@ -1807,13 +1813,11 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
       }
     };
   }, [
-    currentStep,
     currentStep?.id,
+    currentStep?.title,
     currentStep?.guidance,
     handsFreeEnabled,
     session.status,
-    waitingForCommand,
-    isSpeaking,
     resetTranscript,
     setHandsFreeWaiting,
     speak,
@@ -1832,6 +1836,7 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
 
   useEffect(() => {
     if (!handsFreeEnabled || voiceCommandLockRef.current || session.status !== 'active') return;
+    if (pauseListeningUntilRef.current > Date.now()) return;
     if (!waitingForCommand && !isListening && !isSpeaking) {
       setHandsFreeWaiting(true);
       startListening();
@@ -1840,6 +1845,9 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
 
   useEffect(() => {
     if (!handsFreeEnabled) {
+      stepSpeechGuardRef.current = '';
+      pauseListeningUntilRef.current = 0;
+      voiceCommandLockRef.current = false;
       setVoiceStatusText('语音未开启');
       return;
     }
@@ -1851,6 +1859,11 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
 
     if (session.status !== 'active') {
       setVoiceStatusText('语音模式已暂停');
+      return;
+    }
+
+    if (pauseListeningUntilRef.current > Date.now()) {
+      setVoiceStatusText('正在切换到下一步…');
       return;
     }
 
