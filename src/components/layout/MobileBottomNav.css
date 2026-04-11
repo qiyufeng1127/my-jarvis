@@ -4,8 +4,8 @@
 
 :root {
   --mobile-bottom-nav-height: 64px;
-  --mobile-bottom-nav-safe-area: env(safe-area-inset-bottom, 0px);
-  --mobile-bottom-nav-total-height: calc(var(--mobile-bottom-nav-height) + var(--mobile-bottom-nav-safe-area));
+  --mobile-bottom-nav-safe-area: 0px;
+  --mobile-bottom-nav-total-height: var(--mobile-bottom-nav-height);
 }
 
 .mobile-bottom-nav {
@@ -19,12 +19,12 @@
   width: 100vw !important;
   min-width: 100vw !important;
   max-width: 100vw !important;
-  height: var(--mobile-bottom-nav-total-height) !important;
-  min-height: var(--mobile-bottom-nav-total-height) !important;
-  max-height: var(--mobile-bottom-nav-total-height) !important;
+  height: var(--mobile-bottom-nav-height) !important;
+  min-height: var(--mobile-bottom-nav-height) !important;
+  max-height: var(--mobile-bottom-nav-height) !important;
   background-color: #ffffff !important;
   border: none !important;
-  padding: 0 0 var(--mobile-bottom-nav-safe-area) 0 !important;
+  padding: 0 !important;
   margin: 0 !important;
   box-shadow: none !important;
   overflow: hidden !important;
@@ -42,7 +42,7 @@
   position: absolute;
   left: 0;
   right: 0;
-  bottom: var(--mobile-bottom-nav-safe-area);
+  bottom: 0;
   z-index: 1;
   display: flex;
   align-items: stretch;

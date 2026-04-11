@@ -4,15 +4,15 @@
 
 :root {
   --mobile-bottom-nav-height: 64px;
-  --mobile-bottom-nav-safe-area: env(safe-area-inset-bottom, 0px);
-  --mobile-bottom-nav-total-height: calc(var(--mobile-bottom-nav-height) + var(--mobile-bottom-nav-safe-area));
+  --mobile-bottom-nav-safe-area: 0px;
+  --mobile-bottom-nav-total-height: var(--mobile-bottom-nav-height);
   --app-safe-area-top: env(safe-area-inset-top, 0px);
   --app-safe-area-bottom: env(safe-area-inset-bottom, 0px);
   --app-visible-viewport-height: 100dvh;
   --app-viewport-offset-top: 0px;
   --app-keyboard-offset: 0px;
   --app-mobile-top-gap: max(12px, calc(var(--app-safe-area-top) + 8px));
-  --app-mobile-bottom-gap: calc(var(--mobile-bottom-nav-total-height) + 18px);
+  --app-mobile-bottom-gap: var(--mobile-bottom-nav-height);
 }
 
 /* 全局重置 - 确保没有任何多余空白 */
@@ -175,14 +175,14 @@ input, textarea, select {
     left: 0 !important;
     right: 0 !important;
     margin: 0 !important;
-    padding-bottom: 0 !important;
+    padding: 0 !important;
     transform: none !important;
     -webkit-transform: none !important;
     translate: 0 0 !important;
     z-index: 2147483647 !important;
-    height: var(--mobile-bottom-nav-total-height) !important;
-    min-height: var(--mobile-bottom-nav-total-height) !important;
-    max-height: var(--mobile-bottom-nav-total-height) !important;
+    height: var(--mobile-bottom-nav-height) !important;
+    min-height: var(--mobile-bottom-nav-height) !important;
+    max-height: var(--mobile-bottom-nav-height) !important;
   }
 }
 
