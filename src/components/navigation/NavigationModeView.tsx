@@ -1601,7 +1601,8 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
     () => session.executionSteps.slice(Math.max(0, session.currentStepIndex - 2), session.currentStepIndex + 1),
     [session.executionSteps, session.currentStepIndex]
   );
-  const speechTextRef = useRef('');
+  const stepSpeechGuardRef = useRef<string>('');
+  const pauseListeningUntilRef = useRef(0);
   const { speak, stop, pause, resume, isSpeaking, isEdgeVoiceConfigured, playbackSource, didFallbackToSystem } = useSpeechSynthesis({ voiceMode: preferredVoiceMode });
   const unlockVoiceCommand = () => {
     window.setTimeout(() => {
@@ -1611,7 +1612,7 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
   const { isListening, startListening, stopListening, resetTranscript, isSupported: isVoiceRecognitionSupported } = useVoiceRecognition({
     continuous: true,
     interimResults: false,
-    restartOnEnd: handsFreeEnabled && session.status === 'active',
+    restartOnEnd: handsFreeEnabled && waitingForCommand && session.status === 'active',
     onListeningChange: (listening) => {
       if (!handsFreeEnabled) {
         setVoiceStatusText('语音未开启');
@@ -1650,7 +1651,9 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
 
       if (matchesVoiceCommand(normalized, ['继续', '下一步', '做完了', '完成了', '我好了', '我做完了']) || isWeakConfirmCommand(normalized)) {
         voiceCommandLockRef.current = true;
+        pauseListeningUntilRef.current = Date.now() + 1200;
         setHandsFreeWaiting(false);
+        stopListening();
         playCoinDrop();
         completeCurrentStep();
         unlockVoiceCommand();
@@ -1659,7 +1662,9 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
 
       if (matchesVoiceCommand(normalized, ['跳过', '先跳过', '下一个'])) {
         voiceCommandLockRef.current = true;
+        pauseListeningUntilRef.current = Date.now() + 1200;
         setHandsFreeWaiting(false);
+        stopListening();
         useNavigationStore.getState().skipCurrentStep();
         unlockVoiceCommand();
         return;
@@ -1667,8 +1672,9 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
 
       if (matchesVoiceCommand(normalized, ['重说', '重复', '再说一遍'])) {
         voiceCommandLockRef.current = true;
-        setHandsFreeWaiting(false);
         if (speechTextRef.current) {
+          stopListening();
+          setHandsFreeWaiting(false);
           speak(speechTextRef.current, {
             onEnd: () => {
               setHandsFreeWaiting(true);
@@ -1688,6 +1694,7 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
 
       if (matchesVoiceCommand(normalized, ['暂停', '先停一下'])) {
         voiceCommandLockRef.current = true;
+        stopListening();
         setHandsFreeWaiting(false);
         pauseSession();
         pause();
@@ -1774,8 +1781,8 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
     speechTextRef.current = nextSpeechText;
     voiceCommandLockRef.current = true;
     setHandsFreeWaiting(false);
+    stopListening();
     resetTranscript();
-    startListening();
     speak(nextSpeechText, {
       onEnd: () => {
         window.setTimeout(() => {
@@ -1783,14 +1790,14 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
           resetTranscript();
           voiceCommandLockRef.current = false;
           startListening();
-        }, 150);
+        }, 40);
       },
       onError: () => {
         window.setTimeout(() => {
           setHandsFreeWaiting(true);
           voiceCommandLockRef.current = false;
           startListening();
-        }, 150);
+        }, 40);
       },
     });
     return () => {
@@ -1825,11 +1832,11 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
 
   useEffect(() => {
     if (!handsFreeEnabled || voiceCommandLockRef.current || session.status !== 'active') return;
-    if (!waitingForCommand && !isListening) {
+    if (!waitingForCommand && !isListening && !isSpeaking) {
       setHandsFreeWaiting(true);
       startListening();
     }
-  }, [handsFreeEnabled, waitingForCommand, isListening, session.status, startListening, setHandsFreeWaiting]);
+  }, [handsFreeEnabled, waitingForCommand, isListening, isSpeaking, session.status, startListening, setHandsFreeWaiting]);
 
   useEffect(() => {
     if (!handsFreeEnabled) {
@@ -1842,14 +1849,24 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
       return;
     }
 
-    if (!isListening) {
-      setVoiceStatusText('语音模式已开启，正在连接麦克风…');
-      startListening();
+    if (session.status !== 'active') {
+      setVoiceStatusText('语音模式已暂停');
       return;
     }
 
-    setVoiceStatusText(isSpeaking ? '麦克风已开启，播报中也会继续听你说话…' : '麦克风已开启，正在听你说话…');
-  }, [handsFreeEnabled, isVoiceRecognitionSupported, isListening, isSpeaking, startListening]);
+    if (isSpeaking) {
+      setVoiceStatusText('正在播报当前步骤…');
+      return;
+    }
+
+    if (isListening) {
+      setVoiceStatusText('正在持续监听，等你说继续或下一步…');
+      return;
+    }
+
+    setVoiceStatusText('语音模式已开启，正在连接麦克风…');
+    startListening();
+  }, [handsFreeEnabled, isVoiceRecognitionSupported, isListening, isSpeaking, session.status, startListening]);
 
   if (!currentStep) {
     return (

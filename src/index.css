@@ -4,15 +4,15 @@
 
 :root {
   --mobile-bottom-nav-height: 56px;
-  --mobile-bottom-nav-safe-area: env(safe-area-inset-bottom, 0px);
-  --mobile-bottom-nav-total-height: calc(var(--mobile-bottom-nav-height) + var(--mobile-bottom-nav-safe-area));
+  --mobile-bottom-nav-safe-area: 0px;
+  --mobile-bottom-nav-total-height: var(--mobile-bottom-nav-height);
   --app-safe-area-top: env(safe-area-inset-top, 0px);
   --app-safe-area-bottom: env(safe-area-inset-bottom, 0px);
   --app-visible-viewport-height: 100dvh;
   --app-viewport-offset-top: 0px;
   --app-keyboard-offset: 0px;
   --app-mobile-top-gap: max(12px, calc(var(--app-safe-area-top) + 8px));
-  --app-mobile-bottom-gap: var(--mobile-bottom-nav-total-height);
+  --app-mobile-bottom-gap: var(--mobile-bottom-nav-height);
 }
 
 /* 全局重置 - 确保没有任何多余空白 */

@@ -58,6 +58,7 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
   const [isSupported, setIsSupported] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const isListeningRef = useRef(false);
+  const isStartingRef = useRef(false);
   const onResultRef = useRef(onResult);
   const onErrorRef = useRef(onError);
   const onListeningChangeRef = useRef(onListeningChange);
@@ -86,20 +87,26 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
     recognitionInstance.lang = lang;
 
     recognitionInstance.onstart = () => {
+      isStartingRef.current = false;
       isListeningRef.current = true;
       setIsListening(true);
       onListeningChangeRef.current?.(true);
     };
 
     recognitionInstance.onend = () => {
+      isStartingRef.current = false;
       isListeningRef.current = false;
       setIsListening(false);
       onListeningChangeRef.current?.(false);
       if (restartOnEndRef.current) {
         window.setTimeout(() => {
           try {
-            recognitionInstance.start();
+            if (!isListeningRef.current && !isStartingRef.current) {
+              isStartingRef.current = true;
+              recognitionInstance.start();
+            }
           } catch (error) {
+            isStartingRef.current = false;
             console.error('重启语音识别失败:', error);
           }
         }, 180);
@@ -120,6 +127,7 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
 
     recognitionInstance.onerror = (event: SpeechRecognitionErrorEvent) => {
       console.error('语音识别错误:', event.error);
+      isStartingRef.current = false;
       isListeningRef.current = false;
       setIsListening(false);
       onListeningChangeRef.current?.(false);
@@ -129,6 +137,8 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
     recognitionRef.current = recognitionInstance;
 
     return () => {
+      isStartingRef.current = false;
+      isListeningRef.current = false;
       recognitionRef.current = null;
       recognitionInstance.abort();
     };
@@ -136,20 +146,24 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
 
   useEffect(() => {
     const recognition = recognitionRef.current;
-    if (!autoStart || !recognition || isListeningRef.current) return;
+    if (!autoStart || !recognition || isListeningRef.current || isStartingRef.current) return;
     try {
+      isStartingRef.current = true;
       recognition.start();
     } catch (error) {
+      isStartingRef.current = false;
       console.error('启动语音识别失败:', error);
     }
   }, [autoStart]);
 
   const startListening = useCallback(() => {
     const recognition = recognitionRef.current;
-    if (recognition && !isListeningRef.current) {
+    if (recognition && !isListeningRef.current && !isStartingRef.current) {
       try {
+        isStartingRef.current = true;
         recognition.start();
       } catch (error) {
+        isStartingRef.current = false;
         console.error('启动语音识别失败:', error);
       }
     }
@@ -157,7 +171,8 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
 
   const stopListening = useCallback(() => {
     const recognition = recognitionRef.current;
-    if (recognition && isListeningRef.current) {
+    if (recognition && (isListeningRef.current || isStartingRef.current)) {
+      isStartingRef.current = false;
       recognition.stop();
     }
   }, []);
