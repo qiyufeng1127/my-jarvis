@@ -14,7 +14,7 @@ interface GoalsModuleProps {
  * 集成了目标列表、详情、创建表单和智能关联功能
  */
 export function GoalsModule({ isDark = false, bgColor = '#ffffff' }: GoalsModuleProps) {
-  const { goals, loadGoals, createGoal, updateGoal, deleteGoal, updateGoalProgress } = useGoalStore();
+  const { goals, loadGoals, createGoal, deleteGoal, updateGoalProgress } = useGoalStore();
   const [showDetail, setShowDetail] = useState(false);
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);

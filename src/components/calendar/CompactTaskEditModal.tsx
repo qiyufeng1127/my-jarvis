@@ -26,7 +26,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
   console.log('🎨 CompactTaskEditModal 已渲染 - 智能分配按钮应该可见');
   console.log('📝 任务数据:', task);
   
-  const { goals, createGoal, updateGoal, findMatchingGoals } = useGoalStore();
+  const { goals, createGoal, findMatchingGoals } = useGoalStore();
   const { deductGold, balance } = useGoldStore();
   const { tasks } = useTaskStore();
   const { getAllTags, getTagDurationRecords, getLearnedTagScores, getRecommendedTags, learnTagSelection, ensureTagsExist } = useTagStore();
@@ -920,6 +920,15 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
           </div>
         </div>
 
+        {showGoalForm && (
+          <GoalForm
+            initialData={quickGoalFormData}
+            dimensions={[]}
+            onSave={handleSaveQuickGoal}
+            onCancel={() => setShowGoalForm(false)}
+          />
+        )}
+
         {/* 关联目标选择弹窗 */}
         {showGoalSelector && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60] keyboard-aware-modal-shell">
@@ -931,16 +940,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
               <div className="flex-shrink-0 px-4 py-3 flex items-center justify-between" style={{ backgroundColor: '#6f8f64' }}>
                 <h4 className="text-base font-bold text-white">🎯 选择关联目标</h4>
                 <button
-                  onClick={() => {
-                    setShowGoalSelector(false);
-                    setGoalSearchQuery('');
-                    setShowNewGoalInput(false);
-                    setShowNewGoalResultInput(false);
-                    setPendingGoalResults([]);
-                    setNewGoalResultName('');
-                    setNewGoalResultUnit('次');
-                    setNewGoalResultTargetValue(1);
-                  }}
+                  onClick={handleCloseGoalFlow}
                   className="p-1 hover:bg-white/20 rounded-lg transition-colors"
                 >
                   <X className="w-5 h-5 text-white" />
@@ -1010,10 +1010,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
               {/* 新增目标区域 */}
               <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-800/50">
                 <button
-                  onClick={() => {
-                    scrollIntoSafeView(goalRef.current);
-                    setShowGoalSelector(true);
-                  }}
+                  onClick={handleOpenGoalForm}
                   className="w-full px-3 py-2 text-sm rounded-lg font-semibold transition-all flex items-center justify-center gap-2"
                   style={{ backgroundColor: '#7f9b73', color: '#f8f7f1' }}
                 >
