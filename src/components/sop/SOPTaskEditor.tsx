@@ -3,6 +3,7 @@ import { X, Plus, Trash2, GripVertical } from 'lucide-react';
 import { useSOPStore } from '@/stores/sopStore';
 import { useTagStore } from '@/stores/tagStore';
 import { useGoalStore } from '@/stores/goalStore';
+import { resolveTagInput } from '@/utils/tagInputResolver';
 
 interface SOPTaskEditorProps {
   taskId: string | null;
@@ -12,7 +13,7 @@ interface SOPTaskEditorProps {
 
 export default function SOPTaskEditor({ taskId, folderId, onClose }: SOPTaskEditorProps) {
   const { getTaskById, createTask, updateTask } = useSOPStore();
-  const { resolveAutoTags, learnTagSelection } = useTagStore();
+  const { resolveAutoTags, learnTagSelection, ensureTagsExist, getAllTags } = useTagStore();
   const { goals } = useGoalStore();
   
   const task = taskId ? getTaskById(taskId) : null;
@@ -57,11 +58,25 @@ export default function SOPTaskEditor({ taskId, folderId, onClose }: SOPTaskEdit
 
   const autoSuggestedTags = resolveAutoTags(`${title} ${description}`.trim(), selectedTags, 3);
 
-  const handleAddTag = () => {
-    if (newTag.trim() && !selectedTags.includes(newTag.trim())) {
-      setSelectedTags([...selectedTags, newTag.trim()]);
-      setNewTag('');
+  const handleAddTag = async () => {
+    const resolved = await resolveTagInput(
+      newTag,
+      getAllTags().map(tag => tag.name)
+    );
+
+    if (!resolved.tagName) {
+      return;
     }
+
+    if (!selectedTags.includes(resolved.tagName)) {
+      setSelectedTags([...selectedTags, resolved.tagName]);
+    }
+
+    if (resolved.shouldCreate) {
+      ensureTagsExist([resolved.tagName]);
+    }
+
+    setNewTag('');
   };
   
   const handleRemoveTag = (tag: string) => {
@@ -98,6 +113,7 @@ export default function SOPTaskEditor({ taskId, folderId, onClose }: SOPTaskEdit
     }
 
     learnTagSelection(`${title} ${description}`.trim(), selectedTags);
+    const normalizedTags = ensureTagsExist(selectedTags);
     
     const taskData = {
       title,
@@ -105,7 +121,7 @@ export default function SOPTaskEditor({ taskId, folderId, onClose }: SOPTaskEdit
       durationMinutes,
       goldReward: goldReward || undefined,
       location: location || undefined,
-      tags: selectedTags.length > 0 ? selectedTags : undefined,
+      tags: normalizedTags.length > 0 ? normalizedTags : undefined,
       longTermGoals: Object.keys(selectedGoals).length > 0 ? selectedGoals : undefined,
       subtasks: subtasks.length > 0 ? subtasks : undefined,
       verificationStart: hasStartVerification

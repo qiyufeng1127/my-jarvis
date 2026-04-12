@@ -151,8 +151,8 @@ export default function TaskVerificationCountdownContent({
     try {
       const normalizedState: CountdownState = {
         ...state,
-        scheduledStart: scheduledStart.toISOString(),
-        scheduledEnd: scheduledEnd.toISOString(),
+        scheduledStart: state.scheduledStart || scheduledStart.toISOString(),
+        scheduledEnd: state.scheduledEnd || scheduledEnd.toISOString(),
       };
 
       localStorage.setItem(storageKey, JSON.stringify(normalizedState));
@@ -601,6 +601,8 @@ export default function TaskVerificationCountdownContent({
         status: 'task_countdown' as CountdownStatus,
         taskDeadline: new Date(now.getTime() + taskSeconds * 1000).toISOString(),
         actualStartTime: now.toISOString(),
+        scheduledStart: state.scheduledStart || scheduledStart.toISOString(),
+        scheduledEnd: new Date(now.getTime() + taskSeconds * 1000).toISOString(),
       };
       setState(newState);
       saveState(newState);
@@ -814,6 +816,8 @@ export default function TaskVerificationCountdownContent({
             status: 'task_countdown' as CountdownStatus,
             taskDeadline: new Date(now.getTime() + taskSeconds * 1000).toISOString(),
             actualStartTime: now.toISOString(),
+            scheduledStart: state.scheduledStart || scheduledStart.toISOString(),
+            scheduledEnd: new Date(now.getTime() + taskSeconds * 1000).toISOString(),
           };
           setState(newState);
           saveState(newState);

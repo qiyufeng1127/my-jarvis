@@ -561,6 +561,19 @@ export default function TimelineCalendar({
 
             <button
               onClick={() => {
+                eventBus.emit('timeline:open-quick-backfill');
+              }}
+              className="flex items-center justify-center w-10 h-10 rounded-lg transition-all"
+              style={{
+                backgroundColor: 'transparent',
+              }}
+              title="快捷补录"
+            >
+              <span className="text-xl">📝</span>
+            </button>
+
+            <button
+              onClick={() => {
                 setActiveView('navigation');
               }}
               className={`flex items-center justify-center w-10 h-10 rounded-lg transition-all ${

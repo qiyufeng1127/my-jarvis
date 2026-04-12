@@ -2,45 +2,224 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { FocusEvent, RefObject } from 'react';
 
 const KEYBOARD_THRESHOLD = 120;
+const SCROLL_PADDING = 16;
+const EXTRA_VISIBLE_GAP = 20;
+const RETRY_DELAYS = [0, 120, 260, 420];
+const DEBUG_KEYBOARD_VAR = '--app-debug-keyboard-offset';
+const FOCUS_SWITCH_GRACE_MS = 180;
+
+const isTextualInput = (element: HTMLInputElement) => {
+  const nonTextInputTypes = new Set([
+    'range',
+    'checkbox',
+    'radio',
+    'button',
+    'submit',
+    'reset',
+    'file',
+    'color',
+    'date',
+    'datetime-local',
+    'month',
+    'time',
+    'week',
+    'hidden',
+    'image',
+  ]);
+
+  return !nonTextInputTypes.has(element.type);
+};
 
 const isEditableElement = (element: EventTarget | null): element is HTMLElement => {
   return (
-    element instanceof HTMLInputElement ||
+    (element instanceof HTMLInputElement && isTextualInput(element)) ||
     element instanceof HTMLTextAreaElement ||
     element instanceof HTMLSelectElement ||
     (element instanceof HTMLElement && element.isContentEditable)
   );
 };
 
-const setRootViewportVars = () => {
-  const root = document.documentElement;
-  const viewport = window.visualViewport;
-  const safeAreaTop = 'env(safe-area-inset-top, 0px)';
-  const safeAreaBottom = 'env(safe-area-inset-bottom, 0px)';
+const isScrollableElement = (element: HTMLElement) => {
+  const styles = window.getComputedStyle(element);
+  const overflowY = styles.overflowY;
+  return (
+    (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') &&
+    element.scrollHeight > element.clientHeight + 1
+  );
+};
 
+const getScrollContainer = (element: HTMLElement | null) => {
+  if (!element) return null;
+
+  let current = element.parentElement;
+  while (current) {
+    if (isScrollableElement(current)) {
+      return current;
+    }
+    current = current.parentElement;
+  }
+
+  return document.scrollingElement instanceof HTMLElement ? document.scrollingElement : null;
+};
+
+const getKeyboardMetrics = () => {
+  const viewport = window.visualViewport;
   const visibleHeight = viewport ? viewport.height : window.innerHeight;
   const viewportOffsetTop = viewport ? viewport.offsetTop : 0;
   const keyboardHeight = viewport
     ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
     : 0;
-  const keyboardOffset = keyboardHeight > KEYBOARD_THRESHOLD ? keyboardHeight : 0;
+  const debugOffset = Number.parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue(DEBUG_KEYBOARD_VAR) || '0'
+  ) || 0;
+  const resolvedKeyboardHeight = Math.max(keyboardHeight, debugOffset);
+  const keyboardOffset = resolvedKeyboardHeight > KEYBOARD_THRESHOLD ? resolvedKeyboardHeight : 0;
+  const keyboardTop = viewport
+    ? viewport.height + viewport.offsetTop
+    : window.innerHeight;
+
+  return {
+    viewport,
+    visibleHeight,
+    viewportOffsetTop,
+    keyboardOffset,
+    keyboardTop,
+  };
+};
+
+const setRootViewportVars = () => {
+  const root = document.documentElement;
+  const safeAreaTop = 'env(safe-area-inset-top, 0px)';
+  const safeAreaBottom = 'env(safe-area-inset-bottom, 0px)';
+  const { visibleHeight, viewportOffsetTop, keyboardOffset } = getKeyboardMetrics();
+  const effectiveVisibleHeight = Math.max(0, visibleHeight - keyboardOffset);
+  const composerOffset = keyboardOffset > 0
+    ? `${keyboardOffset}px`
+    : `calc(var(--mobile-bottom-nav-height) + ${safeAreaBottom})`;
+  const mobileBottomGap = keyboardOffset > 0
+    ? `calc(${safeAreaBottom} + 12px)`
+    : `calc(var(--mobile-bottom-nav-height) + ${safeAreaBottom})`;
 
   root.style.setProperty('--app-safe-area-top', safeAreaTop);
   root.style.setProperty('--app-safe-area-bottom', safeAreaBottom);
-  root.style.setProperty('--app-visible-viewport-height', `${visibleHeight}px`);
+  root.style.setProperty('--app-visible-viewport-height', `${effectiveVisibleHeight}px`);
   root.style.setProperty('--app-viewport-offset-top', `${viewportOffsetTop}px`);
   root.style.setProperty('--app-keyboard-offset', `${keyboardOffset}px`);
+  root.style.setProperty('--app-composer-offset', composerOffset);
+  root.style.setProperty('--app-mobile-bottom-gap', mobileBottomGap);
   root.dataset.keyboardOpen = keyboardOffset > 0 ? 'true' : 'false';
 };
 
+const scrollElementIntoKeyboardView = (element: HTMLElement | null, container?: HTMLElement | null) => {
+  if (!element) return;
+
+  const targetContainer = container ?? getScrollContainer(element);
+  const { viewport, viewportOffsetTop, keyboardOffset, keyboardTop, visibleHeight } = getKeyboardMetrics();
+  const fallbackKeyboardTop = Math.max(0, viewportOffsetTop + visibleHeight);
+  const effectiveKeyboardTop = keyboardOffset > 0 ? keyboardTop : fallbackKeyboardTop;
+
+  if (!targetContainer || targetContainer === document.body || targetContainer === document.documentElement) {
+    const elementRect = element.getBoundingClientRect();
+    const visibleTop = viewportOffsetTop + SCROLL_PADDING;
+    const visibleBottom = effectiveKeyboardTop - SCROLL_PADDING - EXTRA_VISIBLE_GAP;
+
+    if (elementRect.top < visibleTop || elementRect.bottom > visibleBottom) {
+      element.scrollIntoView({ behavior: 'auto', block: keyboardOffset > 0 ? 'center' : 'nearest' });
+    }
+    return;
+  }
+
+  const containerRect = targetContainer.getBoundingClientRect();
+  const elementRect = element.getBoundingClientRect();
+  const visibleTop = Math.max(containerRect.top + SCROLL_PADDING, viewportOffsetTop + SCROLL_PADDING);
+  const visibleBottom = Math.min(containerRect.bottom, effectiveKeyboardTop) - SCROLL_PADDING - EXTRA_VISIBLE_GAP;
+  const currentScroll = targetContainer.scrollTop;
+
+  if (elementRect.top < visibleTop) {
+    targetContainer.scrollTo({
+      top: Math.max(0, currentScroll - (visibleTop - elementRect.top) - 24),
+      behavior: 'auto',
+    });
+    return;
+  }
+
+  if (elementRect.bottom > visibleBottom) {
+    const delta = elementRect.bottom - visibleBottom;
+    targetContainer.scrollTo({
+      top: Math.max(0, currentScroll + delta + 24),
+      behavior: 'auto',
+    });
+    return;
+  }
+
+  if (viewport && keyboardOffset > 0) {
+    element.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'nearest' });
+  }
+};
+
 export function useGlobalMobileViewportVars() {
+  const scrollTimerRef = useRef<number | null>(null);
+  const focusTransitionTimerRef = useRef<number | null>(null);
+
   useEffect(() => {
     const viewport = window.visualViewport;
-    const updateViewportVars = () => setRootViewportVars();
+
+    const scheduleActiveElementVisibility = (delay = 0) => {
+      const activeElement = document.activeElement;
+      if (!isEditableElement(activeElement)) return;
+
+      if (scrollTimerRef.current) {
+        window.clearTimeout(scrollTimerRef.current);
+      }
+
+      scrollTimerRef.current = window.setTimeout(() => {
+        scrollElementIntoKeyboardView(activeElement);
+      }, delay);
+    };
+
+    const updateViewportVars = () => {
+      setRootViewportVars();
+      scheduleActiveElementVisibility(0);
+    };
+
+    const handleFocusIn = (event: FocusEvent | Event) => {
+      if (!isEditableElement(event.target)) return;
+
+      if (focusTransitionTimerRef.current) {
+        window.clearTimeout(focusTransitionTimerRef.current);
+        focusTransitionTimerRef.current = null;
+      }
+
+      RETRY_DELAYS.forEach((delay) => {
+        window.setTimeout(() => {
+          setRootViewportVars();
+          scrollElementIntoKeyboardView(event.target as HTMLElement);
+        }, delay);
+      });
+    };
+
+    const handleFocusOut = () => {
+      if (focusTransitionTimerRef.current) {
+        window.clearTimeout(focusTransitionTimerRef.current);
+      }
+
+      focusTransitionTimerRef.current = window.setTimeout(() => {
+        const activeElement = document.activeElement;
+        if (isEditableElement(activeElement)) {
+          setRootViewportVars();
+          scrollElementIntoKeyboardView(activeElement);
+          return;
+        }
+
+        setRootViewportVars();
+      }, FOCUS_SWITCH_GRACE_MS);
+    };
 
     updateViewportVars();
     window.addEventListener('resize', updateViewportVars);
     window.addEventListener('orientationchange', updateViewportVars);
+    document.addEventListener('focusin', handleFocusIn);
+    document.addEventListener('focusout', handleFocusOut);
 
     if (viewport) {
       viewport.addEventListener('resize', updateViewportVars);
@@ -48,8 +227,18 @@ export function useGlobalMobileViewportVars() {
     }
 
     return () => {
+      if (scrollTimerRef.current) {
+        window.clearTimeout(scrollTimerRef.current);
+      }
+
+      if (focusTransitionTimerRef.current) {
+        window.clearTimeout(focusTransitionTimerRef.current);
+      }
+
       window.removeEventListener('resize', updateViewportVars);
       window.removeEventListener('orientationchange', updateViewportVars);
+      document.removeEventListener('focusin', handleFocusIn);
+      document.removeEventListener('focusout', handleFocusOut);
 
       if (viewport) {
         viewport.removeEventListener('resize', updateViewportVars);
@@ -69,44 +258,9 @@ export function useKeyboardAvoidance<T extends HTMLElement>(containerRef: RefObj
       window.clearTimeout(scrollTimerRef.current);
     }
 
-    const run = () => {
-      const container = containerRef.current;
-      const viewport = window.visualViewport;
-      const keyboardHeight = viewport
-        ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
-        : 0;
-      const keyboardOffset = keyboardHeight > KEYBOARD_THRESHOLD ? keyboardHeight : 0;
-
-      if (!container) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        return;
-      }
-
-      const containerRect = container.getBoundingClientRect();
-      const elementRect = element.getBoundingClientRect();
-      const keyboardTop = viewport
-        ? viewport.height + viewport.offsetTop - keyboardOffset
-        : window.innerHeight - keyboardOffset;
-      const visibleTop = Math.max(containerRect.top + 12, viewport ? viewport.offsetTop + 12 : 12);
-      const visibleBottom = Math.min(containerRect.bottom, keyboardTop) - 12;
-      const currentScroll = container.scrollTop;
-
-      if (elementRect.top < visibleTop) {
-        container.scrollTo({
-          top: Math.max(0, currentScroll - (visibleTop - elementRect.top) - 24),
-          behavior: 'smooth',
-        });
-      } else if (elementRect.bottom > visibleBottom) {
-        container.scrollTo({
-          top: currentScroll + (elementRect.bottom - visibleBottom) + 24,
-          behavior: 'smooth',
-        });
-      } else {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    };
-
-    scrollTimerRef.current = window.setTimeout(run, delay);
+    scrollTimerRef.current = window.setTimeout(() => {
+      scrollElementIntoKeyboardView(element, containerRef.current);
+    }, delay);
   }, [containerRef]);
 
   useEffect(() => {
@@ -139,9 +293,14 @@ export function useKeyboardAvoidance<T extends HTMLElement>(containerRef: RefObj
 
   const handleFocusCapture = useCallback((event: FocusEvent<HTMLElement>) => {
     if (isEditableElement(event.target)) {
-      scrollIntoSafeView(event.target, 120);
+      scrollIntoSafeView(event.target, 0);
+      RETRY_DELAYS.forEach((delay) => {
+        window.setTimeout(() => {
+          scrollElementIntoKeyboardView(event.target as HTMLElement, containerRef.current);
+        }, delay);
+      });
     }
-  }, [scrollIntoSafeView]);
+  }, [containerRef, scrollIntoSafeView]);
 
   return {
     handleFocusCapture,

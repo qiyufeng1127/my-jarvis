@@ -13,6 +13,7 @@
   --app-keyboard-offset: 0px;
   --app-mobile-top-gap: max(12px, calc(var(--app-safe-area-top) + 8px));
   --app-mobile-bottom-gap: var(--mobile-bottom-nav-height);
+  --app-composer-offset: calc(var(--mobile-bottom-nav-height) + var(--app-safe-area-bottom));
 }
 
 /* 全局重置 - 确保没有任何多余空白 */
@@ -26,11 +27,10 @@ html, body, #root {
   margin: 0 !important;
   padding: 0 !important;
   width: 100%;
-  height: var(--app-visible-viewport-height);
   min-height: var(--app-visible-viewport-height);
+  height: var(--app-visible-viewport-height);
   background-color: #ffffff !important;
   overflow: hidden;
-  position: fixed;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -83,13 +83,13 @@ body {
 }
 
 .keyboard-aware-modal-shell {
-  padding-top: max(28px, calc(var(--app-safe-area-top) + 24px));
-  padding-bottom: max(88px, calc(var(--app-safe-area-bottom) + var(--app-keyboard-offset) + 24px));
+  padding-top: max(12px, calc(var(--app-safe-area-top) + 8px));
+  padding-bottom: max(12px, calc(var(--app-safe-area-bottom) + var(--app-keyboard-offset) + 8px));
 }
 
 .keyboard-aware-modal-card {
-  max-height: min(82dvh, calc(var(--app-visible-viewport-height) - var(--app-safe-area-top) - 24px));
-  margin-top: calc(var(--app-viewport-offset-top) * 0.5);
+  max-height: calc(var(--app-visible-viewport-height) - var(--app-safe-area-top) - var(--app-safe-area-bottom) - 16px);
+  margin-top: 0;
 }
 
 .keyboard-aware-scroll {
@@ -101,6 +101,15 @@ body {
 
 .keyboard-aware-composer {
   padding-bottom: calc(var(--app-keyboard-offset) + var(--app-safe-area-bottom));
+}
+
+.keyboard-aware-docked {
+  bottom: var(--app-composer-offset) !important;
+  padding-bottom: max(8px, var(--app-safe-area-bottom));
+}
+
+html[data-keyboard-open='true'] .keyboard-aware-docked {
+  padding-bottom: max(10px, calc(var(--app-safe-area-bottom) + 4px));
 }
 
 /* 自定义滚动条样式 */
@@ -137,33 +146,17 @@ input, textarea, select {
 
 /* 彻底消除底部黑色区域 - 移动端 */
 @media (max-width: 768px) {
-  html {
-    position: fixed !important;
-    width: 100% !important;
-    height: var(--app-visible-viewport-height) !important;
-    min-height: var(--app-visible-viewport-height) !important;
-    overflow: hidden !important;
-    background-color: #ffffff !important;
-  }
-  
-  body {
-    position: fixed !important;
-    width: 100% !important;
-    height: var(--app-visible-viewport-height) !important;
-    min-height: var(--app-visible-viewport-height) !important;
-    overflow: hidden !important;
-    background-color: #ffffff !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-  
+  html,
+  body,
   #root {
-    position: fixed !important;
     width: 100% !important;
     height: var(--app-visible-viewport-height) !important;
     min-height: var(--app-visible-viewport-height) !important;
     overflow: hidden !important;
     background-color: #ffffff !important;
+  }
+
+  body {
     margin: 0 !important;
     padding: 0 !important;
   }

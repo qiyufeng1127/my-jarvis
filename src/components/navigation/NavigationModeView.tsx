@@ -1488,6 +1488,8 @@ function NavigationStepCard({
   stepCount,
   elapsedLabel,
   onContinue,
+  onCompleteNavigation,
+  isFinalStepAwaitingCompletion,
   onOpenDifficulty,
   onOpenFocus,
   onOpenHandsFree,
@@ -1508,6 +1510,8 @@ function NavigationStepCard({
   stepCount: number;
   elapsedLabel: string;
   onContinue: () => void;
+  onCompleteNavigation: () => void;
+  isFinalStepAwaitingCompletion: boolean;
   onOpenDifficulty: () => void;
   onOpenFocus: () => void;
   onOpenHandsFree: () => void;
@@ -1569,7 +1573,15 @@ function NavigationStepCard({
         </button>
       </div>
 
-      <button className="navigation-primary-button navigation-reference-continue-button" onClick={onContinue}>继续</button>
+      <button className="navigation-primary-button navigation-reference-continue-button" onClick={onContinue}>
+        {isFinalStepAwaitingCompletion ? '我已经开始做了' : '继续'}
+      </button>
+
+      {isFinalStepAwaitingCompletion && (
+        <button className="navigation-secondary-button navigation-reference-complete-button" onClick={onCompleteNavigation}>
+          完成本次导航
+        </button>
+      )}
 
       <div className="navigation-step-reference-bottom-row">
         <button className="navigation-reference-side-button" onClick={onOpenDifficulty} disabled={isResolvingDifficulty}>
@@ -1580,7 +1592,9 @@ function NavigationStepCard({
         </button>
       </div>
 
-      <div className="navigation-footer-note navigation-step-reference-note">你现在只需要看这一小步。做完了，就继续。</div>
+      <div className="navigation-footer-note navigation-step-reference-note">
+        {isFinalStepAwaitingCompletion ? '你现在可以一直做这一步，计时会继续。等你真的做完，再点「完成本次导航」。' : '你现在只需要看这一小步。做完了，就继续。'}
+      </div>
     </div>
   );
 }
@@ -1588,6 +1602,7 @@ function NavigationStepCard({
 function NavigationSessionView({ session }: { session: NavigationSession }) {
   const preferences = useNavigationPreferenceStore((state) => state.preferences);
   const completeCurrentStep = useNavigationStore((state) => state.completeCurrentStep);
+  const finalizeSession = useNavigationStore((state) => state.finalizeSession);
   const decayExecutionScore = useNavigationStore((state) => state.decayExecutionScore);
   const pauseSession = useNavigationStore((state) => state.pauseSession);
   const resumeSession = useNavigationStore((state) => state.resumeSession);
@@ -1614,6 +1629,8 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
   const lastVoiceCommandRef = useRef('');
   const lastVoiceCommandAtRef = useRef(0);
   const currentStep = session.executionSteps[session.currentStepIndex];
+  const isFinalStep = session.currentStepIndex >= session.executionSteps.length - 1;
+  const isFinalStepAwaitingCompletion = isFinalStep && !!session.awaitingFinalCompletion;
   const elapsedLabel = formatElapsedCompact(currentStep?.startedAt || session.startedAt, elapsedNow);
   const isInsertedStep = currentStep?.source === 'difficulty_detour' || currentStep?.source === 'inserted_flow';
   const sceneExecutionScore = sessionMoodScore(currentStep, isInsertedStep, session);
@@ -1681,7 +1698,11 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
         setHandsFreeWaiting(false);
         stopListening();
         playCoinDrop();
-        completeCurrentStep();
+        if (isFinalStepAwaitingCompletion) {
+          finalizeSession();
+        } else {
+          completeCurrentStep();
+        }
         unlockVoiceCommand();
         return;
       }
@@ -1963,6 +1984,13 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
           playCoinDrop();
           completeCurrentStep();
         }}
+        onCompleteNavigation={() => {
+          stopListening();
+          setHandsFreeWaiting(false);
+          playCoinDrop();
+          finalizeSession();
+        }}
+        isFinalStepAwaitingCompletion={isFinalStepAwaitingCompletion}
         onOpenDifficulty={() => setShowDifficultySheet(true)}
         onOpenFocus={() => setIsFocusOpen(true)}
         onOpenHandsFree={() => {

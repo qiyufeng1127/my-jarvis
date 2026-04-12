@@ -12,34 +12,11 @@ import { useTaskStore } from '@/stores/taskStore';
 import { useGoalStore } from '@/stores/goalStore';
 import { matchTaskToGoals, convertMatchesToTaskGoals } from '@/services/aiGoalMatcher';
 
-const softenTimelineTitle = (title: string) => {
-  if (/先做\d+分钟|先.*运动|先.*散步|先.*喝水|先.*休息|先.*坐一下/.test(title)) {
-    return title.trim();
-  }
-
-  return title
-    .replace(/卧室唤醒与准备/g, '起床穿好衣服下楼啦')
-    .replace(/下楼与生活准备/g, '下楼把生活这摊事顺一顺')
-    .replace(/工作区启动与设置/g, '收拾一下工作区准备开工啦')
-    .replace(/(.+)与(.+)准备/g, '$1把$2也顺手弄好')
-    .replace(/(.+)与(.+)设置/g, '$1顺手把$2调一调')
-    .replace(/(.+)与(.+)处理/g, '$1顺手把$2也做掉')
-    .replace(/启动/g, '开始')
-    .replace(/设置/g, '弄好')
-    .replace(/准备/g, '准备好')
-    .trim();
-};
+const softenTimelineTitle = (title: string) => title.trim();
 
 const softenTimelineDescription = (description?: string) => {
   if (!description) return '';
-
-  return description
-    .replace(/完成/g, '慢慢做完')
-    .replace(/处理/g, '顺手做掉')
-    .replace(/并明确第一个工作目标/g, '然后轻轻开始第一件事')
-    .replace(/并收集需要带下楼的物品/g, '顺手把要带下楼的东西拿好')
-    .replace(/创造舒适氛围/g, '把感觉调整得舒服一点')
-    .trim();
+  return description.trim();
 };
 
 const buildTimelineTaskDescription = (sessionTitle: string, groupTitle: string) => `${sessionTitle} · ${groupTitle}`;
@@ -221,6 +198,7 @@ interface NavigationStoreState {
   resumeSession: () => void;
   cancelSession: () => void;
   completeCurrentStep: () => void;
+  finalizeSession: () => void;
   skipCurrentStep: () => void;
   decayExecutionScore: () => void;
   resolveDifficulty: (result: NavigationInsertedFlowResult) => void;
@@ -631,6 +609,7 @@ export const useNavigationStore = create<NavigationStoreState>()(
           currentSession: {
             ...session,
             status: 'active',
+            awaitingFinalCompletion: false,
             startedAt: session.startedAt || now,
             currentStepIndex: 0,
             executionSteps: nextSteps,
@@ -661,6 +640,43 @@ export const useNavigationStore = create<NavigationStoreState>()(
         const currentStep = session.executionSteps[session.currentStepIndex];
         if (!currentStep) return;
 
+        const isLastStep = session.currentStepIndex >= session.executionSteps.length - 1;
+        const perStepGain = session.executionSteps.length > 0 ? 100 / session.executionSteps.length : 0;
+
+        if (isLastStep) {
+          const updatedSteps = session.executionSteps.map((step, index) => {
+            if (index === session.currentStepIndex) {
+              return {
+                ...step,
+                status: 'in_progress' as const,
+                startedAt: step.startedAt || now,
+                completedAt: undefined,
+              };
+            }
+            return step;
+          });
+
+          set({
+            currentSession: {
+              ...session,
+              status: 'active',
+              awaitingFinalCompletion: true,
+              currentStepIndex: session.currentStepIndex,
+              executionSteps: updatedSteps,
+              executionScore: clamp(session.executionScore + perStepGain * 0.35, 0, 100),
+              energyLevel: clamp(session.energyLevel + perStepGain * 0.2, 0, 100),
+              recentExecutionGain: Math.max(1, Math.round(perStepGain * 0.35)),
+              lastProgressAt: now,
+              completedAt: undefined,
+              handsFree: {
+                ...session.handsFree,
+                waitingForCommand: false,
+              },
+            },
+          });
+          return;
+        }
+
         const updatedSteps = session.executionSteps.map((step, index) => {
           if (index === session.currentStepIndex) {
             return {
@@ -680,20 +696,55 @@ export const useNavigationStore = create<NavigationStoreState>()(
           return step;
         });
 
-        const isLastStep = session.currentStepIndex >= session.executionSteps.length - 1;
-        const perStepGain = session.executionSteps.length > 0 ? 100 / session.executionSteps.length : 0;
-
         set({
           currentSession: {
             ...session,
-            status: isLastStep ? 'completed' : 'active',
-            currentStepIndex: isLastStep ? session.currentStepIndex : session.currentStepIndex + 1,
+            status: 'active',
+            awaitingFinalCompletion: false,
+            currentStepIndex: session.currentStepIndex + 1,
             executionSteps: updatedSteps,
             executionScore: clamp(session.executionScore + perStepGain, 0, 100),
             energyLevel: clamp(session.energyLevel + perStepGain * 0.55, 0, 100),
             recentExecutionGain: Math.max(1, Math.round(perStepGain)),
             lastProgressAt: now,
-            completedAt: isLastStep ? now : session.completedAt,
+            completedAt: session.completedAt,
+            handsFree: {
+              ...session.handsFree,
+              waitingForCommand: false,
+            },
+          },
+        });
+      },
+      finalizeSession: () => {
+        const session = get().currentSession;
+        if (!session || session.status !== 'active') return;
+        const now = new Date().toISOString();
+        const currentStep = session.executionSteps[session.currentStepIndex];
+        if (!currentStep) return;
+
+        const updatedSteps = session.executionSteps.map((step, index) => {
+          if (index === session.currentStepIndex) {
+            return {
+              ...step,
+              status: step.status === 'skipped' ? 'skipped' as const : 'completed' as const,
+              startedAt: step.startedAt || now,
+              completedAt: now,
+            };
+          }
+          return step;
+        });
+
+        set({
+          currentSession: {
+            ...session,
+            status: 'completed',
+            awaitingFinalCompletion: false,
+            executionSteps: updatedSteps,
+            executionScore: clamp(Math.max(session.executionScore, 92), 0, 100),
+            energyLevel: clamp(session.energyLevel + 6, 0, 100),
+            recentExecutionGain: Math.max(1, session.recentExecutionGain || 0),
+            lastProgressAt: now,
+            completedAt: now,
             handsFree: {
               ...session.handsFree,
               waitingForCommand: false,
@@ -734,6 +785,7 @@ export const useNavigationStore = create<NavigationStoreState>()(
           currentSession: {
             ...session,
             status: isLastStep ? 'completed' : 'active',
+            awaitingFinalCompletion: false,
             currentStepIndex: isLastStep ? session.currentStepIndex : session.currentStepIndex + 1,
             executionSteps: updatedSteps,
             executionScore: clamp(session.executionScore + 4, 0, 100),

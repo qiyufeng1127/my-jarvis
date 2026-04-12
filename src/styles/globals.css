@@ -74,7 +74,6 @@ html, body, #root {
   min-height: var(--app-visible-viewport-height);
   background-color: #ffffff !important;
   overflow: hidden;
-  position: fixed;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -84,7 +83,6 @@ html, body, #root {
   min-height: var(--app-visible-viewport-height);
   width: 100%;
   height: var(--app-visible-viewport-height);
-  position: fixed;
   inset: 0;
 }
 

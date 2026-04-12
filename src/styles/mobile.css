@@ -63,6 +63,12 @@
     padding-bottom: env(safe-area-inset-bottom); /* iOS 安全区域 */
   }
 
+  html[data-keyboard-open='true'] .mobile-nav,
+  html[data-keyboard-open='true'] .mobile-bottom-nav {
+    transform: translateY(100%);
+    pointer-events: none;
+  }
+
   /* 主内容区域留出底部导航栏空间 */
   .main-content {
     padding-bottom: calc(80px + env(safe-area-inset-bottom));

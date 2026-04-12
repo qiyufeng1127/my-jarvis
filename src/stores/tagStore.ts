@@ -16,6 +16,7 @@ export interface TagData {
   isDisabled?: boolean; // 是否禁用
   tagType?: TagType; // 标签类型
   folderId?: string; // 所属文件夹ID
+  emojiLocked?: boolean; // emoji 是否被用户手动锁定
   
   // 财务数据
   totalIncome: number; // 总收入
@@ -113,7 +114,7 @@ interface TagState {
   
   // 标签操作
   addTag: (name: string, emoji?: string, color?: string, tagType?: TagType, folderId?: string) => void;
-  updateTag: (oldName: string, newName: string, emoji?: string, color?: string) => void;
+  updateTag: (oldName: string, newName: string, emoji?: string, color?: string, options?: { lockEmoji?: boolean }) => void;
   deleteTag: (name: string) => void;
   disableTag: (name: string) => void;
   enableTag: (name: string) => void;
@@ -335,6 +336,7 @@ export const useTagStore = create<TagState>()(
             isDisabled: false,
             tagType: tagType || 'business',
             folderId: folderId,
+            emojiLocked: false,
             totalIncome: 0,
             totalExpense: 0,
             netIncome: 0,
@@ -361,11 +363,15 @@ export const useTagStore = create<TagState>()(
         }
       },
       
-      updateTag: (oldName, newName, emoji, color) => {
+      updateTag: (oldName, newName, emoji, color, options) => {
         const tags = get().tags;
         const oldTag = tags[oldName];
         
         if (!oldTag) return;
+
+        const nextEmoji = (emoji !== undefined && emoji !== null && emoji !== '') ? emoji : oldTag.emoji;
+        const nextColor = (color !== undefined && color !== null && color !== '') ? color : oldTag.color;
+        const nextEmojiLocked = options?.lockEmoji ?? oldTag.emojiLocked ?? false;
         
         // 如果只是更新emoji或color，不需要删除重建
         if (oldName === newName) {
@@ -374,8 +380,9 @@ export const useTagStore = create<TagState>()(
               ...tags,
               [oldName]: {
                 ...oldTag,
-                emoji: (emoji !== undefined && emoji !== null && emoji !== '') ? emoji : oldTag.emoji,
-                color: (color !== undefined && color !== null && color !== '') ? color : oldTag.color,
+                emoji: nextEmoji,
+                color: nextColor,
+                emojiLocked: nextEmojiLocked,
               },
             },
           });
@@ -392,15 +399,25 @@ export const useTagStore = create<TagState>()(
             [newName]: {
               ...oldTag,
               name: newName,
-              emoji: (emoji !== undefined && emoji !== null && emoji !== '') ? emoji : oldTag.emoji,
-              color: (color !== undefined && color !== null && color !== '') ? color : oldTag.color,
+              emoji: nextEmoji,
+              color: nextColor,
+              emojiLocked: nextEmojiLocked,
             },
           },
+          folders: get().folders.map(folder => ({
+            ...folder,
+            tagNames: folder.tagNames.map(tagName => tagName === oldName ? newName : tagName),
+          })),
         });
         
         // 更新时长记录中的标签名称
         set({
           durationRecords: get().durationRecords.map(record =>
+            record.tagName === oldName
+              ? { ...record, tagName: newName }
+              : record
+          ),
+          financeRecords: get().financeRecords.map(record =>
             record.tagName === oldName
               ? { ...record, tagName: newName }
               : record
@@ -512,6 +529,7 @@ export const useTagStore = create<TagState>()(
           createdAt: earliestCreatedAt,
           isDisabled: false,
           tagType: tagType,
+          emojiLocked: false,
         };
         
         set({ tags: newTags });
@@ -1427,6 +1445,7 @@ export const useTagStore = create<TagState>()(
                 isDisabled: false,
                 tagType: 'business',
                 folderId: folderId,
+                emojiLocked: false,
                 totalIncome: 0,
                 totalExpense: 0,
                 netIncome: 0,
@@ -1447,7 +1466,7 @@ export const useTagStore = create<TagState>()(
     }),
     {
       name: 'manifestos-tags-storage',
-      version: 2,
+      version: 3,
       storage: {
         getItem: (name) => {
           try {
@@ -1461,6 +1480,7 @@ export const useTagStore = create<TagState>()(
                 const tag = parsed.state.tags[key];
                 tag.createdAt = new Date(tag.createdAt);
                 tag.lastUsedAt = new Date(tag.lastUsedAt);
+                tag.emojiLocked = tag.emojiLocked ?? false;
               });
             }
             

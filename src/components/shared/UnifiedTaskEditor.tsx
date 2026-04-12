@@ -5,6 +5,7 @@ import { useWorkflowStore } from '@/stores/workflowStore';
 import { useTagStore } from '@/stores/tagStore';
 import { useKeyboardAvoidance } from '@/hooks';
 import { AISmartProcessor } from '@/services/aiSmartService';
+import { resolveTagInput } from '@/utils/tagInputResolver';
 
 interface UnifiedTaskEditorProps {
   tasks: any[];
@@ -46,7 +47,7 @@ export default function UnifiedTaskEditor({
   onConfirm,
   isDark = false 
 }: UnifiedTaskEditorProps) {
-  const { addTag, getTagByName, addTagToFolder, getAllFolders, resolveAutoTags, learnTagSelection } = useTagStore();
+  const { addTag, getTagByName, addTagToFolder, getAllFolders, resolveAutoTags, learnTagSelection, ensureTagsExist, getAllTags } = useTagStore();
   const scrollRef = useRef<HTMLDivElement>(null);
   const { handleFocusCapture, scrollIntoSafeView } = useKeyboardAvoidance(scrollRef);
 
@@ -296,9 +297,14 @@ export default function UnifiedTaskEditor({
 
   // 同步标签到标签管理系统
   const syncTagsToStore = (tags: string[]) => {
+    const normalizedTags = Array.from(new Set(
+      tags
+        .map(tag => tag.trim())
+        .filter(Boolean)
+    ));
     const folders = getAllFolders();
     
-    tags.forEach(tagName => {
+    normalizedTags.forEach(tagName => {
       // 检查标签是否已存在
       const existingTag = getTagByName(tagName);
       
@@ -438,7 +444,7 @@ export default function UnifiedTaskEditor({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-2 md:p-3 keyboard-aware-modal-shell" style={{ zIndex: 10000 }}>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-start md:items-center justify-center p-2 md:p-3 keyboard-aware-modal-shell" style={{ zIndex: 10000 }}>
       <div ref={scrollRef} onFocusCapture={handleFocusCapture} className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 rounded-2xl shadow-2xl w-full h-full md:max-w-3xl md:h-[96%] flex flex-col overflow-hidden border border-gray-200 dark:border-gray-700 keyboard-aware-modal-card">
 
         {/* 顶部安全区域占位 - 避免被灵动岛遮挡 */}
@@ -966,21 +972,34 @@ export default function UnifiedTaskEditor({
                 
                 {/* 添加标签按钮 */}
                 <button
-                  onClick={() => {
-                    const newTag = prompt('✨ 输入新标签：');
-                    if (newTag) {
-                      const newTasks = [...editingTasks];
-                      newTasks[index].tags.push(newTag);
-                      newTasks[index].color = AISmartProcessor.getTaskColor(newTasks[index].tags);
-                      
-                      // 🎓 标签学习：记录用户添加标签后的结果
-                      TagLearningService.learnFromUserChoice(task.title, newTasks[index].tags);
-                      
-                      // 🏷️ 自动同步标签到标签管理系统
-                      syncTagsToStore([newTag]);
-                      
-                      setEditingTasks(newTasks);
+                  onClick={async () => {
+                    const inputTag = prompt('✨ 输入新标签：');
+                    if (!inputTag) return;
+
+                    const resolved = await resolveTagInput(
+                      inputTag,
+                      getAllTags().map(tag => tag.name)
+                    );
+
+                    if (!resolved.tagName) return;
+
+                    const newTasks = [...editingTasks];
+                    const nextTags = Array.isArray(newTasks[index].tags) ? [...newTasks[index].tags] : [];
+                    if (!nextTags.includes(resolved.tagName)) {
+                      nextTags.push(resolved.tagName);
                     }
+                    newTasks[index].tags = nextTags;
+                    newTasks[index].color = AISmartProcessor.getTaskColor(newTasks[index].tags);
+
+                    // 🎓 标签学习：记录用户添加标签后的结果
+                    TagLearningService.learnFromUserChoice(task.title, newTasks[index].tags);
+
+                    // 🏷️ 自动同步标签到标签管理系统
+                    if (resolved.shouldCreate) {
+                      syncTagsToStore([resolved.tagName]);
+                    }
+
+                    setEditingTasks(newTasks);
                   }}
                   className="px-2 py-1 border border-dashed rounded-md text-xs font-medium hover:bg-gray-50 active:bg-gray-100 transition-colors"
                   style={{

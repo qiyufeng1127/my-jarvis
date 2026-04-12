@@ -77,6 +77,7 @@ export interface NavigationSession {
   executionSteps: NavigationExecutionStep[];
   timelineGroups: NavigationTimelineGroup[];
   currentStepIndex: number;
+  awaitingFinalCompletion?: boolean;
   executionScore: number;
   energyLevel: number;
   recentExecutionGain?: number;

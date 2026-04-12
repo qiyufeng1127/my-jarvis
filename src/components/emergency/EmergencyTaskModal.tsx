@@ -18,7 +18,7 @@ interface EmergencyTaskModalProps {
 export default function EmergencyTaskModal({ enableVoice = false }: EmergencyTaskModalProps) {
   const { currentTask, completeCurrentTask, failCurrentTask, replaceCurrentTask } = useEmergencyTaskStore();
   const { createTask } = useTaskStore();
-  const { resolveAutoTags } = useTagStore();
+  const { resolveAutoTags, ensureTagsExist } = useTagStore();
   
   const [isVisible, setIsVisible] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -94,11 +94,11 @@ export default function EmergencyTaskModal({ enableVoice = false }: EmergencyTas
 
     // 1. 创建事件卡片
     const now = new Date();
-    const resolvedTags = resolveAutoTags(
+    const resolvedTags = ensureTagsExist(resolveAutoTags(
       `${currentTask.title} ${currentTask.description || ''}`.trim(),
       ['紧急任务'],
       3
-    );
+    ));
     createTask({
       title: `🚨 ${currentTask.title}`,
       description: currentTask.description || '紧急任务',

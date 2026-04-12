@@ -403,7 +403,7 @@ export default function NewTimelineView({
   );
   
   // 使用标签系统
-  const { recordTagUsage } = useTagStore();
+  const { recordTagUsage, ensureTagsExist } = useTagStore();
   
   // 庆祝效果状态
   const [showCelebration, setShowCelebration] = useState(false);
@@ -1194,6 +1194,7 @@ export default function NewTimelineView({
 
     const durationMinutes = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / 60000));
     const longTermGoals = quickBackfillDraft.goalId ? { [quickBackfillDraft.goalId]: 100 } : {};
+    const normalizedTags = ensureTagsExist(quickBackfillDraft.tags);
 
     onTaskCreate({
       title,
@@ -1202,15 +1203,15 @@ export default function NewTimelineView({
       durationMinutes,
       taskType: 'work',
       status: 'completed',
-      tags: quickBackfillDraft.tags,
+      tags: normalizedTags,
       longTermGoals,
       identityTags: ['system:backfill-record'],
       goldReward: 0,
     });
 
-    if (quickBackfillDraft.tags.length > 0) {
-      TagLearningService.learnFromUserChoice(title, quickBackfillDraft.tags);
-      useTagStore.getState().learnTagSelection(title, quickBackfillDraft.tags, quickBackfillDraft.previousSuggestedTags || []);
+    if (normalizedTags.length > 0) {
+      TagLearningService.learnFromUserChoice(title, normalizedTags);
+      useTagStore.getState().learnTagSelection(title, normalizedTags, quickBackfillDraft.previousSuggestedTags || []);
     }
 
     setQuickBackfillDraft(null);
@@ -1228,9 +1229,9 @@ export default function NewTimelineView({
       );
     })
     .map((task) => {
-      // 优先使用任务的实际开始/结束时间，如果没有则使用计划时间
-      const startTime = task.startTime ? new Date(task.startTime) : new Date(task.scheduledStart!);
-      // 优先使用scheduledEnd（验证完成后会更新），其次是endTime，最后计算
+      // 卡片展示始终使用原计划开始时间；实际开始时间单独保存在 task.startTime / task.actualStart
+      const startTime = new Date(task.scheduledStart!);
+      // 完成倒计时和卡片结束时间仍然使用最新的计划结束时间（启动后会被推到真实结束时刻）
       const endTime = task.scheduledEnd ? new Date(task.scheduledEnd) : (task.endTime ? new Date(task.endTime) : new Date(startTime.getTime() + (task.durationMinutes || 60) * 60000));
       
       // 默认子任务（如果任务没有子任务）
@@ -1790,6 +1791,9 @@ export default function NewTimelineView({
     const now = new Date();
     const duration = task.duration || task.durationMinutes || 30;
     const endTime = new Date(now.getTime() + duration * 60 * 1000);
+    const actualStartIso = now.toISOString();
+    const plannedStartIso = new Date(task.scheduledStart || now).toISOString();
+    const actualEndIso = endTime.toISOString();
     
     // 手动点击 start：说明用户现在就要开始，直接进入任务进行中
     // 自动到预设时间时，TaskVerificationCountdownContent 仍会负责进入 2 分钟启动倒计时
@@ -1799,10 +1803,12 @@ export default function NewTimelineView({
       const countdownState = {
         status: 'task_countdown',
         startDeadline: null,
-        taskDeadline: endTime.toISOString(),
+        taskDeadline: actualEndIso,
         startTimeoutCount: 0,
         completeTimeoutCount: 0,
-        actualStartTime: now.toISOString(),
+        actualStartTime: actualStartIso,
+        scheduledStart: plannedStartIso,
+        scheduledEnd: actualEndIso,
       };
       
       localStorage.setItem(`countdown_${taskId}`, JSON.stringify(countdownState));
@@ -1827,8 +1833,9 @@ export default function NewTimelineView({
       
       onTaskUpdate(taskId, { 
         status: 'in_progress',
-        scheduledStart: now.toISOString(),
-        scheduledEnd: endTime.toISOString(),
+        actualStart: actualStartIso,
+        startTime: actualStartIso,
+        scheduledEnd: actualEndIso,
       });
       
       // 记录实际开始时间
@@ -1975,7 +1982,7 @@ export default function NewTimelineView({
           // 记录实际启动时间并调整时间轴位置
           setTaskActualStartTimes(prev => ({ ...prev, [taskId]: now }));
           adjustTaskStartTime(taskId, now, allTasks, onTaskUpdate);
-            
+          
           // 播放音效
             SoundEffects.playSuccessSound();
             SoundEffects.playCoinSound();
@@ -1996,11 +2003,12 @@ export default function NewTimelineView({
           // 语音提示
           VoiceReminder.congratulateCompletion(task.title, startGold);
           
-          // 修正任务开始时间和结束时间
+          // 保留原计划开始时间，只记录实际启动时间，并把完成倒计时截止时间推到真实结束时刻
           const newEndTime = new Date(now.getTime() + (task.durationMinutes || 60) * 60000);
           onTaskUpdate(taskId, { 
             status: 'in_progress',
-            scheduledStart: now.toISOString(),
+            actualStart: now.toISOString(),
+            startTime: now.toISOString(),
             scheduledEnd: newEndTime.toISOString(),
           });
           
@@ -2516,10 +2524,14 @@ export default function NewTimelineView({
     }
 
     const matchedGoals = getMatchedGoalsForTask(task);
-    const baseDraft = createContributionDraft(task, matchedGoals);
-    const actualDurationMinutes = task.scheduledStart
-      ? Math.max(0, Math.floor((actualEndTime.getTime() - new Date(task.scheduledStart).getTime()) / 60000))
-      : 0;
+    const taskWithActualEnd = {
+      ...task,
+      actualEnd: actualEndTime.toISOString(),
+      actualEndTime: actualEndTime.toISOString(),
+      endTime: actualEndTime.toISOString(),
+    } as Task;
+    const baseDraft = createContributionDraft(taskWithActualEnd, matchedGoals);
+    const actualDurationMinutes = getTaskActualDuration(taskWithActualEnd);
     const effectiveMinutes = Math.max(0, Math.min(Number(baseDraft?.durationMinutes ?? actualDurationMinutes), actualDurationMinutes));
     const overtimeCount = Math.max(0, Math.floor(actualDurationMinutes / Math.max(task.durationMinutes || 1, 1)) - 1);
     const isLowEfficiencyOvertime = overtimeCount >= LOW_EFFICIENCY_TIMEOUT_THRESHOLD;
@@ -2929,6 +2941,22 @@ export default function NewTimelineView({
               });
               setMandatoryReflectionTaskId(task.id);
               setMandatoryReflectionDraft(getAccountabilityReusePayload('no_result').text);
+              return true;
+            }
+
+            if (!payload.goalId) {
+              addTaskHistoryRecord({
+                taskTitle: task.title,
+                taskType: task.taskType,
+                category: task.location || '未关联目标',
+                location: task.location || '时间轴',
+                estimatedDuration: task.durationMinutes || 0,
+                actualDuration: payload.effectiveMinutes,
+                tags: task.tags || [],
+              });
+              setGoalContributionTaskId(null);
+              setGoalContributionError(null);
+              setGoalContributionSuccess(null);
               return true;
             }
 
@@ -3575,14 +3603,15 @@ export default function NewTimelineView({
                      scheduledEnd={block.endTime}
                      goldReward={block.goldReward || 0}
                      onStart={(actualStartTime, calculatedEndTime) => {
-                       // 更新任务的实际开始和结束时间（核心需求：时间动态更新）
+                       // 保留任务原本的计划开始时间，只记录实际开始时间；完成倒计时按真实结束时刻走
                        console.log(`🚀 [时间更新] 任务启动: ${block.title}`);
                        console.log(`  预设开始: ${new Date(block.startTime).toLocaleTimeString()}`);
                        console.log(`  实际开始: ${actualStartTime.toLocaleTimeString()}`);
-                       console.log(`  预计结束: ${calculatedEndTime.toLocaleTimeString()}`);
+                       console.log(`  完成倒计时截止: ${calculatedEndTime.toLocaleTimeString()}`);
                        
                        onTaskUpdate(block.id, {
-                         scheduledStart: actualStartTime.toISOString(),
+                         actualStart: actualStartTime.toISOString(),
+                         startTime: actualStartTime.toISOString(),
                          scheduledEnd: calculatedEndTime.toISOString(),
                          status: 'in_progress',
                        });
@@ -4821,25 +4850,12 @@ export default function NewTimelineView({
             onClick={() => {
               try {
                 const now = new Date();
-                const startTime = new Date(timeUntilEnd.startTime);
+                const suggestedStartTime = new Date(timeUntilEnd.startTime);
+                const startTime = suggestedStartTime.getTime() < now.getTime() ? now : suggestedStartTime;
+                const remainingMinutes = Math.max(5, Math.floor((new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), 23, 59, 59, 999).getTime() - startTime.getTime()) / 60000));
+                const suggestedDuration = Math.max(5, Math.min(30, remainingMinutes));
 
-                if (startTime.getTime() < now.getTime()) {
-                  setQuickBackfillDraft({
-                    title: '',
-                    tags: [],
-                    goalId: '',
-                    startTime: normalizeTimeInput(startTime),
-                    endTime: normalizeTimeInput(new Date(startTime.getTime() + 30 * 60000)),
-                    selectedGapIndex: -1,
-                    previousSuggestedTags: [],
-                    note: '',
-                    values: {},
-                  });
-                  return;
-                }
-
-                const endTime = new Date(startTime.getTime() + 30 * 60000);
-                openTaskCreateModal(startTime, Math.max(5, Math.round((endTime.getTime() - startTime.getTime()) / 60000)));
+                openTaskCreateModal(startTime, suggestedDuration);
               } catch (error) {
                 console.error('创建今日结束任务失败:', error);
                 alert('创建任务失败: ' + (error instanceof Error ? error.message : String(error)));

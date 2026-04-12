@@ -59,7 +59,6 @@ const cleanTimelineTitleText = (title: string) => title
   .replace(/顺手整理好?/g, '')
   .replace(/顺手收拾好?/g, '')
   .replace(/按现在最顺手的方式/g, '')
-  .replace(/[，,、]{2,}/g, '、')
   .replace(/\s+/g, ' ')
   .trim();
 
@@ -85,6 +84,133 @@ const normalizeTimelineGroups = (
       };
     })
     .filter((group: any) => group.stepIds.length > 0 || group.title);
+};
+
+const rebuildTimelineGroupsFromTitles = (
+  titles: string[],
+  executionSteps: NavigationPlannerResult['executionSteps'],
+  sourceGroups?: NavigationPlannerResult['timelineGroups'],
+) => {
+  const cleanedTitles = titles
+    .map((title) => cleanTimelineTitleText(String(title || '')))
+    .filter(Boolean);
+
+  if (!cleanedTitles.length || !executionSteps.length) {
+    return {
+      executionSteps,
+      timelineGroups: sourceGroups || [],
+    };
+  }
+
+  const groupCount = Math.min(cleanedTitles.length, executionSteps.length);
+  const normalizedTitles = cleanedTitles.slice(0, groupCount);
+  const sourceBuckets = (sourceGroups || [])
+    .map((group) => group.stepIds.filter((stepId) => executionSteps.some((step) => step.id === stepId)).length)
+    .filter((count) => count > 0);
+
+  const bucketSizes = sourceBuckets.length === groupCount
+    ? sourceBuckets
+    : normalizedTitles.map((_, index) => {
+        const remainingSteps = executionSteps.length - index;
+        const remainingGroups = groupCount - index;
+        return Math.max(1, Math.ceil(remainingSteps / remainingGroups));
+      });
+
+  const rebuiltGroups: NavigationPlannerResult['timelineGroups'] = [];
+  const rebuiltSteps: NavigationPlannerResult['executionSteps'] = [];
+  let stepCursor = 0;
+
+  normalizedTitles.forEach((title, index) => {
+    const groupId = `g${index + 1}`;
+    const remainingSteps = executionSteps.length - stepCursor;
+    const remainingGroups = groupCount - index;
+    const desiredSize = bucketSizes[index] || 1;
+    const groupSize = index === groupCount - 1
+      ? remainingSteps
+      : Math.max(1, Math.min(desiredSize, remainingSteps - (remainingGroups - 1)));
+    const stepsInGroup = executionSteps.slice(stepCursor, stepCursor + groupSize).map((step) => ({
+      ...step,
+      groupId,
+    }));
+
+    rebuiltSteps.push(...stepsInGroup);
+    rebuiltGroups.push({
+      id: groupId,
+      title,
+      description: sourceGroups?.[index]?.description || '',
+      stepIds: stepsInGroup.map((step) => step.id),
+    });
+    stepCursor += groupSize;
+  });
+
+  if (stepCursor < executionSteps.length && rebuiltGroups.length) {
+    const lastGroup = rebuiltGroups[rebuiltGroups.length - 1];
+    const remainingSteps = executionSteps.slice(stepCursor).map((step) => ({
+      ...step,
+      groupId: lastGroup.id,
+    }));
+    rebuiltSteps.push(...remainingSteps);
+    lastGroup.stepIds.push(...remainingSteps.map((step) => step.id));
+  }
+
+  return {
+    executionSteps: rebuiltSteps,
+    timelineGroups: rebuiltGroups,
+  };
+};
+
+const rebuildPlannerResultTimeline = async (
+  rawInput: string,
+  result: NavigationPlannerResult,
+) => {
+  if (!result.executionSteps.length) return result;
+
+  const aiResult = await AIUnifiedService.callAI('NAVIGATION_TIMELINE_GROUPER', {
+    rawInput,
+  });
+
+  const titles = Array.isArray(aiResult.data?.titles)
+    ? aiResult.data.titles.map((title: unknown) => cleanTimelineTitleText(String(title || ''))).filter(Boolean)
+    : [];
+
+  const rebuilt = rebuildTimelineGroupsFromTitles(titles, result.executionSteps, result.timelineGroups);
+  const rewrittenGroups = await rewriteTimelineTitlesWithUserTone(rawInput, rebuilt.timelineGroups);
+
+  return {
+    ...result,
+    executionSteps: rebuilt.executionSteps,
+    timelineGroups: rewrittenGroups,
+  };
+};
+
+const rewriteTimelineTitlesWithUserTone = async (
+  rawInput: string,
+  groups: NavigationPlannerResult['timelineGroups'],
+) => {
+  if (!groups.length) return groups;
+
+  const aiStore = useAIStore.getState();
+  if (!aiStore.isConfigured()) {
+    return groups;
+  }
+
+  const aiResult = await AIUnifiedService.callAI('NAVIGATION_TIMELINE_TITLE_REWRITER', {
+    rawInput,
+    currentTitles: groups.map((group, index) => `${index + 1}. ${group.title}`).join('\n'),
+  });
+
+  const titles = Array.isArray(aiResult.data?.titles)
+    ? aiResult.data.titles.map((title: unknown) => cleanTimelineTitleText(String(title || ''))).filter(Boolean)
+    : [];
+
+  if (!aiResult.success || titles.length === 0) {
+    return groups;
+  }
+
+  return groups.map((group, index) => ({
+    ...group,
+    title: titles[index] || group.title,
+  }));
 };
 
 
@@ -570,7 +696,7 @@ export class AIUnifiedService {
           }
         },
         {
-          maxTokens: Math.min(1200, AI_PROMPTS.NAVIGATION_MODE_PLANNER.maxTokens),
+          maxTokens: Math.min(2200, Math.max(1600, AI_PROMPTS.NAVIGATION_MODE_PLANNER.maxTokens)),
           temperature: AI_PROMPTS.NAVIGATION_MODE_PLANNER.temperature,
         }
       );
@@ -581,9 +707,10 @@ export class AIUnifiedService {
         : latestMeaningfulPartial;
       console.log('[导航服务] 流式请求完成', { streamResult, finalParsed, latestMeaningfulPartial, resolvedResult });
       if (streamResult.success && resolvedResult) {
+        const rebuiltResult = await rebuildPlannerResultTimeline(rawInput, resolvedResult);
         return {
           success: true,
-          data: resolvedResult,
+          data: rebuiltResult,
         };
       }
 
@@ -596,9 +723,11 @@ export class AIUnifiedService {
     const aiResult = await this.callAI('NAVIGATION_MODE_PLANNER', variables);
 
     if (aiResult.success && aiResult.data && hasMeaningfulPlannerContent(aiResult.data as NavigationPlannerResult)) {
+      const plannerResult = aiResult.data as NavigationPlannerResult;
+      const rebuiltResult = await rebuildPlannerResultTimeline(rawInput, plannerResult);
       return {
         success: true,
-        data: aiResult.data as NavigationPlannerResult,
+        data: rebuiltResult,
       };
     }
 
@@ -631,16 +760,24 @@ export class AIUnifiedService {
       };
     }
 
-    const nextGroups = currentGroups.map((group, index) => ({
-      ...group,
-      title: titles[index] || group.title,
-    }));
+    const rebuilt = rebuildTimelineGroupsFromTitles(
+      titles,
+      currentGroups.flatMap((group) => group.stepIds.map((stepId) => ({
+        id: stepId,
+        groupId: group.id,
+        title: '',
+        guidance: '',
+      } as any))),
+      currentGroups,
+    );
+    const rewrittenGroups = await rewriteTimelineTitlesWithUserTone(rawInput, rebuilt.timelineGroups);
 
-    const hasAnyChange = nextGroups.some((group, index) => group.title !== currentGroups[index]?.title);
+    const hasAnyChange = rewrittenGroups.length !== currentGroups.length
+      || rewrittenGroups.some((group, index) => group.title !== currentGroups[index]?.title);
 
     return {
       success: hasAnyChange,
-      data: nextGroups,
+      data: rewrittenGroups,
       error: hasAnyChange ? undefined : '这次生成的时间轴标题和现在差不多',
     };
   }

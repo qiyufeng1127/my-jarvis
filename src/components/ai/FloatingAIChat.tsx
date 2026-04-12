@@ -13,6 +13,7 @@ import { processMutter } from '@/services/mutterService';
 import { TagLearningService } from '@/services/tagLearningService';
 import { aiCommandCenter } from '@/services/aiCommandCenter';
 import { aiAssistantService } from '@/services/aiAssistantService';
+import { aiUnified } from '@/services/aiUnifiedService';
 import eventBus from '@/utils/eventBus';
 
 // 标签ID到中文的映射
@@ -2437,65 +2438,197 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
   // 处理收入相关的输入
   const handleIncomeInput = async (message: string) => {
     try {
-      addThinkingStep('💰 识别为收入记录...');
-      
-      // 使用 AI 或正则提取金额和描述
-      const amountMatch = message.match(/(\d+(?:\.\d+)?)\s*(?:元|块|rmb|¥)?/i);
-      const amount = amountMatch ? parseFloat(amountMatch[1]) : 0;
-      
-      addThinkingStep(`💵 提取金额: ${amount} 元`);
-      
-      // 创建收入记录
+      addThinkingStep('💰 进入收支记录模式...');
+
+      const sideHustleStore = useSideHustleStore.getState();
+      const existingSideHustles = sideHustleStore.sideHustles;
       const now = new Date();
-      addIncome({
-        sideHustleId: 'default', // 可以后续优化为智能匹配副业
-        amount,
+
+      const fallbackAmountMatch = message.match(/(\d+(?:\.\d+)?)\s*(?:元|块|rmb|¥)?/i);
+      const fallbackAmount = fallbackAmountMatch ? parseFloat(fallbackAmountMatch[1]) : 0;
+      const fallbackType = /花了|支出|买了|成本|付款|付了|消费/.test(message) ? 'expense' : 'income';
+
+      let parsed = {
+        type: fallbackType as 'income' | 'expense' | 'create_side_hustle' | 'debt' | 'idea',
+        amount: fallbackAmount,
         description: message,
+        sideHustleName: '',
+        sideHustleId: '',
+        confidence: 0,
+      };
+
+      if (isConfigured()) {
+        addThinkingStep('🤖 正在理解这条收支描述...');
+        const aiResult = await aiUnified.parseMoneyCommand(message, existingSideHustles);
+        if (aiResult.success && aiResult.data) {
+          parsed = {
+            ...parsed,
+            ...aiResult.data,
+            description: aiResult.data.description || message,
+            amount: typeof aiResult.data.amount === 'number' ? aiResult.data.amount : fallbackAmount,
+          };
+        }
+      }
+
+      const resolveSideHustle = () => {
+        if (parsed.sideHustleId) {
+          const matched = existingSideHustles.find(item => item.id === parsed.sideHustleId);
+          if (matched) return matched;
+        }
+
+        if (parsed.sideHustleName) {
+          const matched = existingSideHustles.find(item => item.name.includes(parsed.sideHustleName!) || parsed.sideHustleName!.includes(item.name));
+          if (matched) return matched;
+        }
+
+        const byMessage = existingSideHustles.find(item => message.includes(item.name));
+        if (byMessage) return byMessage;
+
+        return existingSideHustles[0] || null;
+      };
+
+      const ensureSideHustle = () => {
+        const existed = resolveSideHustle();
+        if (existed) return existed;
+
+        const inferredName = parsed.sideHustleName?.trim() || (parsed.type === 'idea' ? message.slice(0, 12) : '默认副业');
+        return createSideHustle({
+          name: inferredName,
+          icon: parsed.type === 'idea' ? '💡' : '💼',
+          color: parsed.type === 'idea' ? '#f59e0b' : '#3b82f6',
+          status: parsed.type === 'idea' ? 'idea' : 'active',
+          aiAnalysis: message,
+        });
+      };
+
+      if (parsed.type === 'create_side_hustle' || parsed.type === 'idea') {
+        addThinkingStep(parsed.type === 'idea' ? '💡 正在记录副业想法...' : '🧾 正在创建副业...');
+        const sideHustle = createSideHustle({
+          name: parsed.sideHustleName?.trim() || message.slice(0, 18),
+          icon: parsed.type === 'idea' ? '💡' : '💼',
+          color: parsed.type === 'idea' ? '#f59e0b' : '#3b82f6',
+          status: parsed.type === 'idea' ? 'idea' : 'active',
+          aiAnalysis: message,
+        });
+
+        await createTask({
+          title: `${parsed.type === 'idea' ? '💡' : '💼'} ${sideHustle.name}`,
+          description: parsed.type === 'idea' ? `副业想法记录：${message}` : `新副业记录：${message}`,
+          taskType: 'finance' as TaskType,
+          priority: 2,
+          durationMinutes: 1,
+          scheduledStart: now,
+          scheduledEnd: new Date(now.getTime() + 60000),
+          tags: parsed.type === 'idea' ? ['副业想法', 'AI记录'] : ['副业创建', 'AI记录'],
+          color: parsed.type === 'idea' ? '#f59e0b' : '#3b82f6',
+          status: 'completed',
+        } as any);
+
+        setMessages(prev => [...prev, {
+          id: `ai-${Date.now()}`,
+          role: 'assistant',
+          content: beautifyAssistantReply(parsed.type === 'idea'
+            ? `记下了，这条我已经放进副业追踪器里当想法了：${sideHustle.name}\n\n你接着还可以继续记收支，比如“今天画插画赚了 200”或者“买素材花了 35”。`
+            : `记下了，我已经帮你新建了这个副业：${sideHustle.name}\n\n你接着可以直接记它的收入或支出，比如“这个副业今天赚了 300”。`),
+          timestamp: new Date(),
+          thinkingProcess: [...thinkingSteps],
+          isThinkingExpanded: false,
+        }]);
+        return;
+      }
+
+      if (parsed.type === 'debt') {
+        setMessages(prev => [...prev, {
+          id: `ai-${Date.now()}`,
+          role: 'assistant',
+          content: beautifyAssistantReply('这条我识别得更像负债记录，但当前这个入口我先只处理副业收支和副业想法。你如果要的话，我下一步可以顺手把负债也接进来。'),
+          timestamp: new Date(),
+        }]);
+        return;
+      }
+
+      if (!parsed.amount || parsed.amount <= 0) {
+        setMessages(prev => [...prev, {
+          id: `ai-${Date.now()}`,
+          role: 'assistant',
+          content: beautifyAssistantReply('我听出来你是在记收支，但这条里金额还不够明确。你可以直接说：\n\n• 今天画插画赚了 200\n• 今天买素材花了 35\n• logo 单到账 500'),
+          timestamp: new Date(),
+        }]);
+        return;
+      }
+
+      const sideHustle = ensureSideHustle();
+
+      if (parsed.type === 'expense') {
+        addThinkingStep('💸 正在记录支出...');
+        addExpense({
+          sideHustleId: sideHustle.id,
+          amount: parsed.amount,
+          description: parsed.description || message,
+          date: now,
+        });
+
+        await createTask({
+          title: `💸 支出 -${parsed.amount}元`,
+          description: `${parsed.description || message}\n\n所属副业：${sideHustle.name}\n金额：¥${parsed.amount}`,
+          taskType: 'finance' as TaskType,
+          priority: 2,
+          durationMinutes: 1,
+          scheduledStart: now,
+          scheduledEnd: new Date(now.getTime() + 60000),
+          tags: ['支出记录', sideHustle.name],
+          color: '#fb7185',
+          status: 'completed',
+        } as any);
+
+        addThinkingStep('📅 已在时间轴标记支出时间点');
+        setMessages(prev => [...prev, {
+          id: `ai-${Date.now()}`,
+          role: 'assistant',
+          content: beautifyAssistantReply(`记上了，${sideHustle.name} 支出 ${parsed.amount} 元。\n\n📝 ${parsed.description || message}\n📅 我也已经顺手帮你记到时间轴里了。\n\n你还可以继续记下一笔。`),
+          timestamp: new Date(),
+          thinkingProcess: [...thinkingSteps],
+          isThinkingExpanded: false,
+        }]);
+        return;
+      }
+
+      addThinkingStep('💰 正在记录收入...');
+      addIncome({
+        sideHustleId: sideHustle.id,
+        amount: parsed.amount,
+        description: parsed.description || message,
         date: now,
-        source: '其他',
-      });
-      
-      addThinkingStep('✅ 收入记录已保存');
-      
-      // 在时间轴上创建一个醒目的记录卡片（不是任务）
+      } as any);
+
       await createTask({
-        title: `💰💸✨ 收入 +${amount}元`,
-        description: `🎉 ${message}\n\n💵 金额: ¥${amount}\n📅 时间: ${now.toLocaleString('zh-CN')}\n🎊 恭喜收入增加！`,
-        taskType: 'life' as TaskType,
-        priority: 1, // 高优先级，更醒目
-        durationMinutes: 1, // 1分钟，只是记录
+        title: `💰 收入 +${parsed.amount}元`,
+        description: `${parsed.description || message}\n\n所属副业：${sideHustle.name}\n金额：¥${parsed.amount}`,
+        taskType: 'finance' as TaskType,
+        priority: 2,
+        durationMinutes: 1,
         scheduledStart: now,
         scheduledEnd: new Date(now.getTime() + 60000),
-        tags: ['💰收入记录', '💸副业', '🎉成功'],
-        color: '#FFB6C1', // 复古糖果粉色
-        status: 'completed', // 标记为已完成，不需要执行
-        isRecord: true, // 标记为记录类型
-      });
-      
-      addThinkingStep('📅 已在时间轴标记');
-      
-      const responseContent = `✅ **收入记录成功！**\n\n💰💸 金额: ${amount} 元\n📝 描述: ${message}\n🕐 时间: ${now.toLocaleString('zh-CN')}\n\n✨🎉 已同步到副业追踪器和时间轴！`;
-      
-      const aiMessage: Message = {
+        tags: ['收入记录', sideHustle.name],
+        color: '#22c55e',
+        status: 'completed',
+      } as any);
+
+      addThinkingStep('📅 已在时间轴标记收入时间点');
+      setMessages(prev => [...prev, {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        content: responseContent,
+        content: beautifyAssistantReply(`记上了，${sideHustle.name} 收入 ${parsed.amount} 元。\n\n📝 ${parsed.description || message}\n📅 我也已经顺手帮你记到时间轴里了。\n\n你还可以继续记下一笔。`),
         timestamp: new Date(),
         thinkingProcess: [...thinkingSteps],
         isThinkingExpanded: false,
-      };
-      
-      setMessages(prev => [...prev, aiMessage]);
-      
-      // 退出目标模式
-      setContextMode('normal');
-      
+      }]);
     } catch (error) {
-      console.error('处理目标设置失败:', error);
+      console.error('处理收支记录失败:', error);
       const errorMessage: Message = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        content: beautifyAssistantReply('❌ 抱歉呀，设置目标失败了，稍后我们再试一次～'),
+        content: beautifyAssistantReply('❌ 这条收支我刚刚没有记成功，你再发我一次更明确一点的说法就行，比如“今天画插画赚了 200”或者“今天买素材花了 35”。'),
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -4026,7 +4159,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
     { key: 'smart_schedule', icon: '🎯', title: '帮我安排' },
     { key: 'task_decompose', icon: '🧩', title: '任务分解' },
     { key: 'timeline_operation', icon: '🕒', title: '时间轴操作' },
-    { key: 'income_mode', icon: '💰', title: '关于收入' },
+    { key: 'income_mode', icon: '💰', title: '记收支' },
     { key: 'goal_mode', icon: '🏠', title: '关于目标' },
     { key: 'mutter_quick', icon: '💭', title: '心情碎碎念' },
   ] as const;
@@ -4055,10 +4188,9 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
 
     if (action === 'income_mode') {
       setContextMode('income');
-      eventBus.emit('dashboard:navigate-module', { module: 'money' });
       appendAssistantMessage(
         setMessages,
-        '💰 **收入记录模式已开启**\n\n现在你可以直接输入收入相关的信息，例如：\n\n• "今天画插画赚了2000块钱"\n• "接了个设计单，收入5000元"\n• "副业收入3000"\n\n我会自动：\n✅ 提取金额和描述\n✅ 保存到副业追踪器\n✅ 在时间轴标记收入时间点\n\n💡 输入完成后会自动退出此模式'
+        '💰 **收支记录模式已开启**\n\n你现在不用跳去副业复盘页，直接在这里记就行。\n\n例如你可以直接发：\n\n• "今天画插画赚了 200"\n• "今天买素材花了 35"\n• "logo 单到账 500"\n• "我想做一个文创账号副业"\n\n我会尽量自动：\n✅ 识别收入 / 支出 / 副业想法\n✅ 提取金额和描述\n✅ 保存到副业追踪器\n✅ 在时间轴记一个时间点\n\n你可以连续记很多笔，不会发一条就把你踢出去。'
       );
       return;
     }
@@ -4095,7 +4227,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
     const fullScreenComposerHeight = isSelectionMode && selectedCount > 0 ? 96 : 146;
     
     return (
-      <div className="h-full flex flex-col bg-white relative keyboard-safe-area-top" onFocusCapture={handleFocusCapture}>
+      <div className="h-full min-h-0 flex flex-col overflow-hidden bg-white relative" onFocusCapture={handleFocusCapture}>
         {/* 头部 */}
         <div className="px-4 py-3 flex items-center justify-between border-b border-neutral-200 bg-white">
           <div className="flex items-center space-x-2">
@@ -4166,7 +4298,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
         {/* 对话区域 */}
         <div
           ref={conversationRef}
-          className="flex-1 overflow-y-auto p-4 space-y-3 bg-neutral-50 keyboard-aware-scroll"
+          className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 bg-neutral-50 keyboard-aware-scroll"
           style={{ paddingBottom: `calc(${fullScreenComposerHeight}px + var(--app-safe-area-bottom) + var(--app-keyboard-offset) + 16px)` }}
         >
           {messages.map((message) => {
@@ -4372,8 +4504,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
 
         {/* 底部操作区 */}
         <div
-          className="fixed left-0 right-0 z-[1001] border-t border-neutral-200 bg-white shadow-[0_-8px_24px_rgba(15,23,42,0.08)] keyboard-aware-composer"
-          style={{ bottom: 'calc(64px + var(--app-safe-area-bottom))' }}
+          className="absolute inset-x-0 bottom-0 z-[1001] border-t border-neutral-200 bg-white shadow-[0_-8px_24px_rgba(15,23,42,0.08)] keyboard-aware-docked"
           onFocusCapture={handleFocusCapture}
         >
           {/* 快速指令或智能分配按钮 */}
@@ -4500,7 +4631,8 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
             left: position.x,
             top: position.y,
             width: isMinimized ? '320px' : `${size.width}px`,
-            height: isMinimized ? '60px' : `${size.height}px`,
+            height: isMinimized ? '60px' : `min(${size.height}px, calc(var(--app-visible-viewport-height) - ${position.y}px - 12px))`,
+            maxHeight: isMinimized ? '60px' : `calc(var(--app-visible-viewport-height) - ${position.y}px - 12px)`,
             zIndex: 1000,
             cursor: isDragging ? 'grabbing' : isResizing ? 'se-resize' : 'default',
             backgroundColor: bgColor,
@@ -4606,7 +4738,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
           {!isMinimized && (
             <>
               {/* 对话区域 */}
-              <div ref={conversationRef} className="flex-1 overflow-y-auto p-4 space-y-3 keyboard-aware-scroll" style={{ backgroundColor: theme.cardBg }}>
+              <div ref={conversationRef} className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3" style={{ backgroundColor: theme.cardBg }}>
                 {messages.map((message) => {
                   const resolvedDecomposedTasks =
                     message.decomposedTasks && message.decomposedTasks.length > 0
@@ -4848,72 +4980,75 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
                 )}
               </div>
 
-              {/* 快速指令 */}
-              <div className="px-3 py-2 border-t keyboard-aware-composer" style={{ backgroundColor: theme.bgColor, borderColor: theme.borderColor }}>
-                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                  {quickActions.map((cmd) => {
-                    const isActive =
-                      (contextMode === 'income' && cmd.key === 'income_mode') ||
-                      (contextMode === 'goal' && cmd.key === 'goal_mode');
+              {/* 底部操作区 */}
+              <div className="border-t" style={{ backgroundColor: theme.bgColor, borderColor: theme.borderColor }}>
+                {/* 快速指令 */}
+                <div className="px-3 py-2">
+                  <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                    {quickActions.map((cmd) => {
+                      const isActive =
+                        (contextMode === 'income' && cmd.key === 'income_mode') ||
+                        (contextMode === 'goal' && cmd.key === 'goal_mode');
 
-                    return (
-                      <button
-                        key={cmd.key}
-                        onClick={() => handleQuickAction(cmd.key)}
-                        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border text-base transition-all active:scale-95"
-                        style={{
-                          backgroundColor: isActive ? '#8b5cf6' : theme.buttonBg,
-                          color: isActive ? '#ffffff' : theme.textColor,
-                          borderColor: isActive ? '#8b5cf6' : theme.borderColor,
-                          boxShadow: isActive ? '0 8px 18px rgba(139, 92, 246, 0.24)' : '0 2px 6px rgba(15, 23, 42, 0.08)',
-                        }}
-                        title={cmd.title}
-                      >
-                        <span>{cmd.icon}</span>
-                      </button>
-                    );
-                  })}
+                      return (
+                        <button
+                          key={cmd.key}
+                          onClick={() => handleQuickAction(cmd.key)}
+                          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border text-base transition-all active:scale-95"
+                          style={{
+                            backgroundColor: isActive ? '#8b5cf6' : theme.buttonBg,
+                            color: isActive ? '#ffffff' : theme.textColor,
+                            borderColor: isActive ? '#8b5cf6' : theme.borderColor,
+                            boxShadow: isActive ? '0 8px 18px rgba(139, 92, 246, 0.24)' : '0 2px 6px rgba(15, 23, 42, 0.08)',
+                          }}
+                          title={cmd.title}
+                        >
+                          <span>{cmd.icon}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
 
-              {/* 输入区域 */}
-              <div className="p-3 pt-0 border-t keyboard-aware-composer" style={{ backgroundColor: theme.bgColor, borderColor: theme.borderColor }}>
-                <div className="flex items-end space-x-2">
-                  <textarea
-                    ref={textareaRef}
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    onFocus={() => scrollIntoSafeView(textareaRef.current)}
-                    placeholder={contextMode === 'goal'
-                      ? '已进入“关于目标”模式，直接粘贴整段目标文档，我会先做智能目标分析...'
-                      : contextMode === 'income'
-                      ? '已进入“关于收入”模式，直接输入收入内容...'
-                      : contextMode === 'mutter'
-                      ? '已进入“心情碎碎念”模式，直接说你的想法或心情...'
-                      : '对我说点什么...'}
-                    className="flex-1 px-3 py-3 rounded-2xl resize-none focus:outline-none text-sm border overflow-y-auto"
-                    style={{
-                      backgroundColor: theme.cardBg,
-                      color: theme.textColor,
-                      borderColor: theme.borderColor,
-                      minHeight: '52px',
-                      maxHeight: '200px',
-                    }}
-                  />
-                  <button
-                    onClick={handleSend}
-                    disabled={!inputValue.trim() || isProcessing}
-                    className="h-[52px] w-[52px] rounded-2xl hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 flex items-center justify-center"
-                    style={{ backgroundColor: '#8b5cf6', color: '#ffffff' }}
-                    title={isProcessing ? "AI正在思考..." : "发送消息"}
-                  >
-                    {isProcessing ? (
-                      <Hourglass className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Send className="w-4 h-4" />
-                    )}
-                  </button>
+                {/* 输入区域 */}
+                <div className="p-3 pt-0">
+                  <div className="flex items-end space-x-2">
+                    <textarea
+                      ref={textareaRef}
+                      value={inputValue}
+                      onChange={(e) => setInputValue(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      onFocus={() => scrollIntoSafeView(textareaRef.current)}
+                      placeholder={contextMode === 'goal'
+                        ? '已进入“关于目标”模式，直接粘贴整段目标文档，我会先做智能目标分析...'
+                        : contextMode === 'income'
+                        ? '已进入“关于收入”模式，直接输入收入内容...'
+                        : contextMode === 'mutter'
+                        ? '已进入“心情碎碎念”模式，直接说你的想法或心情...'
+                        : '对我说点什么...'}
+                      className="flex-1 px-3 py-3 rounded-2xl resize-none focus:outline-none text-sm border overflow-y-auto"
+                      style={{
+                        backgroundColor: theme.cardBg,
+                        color: theme.textColor,
+                        borderColor: theme.borderColor,
+                        minHeight: '52px',
+                        maxHeight: '200px',
+                      }}
+                    />
+                    <button
+                      onClick={handleSend}
+                      disabled={!inputValue.trim() || isProcessing}
+                      className="h-[52px] w-[52px] rounded-2xl hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 flex items-center justify-center"
+                      style={{ backgroundColor: '#8b5cf6', color: '#ffffff' }}
+                      title={isProcessing ? "AI正在思考..." : "发送消息"}
+                    >
+                      {isProcessing ? (
+                        <Hourglass className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
 

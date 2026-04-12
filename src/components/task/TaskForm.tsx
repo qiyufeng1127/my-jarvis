@@ -13,7 +13,7 @@ interface TaskFormProps {
 }
 
 export default function TaskForm({ isOpen, onClose, onSubmit, initialData }: TaskFormProps) {
-  const { resolveAutoTags } = useTagStore();
+  const { resolveAutoTags, ensureTagsExist } = useTagStore();
   const [formData, setFormData] = useState<Partial<Task>>(
     initialData || {
       title: '',
@@ -27,9 +27,10 @@ export default function TaskForm({ isOpen, onClose, onSubmit, initialData }: Tas
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const resolvedTags = resolveAutoTags(`${formData.title || ''} ${formData.description || ''}`.trim(), formData.tags || [], 3);
+    const normalizedTags = ensureTagsExist(resolvedTags);
     onSubmit({
       ...formData,
-      tags: resolvedTags,
+      tags: normalizedTags,
     });
     onClose();
   };

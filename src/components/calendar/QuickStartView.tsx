@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Play, Square, Plus, Settings, X, Save, ChevronDown, ChevronRight, Folder } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Settings, X, Save, ChevronDown, ChevronRight, Folder } from 'lucide-react';
 import type { Task, TaskType } from '@/types';
 import ImportExportButton from './ImportExportButton';
 
@@ -24,7 +24,7 @@ interface QuickStartViewProps {
   tasks: Task[]; // 新增：接收任务列表
   onTaskCreate: (task: Partial<Task>) => Promise<Task> | void; // 修改：支持返回Promise
   onTaskUpdate: (taskId: string, updates: Partial<Task>) => void; // 新增：更新任务
-  onTaskDelete: (taskId: string) => void; // 新增：删除任务
+  onTaskDelete?: (taskId: string) => void; // 兼容现有调用
   bgColor?: string;
   textColor?: string;
   accentColor?: string;
@@ -45,7 +45,7 @@ export default function QuickStartView({
   tasks,
   onTaskCreate,
   onTaskUpdate,
-  onTaskDelete,
+  onTaskDelete: _onTaskDelete,
   bgColor = '#ffffff',
   textColor = '#000000',
   accentColor = '#666666',
@@ -55,16 +55,11 @@ export default function QuickStartView({
   const [activeTimers, setActiveTimers] = useState<Map<string, ActiveTimer>>(new Map());
   const [elapsedTimes, setElapsedTimes] = useState<Map<string, number>>(new Map());
   const [showSettings, setShowSettings] = useState(false);
+  const [selectedSettingItemId, setSelectedSettingItemId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingItem, setEditingItem] = useState<QuickStartItem | null>(null);
   const [showFolderForm, setShowFolderForm] = useState(false);
   const [editingFolder, setEditingFolder] = useState<QuickStartFolder | null>(null);
-
-  // 拖拽相关状态
-  const [draggedItem, setDraggedItem] = useState<string | null>(null);
-  const [dragOverItem, setDragOverItem] = useState<string | null>(null);
-  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
 
   // 文件夹管理
   const [folders, setFolders] = useState<QuickStartFolder[]>(() => {
@@ -247,59 +242,6 @@ export default function QuickStartView({
     }
   }, [tasks, activeTimers]);
 
-  // 长按拖拽处理
-  const handleTouchStart = (itemId: string) => {
-    if (showSettings) return;
-    
-    longPressTimer.current = setTimeout(() => {
-      setIsDragging(true);
-      setDraggedItem(itemId);
-      // 触觉反馈
-      if (navigator.vibrate) {
-        navigator.vibrate(50);
-      }
-    }, 500); // 500ms 长按
-  };
-
-  const handleTouchEnd = () => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-
-    if (isDragging && draggedItem && dragOverItem && draggedItem !== dragOverItem) {
-      // 执行拖拽排序
-      const items = [...quickStartItems];
-      const draggedIndex = items.findIndex(item => item.id === draggedItem);
-      const targetIndex = items.findIndex(item => item.id === dragOverItem);
-      
-      if (draggedIndex !== -1 && targetIndex !== -1) {
-        const [removed] = items.splice(draggedIndex, 1);
-        items.splice(targetIndex, 0, removed);
-        setQuickStartItems(items);
-      }
-    }
-
-    setIsDragging(false);
-    setDraggedItem(null);
-    setDragOverItem(null);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent, itemId: string) => {
-    if (!isDragging) return;
-    
-    const touch = e.touches[0];
-    const element = document.elementFromPoint(touch.clientX, touch.clientY);
-    const buttonElement = element?.closest('[data-item-id]');
-    
-    if (buttonElement) {
-      const targetId = buttonElement.getAttribute('data-item-id');
-      if (targetId && targetId !== draggedItem) {
-        setDragOverItem(targetId);
-      }
-    }
-  };
-
   const toggleFolder = (folderId: string) => {
     setFolders(folders.map(f => 
       f.id === folderId ? { ...f, collapsed: !f.collapsed } : f
@@ -380,6 +322,7 @@ export default function QuickStartView({
   };
 
   const handleEditItem = (item: QuickStartItem) => {
+    setSelectedSettingItemId(null);
     setFormData(item);
     setEditingItem(item);
     setShowAddForm(true);
@@ -388,6 +331,7 @@ export default function QuickStartView({
 
   const handleDeleteItem = (itemId: string) => {
     if (window.confirm('确定要删除这个快捷按钮吗？')) {
+      setSelectedSettingItemId(null);
       setQuickStartItems(quickStartItems.filter(item => item.id !== itemId));
     }
   };
@@ -419,14 +363,170 @@ export default function QuickStartView({
     return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const getDisplayLabel = (label: string): string => {
+    return label.slice(0, 3);
+  };
+
+  const renderQuickStartGrid = (items: QuickStartItem[], padded = false) => {
+    return (
+      <div
+        className={`grid gap-2.5 ${padded ? 'pl-1' : ''}`}
+        style={{
+          gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
+        }}
+      >
+        {items.map((item) => {
+          const isActive = activeTimers.has(item.id);
+          const elapsed = elapsedTimes.get(item.id) || 0;
+          const isSelectedInSettings = showSettings && selectedSettingItemId === item.id;
+
+          return (
+            <div key={item.id} className="relative quick-start-card">
+              <button
+                data-item-id={item.id}
+                onClick={() => {
+                  if (showSettings) {
+                    setSelectedSettingItemId(prev => prev === item.id ? null : item.id);
+                    return;
+                  }
+                  handleToggle(item);
+                }}
+                className="quick-start-button w-full relative overflow-hidden transition-all duration-200 active:scale-[0.97]"
+                style={{
+                  aspectRatio: '0.94',
+                  borderRadius: '22px',
+                  padding: '0.48rem 0.22rem 0.34rem',
+                  background: isDark
+                    ? (isActive
+                      ? 'linear-gradient(180deg, rgba(255,123,172,0.92) 0%, rgba(255,93,149,0.88) 100%)'
+                      : 'linear-gradient(180deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.08) 100%)')
+                    : (isActive
+                      ? 'linear-gradient(180deg, rgba(255,127,176,0.98) 0%, rgba(255,94,151,0.96) 100%)'
+                      : 'linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(248,250,252,0.82) 100%)'),
+                  border: isSelectedInSettings
+                    ? '1.5px solid rgba(99,102,241,0.40)'
+                    : isActive
+                      ? '1px solid rgba(255,255,255,0.30)'
+                      : isDark
+                        ? '1px solid rgba(255,255,255,0.10)'
+                        : '1px solid rgba(255,255,255,0.72)',
+                  boxShadow: isSelectedInSettings
+                    ? '0 0 0 3px rgba(99,102,241,0.10), 0 10px 24px rgba(99,102,241,0.14)'
+                    : isActive
+                      ? '0 10px 22px rgba(255,93,149,0.18), inset 0 1px 0 rgba(255,255,255,0.24)'
+                      : isDark
+                        ? '0 10px 24px rgba(0,0,0,0.20), inset 0 1px 0 rgba(255,255,255,0.06)'
+                        : '0 10px 24px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.92)',
+                  backdropFilter: 'blur(18px) saturate(160%)',
+                  WebkitBackdropFilter: 'blur(18px) saturate(160%)',
+                  transform: isSelectedInSettings ? 'translateY(-2px) scale(1.01)' : 'translateY(0) scale(1)',
+                }}
+              >
+                {!isActive && (
+                  <div
+                    className="absolute inset-x-2.5 top-1.5 h-px"
+                    style={{
+                      background: isDark
+                        ? 'linear-gradient(90deg, transparent, rgba(255,255,255,0.16), transparent)'
+                        : 'linear-gradient(90deg, transparent, rgba(255,255,255,0.96), transparent)',
+                    }}
+                  />
+                )}
+
+                {showSettings && (
+                  <div
+                    className="absolute left-1.5 top-1.5 h-2.5 w-2.5 rounded-full"
+                    style={{
+                      background: isSelectedInSettings
+                        ? 'linear-gradient(180deg, #7C6BE6 0%, #5B53D6 100%)'
+                        : (isDark ? 'rgba(255,255,255,0.18)' : 'rgba(148,163,184,0.28)'),
+                      boxShadow: isSelectedInSettings ? '0 0 0 2px rgba(124,107,230,0.12)' : 'none',
+                    }}
+                  />
+                )}
+
+                {isActive && (
+                  <div
+                    className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full animate-pulse"
+                    style={{
+                      backgroundColor: '#FFF8FB',
+                      boxShadow: '0 0 10px rgba(255,255,255,0.72)',
+                    }}
+                  />
+                )}
+
+                <div className="h-full flex flex-col items-center justify-center">
+                  <div
+                    className="flex items-center justify-center rounded-[16px] select-none"
+                    style={{
+                      width: '2rem',
+                      height: '2rem',
+                      marginBottom: '0.22rem',
+                      fontSize: '1.22rem',
+                      background: isDark
+                        ? (isActive ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)')
+                        : (isActive ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.58)'),
+                      boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.05)' : 'inset 0 1px 0 rgba(255,255,255,0.9)',
+                      filter: isActive ? 'drop-shadow(0 1px 2px rgba(255,255,255,0.12))' : 'none',
+                    }}
+                  >
+                    {item.emoji}
+                  </div>
+
+                  <div
+                    className="w-full text-center whitespace-nowrap overflow-hidden text-ellipsis leading-none"
+                    style={{
+                      color: isActive ? '#FFFFFF' : textColor,
+                      maxWidth: '100%',
+                      fontSize: '10px',
+                      fontWeight: 600,
+                      letterSpacing: '-0.01em',
+                      opacity: isActive ? 0.96 : 0.76,
+                    }}
+                  >
+                    {isActive ? formatTime(elapsed) : getDisplayLabel(item.label)}
+                  </div>
+                </div>
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
-    <div className="h-full overflow-y-auto px-4 py-4">
+    <div
+      className="h-full overflow-y-auto px-3 py-4 md:px-4"
+      style={{
+        background: isDark
+          ? 'linear-gradient(180deg, rgba(10,10,14,0.94) 0%, rgba(16,18,24,0.96) 100%)'
+          : 'linear-gradient(180deg, #F7F8FC 0%, #F3F5F9 42%, #EEF2F7 100%)',
+      }}
+    >
       {/* 顶部操作按钮 */}
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-2xl font-bold" style={{ color: textColor }}>
-          快捷开始
-        </h2>
-        <div className="flex items-center gap-2">
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-[1.65rem] font-bold tracking-tight" style={{ color: textColor }}>
+            快捷开始
+          </h2>
+          <div
+            className="mt-1 text-[11px] font-medium"
+            style={{ color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(71,85,105,0.58)' }}
+          >
+            像 iPhone 一样的快捷抽屉
+          </div>
+        </div>
+        <div
+          className="flex items-center gap-1.5 rounded-[22px] px-2 py-1.5"
+          style={{
+            background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.72)',
+            border: isDark ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(255,255,255,0.78)',
+            boxShadow: isDark ? 'none' : '0 10px 24px rgba(15,23,42,0.06)',
+            backdropFilter: 'blur(16px) saturate(160%)',
+            WebkitBackdropFilter: 'blur(16px) saturate(160%)',
+          }}
+        >
           {/* 导入导出按钮 */}
           <ImportExportButton
             tasks={tasks}
@@ -458,10 +558,12 @@ export default function QuickStartView({
                 collapsed: false,
               });
             }}
-            className="p-1.5 rounded-lg transition-all hover:shadow-md active:scale-95"
+            className="p-2 rounded-[18px] transition-all active:scale-95"
             style={{
-              backgroundColor: '#8B7FD6',
-              color: '#FFFFFF',
+              background: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.88)',
+              color: textColor,
+              border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.82)',
+              boxShadow: isDark ? 'none' : '0 8px 18px rgba(15,23,42,0.06)',
             }}
             title="添加文件夹"
           >
@@ -484,10 +586,11 @@ export default function QuickStartView({
                 folderId: undefined,
               });
             }}
-            className="p-1.5 rounded-lg transition-all hover:shadow-md active:scale-95"
+            className="p-2 rounded-[18px] transition-all active:scale-95"
             style={{
-              backgroundColor: '#6BA56D',
+              background: 'linear-gradient(180deg, #7E6BFF 0%, #635BFF 100%)',
               color: '#FFFFFF',
+              boxShadow: '0 10px 18px rgba(99,91,255,0.22)',
             }}
             title="添加按钮"
           >
@@ -497,13 +600,22 @@ export default function QuickStartView({
           <button
             onClick={() => {
               setShowSettings(!showSettings);
+              setSelectedSettingItemId(null);
               setShowAddForm(false);
               setShowFolderForm(false);
             }}
-            className="p-1.5 rounded-lg transition-all hover:shadow-md active:scale-95"
+            className="p-2 rounded-[18px] transition-all active:scale-95"
             style={{
-              backgroundColor: showSettings ? '#C85A7C' : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'),
+              background: showSettings
+                ? 'linear-gradient(180deg, #FF7EA7 0%, #FF5B92 100%)'
+                : (isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.88)'),
               color: showSettings ? '#FFFFFF' : textColor,
+              boxShadow: showSettings
+                ? '0 10px 18px rgba(255,91,146,0.20)'
+                : (isDark ? 'none' : '0 8px 18px rgba(15,23,42,0.06)'),
+              border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.82)',
+              backdropFilter: 'blur(14px) saturate(150%)',
+              WebkitBackdropFilter: 'blur(14px) saturate(150%)',
             }}
             title="设置"
           >
@@ -770,56 +882,66 @@ export default function QuickStartView({
       )}
 
       {/* 快捷任务 - 按文件夹分组 */}
-      <div className="space-y-4 mb-4">
+      <div className="space-y-5 mb-24">
         {/* 渲染每个文件夹 */}
         {folders.map(folder => {
           const folderItems = quickStartItems.filter(item => item.folderId === folder.id);
           if (folderItems.length === 0 && !showSettings) return null;
 
           return (
-            <div key={folder.id} className="space-y-2">
+            <div key={folder.id} className="space-y-2.5">
               {/* 文件夹标题 */}
               <div className="flex items-center justify-between">
                 <button
                   onClick={() => toggleFolder(folder.id)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg transition-all hover:bg-opacity-80"
+                  className="flex items-center gap-2.5 px-3.5 py-2 rounded-[18px] transition-all"
                   style={{
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+                    background: isDark
+                      ? 'rgba(255,255,255,0.06)'
+                      : 'rgba(255,255,255,0.72)',
                     color: textColor,
+                    border: isDark ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(255,255,255,0.82)',
+                    boxShadow: isDark ? 'none' : '0 8px 20px rgba(15,23,42,0.05)',
+                    backdropFilter: 'blur(16px) saturate(160%)',
+                    WebkitBackdropFilter: 'blur(16px) saturate(160%)',
                   }}
                 >
                   {folder.collapsed ? (
-                    <ChevronRight className="w-4 h-4" />
+                    <ChevronRight className="w-3.5 h-3.5 opacity-60" />
                   ) : (
-                    <ChevronDown className="w-4 h-4" />
+                    <ChevronDown className="w-3.5 h-3.5 opacity-60" />
                   )}
-                  <span className="text-lg">{folder.emoji}</span>
-                  <span className="font-semibold">{folder.name}</span>
-                  <span className="text-xs opacity-60">({folderItems.length})</span>
+                  <span className="text-[15px] opacity-90">{folder.emoji}</span>
+                  <span className="text-[15px] font-semibold tracking-tight">{folder.name}</span>
+                  <span className="text-[11px] opacity-50">({folderItems.length})</span>
                 </button>
 
                 {showSettings && (
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => {
                         setEditingFolder(folder);
                         setFolderFormData(folder);
                         setShowFolderForm(true);
                       }}
-                      className="p-1 rounded-lg"
+                      className="flex h-6 w-6 items-center justify-center rounded-full"
                       style={{ 
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-                        color: textColor 
+                        background: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.96)',
+                        color: textColor,
+                        boxShadow: isDark ? 'none' : '0 4px 10px rgba(15,23,42,0.08)',
+                        border: isDark ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(15,23,42,0.05)',
                       }}
                     >
                       <Settings className="w-3 h-3" />
                     </button>
                     <button
                       onClick={() => handleDeleteFolder(folder.id)}
-                      className="p-1 rounded-lg"
+                      className="flex h-6 w-6 items-center justify-center rounded-full"
                       style={{ 
-                        backgroundColor: '#FF4444',
-                        color: '#FFFFFF'
+                        background: 'linear-gradient(180deg, #FF7A7A 0%, #FF5757 100%)',
+                        color: '#FFFFFF',
+                        boxShadow: '0 4px 10px rgba(255,87,87,0.18)',
+                        border: '1px solid rgba(255,255,255,0.28)',
                       }}
                     >
                       <X className="w-3 h-3" />
@@ -828,81 +950,7 @@ export default function QuickStartView({
                 )}
               </div>
 
-              {/* 文件夹内的按钮 */}
-              {!folder.collapsed && (
-                <div className="grid grid-cols-5 gap-3 pl-2">
-                  {folderItems.map((item) => {
-                    const isActive = activeTimers.has(item.id);
-                    const elapsed = elapsedTimes.get(item.id) || 0;
-
-                    return (
-                      <div key={item.id} className="relative">
-                        <button
-                          data-item-id={item.id}
-                          onClick={() => !showSettings && !isDragging && handleToggle(item)}
-                          onTouchStart={() => handleTouchStart(item.id)}
-                          onTouchEnd={handleTouchEnd}
-                          onTouchMove={(e) => handleTouchMove(e, item.id)}
-                          className="w-full flex flex-col items-center justify-center rounded-2xl p-4 transition-all active:scale-95 relative"
-                          style={{
-                            backgroundColor: isActive 
-                              ? '#FF6B9D' 
-                              : isDark ? 'rgba(255,255,255,0.08)' : '#F5F5F5',
-                            aspectRatio: '1',
-                            opacity: showSettings ? 0.7 : (draggedItem === item.id ? 0.5 : (dragOverItem === item.id ? 0.8 : 1)),
-                            boxShadow: isActive ? '0 4px 12px rgba(255, 107, 157, 0.4)' : 'none',
-                            transform: draggedItem === item.id ? 'scale(1.05)' : 'scale(1)',
-                          }}
-                        >
-                          {/* 活跃指示器 - 红点 */}
-                          {isActive && (
-                            <div 
-                              className="absolute top-2 right-2 w-2 h-2 rounded-full animate-pulse"
-                              style={{ 
-                                backgroundColor: '#FF4444',
-                                boxShadow: '0 0 8px rgba(255, 68, 68, 0.6)',
-                              }}
-                            />
-                          )}
-
-                          {/* Emoji 图标 */}
-                          <div className="text-4xl mb-2">
-                            {item.emoji}
-                          </div>
-
-                          {/* 标签或计时 */}
-                          <div 
-                            className="text-xs font-medium text-center"
-                            style={{ 
-                              color: isActive ? '#FFFFFF' : textColor,
-                            }}
-                          >
-                            {isActive ? formatTime(elapsed) : item.label}
-                          </div>
-                        </button>
-
-                        {/* 设置模式下的编辑/删除按钮 */}
-                        {showSettings && (
-                          <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 rounded-2xl">
-                            <button
-                              onClick={() => handleEditItem(item)}
-                              className="p-1.5 rounded-lg bg-white"
-                            >
-                              <Settings className="w-3 h-3 text-gray-800" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteItem(item.id)}
-                              className="p-1.5 rounded-lg bg-red-500"
-                            >
-                              <X className="w-3 h-3 text-white" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              {!folder.collapsed && renderQuickStartGrid(folderItems, true)}
             </div>
           );
         })}
@@ -913,80 +961,23 @@ export default function QuickStartView({
           if (uncategorizedItems.length === 0) return null;
 
           return (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 px-3 py-2">
-                <span className="font-semibold" style={{ color: textColor }}>未分类</span>
-                <span className="text-xs opacity-60" style={{ color: textColor }}>({uncategorizedItems.length})</span>
+            <div className="space-y-2.5">
+              <div
+                className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-[18px]"
+                style={{
+                  background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.72)',
+                  border: isDark ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(255,255,255,0.82)',
+                  boxShadow: isDark ? 'none' : '0 8px 20px rgba(15,23,42,0.05)',
+                  backdropFilter: 'blur(16px) saturate(160%)',
+                  WebkitBackdropFilter: 'blur(16px) saturate(160%)',
+                }}
+              >
+                <span className="text-[15px] opacity-85">🗂️</span>
+                <span className="text-[15px] font-semibold tracking-tight" style={{ color: textColor }}>未分类</span>
+                <span className="text-[11px] opacity-50" style={{ color: textColor }}>({uncategorizedItems.length})</span>
               </div>
 
-              <div className="grid grid-cols-5 gap-3">
-                {uncategorizedItems.map((item) => {
-                  const isActive = activeTimers.has(item.id);
-                  const elapsed = elapsedTimes.get(item.id) || 0;
-
-                  return (
-                    <div key={item.id} className="relative">
-                      <button
-                        data-item-id={item.id}
-                        onClick={() => !showSettings && !isDragging && handleToggle(item)}
-                        onTouchStart={() => handleTouchStart(item.id)}
-                        onTouchEnd={handleTouchEnd}
-                        onTouchMove={(e) => handleTouchMove(e, item.id)}
-                        className="w-full flex flex-col items-center justify-center rounded-2xl p-4 transition-all active:scale-95 relative"
-                        style={{
-                          backgroundColor: isActive 
-                            ? '#FF6B9D' 
-                            : isDark ? 'rgba(255,255,255,0.08)' : '#F5F5F5',
-                          aspectRatio: '1',
-                          opacity: showSettings ? 0.7 : (draggedItem === item.id ? 0.5 : (dragOverItem === item.id ? 0.8 : 1)),
-                          boxShadow: isActive ? '0 4px 12px rgba(255, 107, 157, 0.4)' : 'none',
-                          transform: draggedItem === item.id ? 'scale(1.05)' : 'scale(1)',
-                        }}
-                      >
-                        {isActive && (
-                          <div 
-                            className="absolute top-2 right-2 w-2 h-2 rounded-full animate-pulse"
-                            style={{ 
-                              backgroundColor: '#FF4444',
-                              boxShadow: '0 0 8px rgba(255, 68, 68, 0.6)',
-                            }}
-                          />
-                        )}
-
-                        <div className="text-4xl mb-2">
-                          {item.emoji}
-                        </div>
-
-                        <div 
-                          className="text-xs font-medium text-center"
-                          style={{ 
-                            color: isActive ? '#FFFFFF' : textColor,
-                          }}
-                        >
-                          {isActive ? formatTime(elapsed) : item.label}
-                        </div>
-                      </button>
-
-                      {showSettings && (
-                        <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 rounded-2xl">
-                          <button
-                            onClick={() => handleEditItem(item)}
-                            className="p-1.5 rounded-lg bg-white"
-                          >
-                            <Settings className="w-3 h-3 text-gray-800" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteItem(item.id)}
-                            className="p-1.5 rounded-lg bg-red-500"
-                          >
-                            <X className="w-3 h-3 text-white" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+              {renderQuickStartGrid(uncategorizedItems)}
             </div>
           );
         })()}

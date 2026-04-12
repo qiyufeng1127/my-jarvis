@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useGlobalMobileViewportVars } from '@/hooks';
+import DevVirtualKeyboard from '@/components/shared/DevVirtualKeyboard';
 import { useUserStore } from '@/stores/userStore';
 import { useThemeStore } from '@/stores/themeStore';
 import { migrateStorage, shouldMigrate } from '@/utils/migrateStorage';
@@ -180,6 +181,7 @@ function App() {
   return (
     <Router>
       <div className="min-h-screen bg-white dark:bg-black transition-colors">
+        <DevVirtualKeyboard />
         <Routes>
           {/* 主控面板 */}
           <Route path="/" element={<Dashboard />} />

@@ -8,6 +8,7 @@ import { useKeyboardAvoidance } from '@/hooks';
 import type { Task } from '@/types';
 import type { SubTask } from '@/services/taskVerificationService';
 import { generateSmartTagAssignment } from '@/utils/smartTagAssignment';
+import { resolveTagInput } from '@/utils/tagInputResolver';
 
 interface CompactTaskEditModalProps {
   task: Task;
@@ -314,14 +315,20 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
   };
 
   const handleSave = () => {
-    learnTagSelection(`${title} ${description}`.trim(), tags, lastSuggestedTags);
+    const normalizedTags = ensureTagsExist(Array.from(new Set(
+      tags
+        .map(tag => tag.trim())
+        .filter(Boolean)
+    )));
+
+    learnTagSelection(`${title} ${description}`.trim(), normalizedTags, lastSuggestedTags);
 
     const updates: Partial<Task> = {
       title,
       description,
       durationMinutes: duration,
       goldReward: gold,
-      tags,
+      tags: normalizedTags,
       location: location || undefined,
       subtasks, // 保存子任务
     };
@@ -349,11 +356,25 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
     onClose();
   };
 
-  const addTag = () => {
-    if (newTag.trim() && !tags.includes(newTag.trim())) {
-      setTags([...tags, newTag.trim()]);
-      setNewTag('');
+  const addTag = async () => {
+    const resolved = await resolveTagInput(
+      newTag,
+      getAllTags().map(tag => tag.name)
+    );
+
+    if (!resolved.tagName) {
+      return;
     }
+
+    if (!tags.includes(resolved.tagName)) {
+      setTags([...tags, resolved.tagName]);
+    }
+
+    if (resolved.shouldCreate) {
+      ensureTagsExist([resolved.tagName]);
+    }
+
+    setNewTag('');
   };
 
   const removeTag = (tagToRemove: string) => {
@@ -536,7 +557,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 z-50 keyboard-aware-modal-shell"
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 z-[2147483647] keyboard-aware-modal-shell"
     >
       <div
         className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden border-2 border-purple-200 dark:border-purple-800 keyboard-aware-modal-card"
@@ -695,7 +716,11 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
                 type="text"
                 value={newTag}
                 onChange={(e) => setNewTag(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addTag()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    void addTag();
+                  }
+                }}
                 placeholder="添加标签..."
                 className="flex-1 px-3 py-1.5 text-sm border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-all"
               />

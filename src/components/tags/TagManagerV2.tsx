@@ -3,7 +3,7 @@ import { X, Sparkles, ChevronDown, ChevronRight, Edit2, Trash2, Plus, FolderPlus
 import { useTagStore } from '@/stores/tagStore';
 import { useTaskStore } from '@/stores/taskStore';
 import TagRankingList from './TagRankingList';
-import SmartTagMergeModal from './SmartTagMergeModal';
+import { resolveTagInput } from '@/utils/tagInputResolver';
 import { Doughnut } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -149,6 +149,11 @@ function UncategorizedTagItem({
                   已禁用
                 </span>
               )}
+              {tag.emojiLocked && (
+                <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: cardBg, color: secondaryColor }}>
+                  emoji已锁定
+                </span>
+              )}
             </div>
             <div className="text-xs mt-0.5" style={{ color: secondaryColor }}>
               使用 {tag.usageCount} 次 · {Math.round(tag.totalDuration / 60)}h
@@ -195,10 +200,6 @@ export default function TagManagerV2({ isOpen, onClose, isDark = false }: TagMan
   const [newFolderEmoji, setNewFolderEmoji] = useState('📁');
   const [newFolderColor, setNewFolderColor] = useState('#52A5CE');
   const [isSmartCategorizing, setIsSmartCategorizing] = useState(false);
-  const [showMergeConfirm, setShowMergeConfirm] = useState(false);
-  const [similarTag, setSimilarTag] = useState<string>('');
-  const [pendingNewTag, setPendingNewTag] = useState<string>('');
-  const [selectedMergeTag, setSelectedMergeTag] = useState<string>('');
   const [editingFolderColor, setEditingFolderColor] = useState<string | null>(null);
   const [tempFolderColor, setTempFolderColor] = useState<string>('');
   const [isSyncing, setIsSyncing] = useState(false);
@@ -265,94 +266,23 @@ export default function TagManagerV2({ isOpen, onClose, isDark = false }: TagMan
     }
   };
   
-  // 处理添加新标签 - 先检查是否有相似标签
+  // 处理添加新标签 - 走统一相似匹配与创建逻辑
   const handleAddTag = async () => {
-    if (!newTagInput.trim()) return;
-    
-    const newTag = newTagInput.trim();
-    
-    // 检查是否已存在完全相同的标签
-    if (allTagsIncludingDisabled.find(t => t.name === newTag)) {
-      alert('该标签已存在！');
+    const resolved = await resolveTagInput(
+      newTagInput,
+      allTagsIncludingDisabled.map(tag => tag.name)
+    );
+
+    if (!resolved.tagName) {
       return;
     }
-    
-    // 使用AI检查是否有相似标签
-    try {
-      const existingTagNames = allTagsIncludingDisabled.map(t => t.name).join('、');
-      
-      const prompt = `你是一个标签相似度分析助手。请判断新标签"${newTag}"是否与现有标签相似。
 
-现有标签：
-${existingTagNames}
-
-如果新标签与某个现有标签意思相近、可以合并，请返回JSON格式：
-{
-  "isSimilar": true,
-  "similarTag": "最相似的现有标签名称",
-  "reason": "相似原因"
-}
-
-如果新标签是独特的、不需要合并，请返回：
-{
-  "isSimilar": false
-}
-
-只返回JSON，不要有其他说明文字。`;
-
-      const { aiService } = await import('@/services/aiService');
-      const response = await aiService.chat([
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ]);
-      
-      if (response.success && response.content) {
-        // 解析AI返回的JSON
-        let result: { isSimilar: boolean; similarTag?: string; reason?: string };
-        try {
-          let jsonStr = response.content.trim();
-          const jsonMatch = jsonStr.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-          if (jsonMatch) {
-            jsonStr = jsonMatch[1];
-          }
-          result = JSON.parse(jsonStr);
-        } catch (e) {
-          console.error('解析AI返回的JSON失败:', e);
-          // 如果解析失败，直接添加标签
-          addTag(newTag);
-          setNewTagInput('');
-          setShowAddTag(false);
-          return;
-        }
-        
-        // 如果发现相似标签，显示合并确认弹窗
-        if (result.isSimilar && result.similarTag) {
-          setSimilarTag(result.similarTag);
-          setPendingNewTag(newTag);
-          setSelectedMergeTag(result.similarTag); // 默认选择现有标签
-          setShowMergeConfirm(true);
-          setShowAddTag(false);
-        } else {
-          // 没有相似标签，直接添加
-          addTag(newTag);
-          setNewTagInput('');
-          setShowAddTag(false);
-        }
-      } else {
-        // AI调用失败，直接添加标签
-        addTag(newTag);
-        setNewTagInput('');
-        setShowAddTag(false);
-      }
-    } catch (error) {
-      console.error('检查标签相似度失败:', error);
-      // 出错时直接添加标签
-      addTag(newTag);
-      setNewTagInput('');
-      setShowAddTag(false);
+    if (!allTagsIncludingDisabled.find(t => t.name === resolved.tagName)) {
+      addTag(resolved.tagName);
     }
+
+    setNewTagInput('');
+    setShowAddTag(false);
   };
   
   // 确认合并标签
@@ -792,7 +722,7 @@ ${tagList}
       
       {/* 弹窗内容 */}
       <div 
-        className="fixed inset-0 z-50 flex flex-col"
+        className="fixed inset-0 z-[2147483647] flex flex-col"
       >
         <div 
           className="w-full h-full flex flex-col"
@@ -807,8 +737,34 @@ ${tagList}
         {/* 智能修改emoji按钮 */}
         <button
           onClick={async () => {
-            // TODO: 实现智能修改emoji功能
-            alert('智能修改emoji功能开发中...');
+            if (allTagsIncludingDisabled.length === 0) {
+              alert('当前没有标签可以分配 emoji');
+              return;
+            }
+
+            try {
+              const { EmojiMatcher } = await import('@/services/emojiMatcher');
+              let updatedCount = 0;
+              let skippedLockedCount = 0;
+
+              allTagsIncludingDisabled.forEach(tag => {
+                if (tag.emojiLocked) {
+                  skippedLockedCount++;
+                  return;
+                }
+
+                const matchedEmoji = EmojiMatcher.matchEmoji(tag.name);
+                if (matchedEmoji && matchedEmoji !== tag.emoji) {
+                  updateTag(tag.name, tag.name, matchedEmoji, undefined, { lockEmoji: false });
+                  updatedCount++;
+                }
+              });
+
+              alert(`智能修改emoji完成！成功更新 ${updatedCount} 个标签，跳过 ${skippedLockedCount} 个手动锁定标签。`);
+            } catch (error) {
+              console.error('智能修改emoji失败:', error);
+              alert('智能修改emoji失败，请重试');
+            }
           }}
           className="flex items-center gap-2 px-4 py-2 rounded-full font-medium transition-all shadow-md"
           style={{ backgroundColor: '#6D9978', color: '#ffffff' }}
@@ -1435,6 +1391,11 @@ ${tagList}
                                           已禁用
                                         </span>
                                       )}
+                                      {tag.emojiLocked && (
+                                        <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: cardBg, color: secondaryColor }}>
+                                          emoji已锁定
+                                        </span>
+                                      )}
                                     </div>
                                     <div className="text-xs mt-0.5" style={{ color: secondaryColor }}>
                                       使用 {tag.usageCount} 次 · {Math.round(tag.totalDuration / 60)}h
@@ -1524,7 +1485,7 @@ ${tagList}
                         setNewTagName(tag.name);
                       }}
                       onDelete={() => handleDeleteTag(tag.name)}
-                      onUpdateEmoji={(emoji) => updateTag(tag.name, tag.name, emoji)}
+                      onUpdateEmoji={(emoji) => updateTag(tag.name, tag.name, emoji, undefined, { lockEmoji: true })}
                       onEditChange={(value) => setNewTagName(value)}
                       onEditConfirm={() => handleRenameTag(tag.name)}
                       onEditCancel={() => {

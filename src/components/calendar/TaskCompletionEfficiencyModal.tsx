@@ -124,6 +124,13 @@ export default function TaskCompletionEfficiencyModal({
     onClose();
   };
 
+  const clearActiveInputFocus = () => {
+    const activeElement = document.activeElement;
+    if (activeElement instanceof HTMLElement) {
+      activeElement.blur();
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 bg-black/50 backdrop-blur-sm">
       <div
@@ -240,9 +247,12 @@ export default function TaskCompletionEfficiencyModal({
                   max={actualDurationMinutes}
                   step={1}
                   value={effectiveMinutes}
+                  onPointerDown={clearActiveInputFocus}
+                  onTouchStart={clearActiveInputFocus}
                   onChange={(e) => setEffectiveMinutes(Number(e.target.value))}
                   className="w-full h-4 rounded-full appearance-none cursor-pointer transition-all"
                   style={{
+                    touchAction: 'pan-x',
                     background: `linear-gradient(to right, ${level.color} 0%, ${level.color} ${effectiveRatio}%, ${palette.line} ${effectiveRatio}%, ${palette.line} 100%)`,
                   }}
                 />
