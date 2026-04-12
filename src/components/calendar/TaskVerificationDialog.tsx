@@ -166,12 +166,13 @@ export default function TaskVerificationDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm keyboard-aware-modal-shell">
       <div 
-        className="w-full max-w-md rounded-2xl p-6 shadow-2xl"
+        className="w-full max-w-md rounded-2xl p-6 shadow-2xl keyboard-aware-modal-card keyboard-aware-modal-content"
         style={{ 
           backgroundColor: dialogBgColor,
           color: dialogTextColor,
+          overflowY: 'auto',
         }}
       >
         {/* 标题栏 */}

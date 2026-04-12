@@ -26,7 +26,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
   console.log('🎨 CompactTaskEditModal 已渲染 - 智能分配按钮应该可见');
   console.log('📝 任务数据:', task);
   
-  const { goals, createGoal, findMatchingGoals } = useGoalStore();
+  const { goals, createGoal, updateGoal, findMatchingGoals } = useGoalStore();
   const { deductGold, balance } = useGoldStore();
   const { tasks } = useTaskStore();
   const { getAllTags, getTagDurationRecords, getLearnedTagScores, getRecommendedTags, learnTagSelection, ensureTagsExist } = useTagStore();
@@ -1193,7 +1193,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
         )}
 
         {/* 底部按钮 - 跟随内容滚动到底部显示 */}
-        <div className="border-t-2 border-gray-200 dark:border-gray-700 pt-4 pb-2 flex gap-2 bg-white dark:bg-gray-900/80">
+        <div className="border-t-2 border-gray-200 dark:border-gray-700 pt-4 pb-2 flex gap-2 bg-white dark:bg-gray-900/80 keyboard-aware-modal-actions">
           <button
             onClick={handleDelete}
             disabled={hasMandatoryReflection}

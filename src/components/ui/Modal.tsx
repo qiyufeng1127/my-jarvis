@@ -41,7 +41,7 @@ export default function Modal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center keyboard-aware-modal-shell">
       {/* 背景遮罩 */}
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fade-in"
@@ -51,7 +51,7 @@ export default function Modal({
       {/* 模态框内容 */}
       <div
         className={cn(
-          'relative bg-white rounded-lg shadow-lg w-full mx-4 animate-scale-in',
+          'relative bg-white rounded-lg shadow-lg w-full mx-4 animate-scale-in keyboard-aware-modal-card keyboard-aware-modal-content',
           sizes[size]
         )}
       >
@@ -71,7 +71,7 @@ export default function Modal({
         )}
 
         {/* 内容 */}
-        <div className="px-6 py-4">{children}</div>
+        <div className="px-6 py-4 overflow-y-auto keyboard-aware-scroll keyboard-aware-modal-panel">{children}</div>
       </div>
     </div>
   );

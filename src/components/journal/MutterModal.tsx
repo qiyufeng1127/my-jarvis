@@ -133,9 +133,9 @@ ${mutterText}
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 bg-black/50 backdrop-blur-sm keyboard-aware-modal-shell">
       <div
-        className="relative w-full max-w-md max-h-[85vh] rounded-3xl shadow-2xl flex flex-col animate-in fade-in zoom-in duration-200"
+        className="relative w-full max-w-md max-h-[85vh] rounded-3xl shadow-2xl flex flex-col animate-in fade-in zoom-in duration-200 keyboard-aware-modal-card keyboard-aware-modal-content"
         style={{ backgroundColor: '#FFF5F7' }}
       >
         {/* 关闭按钮 */}
@@ -148,7 +148,7 @@ ${mutterText}
         </button>
 
         {/* 可滚动内容区域 */}
-        <div className="overflow-y-auto flex-1 p-6" style={{ maxHeight: 'calc(85vh - 100px)' }}>
+        <div className="overflow-y-auto flex-1 p-6 keyboard-aware-scroll keyboard-aware-modal-panel" style={{ maxHeight: 'calc(85vh - 100px)' }}>
           {/* 标题 */}
           <div className="mb-6 text-center">
             <div className="text-4xl mb-2">💭</div>

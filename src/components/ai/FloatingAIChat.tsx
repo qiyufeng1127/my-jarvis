@@ -126,6 +126,20 @@ interface GoalConversationState {
   lastAskedField?: string;
 }
 
+interface PendingIncomeClarification {
+  segment: string;
+  parsed: {
+    type: 'income' | 'expense';
+    amount: number;
+    description: string;
+    sideHustleName?: string;
+    sideHustleId?: string;
+    confidence?: number;
+  };
+  candidates: SideHustle[];
+  createdAt: Date;
+}
+
 interface GoalDocumentDailyInvestment {
   raw?: string;
   hours?: number;
@@ -971,6 +985,7 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
   const [editingTasks, setEditingTasks] = useState<DecomposedTask[]>([]);
   const [pendingTimelineOperations, setPendingTimelineOperations] = useState<TimelineOperationDraft[]>([]);
   const [goalConversation, setGoalConversation] = useState<GoalConversationState | null>(null);
+  const [pendingIncomeClarification, setPendingIncomeClarification] = useState<PendingIncomeClarification | null>(null);
 
   // 监控编辑器状态变化
   useEffect(() => {
@@ -2438,39 +2453,182 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
   // 处理收入相关的输入
   const handleIncomeInput = async (message: string) => {
     try {
-      addThinkingStep('💰 进入收支记录模式...');
+      const trimmedMessage = message.trim();
+      if (!trimmedMessage) return;
 
       const sideHustleStore = useSideHustleStore.getState();
       const existingSideHustles = sideHustleStore.sideHustles;
       const now = new Date();
 
-      const fallbackAmountMatch = message.match(/(\d+(?:\.\d+)?)\s*(?:元|块|rmb|¥)?/i);
-      const fallbackAmount = fallbackAmountMatch ? parseFloat(fallbackAmountMatch[1]) : 0;
-      const fallbackType = /花了|支出|买了|成本|付款|付了|消费/.test(message) ? 'expense' : 'income';
+      const matchClarificationSideHustle = (rawText: string, candidates: SideHustle[]) => {
+        const normalized = rawText.trim();
+        if (!normalized) return null;
 
-      let parsed = {
-        type: fallbackType as 'income' | 'expense' | 'create_side_hustle' | 'debt' | 'idea',
-        amount: fallbackAmount,
-        description: message,
-        sideHustleName: '',
-        sideHustleId: '',
-        confidence: 0,
+        const directMatch = candidates.find(item =>
+          item.name === normalized ||
+          item.name.includes(normalized) ||
+          normalized.includes(item.name)
+        );
+
+        if (directMatch) return directMatch;
+
+        const indexMatch = normalized.match(/^(第)?([1-9]\d*)[个项]?$/);
+        if (indexMatch) {
+          const index = Number(indexMatch[2]) - 1;
+          if (index >= 0 && index < candidates.length) {
+            return candidates[index];
+          }
+        }
+
+        return null;
       };
 
-      if (isConfigured()) {
-        addThinkingStep('🤖 正在理解这条收支描述...');
-        const aiResult = await aiUnified.parseMoneyCommand(message, existingSideHustles);
-        if (aiResult.success && aiResult.data) {
-          parsed = {
-            ...parsed,
-            ...aiResult.data,
-            description: aiResult.data.description || message,
-            amount: typeof aiResult.data.amount === 'number' ? aiResult.data.amount : fallbackAmount,
-          };
+      const recordIncomeOrExpense = async (
+        segment: string,
+        parsed: {
+          type: 'income' | 'expense';
+          amount: number;
+          description: string;
+        },
+        sideHustle: SideHustle,
+      ) => {
+        if (parsed.type === 'expense') {
+          addExpense({
+            sideHustleId: sideHustle.id,
+            amount: parsed.amount,
+            description: parsed.description || segment,
+        date: now,
+      });
+      
+      await createTask({
+            title: `💸 支出 -${parsed.amount}元`,
+            description: `${parsed.description || segment}\n\n所属副业：${sideHustle.name}\n金额：¥${parsed.amount}`,
+            taskType: 'finance' as TaskType,
+            priority: 2,
+            durationMinutes: 1,
+        scheduledStart: now,
+        scheduledEnd: new Date(now.getTime() + 60000),
+            tags: ['支出记录', sideHustle.name],
+            color: '#fb7185',
+            status: 'completed',
+          } as any);
+
+          return `- ${sideHustle.name} 支出 ${parsed.amount} 元`;
         }
+
+        addIncome({
+          sideHustleId: sideHustle.id,
+          amount: parsed.amount,
+          description: parsed.description || segment,
+          date: now,
+        });
+
+        await createTask({
+          title: `💰 收入 +${parsed.amount}元`,
+          description: `${parsed.description || segment}\n\n所属副业：${sideHustle.name}\n金额：¥${parsed.amount}`,
+          taskType: 'finance' as TaskType,
+          priority: 2,
+          durationMinutes: 1,
+          scheduledStart: now,
+          scheduledEnd: new Date(now.getTime() + 60000),
+          tags: ['收入记录', sideHustle.name],
+          color: '#22c55e',
+          status: 'completed',
+        } as any);
+
+        return `- ${sideHustle.name} 收入 ${parsed.amount} 元`;
+      };
+
+      if (/^(退出|关闭|结束|取消).*(收支|记账|记录)?模式?$/.test(trimmedMessage)) {
+        setContextMode('normal');
+        setPendingIncomeClarification(null);
+        setMessages(prev => [...prev, {
+        id: `ai-${Date.now()}`,
+        role: 'assistant',
+          content: beautifyAssistantReply('好，已经退出收支记录模式。你之后想继续记的话，再点一下 `💰` 就行。'),
+          timestamp: new Date(),
+        }]);
+        return;
       }
 
-      const resolveSideHustle = () => {
+      if (pendingIncomeClarification) {
+        const resolvedSideHustle = matchClarificationSideHustle(trimmedMessage, pendingIncomeClarification.candidates);
+
+        if (!resolvedSideHustle) {
+          setMessages(prev => [...prev, {
+            id: `ai-${Date.now()}`,
+            role: 'assistant',
+            content: beautifyAssistantReply(`我还没法唯一对应到副业。你可以直接回我副业名字，或者发序号：\n${pendingIncomeClarification.candidates.map((item, index) => `${index + 1}. ${item.name}`).join('\n')}`),
+            timestamp: new Date(),
+          }]);
+          return;
+        }
+
+        const summaryLine = await recordIncomeOrExpense(
+          pendingIncomeClarification.segment,
+          pendingIncomeClarification.parsed,
+          resolvedSideHustle,
+        );
+
+        setPendingIncomeClarification(null);
+        addThinkingStep('📅 已同步副业追踪器和时间轴');
+        setMessages(prev => [...prev, {
+          id: `ai-${Date.now()}`,
+          role: 'assistant',
+          content: beautifyAssistantReply(`好，这笔我已经补记到 **${resolvedSideHustle.name}** 了。\n\n${summaryLine}\n\n你可以继续记下一笔，或者直接说“退出收支模式”。`),
+        timestamp: new Date(),
+        thinkingProcess: [...thinkingSteps],
+        isThinkingExpanded: false,
+        }]);
+        return;
+      }
+
+      addThinkingStep('💰 进入收支记录模式...');
+
+      const segments = trimmedMessage
+        .split(/(?:，然后|,然后|然后|接着|再|并且|并且还|另外|还有|同时|；|;|，|,)/)
+        .map(segment => segment.trim())
+        .filter(Boolean);
+
+      const candidateSegments = segments.length > 1
+        ? segments.filter(segment => /(赚了|收入|到账|赚到|进账|花了|支出|买了|成本|付款|付了|消费|副业|项目|单子)/.test(segment))
+        : segments;
+      const usableSegments = candidateSegments.length > 0 ? candidateSegments : [trimmedMessage];
+
+      const resolveParsedEntry = async (segment: string) => {
+        const fallbackAmountMatch = segment.match(/(\d+(?:\.\d+)?)\s*(?:元|块|rmb|¥)?/i);
+        const fallbackAmount = fallbackAmountMatch ? parseFloat(fallbackAmountMatch[1]) : 0;
+        const fallbackType = /花了|支出|买了|成本|付款|付了|消费/.test(segment) ? 'expense' : 'income';
+
+        let parsed = {
+          type: fallbackType as 'income' | 'expense' | 'create_side_hustle' | 'debt' | 'idea',
+          amount: fallbackAmount,
+          description: segment,
+          sideHustleName: '',
+          sideHustleId: '',
+          confidence: 0,
+        };
+
+        if (isConfigured()) {
+          const aiResult = await aiUnified.parseMoneyCommand(segment, existingSideHustles);
+          if (aiResult.success && aiResult.data) {
+            parsed = {
+              ...parsed,
+              ...aiResult.data,
+              description: aiResult.data.description || segment,
+              amount: typeof aiResult.data.amount === 'number' ? aiResult.data.amount : fallbackAmount,
+            };
+          }
+        }
+
+        return parsed;
+      };
+
+      const resolveSideHustle = (parsed: {
+        sideHustleId?: string;
+        sideHustleName?: string;
+        type?: string;
+      }, rawText: string) => {
         if (parsed.sideHustleId) {
           const matched = existingSideHustles.find(item => item.id === parsed.sideHustleId);
           if (matched) return matched;
@@ -2481,144 +2639,156 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
           if (matched) return matched;
         }
 
-        const byMessage = existingSideHustles.find(item => message.includes(item.name));
-        if (byMessage) return byMessage;
+        const textMatches = existingSideHustles.filter(item => rawText.includes(item.name));
+        if (textMatches.length === 1) return textMatches[0];
 
-        return existingSideHustles[0] || null;
+        return null;
       };
 
-      const ensureSideHustle = () => {
-        const existed = resolveSideHustle();
+      const ensureSideHustle = (parsed: {
+        sideHustleName?: string;
+        type?: string;
+      }, rawText: string) => {
+        const existed = resolveSideHustle(parsed, rawText);
         if (existed) return existed;
 
-        const inferredName = parsed.sideHustleName?.trim() || (parsed.type === 'idea' ? message.slice(0, 12) : '默认副业');
+        const inferredName = parsed.sideHustleName?.trim() || (parsed.type === 'idea' ? rawText.slice(0, 12) : '默认副业');
         return createSideHustle({
           name: inferredName,
           icon: parsed.type === 'idea' ? '💡' : '💼',
           color: parsed.type === 'idea' ? '#f59e0b' : '#3b82f6',
           status: parsed.type === 'idea' ? 'idea' : 'active',
-          aiAnalysis: message,
+          aiAnalysis: rawText,
         });
       };
 
-      if (parsed.type === 'create_side_hustle' || parsed.type === 'idea') {
-        addThinkingStep(parsed.type === 'idea' ? '💡 正在记录副业想法...' : '🧾 正在创建副业...');
-        const sideHustle = createSideHustle({
-          name: parsed.sideHustleName?.trim() || message.slice(0, 18),
-          icon: parsed.type === 'idea' ? '💡' : '💼',
-          color: parsed.type === 'idea' ? '#f59e0b' : '#3b82f6',
-          status: parsed.type === 'idea' ? 'idea' : 'active',
-          aiAnalysis: message,
-        });
+      const getClarificationCandidates = (parsed: {
+        sideHustleId?: string;
+        sideHustleName?: string;
+        confidence?: number;
+      }, rawText: string) => {
+        if (existingSideHustles.length <= 1) return [];
+        if (parsed.sideHustleId) return [];
 
-        await createTask({
-          title: `${parsed.type === 'idea' ? '💡' : '💼'} ${sideHustle.name}`,
-          description: parsed.type === 'idea' ? `副业想法记录：${message}` : `新副业记录：${message}`,
-          taskType: 'finance' as TaskType,
-          priority: 2,
-          durationMinutes: 1,
-          scheduledStart: now,
-          scheduledEnd: new Date(now.getTime() + 60000),
-          tags: parsed.type === 'idea' ? ['副业想法', 'AI记录'] : ['副业创建', 'AI记录'],
-          color: parsed.type === 'idea' ? '#f59e0b' : '#3b82f6',
-          status: 'completed',
-        } as any);
+        const normalizedName = parsed.sideHustleName?.trim();
+        if (normalizedName) {
+          const matchedByName = existingSideHustles.filter(item =>
+            item.name.includes(normalizedName) || normalizedName.includes(item.name)
+          );
+          if (matchedByName.length !== 1) return matchedByName;
+          return [];
+        }
 
-        setMessages(prev => [...prev, {
-          id: `ai-${Date.now()}`,
-          role: 'assistant',
-          content: beautifyAssistantReply(parsed.type === 'idea'
-            ? `记下了，这条我已经放进副业追踪器里当想法了：${sideHustle.name}\n\n你接着还可以继续记收支，比如“今天画插画赚了 200”或者“买素材花了 35”。`
-            : `记下了，我已经帮你新建了这个副业：${sideHustle.name}\n\n你接着可以直接记它的收入或支出，比如“这个副业今天赚了 300”。`),
-          timestamp: new Date(),
-          thinkingProcess: [...thinkingSteps],
-          isThinkingExpanded: false,
-        }]);
-        return;
-      }
+        const matchedByText = existingSideHustles.filter(item => rawText.includes(item.name));
+        if (matchedByText.length !== 1) {
+          return matchedByText.length > 0 ? matchedByText : existingSideHustles;
+        }
 
-      if (parsed.type === 'debt') {
-        setMessages(prev => [...prev, {
-          id: `ai-${Date.now()}`,
-          role: 'assistant',
-          content: beautifyAssistantReply('这条我识别得更像负债记录，但当前这个入口我先只处理副业收支和副业想法。你如果要的话，我下一步可以顺手把负债也接进来。'),
-          timestamp: new Date(),
-        }]);
-        return;
-      }
+        if ((parsed.confidence || 0) < 0.72) {
+          return existingSideHustles;
+        }
 
-      if (!parsed.amount || parsed.amount <= 0) {
-        setMessages(prev => [...prev, {
-          id: `ai-${Date.now()}`,
-          role: 'assistant',
-          content: beautifyAssistantReply('我听出来你是在记收支，但这条里金额还不够明确。你可以直接说：\n\n• 今天画插画赚了 200\n• 今天买素材花了 35\n• logo 单到账 500'),
-          timestamp: new Date(),
-        }]);
-        return;
-      }
+        return [];
+      };
 
-      const sideHustle = ensureSideHustle();
+      const summaryLines: string[] = [];
+      let handledCount = 0;
 
-      if (parsed.type === 'expense') {
-        addThinkingStep('💸 正在记录支出...');
-        addExpense({
-          sideHustleId: sideHustle.id,
+      for (const segment of usableSegments) {
+        addThinkingStep(`🧾 正在处理：${segment}`);
+        const parsed = await resolveParsedEntry(segment);
+
+        if (parsed.type === 'debt') {
+          summaryLines.push(`- 这条更像负债记录：${segment}`);
+          continue;
+        }
+
+        if (parsed.type === 'create_side_hustle' || parsed.type === 'idea') {
+          const sideHustle = createSideHustle({
+            name: parsed.sideHustleName?.trim() || segment.slice(0, 18),
+            icon: parsed.type === 'idea' ? '💡' : '💼',
+            color: parsed.type === 'idea' ? '#f59e0b' : '#3b82f6',
+            status: parsed.type === 'idea' ? 'idea' : 'active',
+            aiAnalysis: segment,
+          });
+
+          await createTask({
+            title: `${parsed.type === 'idea' ? '💡' : '💼'} ${sideHustle.name}`,
+            description: parsed.type === 'idea' ? `副业想法记录：${segment}` : `新副业记录：${segment}`,
+            taskType: 'finance' as TaskType,
+            priority: 2,
+            durationMinutes: 1,
+            scheduledStart: now,
+            scheduledEnd: new Date(now.getTime() + 60000),
+            tags: parsed.type === 'idea' ? ['副业想法', 'AI记录'] : ['副业创建', 'AI记录'],
+            color: parsed.type === 'idea' ? '#f59e0b' : '#3b82f6',
+            status: 'completed',
+          } as any);
+
+          summaryLines.push(`- 已记副业${parsed.type === 'idea' ? '想法' : ''}：${sideHustle.name}`);
+          handledCount += 1;
+          continue;
+        }
+
+        if (!parsed.amount || parsed.amount <= 0) {
+          summaryLines.push(`- 金额不够明确：${segment}`);
+          continue;
+        }
+
+        const clarificationCandidates = getClarificationCandidates(parsed, segment);
+        if ((parsed.type === 'income' || parsed.type === 'expense') && clarificationCandidates.length > 1) {
+          setPendingIncomeClarification({
+            segment,
+            parsed: {
+              type: parsed.type,
+              amount: parsed.amount,
+              description: parsed.description || segment,
+              sideHustleId: parsed.sideHustleId,
+              sideHustleName: parsed.sideHustleName,
+              confidence: parsed.confidence,
+            },
+            candidates: clarificationCandidates,
+            createdAt: new Date(),
+          });
+
+          setMessages(prev => [...prev, {
+            id: `ai-${Date.now()}`,
+            role: 'assistant',
+            content: beautifyAssistantReply(`这笔${parsed.type === 'expense' ? '支出' : '收入'}我先不乱挂。你现在有多个副业，我还不能确定它属于哪一个：\n${clarificationCandidates.map((item, index) => `${index + 1}. ${item.name}`).join('\n')}\n\n你直接回我副业名字，或者发序号就行。`),
+            timestamp: new Date(),
+            thinkingProcess: [...thinkingSteps],
+            isThinkingExpanded: false,
+          }]);
+          return;
+        }
+
+        const sideHustle = ensureSideHustle(parsed, segment);
+        const summaryLine = await recordIncomeOrExpense(segment, {
+          type: parsed.type as 'income' | 'expense',
           amount: parsed.amount,
-          description: parsed.description || message,
-          date: now,
-        });
+          description: parsed.description || segment,
+        }, sideHustle);
 
-        await createTask({
-          title: `💸 支出 -${parsed.amount}元`,
-          description: `${parsed.description || message}\n\n所属副业：${sideHustle.name}\n金额：¥${parsed.amount}`,
-          taskType: 'finance' as TaskType,
-          priority: 2,
-          durationMinutes: 1,
-          scheduledStart: now,
-          scheduledEnd: new Date(now.getTime() + 60000),
-          tags: ['支出记录', sideHustle.name],
-          color: '#fb7185',
-          status: 'completed',
-        } as any);
+        summaryLines.push(summaryLine);
+        handledCount += 1;
+      }
 
-        addThinkingStep('📅 已在时间轴标记支出时间点');
+      addThinkingStep('📅 已同步副业追踪器和时间轴');
+
+      if (handledCount === 0) {
         setMessages(prev => [...prev, {
           id: `ai-${Date.now()}`,
           role: 'assistant',
-          content: beautifyAssistantReply(`记上了，${sideHustle.name} 支出 ${parsed.amount} 元。\n\n📝 ${parsed.description || message}\n📅 我也已经顺手帮你记到时间轴里了。\n\n你还可以继续记下一笔。`),
+          content: beautifyAssistantReply(`我听出来你是在记收支，但这条里还没有足够清楚的金额或对象。\n\n你可以直接说：\n• 今天画插画赚了 200\n• 今天买素材花了 35\n• 接单到账 500\n• 退出收支模式\n\n${summaryLines.length > 0 ? `\n这次我听到的是：\n${summaryLines.join('\n')}` : ''}`),
           timestamp: new Date(),
-          thinkingProcess: [...thinkingSteps],
-          isThinkingExpanded: false,
         }]);
         return;
       }
 
-      addThinkingStep('💰 正在记录收入...');
-      addIncome({
-        sideHustleId: sideHustle.id,
-        amount: parsed.amount,
-        description: parsed.description || message,
-        date: now,
-      } as any);
-
-      await createTask({
-        title: `💰 收入 +${parsed.amount}元`,
-        description: `${parsed.description || message}\n\n所属副业：${sideHustle.name}\n金额：¥${parsed.amount}`,
-        taskType: 'finance' as TaskType,
-        priority: 2,
-        durationMinutes: 1,
-        scheduledStart: now,
-        scheduledEnd: new Date(now.getTime() + 60000),
-        tags: ['收入记录', sideHustle.name],
-        color: '#22c55e',
-        status: 'completed',
-      } as any);
-
-      addThinkingStep('📅 已在时间轴标记收入时间点');
       setMessages(prev => [...prev, {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        content: beautifyAssistantReply(`记上了，${sideHustle.name} 收入 ${parsed.amount} 元。\n\n📝 ${parsed.description || message}\n📅 我也已经顺手帮你记到时间轴里了。\n\n你还可以继续记下一笔。`),
+        content: beautifyAssistantReply(`记上了，这次一共处理了 ${handledCount} 条。\n\n${summaryLines.join('\n')}\n\n我都已经顺手同步到副业追踪器和时间轴里了。你还可以继续记下一笔，或者直接说“退出收支模式”。`),
         timestamp: new Date(),
         thinkingProcess: [...thinkingSteps],
         isThinkingExpanded: false,
@@ -2628,7 +2798,7 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
       const errorMessage: Message = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        content: beautifyAssistantReply('❌ 这条收支我刚刚没有记成功，你再发我一次更明确一点的说法就行，比如“今天画插画赚了 200”或者“今天买素材花了 35”。'),
+        content: beautifyAssistantReply('❌ 这条收支我刚刚没有记成功，你再发我一次更明确一点的说法就行，比如“今天画插画赚了 200，然后买素材花了 35”。'),
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -3221,7 +3391,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
     setIsProcessing(true);
 
     // 上下文模式优先，避免被通用指挥中枢提前截走
-    if (contextMode === 'income') {
+    if (contextMode === 'income' || pendingIncomeClarification) {
       try {
         clearThinkingSteps();
         await handleIncomeInput(message);
@@ -4190,7 +4360,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
       setContextMode('income');
       appendAssistantMessage(
         setMessages,
-        '💰 **收支记录模式已开启**\n\n你现在不用跳去副业复盘页，直接在这里记就行。\n\n例如你可以直接发：\n\n• "今天画插画赚了 200"\n• "今天买素材花了 35"\n• "logo 单到账 500"\n• "我想做一个文创账号副业"\n\n我会尽量自动：\n✅ 识别收入 / 支出 / 副业想法\n✅ 提取金额和描述\n✅ 保存到副业追踪器\n✅ 在时间轴记一个时间点\n\n你可以连续记很多笔，不会发一条就把你踢出去。'
+        '💰 **收支记录模式已开启**\n\n你现在不用跳去副业复盘页，直接在这里记就行。\n\n例如你可以直接发：\n\n• "今天画插画赚了 200"\n• "今天买素材花了 35"\n• "logo 单到账 500"\n• "今天接单赚了 300，然后买笔刷花了 29"\n• "我想做一个文创账号副业"\n\n我会尽量自动：\n✅ 识别收入 / 支出 / 副业想法\n✅ 提取金额和描述\n✅ 保存到副业追踪器\n✅ 在时间轴记一个时间点\n\n你可以连续记很多笔，不会发一条就把你踢出去。\n\n如果想退出，直接发：`退出收支模式`'
       );
       return;
     }
@@ -4225,6 +4395,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
   if (isFullScreen) {
     const selectedCount = messages.filter(m => m.isSelected).length;
     const fullScreenComposerHeight = isSelectionMode && selectedCount > 0 ? 96 : 146;
+    const fullScreenConversationBottomPadding = fullScreenComposerHeight + 16;
     
     return (
       <div className="h-full min-h-0 flex flex-col overflow-hidden bg-white relative" onFocusCapture={handleFocusCapture}>
@@ -4299,7 +4470,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
         <div
           ref={conversationRef}
           className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 bg-neutral-50 keyboard-aware-scroll"
-          style={{ paddingBottom: `calc(${fullScreenComposerHeight}px + var(--app-safe-area-bottom) + var(--app-keyboard-offset) + 16px)` }}
+          style={{ paddingBottom: `calc(${fullScreenConversationBottomPadding}px + var(--app-composer-offset))` }}
         >
           {messages.map((message) => {
             const resolvedDecomposedTasks =
@@ -4505,6 +4676,9 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
         {/* 底部操作区 */}
         <div
           className="absolute inset-x-0 bottom-0 z-[1001] border-t border-neutral-200 bg-white shadow-[0_-8px_24px_rgba(15,23,42,0.08)] keyboard-aware-docked"
+          style={{
+            paddingBottom: 'max(12px, calc(var(--app-safe-area-bottom) + 8px))',
+          }}
           onFocusCapture={handleFocusCapture}
         >
           {/* 快速指令或智能分配按钮 */}
@@ -4561,7 +4735,9 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
                     placeholder={contextMode === 'goal'
                       ? '已进入“关于目标”模式，直接粘贴整段目标文档，我会先做智能目标分析...'
                       : contextMode === 'income'
-                      ? '已进入“关于收入”模式，直接输入收入内容...'
+                      ? pendingIncomeClarification
+                        ? '这笔收支还没确认归属，直接回复副业名字或序号...'
+                        : '已进入“收支记录”模式，直接记收入、支出，或说“退出收支模式”...'
                       : contextMode === 'mutter'
                       ? '已进入“心情碎碎念”模式，直接说你的想法或心情...'
                       : '对我说点什么...'}
@@ -4622,17 +4798,17 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
         </button>
       )}
 
-      {/* 聊天窗口 - 改为绝对定位，跟随页面滚动 */}
+      {/* 聊天窗口 - 固定在视口内，键盘弹出时跟随可视区域 */}
       {isOpen && (
         <div
           ref={chatRef}
-          className="absolute rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+          className="fixed rounded-2xl shadow-2xl flex flex-col overflow-hidden"
           style={{
             left: position.x,
-            top: position.y,
+            top: `min(${position.y}px, calc(var(--app-visible-viewport-height) - 72px))`,
             width: isMinimized ? '320px' : `${size.width}px`,
-            height: isMinimized ? '60px' : `min(${size.height}px, calc(var(--app-visible-viewport-height) - ${position.y}px - 12px))`,
-            maxHeight: isMinimized ? '60px' : `calc(var(--app-visible-viewport-height) - ${position.y}px - 12px)`,
+            height: isMinimized ? '60px' : `min(${size.height}px, calc(var(--app-visible-viewport-height) - ${position.y}px - var(--app-keyboard-offset) - 12px))`,
+            maxHeight: isMinimized ? '60px' : `calc(var(--app-visible-viewport-height) - ${position.y}px - var(--app-keyboard-offset) - 12px)`,
             zIndex: 1000,
             cursor: isDragging ? 'grabbing' : isResizing ? 'se-resize' : 'default',
             backgroundColor: bgColor,
@@ -4738,7 +4914,14 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
           {!isMinimized && (
             <>
               {/* 对话区域 */}
-              <div ref={conversationRef} className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3" style={{ backgroundColor: theme.cardBg }}>
+              <div
+                ref={conversationRef}
+                className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 keyboard-aware-scroll"
+                style={{
+                  backgroundColor: theme.cardBg,
+                  paddingBottom: 'calc(172px + var(--app-composer-offset))',
+                }}
+              >
                 {messages.map((message) => {
                   const resolvedDecomposedTasks =
                     message.decomposedTasks && message.decomposedTasks.length > 0
@@ -4981,7 +5164,15 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
               </div>
 
               {/* 底部操作区 */}
-              <div className="border-t" style={{ backgroundColor: theme.bgColor, borderColor: theme.borderColor }}>
+              <div
+                className="absolute inset-x-0 bottom-0 border-t keyboard-aware-docked"
+                style={{
+                  backgroundColor: theme.bgColor,
+                  borderColor: theme.borderColor,
+                  paddingBottom: 'max(12px, calc(var(--app-safe-area-bottom) + 8px))',
+                }}
+                onFocusCapture={handleFocusCapture}
+              >
                 {/* 快速指令 */}
                 <div className="px-3 py-2">
                   <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">

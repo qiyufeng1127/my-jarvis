@@ -132,9 +132,9 @@ export default function TaskCompletionEfficiencyModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 bg-black/50 backdrop-blur-sm keyboard-aware-modal-shell">
       <div
-        className="relative w-full max-w-md max-h-[85vh] rounded-3xl shadow-2xl flex flex-col animate-in fade-in zoom-in duration-200"
+        className="relative w-full max-w-md max-h-[85vh] rounded-3xl shadow-2xl flex flex-col animate-in fade-in zoom-in duration-200 keyboard-aware-modal-card keyboard-aware-modal-content"
         style={{ backgroundColor: palette.panel }}
       >
         <button
@@ -146,7 +146,7 @@ export default function TaskCompletionEfficiencyModal({
           <X className="w-5 h-5" />
         </button>
 
-        <div className="overflow-y-auto flex-1 px-5 pt-5 pb-4" style={{ maxHeight: 'calc(85vh - 96px)' }}>
+        <div className="overflow-y-auto flex-1 px-5 pt-5 pb-4 keyboard-aware-scroll keyboard-aware-modal-panel" style={{ maxHeight: 'calc(85vh - 96px)' }}>
           <div
             className="mb-4 rounded-[28px] border px-4 py-4 shadow-[0_10px_30px_rgba(0,0,0,0.08)]"
             style={{
@@ -444,7 +444,7 @@ export default function TaskCompletionEfficiencyModal({
             </>
           )}
 
-          <div className="pt-3 border-t-4" style={{ borderColor: palette.rose + '22' }}>
+          <div className="pt-3 border-t-4 keyboard-aware-modal-actions" style={{ borderColor: palette.rose + '22' }}>
             <div className="flex gap-3">
               <button
                 onClick={onClose}

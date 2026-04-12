@@ -554,7 +554,7 @@ export default function UnifiedTaskEditor({
         {/* 添加自定义区域弹窗 */}
         {showAddLocationModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 keyboard-aware-modal-shell" onClick={() => setShowAddLocationModal(false)}>
-            <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 keyboard-aware-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 keyboard-aware-modal-card keyboard-aware-modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold text-gray-900">➕ 添加自定义区域</h3>
                 <button

@@ -13,6 +13,7 @@ import BaiduAITest from '@/pages/BaiduAITest';
 import DesignSystemDemo from '@/pages/DesignSystemDemo';
 import DiarySystemTest from '@/pages/DiarySystemTest';
 import MemoryTestPage from '@/pages/MemoryTestPage';
+import TestGuideLab from '@/pages/TestGuideLab';
 import SOPLibrary from '@/components/sop/SOPLibrary';
 import HabitPage from '@/pages/HabitPage';
 
@@ -206,6 +207,9 @@ function App() {
 
           {/* 记忆测试页 */}
           <Route path="/memory-test" element={<MemoryTestPage />} />
+
+          {/* 测试引导页 */}
+          <Route path="/test-guide" element={<TestGuideLab />} />
 
           {/* 其他路由 */}
           <Route path="*" element={<Dashboard />} />

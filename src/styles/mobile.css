@@ -65,8 +65,9 @@
 
   html[data-keyboard-open='true'] .mobile-nav,
   html[data-keyboard-open='true'] .mobile-bottom-nav {
-    transform: translateY(100%);
+    transform: translateY(calc(100% + env(safe-area-inset-bottom))) !important;
     pointer-events: none;
+    opacity: 0;
   }
 
   /* 主内容区域留出底部导航栏空间 */

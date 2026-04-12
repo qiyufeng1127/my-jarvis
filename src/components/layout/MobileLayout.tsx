@@ -80,6 +80,8 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
   const getCurrentLevelConfig = useLevelStore((state) => state.getCurrentLevelConfig);
   const getNextLevelConfig = useLevelStore((state) => state.getNextLevelConfig);
   
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+
   // 防止整个页面滚动
   useEffect(() => {
     // 禁用 body 滚动
@@ -95,6 +97,22 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
       document.body.style.width = '';
       document.body.style.height = '';
     };
+  }, []);
+
+  useEffect(() => {
+    const syncKeyboardState = () => {
+      setIsKeyboardOpen(document.documentElement.dataset.keyboardOpen === 'true');
+    };
+
+    syncKeyboardState();
+
+    const observer = new MutationObserver(syncKeyboardState);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-keyboard-open'],
+    });
+
+    return () => observer.disconnect();
   }, []);
   
   // 小票弹窗状态
@@ -292,8 +310,8 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         backgroundColor: '#fefaf0',
         fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
         overflow: 'hidden',
-        height: '100dvh',
-        minHeight: '100dvh',
+        height: 'var(--app-visible-viewport-height)',
+        minHeight: 'var(--app-visible-viewport-height)',
         width: '100vw',
       }}
     >
@@ -309,13 +327,17 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         style={{ 
           WebkitOverflowScrolling: 'touch',
           paddingTop: 'var(--app-mobile-top-gap)',
-          paddingBottom: 'var(--app-mobile-bottom-gap)',
+          paddingBottom: isKeyboardOpen
+            ? 'max(12px, calc(var(--app-safe-area-bottom) + 12px))'
+            : 'var(--app-mobile-bottom-gap)',
           paddingLeft: '0',
           paddingRight: '0',
           backgroundColor: '#fefaf0',
           minHeight: 0,
           scrollPaddingTop: 'var(--app-mobile-top-gap)',
-          scrollPaddingBottom: 'var(--app-mobile-bottom-gap)',
+          scrollPaddingBottom: isKeyboardOpen
+            ? 'calc(var(--app-keyboard-offset) + var(--app-safe-area-bottom) + 24px)'
+            : 'var(--app-mobile-bottom-gap)',
         }}
       >
         {bridgePulse && ['memory', 'goals', 'timeline'].includes(activeTab) && (
