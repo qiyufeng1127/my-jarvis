@@ -4005,6 +4005,11 @@ export default function NewTimelineView({
                               已向总部回写完成
                             </span>
                           )}
+                          {activeLoop?.taskId === block.id && activeLoop.reviewCompletedAt && (
+                            <span className="ml-2 inline-flex rounded-full bg-emerald-400/25 px-2 py-0.5 text-[9px] font-black tracking-[0.08em] text-emerald-50">
+                              HQ闭环完成
+                            </span>
+                          )}
                         </div>
 
                         {(() => {
@@ -4034,6 +4039,9 @@ export default function NewTimelineView({
                           <div className="mt-1 rounded-xl bg-white/12 px-2 py-1 text-[10px] leading-4 text-white/95">
                             <div className="font-bold tracking-[0.08em]">总部即时纠偏</div>
                             <div className="mt-0.5">{activeLoop?.promise || '先止损，再按总部要求回到主线。'}</div>
+                            {!activeLoop?.goalContributionRecordedAt && activeLoop?.timelineTaskCompletedAt && (
+                              <div className="mt-1 text-white/90">整改做完后，记得点下方 HQ / KR 去补目标贡献。</div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -4342,6 +4350,11 @@ export default function NewTimelineView({
                         {/* 关联目标 */}
                         <div className="text-xs opacity-90">
                           <span className="font-medium">{block.goalText}</span>
+                          {activeLoop?.taskId === block.id && activeLoop.reviewCompletedAt && (
+                            <span className="ml-2 inline-flex rounded-full bg-emerald-400/25 px-2 py-0.5 text-[9px] font-black tracking-[0.08em] text-emerald-50">
+                              HQ闭环完成
+                            </span>
+                          )}
                         </div>
 
                         {(() => {
@@ -4412,6 +4425,17 @@ export default function NewTimelineView({
                         >
                           KR
                         </button>
+
+                        {activeLoop?.taskId === block.id && activeLoop.timelineTaskCompletedAt && !activeLoop.goalContributionRecordedAt && (
+                          <button
+                            onClick={() => openGoalContributionModal(block.id)}
+                            className="h-7 rounded-full px-2.5 flex items-center justify-center text-[10px] font-black transition-all hover:scale-110"
+                            style={{ backgroundColor: 'rgba(244,114,182,0.28)', color: '#fff7fb' }}
+                            title="总部整改已完成，去补目标贡献"
+                          >
+                            HQ补贡献
+                          </button>
+                        )}
                       </div>
 
                       {/* 倒计时显示 - 整合到卡片内，不展开时也显示 */}
