@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import LongTermGoals from '@/components/growth/LongTermGoals';
-import GoalForm from '@/components/growth/GoalForm';
+import GoalForm, { type GoalFormData } from '@/components/growth/GoalForm';
 import { useGoalStore } from '@/stores/goalStore';
+import { buildGoalPayloadFromForm } from '@/utils';
 
 interface GoalsModuleProps {
   isDark?: boolean;
@@ -41,16 +42,8 @@ export function GoalsModule({ isDark = false, bgColor = '#ffffff' }: GoalsModule
     await deleteGoal(goalId);
   };
 
-  const handleSaveGoal = async (goalData: any) => {
-    await createGoal({
-      name: goalData.name,
-      description: goalData.description,
-      goalType: goalData.type,
-      targetValue: goalData.targetValue,
-      unit: goalData.unit,
-      deadline: goalData.deadline ? new Date(goalData.deadline) : undefined,
-      relatedDimensions: goalData.relatedDimensions,
-    });
+  const handleSaveGoal = async (goalData: GoalFormData) => {
+    await createGoal(buildGoalPayloadFromForm(goalData));
     setShowForm(false);
   };
 

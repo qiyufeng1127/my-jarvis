@@ -1,5 +1,6 @@
 import { useState, useRef, useMemo } from 'react';
 import { X, Plus, Search, Trash2, Check, ChevronRight, ShieldAlert } from 'lucide-react';
+import GoalForm, { type GoalFormData } from '@/components/growth/GoalForm';
 import { useGoalStore } from '@/stores/goalStore';
 import { useGoldStore } from '@/stores/goldStore';
 import { useTaskStore } from '@/stores/taskStore';
@@ -7,7 +8,7 @@ import { useTagStore } from '@/stores/tagStore';
 import { useKeyboardAvoidance } from '@/hooks';
 import type { Task } from '@/types';
 import type { SubTask } from '@/services/taskVerificationService';
-import { generateSmartTagAssignment } from '@/utils/smartTagAssignment';
+import { buildGoalPayloadFromForm, buildQuickGoalFormData, generateSmartTagAssignment } from '@/utils';
 import { resolveTagInput } from '@/utils/tagInputResolver';
 
 interface CompactTaskEditModalProps {
@@ -61,8 +62,8 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
   // 关联目标选择弹窗状态
   const [showGoalSelector, setShowGoalSelector] = useState(false);
   const [goalSearchQuery, setGoalSearchQuery] = useState('');
-  const [showNewGoalInput, setShowNewGoalInput] = useState(false);
-  const [newGoalName, setNewGoalName] = useState('');
+  const [showGoalForm, setShowGoalForm] = useState(false);
+  const [quickGoalFormData, setQuickGoalFormData] = useState<GoalFormData>(() => buildQuickGoalFormData());
   const [showGoalResultSelector, setShowGoalResultSelector] = useState(false);
   const [selectedGoalResult, setSelectedGoalResult] = useState<{ title: string; typeLabel: string } | null>(null);
   const [showNewGoalResultInput, setShowNewGoalResultInput] = useState(false);
@@ -188,6 +189,38 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
     }
   };
 
+  const handleOpenGoalForm = () => {
+    setQuickGoalFormData(buildQuickGoalFormData(goalSearchQuery.trim() || title.trim()));
+    setShowGoalForm(true);
+  };
+
+  const handleSaveQuickGoal = (formData: GoalFormData) => {
+    const newGoal = createGoal(buildGoalPayloadFromForm(formData));
+
+    setSelectedGoalId(newGoal.id);
+    setSelectedGoalResult(null);
+    setShowGoalForm(false);
+    setShowGoalSelector(false);
+    setGoalSearchQuery('');
+    setPendingGoalResults([]);
+    setNewGoalResultName('');
+    setNewGoalResultUnit('次');
+    setNewGoalResultTargetValue(1);
+    setShowNewGoalResultInput(false);
+    setShowGoalResultSelector(true);
+  };
+
+  const handleCloseGoalFlow = () => {
+    setShowGoalSelector(false);
+    setGoalSearchQuery('');
+    setShowGoalForm(false);
+    setPendingGoalResults([]);
+    setNewGoalResultName('');
+    setNewGoalResultUnit('次');
+    setNewGoalResultTargetValue(1);
+    setShowNewGoalResultInput(false);
+  };
+
   const handleSelectGoalResult = (resultTitle: string, resultTypeLabel: string) => {
     setSelectedGoalResult({ title: resultTitle, typeLabel: resultTypeLabel });
     setTitle(resultTitle);
@@ -207,34 +240,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
     setNewGoalResultTargetValue(1);
   };
   
-  // 处理新增目标
-  const handleCreateNewGoal = () => {
-    if (!newGoalName.trim()) {
-      alert('请输入目标名称');
-      return;
-    }
-    
-    const newGoal = createGoal({
-      name: newGoalName.trim(),
-      description: '',
-      goalType: 'numeric',
-      isActive: true,
-    });
-    
-    setSelectedGoalId(newGoal.id);
-    setNewGoalName('');
-    setShowNewGoalInput(false);
-    setShowGoalSelector(false);
-    setGoalSearchQuery('');
-    setShowGoalResultSelector(true);
-    setShowNewGoalResultInput(true);
-    setPendingGoalResults([]);
-    setNewGoalResultName('');
-    setNewGoalResultUnit('次');
-    setNewGoalResultTargetValue(1);
-  };
-
-  const handleAddPendingGoalResult = () => {
+  const handleCreateNewGoalResult = () => {
     if (!newGoalResultName.trim()) {
       alert('请输入关键结果名称');
       return;
@@ -1003,47 +1009,17 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
 
               {/* 新增目标区域 */}
               <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-800/50">
-                {showNewGoalInput ? (
-                  <div className="space-y-2">
-                    <input
-                      type="text"
-                      value={newGoalName}
-                      onChange={(e) => setNewGoalName(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleCreateNewGoal()}
-                      placeholder="输入新目标名称..."
-                      className="w-full px-3 py-2 text-sm border-2 border-purple-300 dark:border-purple-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                      autoFocus
-                      onFocus={() => scrollIntoSafeView(goalRef.current)}
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleCreateNewGoal}
-                        className="flex-1 px-3 py-2 rounded-lg text-sm font-semibold transition-all"
-                        style={{ backgroundColor: '#6f8f64', color: '#f8f7f1' }}
-                      >
-                        确认新增
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowNewGoalInput(false);
-                          setNewGoalName('');
-                        }}
-                        className="px-3 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-all"
-                      >
-                        取消
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setShowNewGoalInput(true)}
-                    className="w-full px-3 py-2 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2"
-                    style={{ backgroundColor: '#7f9b73', color: '#f8f7f1' }}
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>新增目标</span>
-                  </button>
-                )}
+                <button
+                  onClick={() => {
+                    scrollIntoSafeView(goalRef.current);
+                    setShowGoalSelector(true);
+                  }}
+                  className="w-full px-3 py-2 text-sm rounded-lg font-semibold transition-all flex items-center justify-center gap-2"
+                  style={{ backgroundColor: '#7f9b73', color: '#f8f7f1' }}
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>新建目标</span>
+                </button>
               </div>
             </div>
           </div>

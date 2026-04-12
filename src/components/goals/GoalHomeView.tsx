@@ -8,6 +8,7 @@ import { useHQBridgeStore } from '@/stores/hqBridgeStore';
 import { useHabitStore } from '@/stores/habitStore';
 import GoalAnalyticsView from '@/components/goals/GoalAnalyticsView';
 import GoalForm, { type GoalFormData } from '@/components/growth/GoalForm';
+import { buildGoalPayloadFromForm } from '@/utils';
 import HabitList from '@/components/habits/HabitList';
 import AddHabitModal from '@/components/habits/AddHabitModal';
 import HabitDetailModal from '@/components/habits/HabitDetailModal';
@@ -214,24 +215,7 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
   ];
 
   const handleSaveGoal = (formData: GoalFormData) => {
-    const payload = {
-      name: formData.name,
-      description: formData.description,
-      goalType: formData.type,
-      startDate: formData.startDate ? new Date(formData.startDate) : undefined,
-      endDate: formData.endDate ? new Date(formData.endDate) : undefined,
-      deadline: formData.endDate ? new Date(formData.endDate) : undefined,
-      estimatedTotalHours: formData.estimatedTotalHours,
-      targetIncome: formData.targetIncome,
-      dimensions: formData.dimensions,
-      projectBindings: formData.projectBindings,
-      theme: formData.theme,
-      showInFuture30Chart: formData.showInFuture30Chart,
-      relatedDimensions: formData.relatedDimensions,
-      targetValue: formData.dimensions.reduce((sum, item) => sum + item.targetValue, 0),
-      currentValue: formData.dimensions.reduce((sum, item) => sum + item.currentValue, 0),
-      unit: formData.dimensions[0]?.unit || '',
-    };
+    const payload = buildGoalPayloadFromForm(formData);
 
     if (editingGoal) {
       updateGoal(editingGoal.id, payload);
