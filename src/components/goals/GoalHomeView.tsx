@@ -752,6 +752,25 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
                         <Plus className="h-4 w-4" />
                         去时间轴
                       </button>
+                      {linkedGoalId === goal.id && activeLoop?.taskId && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            eventBus.emit('dashboard:navigate-module', {
+                              module: 'timeline',
+                              goalId: goal.id,
+                              taskId: activeLoop.taskId,
+                              openComposer: 'goalContribution',
+                            });
+                          }}
+                          className="inline-flex h-10 items-center gap-1.5 rounded-full px-3 text-sm font-semibold text-white transition active:scale-95"
+                          style={{ backgroundColor: '#9f1239', boxShadow: '0 8px 18px rgba(159,18,57,0.22)' }}
+                          aria-label="填写目标贡献"
+                        >
+                          <TrendingUp className="h-4 w-4" />
+                          填写贡献
+                        </button>
+                      )}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -818,6 +837,49 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
                 </div>
                 <div className="mt-3 text-xs" style={{ color: '#9f1239' }}>
                   进入某个目标后，可以继续看该任务的 KR、追责记录、趋势图和收入映射。
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {activeLoop.taskId ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        eventBus.emit('dashboard:navigate-module', {
+                          module: 'timeline',
+                          goalId: activeLoop.goalId,
+                          taskId: activeLoop.taskId,
+                          openComposer: 'goalContribution',
+                        });
+                      }}
+                      className="inline-flex h-10 items-center gap-1.5 rounded-full px-4 text-xs font-semibold text-white transition active:scale-95"
+                      style={{ backgroundColor: '#9f1239', boxShadow: '0 8px 18px rgba(159,18,57,0.22)' }}
+                    >
+                      <TrendingUp className="h-4 w-4" />
+                      去填写这次贡献
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        eventBus.emit('dashboard:navigate-module', {
+                          module: 'timeline',
+                          goalId: activeLoop.goalId,
+                          openComposer: 'task',
+                          taskDraft: {
+                            title: `${activeLoop.goalName || 'HQ整改'} · 整改任务`,
+                            taskType: 'work',
+                            durationMinutes: 60,
+                            longTermGoals: activeLoop.goalId ? { [activeLoop.goalId]: 100 } : {},
+                            tags: Array.from(new Set([activeLoop.goalName || '', '总部整改'].filter(Boolean))),
+                          },
+                        });
+                      }}
+                      className="inline-flex h-10 items-center gap-1.5 rounded-full px-4 text-xs font-semibold text-white transition active:scale-95"
+                      style={{ backgroundColor: '#111827', boxShadow: '0 8px 18px rgba(17,24,39,0.22)' }}
+                    >
+                      <Plus className="h-4 w-4" />
+                      去建整改任务
+                    </button>
+                  )}
                 </div>
               </div>
             )}

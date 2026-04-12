@@ -9,6 +9,7 @@ import { clsx, type ClassValue } from 'clsx';
 // 导出任务相关工具
 export * from './taskUtils';
 export * from './goalSubmission';
+export * from './smartTagAssignment';
 
 // ============================================
 // 样式工具

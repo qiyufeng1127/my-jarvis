@@ -268,6 +268,8 @@ export default function NewTimelineView({
       }
 
       if (payload?.openComposer === 'goalContribution' && payload?.taskId) {
+        setGoalContributionError(null);
+        setGoalContributionSuccess(null);
         openGoalContributionModal(payload.taskId);
       }
     };
@@ -2487,6 +2489,40 @@ export default function NewTimelineView({
     return matched.slice(0, 3);
   }
 
+  function getHQLoopStageMeta(taskId: string) {
+    if (activeLoop?.taskId !== taskId) return null;
+
+    if (activeLoop.reviewCompletedAt) {
+      return {
+        label: 'HQ闭环完成',
+        detail: activeLoop.closureNote || '整改任务、目标贡献和总部复盘都已完成。',
+        tone: 'done' as const,
+      };
+    }
+
+    if (activeLoop.goalContributionRecordedAt) {
+      return {
+        label: '等待总部复盘',
+        detail: activeLoop.closureNote || '目标贡献已补齐，等待总部确认这次闭环。',
+        tone: 'review' as const,
+      };
+    }
+
+    if (activeLoop.timelineTaskCompletedAt) {
+      return {
+        label: '待补目标贡献',
+        detail: activeLoop.closureNote || '整改任务已做完，下一步把这次结果写进目标贡献。',
+        tone: 'contribution' as const,
+      };
+    }
+
+    return {
+      label: '待执行整改任务',
+      detail: activeLoop.closureNote || activeLoop.promise || '先把总部点名的整改动作执行掉。',
+      tone: 'action' as const,
+    };
+  }
+
   function getTaskActualDuration(task: Task) {
     const actualStart = task.actualStart
       ? new Date(task.actualStart)
@@ -3971,6 +4007,29 @@ export default function NewTimelineView({
                           )}
                         </div>
 
+                        {(() => {
+                          const hqStage = getHQLoopStageMeta(block.id);
+                          if (!hqStage) return null;
+
+                          const stageStyles = hqStage.tone === 'done'
+                            ? { backgroundColor: 'rgba(16,185,129,0.22)', borderColor: 'rgba(167,243,208,0.45)' }
+                            : hqStage.tone === 'review'
+                              ? { backgroundColor: 'rgba(59,130,246,0.22)', borderColor: 'rgba(191,219,254,0.45)' }
+                              : hqStage.tone === 'contribution'
+                                ? { backgroundColor: 'rgba(244,114,182,0.22)', borderColor: 'rgba(251,207,232,0.45)' }
+                                : { backgroundColor: 'rgba(245,158,11,0.2)', borderColor: 'rgba(253,230,138,0.4)' };
+
+                          return (
+                            <div
+                              className="mt-1 rounded-xl border px-2 py-1.5 text-[10px] leading-4 text-white/95"
+                              style={stageStyles}
+                            >
+                              <div className="font-black tracking-[0.08em]">{hqStage.label}</div>
+                              <div className="mt-0.5 text-white/90">{hqStage.detail}</div>
+                            </div>
+                          );
+                        })()}
+
                         {block.isLinkedHQTask && (
                           <div className="mt-1 rounded-xl bg-white/12 px-2 py-1 text-[10px] leading-4 text-white/95">
                             <div className="font-bold tracking-[0.08em]">总部即时纠偏</div>
@@ -4024,6 +4083,17 @@ export default function NewTimelineView({
                             >
                               KR
                             </button>
+
+                            {activeLoop?.taskId === block.id && activeLoop.timelineTaskCompletedAt && !activeLoop.goalContributionRecordedAt && (
+                              <button
+                                onClick={() => openGoalContributionModal(block.id)}
+                                className="h-6 rounded-full px-2 flex items-center justify-center text-[9px] font-black transition-all hover:scale-110"
+                                style={{ backgroundColor: 'rgba(244,114,182,0.28)', color: '#fff7fb' }}
+                                title="总部整改已完成，去补目标贡献"
+                              >
+                                HQ
+                              </button>
+                            )}
                           </div>
 
                           {/* 右侧：精简操作区 */}
@@ -4273,6 +4343,26 @@ export default function NewTimelineView({
                         <div className="text-xs opacity-90">
                           <span className="font-medium">{block.goalText}</span>
                         </div>
+
+                        {(() => {
+                          const hqStage = getHQLoopStageMeta(block.id);
+                          if (!hqStage) return null;
+
+                          const stageStyles = hqStage.tone === 'done'
+                            ? { backgroundColor: 'rgba(16,185,129,0.22)', borderColor: 'rgba(167,243,208,0.45)' }
+                            : hqStage.tone === 'review'
+                              ? { backgroundColor: 'rgba(59,130,246,0.22)', borderColor: 'rgba(191,219,254,0.45)' }
+                              : hqStage.tone === 'contribution'
+                                ? { backgroundColor: 'rgba(244,114,182,0.22)', borderColor: 'rgba(251,207,232,0.45)' }
+                                : { backgroundColor: 'rgba(245,158,11,0.2)', borderColor: 'rgba(253,230,138,0.4)' };
+
+                          return (
+                            <div className="mt-2 rounded-2xl border px-3 py-2 text-[11px] leading-5 text-white/95" style={stageStyles}>
+                              <div className="font-black tracking-[0.08em]">{hqStage.label}</div>
+                              <div className="mt-1 text-white/90">{hqStage.detail}</div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
 
