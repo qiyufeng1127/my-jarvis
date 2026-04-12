@@ -240,7 +240,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
     setNewGoalResultTargetValue(1);
   };
   
-  const handleCreateNewGoalResult = () => {
+  const handleAddPendingGoalResult = () => {
     if (!newGoalResultName.trim()) {
       alert('请输入关键结果名称');
       return;
@@ -1015,7 +1015,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
                   style={{ backgroundColor: '#7f9b73', color: '#f8f7f1' }}
                 >
                   <Plus className="w-4 h-4" />
-                  <span>新建目标</span>
+                  <span>快速新建目标</span>
                 </button>
               </div>
             </div>
