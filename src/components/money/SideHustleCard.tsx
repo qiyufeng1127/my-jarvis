@@ -1,7 +1,8 @@
 import type { SideHustle } from '@/types';
 import eventBus from '@/utils/eventBus';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
-import { Edit2, Trash2, TrendingUp, Clock, DollarSign, Target, ArrowRight, CalendarPlus } from 'lucide-react';
+import { useHQBridgeStore } from '@/stores/hqBridgeStore';
+import { Edit2, Trash2, TrendingUp, Clock, DollarSign, Target, ArrowRight, CalendarPlus, ArrowRightLeft } from 'lucide-react';
 
 interface SideHustleCardProps {
   sideHustle: SideHustle;
@@ -10,6 +11,8 @@ interface SideHustleCardProps {
 
 export default function SideHustleCard({ sideHustle, isDark = false }: SideHustleCardProps) {
   const { deleteSideHustle, selectSideHustle } = useSideHustleStore();
+  const activeLoop = useHQBridgeStore((state) => state.activeLoop);
+  const isLinkedToHQ = Boolean(activeLoop?.goalId && sideHustle.goalId === activeLoop.goalId);
 
   // 增强对比度的颜色系统
   const textColor = isDark ? '#ffffff' : '#1a1a1a';
@@ -203,12 +206,23 @@ export default function SideHustleCard({ sideHustle, isDark = false }: SideHustl
 
       {/* 底部信息 - 大字体 */}
       <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t-2" style={{ borderColor: `${sideHustle.color}30` }}>
-        <div className="flex items-center gap-2">
-          <Target size={20} style={{ color: sideHustle.color }} />
-          <span className="text-base font-medium" style={{ color: secondaryColor }}>利润:</span>
-          <span className="font-bold text-xl" style={{ color: textColor }}>¥{sideHustle.profit.toLocaleString()}</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Target size={20} style={{ color: sideHustle.color }} />
+            <span className="text-base font-medium" style={{ color: secondaryColor }}>利润:</span>
+            <span className="font-bold text-xl" style={{ color: textColor }}>¥{sideHustle.profit.toLocaleString()}</span>
+          </div>
+          {isLinkedToHQ && (
+            <div
+              className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold"
+              style={{ backgroundColor: 'rgba(159,18,57,0.14)', color: '#9f1239' }}
+            >
+              <BrainCircuit size={14} />
+              总部当前关注链路
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -220,6 +234,24 @@ export default function SideHustleCard({ sideHustle, isDark = false }: SideHustl
             <ArrowRight size={16} />
             目标
           </button>
+          {isLinkedToHQ && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                eventBus.emit('dashboard:navigate-module', {
+                  module: 'memory',
+                  goalId: sideHustle.goalId,
+                  sideHustleId: sideHustle.id,
+                  taskId: activeLoop?.taskId,
+                });
+              }}
+              className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold transition-all"
+              style={{ backgroundColor: 'rgba(159,18,57,0.12)', color: '#9f1239' }}
+            >
+              <ArrowRightLeft size={16} />
+              去总部
+            </button>
+          )}
           <button
             onClick={(e) => {
               e.stopPropagation();

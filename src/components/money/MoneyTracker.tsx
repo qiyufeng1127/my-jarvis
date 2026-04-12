@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
+import eventBus from '@/utils/eventBus';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
-import { Plus, TrendingUp, TrendingDown, DollarSign, AlertCircle, Lightbulb, BarChart3 } from 'lucide-react';
+import { useGoalStore } from '@/stores/goalStore';
+import { useHQBridgeStore } from '@/stores/hqBridgeStore';
+import { Plus, Target, BrainCircuit, CalendarPlus } from 'lucide-react';
 import SideHustleCard from './SideHustleCard';
 import EfficiencyRanking from './EfficiencyRanking';
 import AIInsights from './AIInsights';
@@ -13,7 +16,7 @@ interface MoneyTrackerProps {
   bgColor?: string;
 }
 
-export default function MoneyTracker({ isDark = false, bgColor = '#ffffff' }: MoneyTrackerProps) {
+export default function MoneyTracker({ isDark = false }: MoneyTrackerProps) {
   const {
     loadSideHustles,
     getActiveSideHustles,
@@ -22,6 +25,8 @@ export default function MoneyTracker({ isDark = false, bgColor = '#ffffff' }: Mo
     getTotalProfit,
     getTotalDebt,
   } = useSideHustleStore();
+  const goals = useGoalStore((state) => state.goals);
+  const activeLoop = useHQBridgeStore((state) => state.activeLoop);
 
   const [activeTab, setActiveTab] = useState<'overview' | 'hustles' | 'finance' | 'analysis' | 'ideas'>('overview');
   const [showAddHustle, setShowAddHustle] = useState(false);
@@ -38,6 +43,16 @@ export default function MoneyTracker({ isDark = false, bgColor = '#ffffff' }: Mo
   const totalExpense = getTotalExpense();
   const totalProfit = getTotalProfit();
   const totalDebt = getTotalDebt();
+  const linkedGoalCount = activeSideHustles.filter((item) => item.goalId).length;
+  const linkedGoal = activeLoop?.goalId ? goals.find((goal) => goal.id === activeLoop.goalId) : null;
+  const linkedSideHustle = activeLoop?.goalId
+    ? activeSideHustles.find((item) => item.goalId === activeLoop.goalId)
+    : null;
+  const linkedTaskTags = Array.from(new Set([
+    linkedGoal?.name,
+    linkedSideHustle?.name,
+    '总部整改',
+  ].filter(Boolean) as string[]));
 
   // 本月数据（简化版，实际应该根据日期过滤）
   const thisMonthIncome = totalIncome * 0.3; // 假设本月占30%
@@ -71,6 +86,114 @@ export default function MoneyTracker({ isDark = false, bgColor = '#ffffff' }: Mo
           <Plus size={16} />
           <span>新增</span>
         </button>
+      </div>
+
+      <div
+        className="mb-3 rounded-2xl border p-3"
+        style={{
+          background: isDark
+            ? 'linear-gradient(135deg, rgba(16,185,129,0.14), rgba(139,92,246,0.14))'
+            : 'linear-gradient(135deg, rgba(16,185,129,0.12), rgba(139,92,246,0.10))',
+          border: `1px solid ${borderColor}`,
+        }}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-xs font-semibold" style={{ color: secondaryColor }}>
+              副业 × 目标 × 总部
+            </div>
+            <div className="mt-1 text-sm font-semibold" style={{ color: textColor }}>
+              {linkedSideHustle && linkedGoal
+                ? `总部当前正在盯「${linkedSideHustle.name}」这条副业链路`
+                : `已挂目标副业 ${linkedGoalCount}/${activeSideHustles.length || 0} 条`}
+            </div>
+            <div className="mt-1 text-xs leading-5" style={{ color: secondaryColor }}>
+              {linkedSideHustle && linkedGoal
+                ? `当前联动目标：${linkedGoal.name}${activeLoop?.taskTitle ? `｜整改任务：${activeLoop.taskTitle}` : ''}`
+                : '把副业挂到目标后，可以直接回总部看问题、去目标看推进、去时间轴排整改动作。'}
+            </div>
+          </div>
+          <div
+            className="rounded-full px-3 py-1 text-xs font-semibold"
+            style={{
+              backgroundColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.72)',
+              color: textColor,
+            }}
+          >
+            深联动
+          </div>
+        </div>
+
+        <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+          <button
+            onClick={() => {
+              if (linkedGoal?.id) {
+                eventBus.emit('dashboard:navigate-module', {
+                  module: 'goals',
+                  goalId: linkedGoal.id,
+                  sideHustleId: linkedSideHustle?.id,
+                });
+              } else {
+                setActiveTab('hustles');
+              }
+            }}
+            className="flex items-center justify-between rounded-xl px-3 py-2 text-left transition-all"
+            style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.72)', color: textColor }}
+          >
+            <div>
+              <div className="text-xs font-semibold" style={{ color: secondaryColor }}>目标落点</div>
+              <div className="mt-1 text-sm font-semibold">{linkedGoal?.name || '去补目标绑定'}</div>
+            </div>
+            <Target size={16} />
+          </button>
+
+          <button
+            onClick={() => {
+              eventBus.emit('dashboard:navigate-module', {
+                module: 'memory',
+                goalId: linkedGoal?.id || activeLoop?.goalId,
+                sideHustleId: linkedSideHustle?.id,
+                taskId: activeLoop?.taskId,
+              });
+            }}
+            className="flex items-center justify-between rounded-xl px-3 py-2 text-left transition-all"
+            style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.72)', color: textColor }}
+          >
+            <div>
+              <div className="text-xs font-semibold" style={{ color: secondaryColor }}>总部追责</div>
+              <div className="mt-1 text-sm font-semibold">{activeLoop?.painLabel || '去总部查看问题'}</div>
+            </div>
+            <BrainCircuit size={16} />
+          </button>
+
+          <button
+            onClick={() => {
+              eventBus.emit('dashboard:navigate-module', {
+                module: 'timeline',
+                goalId: linkedGoal?.id || activeLoop?.goalId,
+                sideHustleId: linkedSideHustle?.id,
+                taskId: activeLoop?.taskId,
+                openComposer: 'task',
+                taskDraft: {
+                  title: `${linkedSideHustle?.name || linkedGoal?.name || '副业整改'} · `,
+                  taskType: 'work',
+                  durationMinutes: 60,
+                  sideHustleId: linkedSideHustle?.id,
+                  longTermGoals: linkedGoal?.id ? { [linkedGoal.id]: 100 } : (activeLoop?.goalId ? { [activeLoop.goalId]: 100 } : {}),
+                  tags: linkedTaskTags,
+                },
+              });
+            }}
+            className="flex items-center justify-between rounded-xl px-3 py-2 text-left transition-all"
+            style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.72)', color: textColor }}
+          >
+            <div>
+              <div className="text-xs font-semibold" style={{ color: secondaryColor }}>执行动作</div>
+              <div className="mt-1 text-sm font-semibold">{activeLoop?.taskTitle || '去时间轴排任务'}</div>
+            </div>
+            <CalendarPlus size={16} />
+          </button>
+        </div>
       </div>
 
       {/* 数据卡片 - 紧凑、iOS 风格 */}

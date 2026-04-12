@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, ChevronRight, Copy, Pencil, Plus, Settings, Sparkles, Trash2, TrendingUp } from 'lucide-react';
+import { CalendarDays, ChevronRight, Copy, Pencil, Plus, Settings, Sparkles, Trash2, TrendingUp, BriefcaseBusiness, BrainCircuit, CalendarPlus, ArrowRightLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 import eventBus, { type DashboardNavigatePayload } from '@/utils/eventBus';
 import { useGoalStore } from '@/stores/goalStore';
 import { useGoalContributionStore } from '@/stores/goalContributionStore';
 import { useHQBridgeStore } from '@/stores/hqBridgeStore';
 import { useHabitStore } from '@/stores/habitStore';
+import { useSideHustleStore } from '@/stores/sideHustleStore';
 import GoalAnalyticsView from '@/components/goals/GoalAnalyticsView';
 import GoalForm, { type GoalFormData } from '@/components/growth/GoalForm';
 import { buildGoalPayloadFromForm } from '@/utils';
@@ -145,6 +146,7 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
   const { goals, loadGoals, createGoal, updateGoal, deleteGoal } = useGoalStore();
   const addContributionRecord = useGoalContributionStore((state) => state.addRecord);
   const activeLoop = useHQBridgeStore((state) => state.activeLoop);
+  const activeSideHustles = useSideHustleStore((state) => state.sideHustles.filter((item) => item.status !== 'idea'));
 
   const accountabilitySummary = activeLoop?.accountabilityForm
     ? activeLoop.accountabilityForm.answers
@@ -155,6 +157,10 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
 
   const habits = useHabitStore((state) => state.habits);
   const candidates = useHabitStore((state) => state.candidates.filter((c) => c.status === 'pending'));
+  const linkedSideHustle = useMemo(() => {
+    if (!linkedGoalId) return null;
+    return activeSideHustles.find((item) => item.goalId === linkedGoalId) || null;
+  }, [activeSideHustles, linkedGoalId]);
 
   const [segment, setSegment] = useState<GoalSegment>('active');
   const [showForm, setShowForm] = useState(false);
@@ -480,7 +486,42 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
 
         {linkedGoalId && (
           <div className="mt-4 rounded-[22px] px-4 py-3 text-sm font-medium" style={{ backgroundColor: 'rgba(221,97,124,0.12)', color: accentPink }}>
-            当前是跨模块联动打开：已自动高亮对应目标。你可以直接点“去时间轴”为这个目标创建执行任务。
+            <div>当前是跨模块联动打开：已自动高亮对应目标。你可以直接点“去时间轴”为这个目标创建执行任务。</div>
+            {linkedSideHustle && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    eventBus.emit('dashboard:navigate-module', {
+                      module: 'money',
+                      goalId: linkedGoalId,
+                      sideHustleId: linkedSideHustle.id,
+                    });
+                  }}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-semibold text-white transition active:scale-95"
+                  style={{ backgroundColor: '#111827' }}
+                >
+                  <BriefcaseBusiness className="h-4 w-4" />
+                  回到副业：{linkedSideHustle.name}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    eventBus.emit('dashboard:navigate-module', {
+                      module: 'memory',
+                      goalId: linkedGoalId,
+                      sideHustleId: linkedSideHustle.id,
+                      taskId: activeLoop?.taskId,
+                    });
+                  }}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition active:scale-95"
+                  style={{ backgroundColor: 'rgba(17,24,39,0.08)', color: '#111827' }}
+                >
+                  <BrainCircuit className="h-4 w-4" />
+                  看总部追责
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -698,6 +739,45 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
                                   当前联动任务：{activeLoop.taskTitle}
                                 </div>
                               )}
+                            </div>
+                          )}
+                          {linkedGoalId === goal.id && (
+                            <div className="mb-3 flex flex-wrap gap-2">
+                              {linkedSideHustle && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    eventBus.emit('dashboard:navigate-module', {
+                                      module: 'money',
+                                      goalId: goal.id,
+                                      sideHustleId: linkedSideHustle.id,
+                                    });
+                                  }}
+                                  className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-semibold text-white transition active:scale-95"
+                                  style={{ backgroundColor: '#0f766e', boxShadow: '0 8px 18px rgba(15,118,110,0.22)' }}
+                                >
+                                  <BriefcaseBusiness className="h-4 w-4" />
+                                  查看副业链路
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  eventBus.emit('dashboard:navigate-module', {
+                                    module: 'memory',
+                                    goalId: goal.id,
+                                    sideHustleId: linkedSideHustle?.id,
+                                    taskId: activeLoop?.taskId,
+                                  });
+                                }}
+                                className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition active:scale-95"
+                                style={{ backgroundColor: 'rgba(17,24,39,0.06)', color: '#111827' }}
+                              >
+                                <ArrowRightLeft className="h-4 w-4" />
+                                回总部看原因
+                              </button>
                             </div>
                           )}
                           <div className="flex items-center justify-between text-sm">

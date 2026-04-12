@@ -5,10 +5,12 @@
 
 import type { Task } from '@/types';
 
+type DashboardModule = 'timeline' | 'goals' | 'money' | 'growth' | 'settings' | 'memory';
+
 type EventCallback = (data: any) => void;
 
 export interface DashboardNavigatePayload {
-  module?: 'timeline' | 'goals' | 'money' | 'growth' | 'settings';
+  module?: DashboardModule;
   taskId?: string;
   goalId?: string;
   sideHustleId?: string;

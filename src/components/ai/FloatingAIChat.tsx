@@ -4,7 +4,6 @@ import { useGoalStore } from '@/stores/goalStore';
 import { useTagStore } from '@/stores/tagStore';
 import { matchTaskToGoals, generateGoalSuggestionMessage } from '@/services/aiGoalMatcher';
 import { useMemoryStore, EMOTION_TAGS, CATEGORY_TAGS } from '@/stores/memoryStore';
-import { useKeyboardAvoidance } from '@/hooks';
 import { notificationService } from '@/services/notificationService';
 import { useAIPersonalityStore } from '@/stores/aiPersonalityStore';
 import { behaviorMonitorService } from '@/services/behaviorMonitorService';
@@ -961,7 +960,6 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
   const sendTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const { handleFocusCapture, scrollIntoSafeView } = useKeyboardAvoidance(conversationRef);
 
   // 使用自定义 Hooks 管理状态
   const theme = useColorTheme(bgColor);
@@ -1033,12 +1031,6 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
       textareaRef.current.style.height = `${Math.min(Math.max(scrollHeight, minHeight), maxHeight)}px`;
     }
   }, [inputValue]);
-
-  useEffect(() => {
-    if (inputValue && textareaRef.current) {
-      scrollIntoSafeView(textareaRef.current, 60);
-    }
-  }, [inputValue, scrollIntoSafeView]);
 
   // 保存状态到localStorage（包括 isOpen）
   useEffect(() => {
@@ -4398,7 +4390,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
     const fullScreenConversationBottomPadding = fullScreenComposerHeight + 16;
     
     return (
-      <div className="h-full min-h-0 flex flex-col overflow-hidden bg-white relative" onFocusCapture={handleFocusCapture}>
+      <div className="h-full min-h-0 flex flex-col overflow-hidden bg-white relative">
         {/* 头部 */}
         <div className="px-4 py-3 flex items-center justify-between border-b border-neutral-200 bg-white">
           <div className="flex items-center space-x-2">
@@ -4469,8 +4461,8 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
         {/* 对话区域 */}
         <div
           ref={conversationRef}
-          className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 bg-neutral-50 keyboard-aware-scroll"
-          style={{ paddingBottom: `calc(${fullScreenConversationBottomPadding}px + var(--app-composer-offset))` }}
+          className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 bg-neutral-50"
+          style={{ paddingBottom: `${fullScreenConversationBottomPadding}px` }}
         >
           {messages.map((message) => {
             const resolvedDecomposedTasks =
@@ -4731,7 +4723,6 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    onFocus={() => scrollIntoSafeView(textareaRef.current)}
                     placeholder={contextMode === 'goal'
                       ? '已进入“关于目标”模式，直接粘贴整段目标文档，我会先做智能目标分析...'
                       : contextMode === 'income'
@@ -4798,23 +4789,22 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
         </button>
       )}
 
-      {/* 聊天窗口 - 固定在视口内，键盘弹出时跟随可视区域 */}
+      {/* 聊天窗口 */}
       {isOpen && (
         <div
           ref={chatRef}
           className="fixed rounded-2xl shadow-2xl flex flex-col overflow-hidden"
           style={{
             left: position.x,
-            top: `min(${position.y}px, calc(var(--app-visible-viewport-height) - 72px))`,
+            top: position.y,
             width: isMinimized ? '320px' : `${size.width}px`,
-            height: isMinimized ? '60px' : `min(${size.height}px, calc(var(--app-visible-viewport-height) - ${position.y}px - var(--app-keyboard-offset) - 12px))`,
-            maxHeight: isMinimized ? '60px' : `calc(var(--app-visible-viewport-height) - ${position.y}px - var(--app-keyboard-offset) - 12px)`,
+            height: isMinimized ? '60px' : `${size.height}px`,
+            maxHeight: isMinimized ? '60px' : `${size.height}px`,
             zIndex: 1000,
             cursor: isDragging ? 'grabbing' : isResizing ? 'se-resize' : 'default',
             backgroundColor: bgColor,
           }}
           onClick={() => setShowColorPicker(false)}
-          onFocusCapture={handleFocusCapture}
         >
           {/* 原有的浮动窗口内容 */}
           {/* 头部 - 可拖拽 */}
@@ -4916,10 +4906,10 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
               {/* 对话区域 */}
               <div
                 ref={conversationRef}
-                className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 keyboard-aware-scroll"
+                className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3"
                 style={{
                   backgroundColor: theme.cardBg,
-                  paddingBottom: 'calc(172px + var(--app-composer-offset))',
+                  paddingBottom: '172px',
                 }}
               >
                 {messages.map((message) => {
