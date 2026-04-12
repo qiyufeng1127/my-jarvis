@@ -1,7 +1,7 @@
-import { useState } from 'react';
 import type { SideHustle } from '@/types';
+import eventBus from '@/utils/eventBus';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
-import { Edit2, Trash2, TrendingUp, Clock, DollarSign, Target } from 'lucide-react';
+import { Edit2, Trash2, TrendingUp, Clock, DollarSign, Target, ArrowRight, CalendarPlus } from 'lucide-react';
 
 interface SideHustleCardProps {
   sideHustle: SideHustle;
@@ -10,7 +10,6 @@ interface SideHustleCardProps {
 
 export default function SideHustleCard({ sideHustle, isDark = false }: SideHustleCardProps) {
   const { deleteSideHustle, selectSideHustle } = useSideHustleStore();
-  const [showMenu, setShowMenu] = useState(false);
 
   // 增强对比度的颜色系统
   const textColor = isDark ? '#ffffff' : '#1a1a1a';
@@ -27,6 +26,35 @@ export default function SideHustleCard({ sideHustle, isDark = false }: SideHustl
     selectSideHustle(sideHustle);
     // TODO: 打开编辑表单
     alert('编辑功能开发中...');
+  };
+
+  const handleOpenGoal = () => {
+    if (!sideHustle.goalId) {
+      alert('这个副业还没有关联目标，请先在任务里或目标页建立目标。');
+      return;
+    }
+
+    eventBus.emit('dashboard:navigate-module', {
+      module: 'goals',
+      goalId: sideHustle.goalId,
+      sideHustleId: sideHustle.id,
+    });
+  };
+
+  const handleCreateTimelineTask = () => {
+    eventBus.emit('dashboard:navigate-module', {
+      module: 'timeline',
+      sideHustleId: sideHustle.id,
+      openComposer: 'task',
+      taskDraft: {
+        title: `${sideHustle.name} · `,
+        taskType: 'work',
+        durationMinutes: 60,
+        sideHustleId: sideHustle.id,
+        longTermGoals: sideHustle.goalId ? { [sideHustle.goalId]: 100 } : {},
+        tags: [sideHustle.name],
+      },
+    });
   };
 
   // 计算进度条的最大值
@@ -174,20 +202,44 @@ export default function SideHustleCard({ sideHustle, isDark = false }: SideHustl
       </div>
 
       {/* 底部信息 - 大字体 */}
-      <div className="flex items-center justify-between pt-4 border-t-2" style={{ borderColor: `${sideHustle.color}30` }}>
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t-2" style={{ borderColor: `${sideHustle.color}30` }}>
         <div className="flex items-center gap-2">
           <Target size={20} style={{ color: sideHustle.color }} />
           <span className="text-base font-medium" style={{ color: secondaryColor }}>利润:</span>
           <span className="font-bold text-xl" style={{ color: textColor }}>¥{sideHustle.profit.toLocaleString()}</span>
         </div>
-        <div 
-          className="text-base font-bold px-4 py-2 rounded-lg"
-          style={{ 
-            backgroundColor: sideHustle.roi > 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
-            color: sideHustle.roi > 0 ? '#10b981' : '#ef4444',
-          }}
-        >
-          ROI {sideHustle.roi > 0 ? '+' : ''}{sideHustle.roi.toFixed(0)}%
+        <div className="flex items-center gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOpenGoal();
+            }}
+            className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold transition-all"
+            style={{ backgroundColor: `${sideHustle.color}18`, color: textColor }}
+          >
+            <ArrowRight size={16} />
+            目标
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCreateTimelineTask();
+            }}
+            className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold transition-all"
+            style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.06)', color: textColor }}
+          >
+            <CalendarPlus size={16} />
+            去时间轴
+          </button>
+          <div 
+            className="text-base font-bold px-4 py-2 rounded-lg"
+            style={{ 
+              backgroundColor: sideHustle.roi > 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+              color: sideHustle.roi > 0 ? '#10b981' : '#ef4444',
+            }}
+          >
+            ROI {sideHustle.roi > 0 ? '+' : ''}{sideHustle.roi.toFixed(0)}%
+          </div>
         </div>
       </div>
     </div>

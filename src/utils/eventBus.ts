@@ -3,7 +3,18 @@
  * 无需修改原有状态管理，完全解耦
  */
 
+import type { Task } from '@/types';
+
 type EventCallback = (data: any) => void;
+
+export interface DashboardNavigatePayload {
+  module?: 'timeline' | 'goals' | 'money' | 'growth' | 'settings';
+  taskId?: string;
+  goalId?: string;
+  sideHustleId?: string;
+  taskDraft?: Partial<Task>;
+  openComposer?: 'task' | 'goalContribution';
+}
 
 class EventBus {
   private events: Record<string, EventCallback[]> = {};
@@ -43,11 +54,3 @@ class EventBus {
 }
 
 export default new EventBus();
-
-
-
-
-
-
-
-

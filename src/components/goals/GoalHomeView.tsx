@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, ChevronRight, Copy, Pencil, Plus, Settings, Sparkles, Trash2, TrendingUp } from 'lucide-react';
 import { motion } from 'framer-motion';
-import eventBus from '@/utils/eventBus';
+import eventBus, { type DashboardNavigatePayload } from '@/utils/eventBus';
 import { useGoalStore } from '@/stores/goalStore';
 import { useGoalContributionStore } from '@/stores/goalContributionStore';
 import { useHQBridgeStore } from '@/stores/hqBridgeStore';
@@ -171,7 +171,7 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
   }, [loadGoals]);
 
   useEffect(() => {
-    const handleNavigate = (payload?: { module?: string; goalId?: string }) => {
+    const handleNavigate = (payload?: DashboardNavigatePayload) => {
       if (payload?.module && payload.module !== 'goals') return;
       if (!payload?.goalId) return;
 
@@ -477,6 +477,12 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
             <div className="mt-2 text-xl font-semibold" style={{ color: pageText }}>{totalHours}h</div>
           </div>
         </div>
+
+        {linkedGoalId && (
+          <div className="mt-4 rounded-[22px] px-4 py-3 text-sm font-medium" style={{ backgroundColor: 'rgba(221,97,124,0.12)', color: accentPink }}>
+            当前是跨模块联动打开：已自动高亮对应目标。你可以直接点“去时间轴”为这个目标创建执行任务。
+          </div>
+        )}
       </div>
 
       {segment === 'habit' ? (
@@ -722,7 +728,30 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
                       </div>
                     </div>
 
-                    <div className="mt-4 flex items-center justify-end gap-2">
+                    <div className="mt-4 flex items-center justify-end gap-2 flex-wrap">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          eventBus.emit('dashboard:navigate-module', {
+                            module: 'timeline',
+                            goalId: goal.id,
+                            openComposer: 'task',
+                            taskDraft: {
+                              title: `${goal.name} · `,
+                              taskType: 'work',
+                              durationMinutes: 60,
+                              longTermGoals: { [goal.id]: 100 },
+                              tags: [goal.name],
+                            },
+                          });
+                        }}
+                        className="inline-flex h-10 items-center gap-1.5 rounded-full px-3 text-sm font-semibold text-white transition active:scale-95"
+                        style={{ backgroundColor: '#111827', boxShadow: '0 8px 18px rgba(17,24,39,0.22)' }}
+                        aria-label="去时间轴创建任务"
+                      >
+                        <Plus className="h-4 w-4" />
+                        去时间轴
+                      </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();

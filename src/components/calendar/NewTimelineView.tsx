@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Camera, Check, ChevronDown, ChevronUp, Edit2, Trash2, GripVertical, Star, Clock, FileText, Upload, X, ShieldAlert, Zap, Sparkles } from 'lucide-react';
-import eventBus from '@/utils/eventBus';
+import eventBus, { type DashboardNavigatePayload } from '@/utils/eventBus';
 import type { Task, LongTermGoal } from '@/types';
 import { 
   generateVerificationKeywords, 
@@ -247,12 +247,29 @@ export default function NewTimelineView({
   } | null>(null);
   
   useEffect(() => {
-    const handleNavigate = (payload?: { module?: string; taskId?: string }) => {
+    const handleNavigate = (payload?: DashboardNavigatePayload) => {
       if (payload?.module && payload.module !== 'timeline') return;
-      if (!payload?.taskId) return;
 
-      setLinkedTaskId(payload.taskId);
-      setExpandedCards((prev) => new Set([...prev, payload.taskId as string]));
+      if (payload?.taskId) {
+        setLinkedTaskId(payload.taskId);
+        setExpandedCards((prev) => new Set([...prev, payload.taskId as string]));
+      }
+
+      if (payload?.openComposer === 'task' || payload?.taskDraft) {
+        const now = new Date();
+        const presetStart = payload?.taskDraft?.scheduledStart
+          ? new Date(payload.taskDraft.scheduledStart)
+          : now;
+        openTaskCreateModal(
+          presetStart,
+          payload?.taskDraft?.durationMinutes || 30,
+          payload?.taskDraft
+        );
+      }
+
+      if (payload?.openComposer === 'goalContribution' && payload?.taskId) {
+        openGoalContributionModal(payload.taskId);
+      }
     };
 
     const handleOpenQuickBackfillEvent = () => {
@@ -752,38 +769,40 @@ export default function NewTimelineView({
     return brightness < 128;
   };
   
-  const createTaskDraft = (startTime: Date, durationMinutes = 30): Task => {
-    const safeDuration = Math.max(5, durationMinutes || 30);
+  const createTaskDraft = (startTime: Date, durationMinutes = 30, presetTask?: Partial<Task>): Task => {
+    const safeDuration = Math.max(5, presetTask?.durationMinutes || durationMinutes || 30);
     const endTime = new Date(startTime.getTime() + safeDuration * 60000);
 
     return {
       id: `draft-${Date.now()}`,
       userId: 'local-user',
-      title: '',
-      description: '',
-      taskType: 'work',
-      priority: 2,
+      title: presetTask?.title || '',
+      description: presetTask?.description || '',
+      taskType: presetTask?.taskType || 'work',
+      priority: presetTask?.priority || 2,
       durationMinutes: safeDuration,
       scheduledStart: new Date(startTime),
       scheduledEnd: endTime,
       actualStart: undefined,
       actualEnd: undefined,
-      growthDimensions: {},
-      longTermGoals: {},
-      identityTags: [],
+      growthDimensions: presetTask?.growthDimensions || {},
+      longTermGoals: presetTask?.longTermGoals || {},
+      identityTags: presetTask?.identityTags || [],
+      sideHustleId: presetTask?.sideHustleId,
       enableProgressCheck: false,
       progressChecks: [],
       penaltyGold: 0,
       status: 'pending',
       goldEarned: 0,
-      tags: [],
+      tags: presetTask?.tags || [],
+      location: presetTask?.location,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
   };
 
-  const openTaskCreateModal = (startTime: Date, durationMinutes = 30) => {
-    setCreatingTaskDraft(createTaskDraft(startTime, durationMinutes));
+  const openTaskCreateModal = (startTime: Date, durationMinutes = 30, presetTask?: Partial<Task>) => {
+    setCreatingTaskDraft(createTaskDraft(startTime, durationMinutes, presetTask));
   };
 
   const handleCreateTaskFromDraft = (updates: Partial<Task>) => {
