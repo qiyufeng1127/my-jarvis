@@ -53,31 +53,31 @@
     height: auto;
   }
 
-  /* 导航栏固定在底部 */
+  /* 导航栏固定在底部：统一走全局变量，避免额外白边 */
   .mobile-nav {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
     z-index: 1000;
-    padding-bottom: env(safe-area-inset-bottom); /* iOS 安全区域 */
+    padding-bottom: 0;
   }
 
   html[data-keyboard-open='true'] .mobile-nav,
   html[data-keyboard-open='true'] .mobile-bottom-nav {
-    transform: translateY(calc(100% + env(safe-area-inset-bottom))) !important;
+    transform: translateY(100%) !important;
     pointer-events: none;
     opacity: 0;
   }
 
-  /* 主内容区域留出底部导航栏空间 */
+  /* 主内容区域底部占位统一走变量 */
   .main-content {
-    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+    padding-bottom: var(--app-mobile-bottom-gap);
   }
 
-  /* 顶部状态栏留出刘海屏空间 */
+  /* 顶部安全区统一走变量 */
   .top-bar {
-    padding-top: max(12px, env(safe-area-inset-top));
+    padding-top: var(--app-mobile-top-gap);
   }
 
   /* 滚动容器优化 */
@@ -225,13 +225,13 @@
   }
 }
 
-/* 安全区域适配 */
+/* 安全区域适配：统一走全局变量，避免多套逻辑 */
 .safe-area-top {
-  padding-top: env(safe-area-inset-top);
+  padding-top: var(--app-safe-area-top);
 }
 
 .safe-area-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: var(--app-safe-area-bottom);
 }
 
 .safe-area-left {

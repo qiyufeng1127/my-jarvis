@@ -5,15 +5,19 @@
 :root {
   --mobile-bottom-nav-height: 56px;
   --mobile-bottom-nav-safe-area: 0px;
-  --mobile-bottom-nav-total-height: var(--mobile-bottom-nav-height);
+  --mobile-bottom-nav-total-height: calc(var(--mobile-bottom-nav-height) + var(--mobile-bottom-nav-safe-area));
   --app-safe-area-top: env(safe-area-inset-top, 0px);
   --app-safe-area-bottom: env(safe-area-inset-bottom, 0px);
   --app-visible-viewport-height: 100dvh;
   --app-viewport-offset-top: 0px;
   --app-keyboard-offset: 0px;
-  --app-mobile-top-gap: max(12px, calc(var(--app-safe-area-top) + 8px));
-  --app-mobile-bottom-gap: var(--mobile-bottom-nav-height);
-  --app-composer-offset: calc(var(--mobile-bottom-nav-height) + var(--app-safe-area-bottom));
+  --app-mobile-top-gap: var(--app-safe-area-top);
+  --app-mobile-bottom-gap: var(--mobile-bottom-nav-total-height);
+  --app-composer-offset: var(--mobile-bottom-nav-total-height);
+  --app-mobile-scroll-padding-top: var(--app-mobile-top-gap);
+  --app-mobile-scroll-padding-bottom: var(--app-mobile-bottom-gap);
+  --app-mobile-scroll-padding-bottom-keyboard: max(12px, calc(var(--app-safe-area-bottom) + 12px));
+  --app-mobile-scroll-snap-bottom-keyboard: calc(var(--app-keyboard-offset) + var(--app-safe-area-bottom) + 24px);
 }
 
 /* 全局重置 - 确保没有任何多余空白 */
@@ -64,6 +68,19 @@ body {
 .mobile-app-scroll {
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
+  padding-top: var(--app-mobile-scroll-padding-top);
+  padding-right: 0;
+  padding-bottom: var(--app-mobile-scroll-padding-bottom);
+  padding-left: 0;
+  background: #fefaf0;
+  min-height: 0;
+  scroll-padding-top: var(--app-mobile-scroll-padding-top);
+  scroll-padding-bottom: var(--app-mobile-scroll-padding-bottom);
+}
+
+html[data-keyboard-open='true'] .mobile-app-scroll {
+  padding-bottom: var(--app-mobile-scroll-padding-bottom-keyboard);
+  scroll-padding-bottom: var(--app-mobile-scroll-snap-bottom-keyboard);
 }
 
 .mobile-app-scroll > *:first-child {

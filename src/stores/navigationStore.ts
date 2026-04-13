@@ -10,6 +10,7 @@ import type {
 } from '@/types/navigation';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGoalStore } from '@/stores/goalStore';
+import { useGoalContributionStore } from '@/stores/goalContributionStore';
 import { matchTaskToGoals, convertMatchesToTaskGoals } from '@/services/aiGoalMatcher';
 
 const softenTimelineTitle = (title: string) => title.trim();
@@ -21,7 +22,11 @@ const softenTimelineDescription = (description?: string) => {
 
 const buildTimelineTaskDescription = (sessionTitle: string, groupTitle: string) => `${sessionTitle} · ${groupTitle}`;
 
-const buildTimelineTaskGoals = (title: string, sessionTitle: string) => {
+const buildTimelineTaskGoals = (title: string, sessionTitle: string, linkedGoalId?: string) => {
+  if (linkedGoalId) {
+    return { [linkedGoalId]: 100 };
+  }
+
   const activeGoals = useGoalStore.getState().getActiveGoals();
   if (activeGoals.length === 0) return {};
 
@@ -183,6 +188,13 @@ interface NavigationStoreState {
   replacePreviewGroups: (groups: NavigationSession['timelineGroups']) => void;
   updatePreviewStep: (stepId: string, updates: Partial<NavigationExecutionStep>) => void;
   replacePreviewSteps: (steps: NavigationExecutionStep[]) => void;
+  updateActiveGroup: (groupId: string, updates: Partial<NavigationSession['timelineGroups'][number]>) => void;
+  saveGroupGoalLink: (groupId: string, payload: {
+    goalId: string;
+    note?: string;
+    dimensionValues?: Record<string, number>;
+  }) => void;
+  updateActiveStep: (stepId: string, updates: Partial<NavigationExecutionStep>) => void;
   movePreviewStep: (stepId: string, direction: 'up' | 'down') => void;
   removePreviewStep: (stepId: string) => void;
   removePreviewGroup: (groupId: string) => void;
@@ -460,6 +472,43 @@ export const useNavigationStore = create<NavigationStoreState>()(
           currentSession: {
             ...session,
             executionSteps: steps.map((step, index) => ({ ...step, sortOrder: index })),
+          },
+        });
+      },
+      updateActiveGroup: (groupId, updates) => {
+        const session = get().currentSession;
+        if (!session || session.status !== 'active') return;
+        set({
+          currentSession: {
+            ...session,
+            timelineGroups: session.timelineGroups.map((group) => group.id === groupId ? { ...group, ...updates } : group),
+          },
+        });
+      },
+      saveGroupGoalLink: (groupId, payload) => {
+        const session = get().currentSession;
+        if (!session || !['active', 'completed', 'paused'].includes(session.status)) return;
+        set({
+          currentSession: {
+            ...session,
+            timelineGroups: session.timelineGroups.map((group) => group.id === groupId
+              ? {
+                  ...group,
+                  linkedGoalId: payload.goalId,
+                  krNote: payload.note,
+                  krDimensionValues: payload.dimensionValues,
+                }
+              : group),
+          },
+        });
+      },
+      updateActiveStep: (stepId, updates) => {
+        const session = get().currentSession;
+        if (!session || session.status !== 'active') return;
+        set({
+          currentSession: {
+            ...session,
+            executionSteps: session.executionSteps.map((step) => step.id === stepId ? { ...step, ...updates } : step),
           },
         });
       },
@@ -850,6 +899,10 @@ export const useNavigationStore = create<NavigationStoreState>()(
 
         try {
           const createTask = useTaskStore.getState().createTask;
+          const goalContributionStore = useGoalContributionStore.getState();
+          const addGoalContributionRecord = goalContributionStore.addRecord;
+          const updateGoalContributionRecord = goalContributionStore.updateRecord;
+          const updateGoal = useGoalStore.getState().updateGoal;
 
           for (const group of session.timelineGroups) {
             const groupSteps = session.executionSteps.filter((step) => step.groupId === group.id && step.startedAt && step.completedAt);
@@ -864,7 +917,7 @@ export const useNavigationStore = create<NavigationStoreState>()(
             const durationMinutes = Math.max(1, Math.round((new Date(actualEnd).getTime() - new Date(actualStart).getTime()) / 60000));
             const timelineTitle = softenTimelineTitle(group.title);
 
-            await createTask({
+            const createdTask = await createTask({
               title: timelineTitle,
               description: buildTimelineTaskDescription(session.title, timelineTitle),
               taskType: 'life',
@@ -880,10 +933,76 @@ export const useNavigationStore = create<NavigationStoreState>()(
               enableProgressCheck: false,
               progressChecks: [],
               growthDimensions: {},
-              longTermGoals: buildTimelineTaskGoals(timelineTitle, session.title),
+              longTermGoals: buildTimelineTaskGoals(timelineTitle, session.title, group.linkedGoalId),
               goldEarned: 0,
               penaltyGold: 0,
             });
+
+            if (group.linkedGoalId && group.krDimensionValues && Object.keys(group.krDimensionValues).length > 0) {
+              const linkedGoal = useGoalStore.getState().getGoalById(group.linkedGoalId);
+              if (linkedGoal) {
+                const dimensionResults = linkedGoal.dimensions
+                  .map((dimension) => ({
+                    dimensionId: dimension.id,
+                    dimensionName: dimension.name,
+                    unit: dimension.unit,
+                    value: Number(group.krDimensionValues?.[dimension.id] || 0),
+                  }))
+                  .filter((item) => item.value > 0);
+
+                if (dimensionResults.length > 0) {
+                  const existingTimelineRecord = goalContributionStore.records.find((record) => record.taskId === createdTask.id && record.goalId === linkedGoal.id);
+
+                  if (existingTimelineRecord) {
+                    updateGoalContributionRecord(existingTimelineRecord.id, {
+                      note: group.krNote,
+                      startTime: new Date(actualStart),
+                      endTime: new Date(actualEnd),
+                      durationMinutes,
+                      dimensionResults,
+                    });
+                  } else {
+                    addGoalContributionRecord({
+                      goalId: linkedGoal.id,
+                      taskId: createdTask.id,
+                      taskTitle: timelineTitle,
+                      startTime: new Date(actualStart),
+                      endTime: new Date(actualEnd),
+                      durationMinutes,
+                      note: group.krNote,
+                      source: 'timeline',
+                      dimensionResults,
+                    });
+                  }
+
+                  const existingManualRecord = goalContributionStore.records.find((record) => record.taskId === `navigation-group:${session.id}:${group.id}` && record.goalId === linkedGoal.id);
+                  const baseDimensions = linkedGoal.dimensions.map((dimension) => ({ ...dimension }));
+                  const nextDimensions = baseDimensions.map((dimension) => {
+                    const increment = group.krDimensionValues?.[dimension.id] || 0;
+                    return {
+                      ...dimension,
+                      currentValue: Number((dimension.currentValue + increment).toFixed(2)),
+                    };
+                  });
+
+                  updateGoal(linkedGoal.id, {
+                    dimensions: nextDimensions,
+                    currentValue: Number(nextDimensions.reduce((sum, item) => sum + item.currentValue, 0).toFixed(2)),
+                  });
+
+                  if (existingManualRecord) {
+                    updateGoalContributionRecord(existingManualRecord.id, {
+                      taskId: createdTask.id,
+                      taskTitle: timelineTitle,
+                      startTime: new Date(actualStart),
+                      endTime: new Date(actualEnd),
+                      durationMinutes,
+                      source: 'timeline',
+                    });
+                  }
+                }
+              }
+            }
           }
 
           if (session.startedAt && session.completedAt) {

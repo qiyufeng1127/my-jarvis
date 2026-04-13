@@ -2,7 +2,7 @@ import type { SideHustle } from '@/types';
 import eventBus from '@/utils/eventBus';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
 import { useHQBridgeStore } from '@/stores/hqBridgeStore';
-import { Edit2, Trash2, TrendingUp, Clock, DollarSign, Target, ArrowRight, CalendarPlus, ArrowRightLeft } from 'lucide-react';
+import { Edit2, Trash2, TrendingUp, Clock, DollarSign, Target, ArrowRight, CalendarPlus, BrainCircuit, ArrowRightLeft } from 'lucide-react';
 
 interface SideHustleCardProps {
   sideHustle: SideHustle;

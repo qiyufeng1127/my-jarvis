@@ -8,6 +8,7 @@ import { useTagStore } from '@/stores/tagStore';
 import { useKeyboardAvoidance } from '@/hooks';
 import type { Task } from '@/types';
 import type { SubTask } from '@/services/taskVerificationService';
+import { AISmartProcessor } from '@/services/aiSmartService';
 import { buildGoalPayloadFromForm, buildQuickGoalFormData, generateSmartTagAssignment } from '@/utils';
 import { resolveTagInput } from '@/utils/tagInputResolver';
 
@@ -511,7 +512,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
     }
   };
 
-  // 智能分配 - 基于历史记录动态填写时长、金币、标签和关联目标
+  // 智能分配 - 基于历史记录动态填写金币、标签、关联目标和位置（不改时长）
   const handleAIAssign = async () => {
     if (!title.trim()) {
       alert('请先输入任务标题');
@@ -525,10 +526,12 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
         ? ensureTagsExist(smartAssignment.suggestedTags, smartAssignment.categoryLabel === 'meal' || smartAssignment.categoryLabel === 'toilet' || smartAssignment.categoryLabel === 'shower' || smartAssignment.categoryLabel === 'wash' || smartAssignment.categoryLabel === 'housework' ? 'life_essential' : 'business')
         : tags;
 
-      setDuration(smartAssignment.suggestedDuration);
+      const suggestedLocation = AISmartProcessor.inferLocation(title.trim());
+
       setGold(smartAssignment.suggestedGold);
       setTags(resolvedSuggestedTags);
       setLastSuggestedTags(resolvedSuggestedTags);
+      setLocation(suggestedLocation || location);
 
       if (smartAssignment.suggestedGoalId) {
         setSelectedGoalId(smartAssignment.suggestedGoalId);
@@ -541,9 +544,12 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
       const summary = [
         `已根据你的历史记录完成智能分配。`,
         `识别类别：${smartAssignment.categoryLabel || '通用任务'}`,
-        `建议时长：${smartAssignment.suggestedDuration} 分钟`,
+        `时长：保持你当前填写的 ${duration} 分钟不变`,
         `建议金币：${smartAssignment.suggestedGold}`,
         `建议标签：${resolvedSuggestedTags.join('、') || '保持当前标签不变'}`,
+        suggestedLocation
+          ? `建议位置：${suggestedLocation}`
+          : '位置：未识别到更合适的位置，已保持当前填写',
         smartAssignment.suggestedGoalId
           ? `关联目标：${goals.find(goal => goal.id === smartAssignment.suggestedGoalId)?.name || '已自动关联'}`
           : '关联目标：未匹配到明确目标，已保持不关联',
@@ -669,7 +675,7 @@ export default function CompactTaskEditModal({ task, onClose, onSave, onDelete }
                 disabled={isAIAssigning || !title.trim()}
                 className="px-2 py-1 rounded-md text-xs font-semibold active:scale-95 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                 style={{ backgroundColor: '#6f8f64', color: '#f8f7f1' }}
-                title="根据历史记录智能分配时长、金币、标签和目标"
+                title="根据历史记录智能分配金币、标签、目标和位置"
               >
                 {isAIAssigning ? (
                   <>

@@ -324,21 +324,6 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
       {/* 主内容区域 - 统一安全区滚动容器 */}
       <div 
         className="flex-1 overflow-y-auto overflow-x-hidden mobile-app-scroll"
-        style={{ 
-          WebkitOverflowScrolling: 'touch',
-          paddingTop: 'var(--app-mobile-top-gap)',
-          paddingBottom: isKeyboardOpen
-            ? 'max(12px, calc(var(--app-safe-area-bottom) + 12px))'
-            : 'var(--app-mobile-bottom-gap)',
-          paddingLeft: '0',
-          paddingRight: '0',
-          backgroundColor: '#fefaf0',
-          minHeight: 0,
-          scrollPaddingTop: 'var(--app-mobile-top-gap)',
-          scrollPaddingBottom: isKeyboardOpen
-            ? 'calc(var(--app-keyboard-offset) + var(--app-safe-area-bottom) + 24px)'
-            : 'var(--app-mobile-bottom-gap)',
-        }}
       >
         {bridgePulse && ['memory', 'goals', 'timeline'].includes(activeTab) && (
           <div className="sticky top-0 z-20 px-3 pt-3">

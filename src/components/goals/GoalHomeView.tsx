@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, ChevronRight, Copy, Pencil, Plus, Settings, Sparkles, Trash2, TrendingUp, BriefcaseBusiness, BrainCircuit, CalendarPlus, ArrowRightLeft } from 'lucide-react';
+import { CalendarDays, ChevronRight, Copy, Pencil, Plus, Settings, Sparkles, Trash2, TrendingUp, Briefcase, BrainCircuit, CalendarPlus, ArrowRightLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 import eventBus, { type DashboardNavigatePayload } from '@/utils/eventBus';
 import { useGoalStore } from '@/stores/goalStore';
@@ -147,6 +147,15 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
   const addContributionRecord = useGoalContributionStore((state) => state.addRecord);
   const activeLoop = useHQBridgeStore((state) => state.activeLoop);
   const activeSideHustles = useSideHustleStore((state) => state.sideHustles.filter((item) => item.status !== 'idea'));
+  const [segment, setSegment] = useState<GoalSegment>('active');
+  const [showForm, setShowForm] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<LongTermGoal | null>(null);
+  const [selectedGoal, setSelectedGoal] = useState<LongTermGoal | null>(null);
+  const [linkedGoalId, setLinkedGoalId] = useState<string | null>(null);
+  const [habitTab, setHabitTab] = useState<'all' | 'daily' | 'weekly' | 'monthly'>('all');
+  const [showAddHabitModal, setShowAddHabitModal] = useState(false);
+  const [showRuleSettings, setShowRuleSettings] = useState(false);
+  const [selectedHabitId, setSelectedHabitId] = useState<string | null>(null);
 
   const accountabilitySummary = activeLoop?.accountabilityForm
     ? activeLoop.accountabilityForm.answers
@@ -161,16 +170,6 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
     if (!linkedGoalId) return null;
     return activeSideHustles.find((item) => item.goalId === linkedGoalId) || null;
   }, [activeSideHustles, linkedGoalId]);
-
-  const [segment, setSegment] = useState<GoalSegment>('active');
-  const [showForm, setShowForm] = useState(false);
-  const [editingGoal, setEditingGoal] = useState<LongTermGoal | null>(null);
-  const [selectedGoal, setSelectedGoal] = useState<LongTermGoal | null>(null);
-  const [linkedGoalId, setLinkedGoalId] = useState<string | null>(null);
-  const [habitTab, setHabitTab] = useState<'all' | 'daily' | 'weekly' | 'monthly'>('all');
-  const [showAddHabitModal, setShowAddHabitModal] = useState(false);
-  const [showRuleSettings, setShowRuleSettings] = useState(false);
-  const [selectedHabitId, setSelectedHabitId] = useState<string | null>(null);
 
   useEffect(() => {
     loadGoals();
@@ -501,7 +500,7 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
                   className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-semibold text-white transition active:scale-95"
                   style={{ backgroundColor: '#111827' }}
                 >
-                  <BriefcaseBusiness className="h-4 w-4" />
+                  <Briefcase className="h-4 w-4" />
                   回到副业：{linkedSideHustle.name}
                 </button>
                 <button
@@ -757,7 +756,7 @@ export default function GoalHomeView({ isDark = false, bgColor = '#f3f2ef' }: Go
                                   className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-semibold text-white transition active:scale-95"
                                   style={{ backgroundColor: '#0f766e', boxShadow: '0 8px 18px rgba(15,118,110,0.22)' }}
                                 >
-                                  <BriefcaseBusiness className="h-4 w-4" />
+                                  <Briefcase className="h-4 w-4" />
                                   查看副业链路
                                 </button>
                               )}

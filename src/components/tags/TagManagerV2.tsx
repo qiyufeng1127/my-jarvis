@@ -189,7 +189,6 @@ function UncategorizedTagItem({
 
 export default function TagManagerV2({ isOpen, onClose, isDark = false }: TagManagerV2Props) {
   const [timeRange, setTimeRange] = useState<TimeRange>('today');
-  const [showMergeModal, setShowMergeModal] = useState(false);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [editingTag, setEditingTag] = useState<string | null>(null);
   const [newTagName, setNewTagName] = useState('');
@@ -283,43 +282,6 @@ export default function TagManagerV2({ isOpen, onClose, isDark = false }: TagMan
 
     setNewTagInput('');
     setShowAddTag(false);
-  };
-  
-  // 确认合并标签
-  const handleConfirmMerge = () => {
-    if (selectedMergeTag === similarTag) {
-      // 选择使用现有标签，不需要做任何事
-      alert(`已取消添加"${pendingNewTag}"，将使用现有标签"${similarTag}"`);
-    } else {
-      // 选择使用新标签名称，需要重命名现有标签
-      updateTag(similarTag, selectedMergeTag);
-      
-      // 更新所有使用该标签的任务
-      tasks.forEach(task => {
-        if (task.tags && task.tags.includes(similarTag)) {
-          const newTags = task.tags.map(tag => tag === similarTag ? selectedMergeTag : tag);
-          updateTask(task.id, { tags: newTags });
-        }
-      });
-      
-      alert(`已将"${similarTag}"重命名为"${selectedMergeTag}"`);
-    }
-    
-    setShowMergeConfirm(false);
-    setSimilarTag('');
-    setPendingNewTag('');
-    setSelectedMergeTag('');
-    setNewTagInput('');
-  };
-  
-  // 取消合并，添加新标签
-  const handleCancelMerge = () => {
-    addTag(pendingNewTag);
-    setShowMergeConfirm(false);
-    setSimilarTag('');
-    setPendingNewTag('');
-    setSelectedMergeTag('');
-    setNewTagInput('');
   };
   
   // 开始编辑文件夹颜色
@@ -715,90 +677,87 @@ ${tagList}
   return (
     <>
       {/* 背景遮罩 - 点击关闭 */}
-      <div 
+      <div
         className="fixed inset-0 bg-black/30 z-40"
         onClick={onClose}
       />
-      
+
       {/* 弹窗内容 */}
-      <div 
-        className="fixed inset-0 z-[2147483647] flex flex-col"
-      >
-        <div 
+      <div className="fixed inset-0 z-[2147483647] flex flex-col">
+        <div
           className="w-full h-full flex flex-col"
           style={{ backgroundColor: bgColor }}
           onClick={(e) => e.stopPropagation()}
         >
-      {/* 头部 */}
-      <div 
-        className="flex items-center justify-end gap-3 px-6 py-6 pt-14 border-b shrink-0"
-        style={{ borderColor }}
-      >
-        {/* 智能修改emoji按钮 */}
-        <button
-          onClick={async () => {
-            if (allTagsIncludingDisabled.length === 0) {
-              alert('当前没有标签可以分配 emoji');
-              return;
-            }
+          {/* 头部 */}
+          <div
+            className="flex items-start justify-between gap-3 px-6 py-6 pt-14 border-b shrink-0"
+            style={{ borderColor }}
+          >
+            <div>
+              <h2 className="text-2xl font-bold" style={{ color: textColor }}>
+                标签管理
+              </h2>
+              <p className="text-sm mt-1" style={{ color: secondaryColor }}>
+                {totalTags} 个标签 · {totalUsage} 次使用 · {Math.round(totalTagDuration / 60)} 小时
+              </p>
+            </div>
 
-            try {
-              const { EmojiMatcher } = await import('@/services/emojiMatcher');
-              let updatedCount = 0;
-              let skippedLockedCount = 0;
+            <div className="flex items-center gap-2">
+              <button
+                onClick={async () => {
+                  if (allTagsIncludingDisabled.length === 0) {
+                    alert('当前没有标签可以分配 emoji');
+                    return;
+                  }
 
-              allTagsIncludingDisabled.forEach(tag => {
-                if (tag.emojiLocked) {
-                  skippedLockedCount++;
-                  return;
-                }
+                  try {
+                    const { EmojiMatcher } = await import('@/services/emojiMatcher');
+                    let updatedCount = 0;
+                    let skippedLockedCount = 0;
 
-                const matchedEmoji = EmojiMatcher.matchEmoji(tag.name);
-                if (matchedEmoji && matchedEmoji !== tag.emoji) {
-                  updateTag(tag.name, tag.name, matchedEmoji, undefined, { lockEmoji: false });
-                  updatedCount++;
-                }
-              });
+                    allTagsIncludingDisabled.forEach(tag => {
+                      if (tag.emojiLocked) {
+                        skippedLockedCount++;
+                        return;
+                      }
 
-              alert(`智能修改emoji完成！成功更新 ${updatedCount} 个标签，跳过 ${skippedLockedCount} 个手动锁定标签。`);
-            } catch (error) {
-              console.error('智能修改emoji失败:', error);
-              alert('智能修改emoji失败，请重试');
-            }
-          }}
-          className="flex items-center gap-2 px-4 py-2 rounded-full font-medium transition-all shadow-md"
-          style={{ backgroundColor: '#6D9978', color: '#ffffff' }}
-          title="AI智能修改emoji"
-        >
-          <Sparkles size={20} />
-          <span>智能修改emoji</span>
-        </button>
-        
-        {/* 智能合并按钮 */}
-        <button
-          onClick={() => setShowMergeModal(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-full font-medium transition-all shadow-md"
-          style={{ backgroundColor: '#E8C259', color: '#000000' }}
-          title="AI智能标签合并"
-        >
-          <Sparkles size={20} />
-          <span>智能合并</span>
-        </button>
-        
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onClose();
-          }}
-          className="p-3 rounded-full active:bg-gray-200 transition-colors touch-manipulation"
-          style={{ minWidth: '44px', minHeight: '44px' }}
-        >
-          <X size={28} style={{ color: textColor }} />
-        </button>
-      </div>
+                      const matchedEmoji = EmojiMatcher.matchEmoji(tag.name);
+                      if (matchedEmoji && matchedEmoji !== tag.emoji) {
+                        updateTag(tag.name, tag.name, matchedEmoji, undefined, { lockEmoji: false });
+                        updatedCount++;
+                      }
+                    });
 
-      {/* 主内容区域 - 可滚动 */}
-      <div className="flex-1 overflow-y-auto pb-20">
+                    alert(`智能修改emoji完成！成功更新 ${updatedCount} 个标签，跳过 ${skippedLockedCount} 个手动锁定标签。`);
+                  } catch (error) {
+                    console.error('智能修改emoji失败:', error);
+                    alert('智能修改emoji失败，请重试');
+                  }
+                }}
+                className="flex items-center gap-2 px-4 py-2 rounded-full font-medium transition-all shadow-md"
+                style={{ backgroundColor: '#6D9978', color: '#ffffff' }}
+                title="AI智能修改emoji"
+              >
+                <Sparkles size={20} />
+                <span>智能修改emoji</span>
+              </button>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClose();
+                }}
+                className="p-3 rounded-full active:bg-gray-200 transition-colors touch-manipulation"
+                style={{ minWidth: '44px', minHeight: '44px' }}
+              >
+                <X size={28} style={{ color: textColor }} />
+              </button>
+            </div>
+          </div>
+
+          {/* 主内容区域 - 可滚动 */}
+          <div className="flex-1 overflow-y-auto pb-20">
         {/* 时间范围选择 */}
         <div className="flex items-center justify-center gap-2 px-6 py-4 bg-white">
           {[
@@ -1153,104 +1112,6 @@ ${tagList}
             </div>
           )}
 
-          {/* 标签合并确认弹窗 */}
-          {showMergeConfirm && (
-            <div className="mb-4 p-4 rounded-xl" style={{ 
-              backgroundColor: isDark ? 'rgba(232, 194, 89, 0.1)' : '#FFFBEB',
-              border: `2px solid #E8C259`
-            }}>
-              <div className="flex items-start gap-3 mb-4">
-                <div className="text-3xl">⚠️</div>
-                <div className="flex-1">
-                  <h3 className="text-base font-bold mb-2" style={{ color: textColor }}>
-                    发现相似标签
-                  </h3>
-                  <p className="text-sm mb-3" style={{ color: secondaryColor }}>
-                    新标签 <strong>"{pendingNewTag}"</strong> 与现有标签 <strong>"{similarTag}"</strong> 相似，建议合并以避免重复。
-                  </p>
-                </div>
-              </div>
-
-              {/* 选择标签名称 */}
-              <div className="mb-4">
-                <label className="text-sm font-semibold mb-2 block" style={{ color: textColor }}>
-                  选择要使用的标签名称：
-                </label>
-                <div className="space-y-2">
-                  {/* 选项1：使用现有标签 */}
-                  <label 
-                    className="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all"
-                    style={{ 
-                      backgroundColor: selectedMergeTag === similarTag ? '#E8C25920' : cardBg,
-                      border: `2px solid ${selectedMergeTag === similarTag ? '#E8C259' : 'transparent'}`
-                    }}
-                  >
-                    <input
-                      type="radio"
-                      name="mergeTag"
-                      value={similarTag}
-                      checked={selectedMergeTag === similarTag}
-                      onChange={(e) => setSelectedMergeTag(e.target.value)}
-                      className="w-5 h-5"
-                    />
-                    <div className="flex-1">
-                      <div className="font-semibold" style={{ color: textColor }}>
-                        使用现有标签：{similarTag}
-                      </div>
-                      <div className="text-xs mt-1" style={{ color: secondaryColor }}>
-                        推荐选项，保持标签一致性
-                      </div>
-                    </div>
-                  </label>
-
-                  {/* 选项2：使用新标签 */}
-                  <label 
-                    className="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all"
-                    style={{ 
-                      backgroundColor: selectedMergeTag === pendingNewTag ? '#E8C25920' : cardBg,
-                      border: `2px solid ${selectedMergeTag === pendingNewTag ? '#E8C259' : 'transparent'}`
-                    }}
-                  >
-                    <input
-                      type="radio"
-                      name="mergeTag"
-                      value={pendingNewTag}
-                      checked={selectedMergeTag === pendingNewTag}
-                      onChange={(e) => setSelectedMergeTag(e.target.value)}
-                      className="w-5 h-5"
-                    />
-                    <div className="flex-1">
-                      <div className="font-semibold" style={{ color: textColor }}>
-                        使用新标签：{pendingNewTag}
-                      </div>
-                      <div className="text-xs mt-1" style={{ color: secondaryColor }}>
-                        将现有标签重命名为新名称
-                      </div>
-                    </div>
-                  </label>
-                </div>
-              </div>
-
-              {/* 操作按钮 */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleConfirmMerge}
-                  className="flex-1 px-4 py-2 rounded-lg font-semibold active:scale-95 transition-transform"
-                  style={{ backgroundColor: '#E8C259', color: '#000' }}
-                >
-                  确认合并
-                </button>
-                <button
-                  onClick={handleCancelMerge}
-                  className="px-4 py-2 rounded-lg font-semibold active:scale-95 transition-transform"
-                  style={{ backgroundColor: cardBg, color: textColor }}
-                >
-                  不合并，添加新标签
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* 文件夹列表 */}
           <div className="space-y-3">
             {folders.map((folder) => {
@@ -1290,7 +1151,7 @@ ${tagList}
                     
                     {/* 颜色标签 - 可点击编辑 */}
                     {editingFolderColor === folder.id ? (
-                      <div 
+                      <div
                         className="flex items-center gap-2"
                         onClick={(e) => e.stopPropagation()}
                       >
@@ -1305,7 +1166,7 @@ ${tagList}
                           value={tempFolderColor}
                           onChange={(e) => setTempFolderColor(e.target.value)}
                           className="w-24 px-2 py-1 rounded text-xs border"
-                          style={{ 
+                          style={{
                             backgroundColor: bgColor,
                             color: textColor,
                             borderColor: borderColor
@@ -1313,6 +1174,7 @@ ${tagList}
                           placeholder="#52A5CE"
                         />
                         <button
+                          type="button"
                           onClick={() => handleConfirmFolderColor(folder.id)}
                           className="px-2 py-1 rounded text-xs font-semibold"
                           style={{ backgroundColor: '#6D9978', color: '#fff' }}
@@ -1320,6 +1182,7 @@ ${tagList}
                           ✓
                         </button>
                         <button
+                          type="button"
                           onClick={handleCancelFolderColor}
                           className="px-2 py-1 rounded text-xs font-semibold"
                           style={{ backgroundColor: cardBg, color: textColor }}
@@ -1328,20 +1191,20 @@ ${tagList}
                         </button>
                       </div>
                     ) : (
-                      <button
+                      <div
                         onClick={(e) => {
                           e.stopPropagation();
                           handleStartEditFolderColor(folder.id, folder.color);
                         }}
-                        className="px-3 py-1 rounded-full text-xs font-medium hover:opacity-80 transition-opacity"
-                        style={{ 
+                        className="px-3 py-1 rounded-full text-xs font-medium hover:opacity-80 transition-opacity cursor-pointer"
+                        style={{
                           backgroundColor: folder.color,
                           color: '#fff',
                         }}
                         title="点击修改颜色"
                       >
                         {folder.color}
-                      </button>
+                      </div>
                     )}
                   </button>
 
@@ -1499,12 +1362,7 @@ ${tagList}
           )}
 
           {/* 提示信息 */}
-          <div className="mt-6 p-4 rounded-xl" style={{ 
-            background: isDark 
-              ? 'linear-gradient(to right, rgba(168, 85, 247, 0.1), rgba(236, 72, 153, 0.1))' 
-              : 'linear-gradient(to right, #FAF5FF, #FCE7F3)',
-            border: `1px solid ${isDark ? 'rgba(168, 85, 247, 0.2)' : '#E9D5FF'}`
-          }}>
+          <div className="mt-6 rounded-xl p-4" style={{ backgroundColor: isDark ? 'rgba(124, 58, 237, 0.08)' : '#F5F3FF' }}>
             <p className="text-sm" style={{ color: isDark ? '#E9D5FF' : '#7C3AED' }}>
               🎨 <strong>文件夹颜色：</strong>文件夹的颜色会自动应用到该文件夹下所有标签的任务卡片背景色。
             </p>
@@ -1517,16 +1375,8 @@ ${tagList}
           </div>
         </div>
       </div>
-        </div>
-      </div>
-      
-      {/* 智能标签合并弹窗 */}
-      <SmartTagMergeModal
-        isOpen={showMergeModal}
-        onClose={() => setShowMergeModal(false)}
-        tags={displayTags}
-        isDark={isDark}
-      />
-    </>
+    </div>
+    </div>
+  </>
   );
 }

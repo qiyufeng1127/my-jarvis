@@ -22,6 +22,9 @@ export interface NavigationTimelineGroup {
   actualStart?: string;
   actualEnd?: string;
   source?: 'planned' | 'difficulty_detour' | 'inserted_flow';
+  linkedGoalId?: string;
+  krNote?: string;
+  krDimensionValues?: Record<string, number>;
 }
 
 export interface NavigationStateSnapshot {

@@ -224,10 +224,10 @@ export default function TimelineCalendar({
         <div className="flex-shrink-0" style={{ borderBottom: `2px solid ${borderColor}` }}>
         {/* 手机版：简化的周视图头部 */}
         {isMobile ? (
-          <div className="px-3 py-2 bg-white dark:bg-black">
+          <div className="px-3 pt-0 pb-1 bg-white dark:bg-black">
             {/* 周数标题 - 可左右滑动 */}
             <div 
-              className="flex items-center justify-between gap-2 mb-2"
+              className="flex items-center justify-between gap-2 mb-0.5"
               onTouchStart={(e) => {
                 const touch = e.touches[0];
                 setTouchStart(touch.clientX);
@@ -273,7 +273,7 @@ export default function TimelineCalendar({
             </div>
             
             {/* 星期标题 */}
-            <div className="grid grid-cols-7 gap-1 mb-2">
+            <div className="grid grid-cols-7 gap-1 mb-0.5">
               {['日', '一', '二', '三', '四', '五', '六'].map((day, index) => (
                 <div key={index} className="text-center text-xs font-semibold py-1 text-gray-800 dark:text-white">
                   {day}

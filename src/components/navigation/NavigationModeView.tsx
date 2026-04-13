@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Settings, Sparkles, Volume2, VolumeX, TimerReset, Pause, Play, X, Mic, Brain, Heart, CheckCircle2, Pencil, Trash2, ArrowUp, ArrowDown, ChevronLeft, Wand2 } from 'lucide-react';
+import { Settings, Sparkles, Volume2, VolumeX, TimerReset, Pause, Play, Mic, Brain, Heart, CheckCircle2, Pencil, Trash2, ArrowUp, ArrowDown, ChevronLeft, Wand2, ChevronDown, ChevronUp, Save, Target, X } from 'lucide-react';
 import { AIUnifiedService } from '@/services/aiUnifiedService';
 import { useNavigationPreferenceStore } from '@/stores/navigationPreferenceStore';
 import { useNavigationStore } from '@/stores/navigationStore';
+import { useGoalStore } from '@/stores/goalStore';
+import { useGoalContributionStore } from '@/stores/goalContributionStore';
 import { useSpeechSynthesis } from '@/hooks/useSpeechSynthesis';
 import { useVoiceRecognition } from '@/hooks/useVoiceRecognition';
-import type { NavigationExecutionStep, NavigationSession, NavigationStateSnapshot } from '@/types/navigation';
+import GoalForm, { type GoalFormData } from '@/components/growth/GoalForm';
+import { buildGoalPayloadFromForm, buildQuickGoalFormData } from '@/utils/goalSubmission';
+import type { LongTermGoal } from '@/types';
+import type { NavigationExecutionStep, NavigationSession, NavigationStateSnapshot, NavigationTimelineGroup } from '@/types/navigation';
 import './navigation.css';
 
 function buildInsertedFlowResponseText(message: string | undefined, currentStepTitle: string) {
@@ -301,6 +306,434 @@ function playCoinDrop() {
   window.setTimeout(() => {
     void context.close().catch(() => undefined);
   }, 420);
+}
+
+function playFocusCompleteTone() {
+  const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioContextClass) return;
+
+  const context = new AudioContextClass();
+  const now = context.currentTime;
+
+  const playTone = ({
+    frequency,
+    start,
+    duration,
+    volume,
+    type,
+  }: {
+    frequency: number;
+    start: number;
+    duration: number;
+    volume: number;
+    type: OscillatorType;
+  }) => {
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(frequency, start);
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(volume, start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(start);
+    oscillator.stop(start + duration + 0.03);
+  };
+
+  playTone({ frequency: 784, start: now, duration: 0.18, volume: 0.12, type: 'triangle' });
+  playTone({ frequency: 1046, start: now + 0.2, duration: 0.2, volume: 0.14, type: 'triangle' });
+  playTone({ frequency: 1318, start: now + 0.44, duration: 0.26, volume: 0.16, type: 'sine' });
+  playTone({ frequency: 1046, start: now + 0.78, duration: 0.22, volume: 0.12, type: 'triangle' });
+  playTone({ frequency: 1568, start: now + 1.02, duration: 0.36, volume: 0.18, type: 'sine' });
+
+  window.setTimeout(() => {
+    void context.close().catch(() => undefined);
+  }, 1800);
+}
+
+function formatFocusCountdown(totalSeconds: number) {
+  const safeSeconds = Math.max(0, totalSeconds);
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const seconds = safeSeconds % 60;
+
+  if (hours > 0) {
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function getCurrentNavigationGroup(session: NavigationSession) {
+  const currentStep = session.executionSteps[session.currentStepIndex];
+  if (!currentStep) return null;
+  return session.timelineGroups.find((group) => group.id === currentStep.groupId) || null;
+}
+
+function createNavigationGoalDraft(goal?: LongTermGoal | null): GoalFormData {
+  if (!goal) {
+    return buildQuickGoalFormData('');
+  }
+
+  return {
+    name: goal.name,
+    description: goal.description,
+    type: goal.goalType,
+    startDate: goal.startDate ? new Date(goal.startDate).toISOString().split('T')[0] : '',
+    endDate: goal.endDate ? new Date(goal.endDate).toISOString().split('T')[0] : '',
+    estimatedTotalHours: goal.estimatedTotalHours || 0,
+    targetIncome: goal.targetIncome || 0,
+    dimensions: goal.dimensions.length > 0 ? goal.dimensions : [{
+      id: `metric-${goal.id}`,
+      name: goal.name,
+      unit: goal.unit || '',
+      targetValue: goal.targetValue || 1,
+      currentValue: goal.currentValue,
+      weight: 100,
+    }],
+    theme: goal.theme,
+  };
+}
+
+function buildNavigationGroupContributionKey(sessionId: string, groupId: string) {
+  return `navigation-group:${sessionId}:${groupId}`;
+}
+
+function getNavigationGroupTiming(session: NavigationSession, groupId: string) {
+  const relatedSteps = session.executionSteps.filter((step) => step.groupId === groupId);
+  const startTimes = relatedSteps.map((step) => step.startedAt).filter(Boolean) as string[];
+  const endTimes = relatedSteps.map((step) => step.completedAt).filter(Boolean) as string[];
+
+  if (!startTimes.length || !endTimes.length) {
+    return {
+      actualStart: undefined,
+      actualEnd: undefined,
+      durationMinutes: 1,
+    };
+  }
+
+  const actualStart = new Date(Math.min(...startTimes.map((time) => new Date(time).getTime())));
+  const actualEnd = new Date(Math.max(...endTimes.map((time) => new Date(time).getTime())));
+
+  return {
+    actualStart,
+    actualEnd,
+    durationMinutes: Math.max(1, Math.round((actualEnd.getTime() - actualStart.getTime()) / 60000)),
+  };
+}
+
+function NavigationKRSheet({
+  session,
+  group,
+  mode = 'active',
+  onClose,
+}: {
+  session: NavigationSession;
+  group: NavigationTimelineGroup;
+  mode?: 'preview' | 'active';
+  onClose: () => void;
+}) {
+  const goals = useGoalStore((state) => state.goals);
+  const createGoal = useGoalStore((state) => state.createGoal);
+  const addGoalContributionRecord = useGoalContributionStore((state) => state.addRecord);
+  const updateGoalContributionRecord = useGoalContributionStore((state) => state.updateRecord);
+  const contributionRecords = useGoalContributionStore((state) => state.records);
+  const saveGroupGoalLink = useNavigationStore((state) => state.saveGroupGoalLink);
+  const contributionKey = buildNavigationGroupContributionKey(session.id, group.id);
+  const isPreviewMode = mode === 'preview';
+  const activeGoals = useMemo(() => goals.filter((goal) => goal.isActive && !goal.isCompleted), [goals]);
+  const matchedGoals = useMemo(() => {
+    const keywords = `${group.title} ${group.description || ''}`.split(/\s+/).filter(Boolean);
+    return useGoalStore.getState().findMatchingGoals(group.title, keywords).slice(0, 3);
+  }, [group.description, group.title]);
+  const selectableGoals = useMemo(() => {
+    const map = new Map<string, LongTermGoal>();
+    [...matchedGoals, ...activeGoals].forEach((goal) => map.set(goal.id, goal));
+    return Array.from(map.values());
+  }, [activeGoals, matchedGoals]);
+  const existingRecord = useMemo(
+    () => contributionRecords.find((record) => record.taskId === contributionKey),
+    [contributionKey, contributionRecords]
+  );
+  const persistedGoalId = group.linkedGoalId || '';
+  const initialGoalId = existingRecord?.goalId || persistedGoalId || selectableGoals[0]?.id || '';
+  const [selectedGoalId, setSelectedGoalId] = useState(initialGoalId);
+  const [note, setNote] = useState(existingRecord?.note || group.krNote || '');
+  const [values, setValues] = useState<Record<string, string>>(() => {
+    if (existingRecord) {
+      return existingRecord.dimensionResults.reduce<Record<string, string>>((acc, item) => {
+        acc[item.dimensionId] = String(item.value);
+        return acc;
+      }, {});
+    }
+
+    return Object.entries(group.krDimensionValues || {}).reduce<Record<string, string>>((acc, [key, value]) => {
+      acc[key] = String(value);
+      return acc;
+    }, {});
+  });
+  const [showCreateGoal, setShowCreateGoal] = useState(false);
+  const [newGoalDraft, setNewGoalDraft] = useState<GoalFormData>(() => buildQuickGoalFormData(group.title));
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+
+  const selectedGoal = selectableGoals.find((goal) => goal.id === selectedGoalId) || null;
+  const timing = useMemo(() => getNavigationGroupTiming(session, group.id), [group.id, session]);
+  const actualDurationMinutes = timing.durationMinutes;
+
+  useEffect(() => {
+    if (!selectedGoal) return;
+    setValues((prev) => {
+      const nextValues = { ...prev };
+      selectedGoal.dimensions.forEach((dimension) => {
+        if (nextValues[dimension.id] === undefined) {
+          const existingValue = existingRecord?.dimensionResults.find((item) => item.dimensionId === dimension.id)?.value;
+          nextValues[dimension.id] = existingValue !== undefined ? String(existingValue) : '';
+        }
+      });
+      return nextValues;
+    });
+  }, [existingRecord, selectedGoal]);
+
+  const handleCreateGoal = (goalData: GoalFormData) => {
+    const newGoal = createGoal(buildGoalPayloadFromForm(goalData));
+    setSelectedGoalId(newGoal.id);
+    setShowCreateGoal(false);
+    setNewGoalDraft(createNavigationGoalDraft(newGoal));
+    setSaveSuccess(`已新建目标「${newGoal.name}」`);
+    setSaveError(null);
+  };
+
+  const handleSave = () => {
+    if (!selectedGoal) {
+      setSaveError('请先选择或新建一个目标。');
+      setSaveSuccess(null);
+      return;
+    }
+
+    const dimensionResults = selectedGoal.dimensions
+      .map((dimension) => ({
+        dimensionId: dimension.id,
+        dimensionName: dimension.name,
+        unit: dimension.unit,
+        value: Number(values[dimension.id] || 0),
+      }))
+      .filter((item) => item.value > 0);
+
+    if (dimensionResults.length === 0) {
+      setSaveError('请至少填写一个大于 0 的关键结果。');
+      setSaveSuccess(null);
+      return;
+    }
+
+    const startedAt = timing.actualStart;
+    const completedAt = timing.actualEnd;
+    const dimensionValueMap = dimensionResults.reduce<Record<string, number>>((acc, item) => {
+      acc[item.dimensionId] = item.value;
+      return acc;
+    }, {});
+
+    saveGroupGoalLink(group.id, {
+      goalId: selectedGoal.id,
+      note,
+      dimensionValues: dimensionValueMap,
+    });
+
+    if (!isPreviewMode) {
+      if (existingRecord) {
+        updateGoalContributionRecord(existingRecord.id, {
+          goalId: selectedGoal.id,
+          taskTitle: group.title,
+          note,
+          startTime: startedAt,
+          endTime: completedAt,
+          durationMinutes: actualDurationMinutes,
+          dimensionResults,
+        });
+      } else {
+        addGoalContributionRecord({
+          goalId: selectedGoal.id,
+          taskId: contributionKey,
+          taskTitle: group.title,
+          startTime: startedAt,
+          endTime: completedAt,
+          durationMinutes: actualDurationMinutes,
+          note,
+          source: 'manual',
+          dimensionResults,
+        });
+      }
+    }
+
+    setSaveError(null);
+    setSaveSuccess(isPreviewMode ? `已绑定到任务「${group.title}」` : `已保存到任务「${group.title}」`);
+  };
+
+  if (showCreateGoal) {
+    return (
+      <div className="navigation-sheet-backdrop">
+        <div className="navigation-sheet-card navigation-kr-form-sheet">
+          <GoalForm
+            initialData={newGoalDraft}
+            dimensions={[]}
+            onSave={handleCreateGoal}
+            onCancel={() => setShowCreateGoal(false)}
+            bgColor="#efeff4"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="navigation-sheet-backdrop">
+      <div className="navigation-sheet-card navigation-kr-sheet">
+        <div className="navigation-sheet-header">
+          <div>
+            <h3>给当前任务补目标 / KR</h3>
+            <p>{group.title}</p>
+          </div>
+          <button onClick={onClose} className="navigation-icon-button">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="navigation-kr-section navigation-kr-section-hero">
+          <div className="navigation-kr-duration-card">
+            <div>
+              <div className="navigation-small-note">当前任务累计时长</div>
+              <strong>{actualDurationMinutes} 分钟</strong>
+            </div>
+            <div className="navigation-kr-duration-side">保存后会跟随这个任务标题写入时间轴</div>
+          </div>
+        </div>
+
+        <div className="navigation-kr-section">
+          <div className="navigation-kr-label-row">
+            <span>关联目标</span>
+            <button
+              className="navigation-chip navigation-kr-create-chip"
+              onClick={() => {
+                setNewGoalDraft(buildQuickGoalFormData(group.title));
+                setShowCreateGoal(true);
+              }}
+            >
+              新建目标
+            </button>
+          </div>
+          <select
+            value={selectedGoalId}
+            onChange={(e) => {
+              setSelectedGoalId(e.target.value);
+              setSaveError(null);
+              setSaveSuccess(null);
+            }}
+            className="navigation-composer"
+          >
+            <option value="">请选择目标</option>
+            {selectableGoals.map((goal) => (
+              <option key={goal.id} value={goal.id}>{goal.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {selectedGoal && (
+          <div className="navigation-kr-section">
+            <div className="navigation-kr-label-row">
+              <span>关键结果</span>
+              <span className="navigation-small-note">保存到任务标题，不保存到小步骤</span>
+            </div>
+            <div className="navigation-kr-dimension-list">
+              {selectedGoal.dimensions.map((dimension) => {
+                const currentValue = Number(values[dimension.id] || 0);
+                const progressPercent = Math.min(100, (currentValue / Math.max(dimension.targetValue, 1)) * 100);
+
+                return (
+                <label key={dimension.id} className="navigation-kr-dimension-card">
+                  <div className="navigation-kr-dimension-head">
+                    <strong>{dimension.name}</strong>
+                    <span>{dimension.targetValue} {dimension.unit}</span>
+                  </div>
+                  <div className="navigation-kr-progress-track">
+                    <div className="navigation-kr-progress-fill" style={{ width: `${progressPercent}%` }} />
+                  </div>
+                  <div className="navigation-kr-dimension-input-row">
+                    <button
+                      type="button"
+                      className="navigation-kr-stepper"
+                      onClick={() => setValues((prev) => ({ ...prev, [dimension.id]: String(Math.max(0, currentValue - (Number.isInteger(dimension.targetValue) ? 1 : 0.1))) }))}
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      min={0}
+                      step={Number.isInteger(dimension.targetValue) ? 1 : 0.1}
+                      value={values[dimension.id] ?? ''}
+                      onChange={(e) => setValues((prev) => ({ ...prev, [dimension.id]: e.target.value }))}
+                      className="navigation-inline-input navigation-kr-number-input"
+                      placeholder="本次新增"
+                    />
+                    <span>{dimension.unit}</span>
+                    <button
+                      type="button"
+                      className="navigation-kr-stepper is-plus"
+                      onClick={() => setValues((prev) => ({ ...prev, [dimension.id]: String(currentValue + (Number.isInteger(dimension.targetValue) ? 1 : 0.1)) }))}
+                    >
+                      +
+                    </button>
+                  </div>
+                </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="navigation-kr-section">
+          <div className="navigation-kr-label-row">
+            <span>说明</span>
+          </div>
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={3}
+            className="navigation-composer"
+            placeholder="例如：这个任务推进了哪些结果，顺手记一下"
+          />
+        </div>
+
+        {(saveError || saveSuccess) && (
+          <div className={`navigation-kr-feedback ${saveError ? 'is-error' : 'is-success'}`}>
+            {saveError || saveSuccess}
+          </div>
+        )}
+
+        <div className="navigation-sheet-actions column-on-mobile">
+          <button className="navigation-secondary-button" onClick={onClose}>关闭</button>
+          <button className="navigation-primary-button" onClick={handleSave}>保存到当前任务</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NavigationGroupGoalSummary({ group }: { group: NavigationTimelineGroup }) {
+  const linkedGoal = useGoalStore((state) => (group.linkedGoalId ? state.getGoalById(group.linkedGoalId) : null));
+  const krCount = group.krDimensionValues
+    ? Object.values(group.krDimensionValues).filter((value) => Number(value) > 0).length
+    : 0;
+
+  return (
+    <div className="navigation-group-goal-row">
+      <div className={`navigation-group-goal-chip ${linkedGoal ? 'is-linked' : ''}`}>
+        <Target className="w-4 h-4" />
+        <span>{linkedGoal ? linkedGoal.name : '暂未关联目标'}</span>
+      </div>
+      {krCount > 0 && <span className="navigation-group-goal-meta">已填 {krCount} 项 KR</span>}
+    </div>
+  );
 }
 
 function NavigationSettingsSheet({ onClose }: { onClose: () => void }) {
@@ -694,6 +1127,7 @@ function NavigationComposer({ initialInput = '' }: { initialInput?: string }) {
 
   return (
     <div className="navigation-shell navigation-session-shell">
+
       <div className="navigation-topbar">
         <div>
           <h2 className="navigation-title">导航模式</h2>
@@ -726,6 +1160,32 @@ function NavigationComposer({ initialInput = '' }: { initialInput?: string }) {
         </div>
       </div>
 
+      {krSheetGroup && (
+        <NavigationKRSheet
+          session={session}
+          group={krSheetGroup}
+          mode="preview"
+          onClose={() => setKrSheetGroupId(null)}
+        />
+      )}
+
+      {krSheetGroup && (
+        <NavigationKRSheet
+          session={session}
+          group={krSheetGroup}
+          mode="preview"
+          onClose={() => setKrSheetGroupId(null)}
+        />
+      )}
+
+      {krSheetGroup && (
+        <NavigationKRSheet
+          session={session}
+          group={krSheetGroup}
+          mode="preview"
+          onClose={() => setKrSheetGroupId(null)}
+        />
+      )}
       {isSettingsOpen && <NavigationSettingsSheet onClose={() => setIsSettingsOpen(false)} />}
     </div>
   );
@@ -1002,7 +1462,11 @@ function NavigationPreview({
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
   const [isRegeneratingTitles, setIsRegeneratingTitles] = useState(false);
   const [isRegeneratingSteps, setIsRegeneratingSteps] = useState(false);
+  const [krSheetGroupId, setKrSheetGroupId] = useState<string | null>(null);
   const isInsertedFlowPreview = session.previewMode === 'inserted_flow';
+  const krSheetGroup = krSheetGroupId
+    ? session.timelineGroups.find((group) => group.id === krSheetGroupId) || null
+    : null;
 
   if (!session.generationProgress?.done) {
     return <NavigationBuildingPreview session={session} onReturnToComposer={onReturnToComposer} />;
@@ -1155,6 +1619,8 @@ function NavigationPreview({
             const isDescriptionEditing = editingTarget === `${group.id}:description`;
             return (
             <div key={group.id} className="navigation-group-card">
+                <div className="navigation-group-card-top">
+                  <div className="navigation-group-card-main">
                 {isTitleEditing ? (
                   <input
                     className="navigation-inline-input navigation-inline-title"
@@ -1200,6 +1666,17 @@ function NavigationPreview({
                     </p>
                   )
                 )}
+                  </div>
+                  <button
+                    className={`navigation-kr-pill navigation-kr-pill-inline ${group.linkedGoalId ? 'is-linked' : ''}`}
+                    onClick={() => setKrSheetGroupId(group.id)}
+                    title="给这个任务补目标和关键结果"
+                  >
+                    <Target className="w-4 h-4" />
+                    <span>KR</span>
+                  </button>
+                </div>
+                <NavigationGroupGoalSummary group={group} />
             </div>
             );
           })}
@@ -1271,6 +1748,15 @@ function NavigationPreview({
           })}
         </div>
       </div>
+
+      {krSheetGroup && (
+        <NavigationKRSheet
+          session={session}
+          group={krSheetGroup}
+          mode="preview"
+          onClose={() => setKrSheetGroupId(null)}
+        />
+      )}
 
       {isSettingsOpen && <NavigationSettingsSheet onClose={() => setIsSettingsOpen(false)} />}
     </div>
@@ -1359,10 +1845,14 @@ function NavigationScene({
 }
 
 function NavigationFocusSheet({
+  stepTitle,
   defaultMinutes,
+  onStart,
   onClose,
 }: {
+  stepTitle: string;
   defaultMinutes: number;
+  onStart: (minutes: number) => void;
   onClose: () => void;
 }) {
   const [selectedMinutes, setSelectedMinutes] = useState(defaultMinutes || 10);
@@ -1371,26 +1861,29 @@ function NavigationFocusSheet({
     <div className="navigation-sheet-backdrop">
       <div className="navigation-sheet-card navigation-focus-sheet">
         <div className="navigation-sheet-header">
-          <h3>给这一步开个专注倒计时</h3>
+          <div>
+            <h3>给这一步开个专注倒计时</h3>
+            <p>{stepTitle}</p>
+          </div>
           <button onClick={onClose} className="navigation-icon-button">
             <X className="w-4 h-4" />
           </button>
         </div>
 
         <div className="navigation-focus-options">
-          {[5, 10, 15, 25].map((minutes) => (
+          {[5, 10, 15, 25, 30, 60].map((minutes) => (
             <button
               key={minutes}
               className={`navigation-chip ${selectedMinutes === minutes ? 'is-active' : ''}`}
               onClick={() => setSelectedMinutes(minutes)}
             >
-              {minutes} 分钟
+              {minutes}m
             </button>
           ))}
         </div>
 
         <div className="navigation-sheet-actions">
-          <button className="navigation-primary-button" onClick={onClose}>先用 {selectedMinutes} 分钟</button>
+          <button className="navigation-primary-button" onClick={() => onStart(selectedMinutes)}>开始专注</button>
         </div>
       </div>
     </div>
@@ -1487,6 +1980,7 @@ function NavigationStepCard({
   stepIndex,
   stepCount,
   elapsedLabel,
+  nextStepTitle,
   onContinue,
   onCompleteNavigation,
   isFinalStepAwaitingCompletion,
@@ -1508,6 +2002,7 @@ function NavigationStepCard({
   step: NavigationExecutionStep;
   stepIndex: number;
   stepCount: number;
+  nextStepTitle?: string;
   elapsedLabel: string;
   onContinue: () => void;
   onCompleteNavigation: () => void;
@@ -1530,6 +2025,13 @@ function NavigationStepCard({
   return (
     <div className="navigation-step-card navigation-step-reference-card">
       <div className="navigation-step-reference-count">第 {stepIndex + 1} 步 / 共 {stepCount} 步</div>
+
+      {nextStepTitle && (
+        <div className="navigation-step-next-preview" aria-label="下一步预告">
+          <span className="navigation-step-next-preview-label">下一步</span>
+          <strong className="navigation-step-next-preview-title">{nextStepTitle}</strong>
+        </div>
+      )}
 
       <div className="navigation-step-reference-visual-wrap">
         <NavigationScene
@@ -1599,6 +2101,237 @@ function NavigationStepCard({
   );
 }
 
+function NavigationActivePlanEditor({
+  session,
+  onClose,
+}: {
+  session: NavigationSession;
+  onClose: () => void;
+}) {
+  const updateActiveGroup = useNavigationStore((state) => state.updateActiveGroup);
+  const updateActiveStep = useNavigationStore((state) => state.updateActiveStep);
+  const [editingTarget, setEditingTarget] = useState<string | null>(null);
+  const [hasSavedFeedback, setHasSavedFeedback] = useState(false);
+  const currentStepRef = useRef<HTMLDivElement | null>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify({
+    timelineGroups: session.timelineGroups,
+    executionSteps: session.executionSteps,
+  }));
+
+  const currentSnapshot = useMemo(() => JSON.stringify({
+    timelineGroups: session.timelineGroups,
+    executionSteps: session.executionSteps,
+  }), [session.timelineGroups, session.executionSteps]);
+  const hasUnsavedChanges = currentSnapshot !== savedSnapshot;
+
+  useEffect(() => {
+    if (!hasSavedFeedback) return;
+    const timer = window.setTimeout(() => setHasSavedFeedback(false), 1600);
+    return () => window.clearTimeout(timer);
+  }, [hasSavedFeedback]);
+
+  useEffect(() => {
+    setEditingTarget(null);
+  }, []);
+
+  useEffect(() => {
+    setCollapsedGroups((prev) => session.timelineGroups.reduce<Record<string, boolean>>((acc, group) => {
+      const relatedSteps = session.executionSteps.filter((step) => step.groupId === group.id);
+      const hasCurrentStep = relatedSteps.some((step) => session.executionSteps.findIndex((item) => item.id === step.id) === session.currentStepIndex);
+      acc[group.id] = prev[group.id] ?? !hasCurrentStep;
+      return acc;
+    }, {}));
+  }, [session.timelineGroups, session.executionSteps, session.currentStepIndex]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      currentStepRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [session.currentStepIndex]);
+
+  const handleSave = () => {
+    setEditingTarget(null);
+    setSavedSnapshot(currentSnapshot);
+    setHasSavedFeedback(true);
+  };
+
+  return (
+    <div className="navigation-plan-editor-shell">
+      <div className="navigation-active-plan-fullscreen">
+        <div className="navigation-active-plan-topbar">
+          <div className="navigation-active-plan-topbar-copy">
+            <strong>任务列表</strong>
+            <p>点任务右侧的小三角，单独展开或收起这个任务的小步骤。</p>
+          </div>
+          <div className="navigation-active-plan-topbar-actions">
+            <button
+              className={`navigation-secondary-button navigation-plan-save-button ${hasUnsavedChanges ? 'is-dirty' : ''}`}
+              onClick={handleSave}
+              disabled={!hasUnsavedChanges}
+            >
+              <Save className="w-4 h-4" />
+              {hasSavedFeedback ? '已保存' : hasUnsavedChanges ? '保存' : '已同步'}
+            </button>
+            <button
+              className="navigation-icon-button navigation-plan-close-button"
+              onClick={onClose}
+              aria-label="关闭任务列表"
+              title="关闭任务列表"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="navigation-active-plan-body">
+          <div className="navigation-active-plan-stack">
+            {session.timelineGroups.map((group) => {
+                const isTitleEditing = editingTarget === `${group.id}:title`;
+                const isDescriptionEditing = editingTarget === `${group.id}:description`;
+                const relatedSteps = session.executionSteps.filter((step) => step.groupId === group.id);
+                const hasCurrentStep = relatedSteps.some((step) => {
+                  const globalIndex = session.executionSteps.findIndex((item) => item.id === step.id);
+                  return globalIndex === session.currentStepIndex;
+                });
+                const isCollapsed = collapsedGroups[group.id] ?? !hasCurrentStep;
+
+                return (
+                  <div key={group.id} className={`navigation-group-card navigation-active-group-card ${hasCurrentStep ? 'is-current' : ''} ${isCollapsed ? 'is-collapsed' : ''}`}>
+                    <div className="navigation-active-group-header">
+                      <div className="navigation-active-group-main">
+                        {isTitleEditing ? (
+                          <input
+                            className="navigation-inline-input navigation-inline-title navigation-inline-input-compact"
+                            value={group.title}
+                            autoFocus
+                            onChange={(e) => updateActiveGroup(group.id, { title: e.target.value })}
+                            onBlur={() => setEditingTarget(null)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') setEditingTarget(null);
+                              if (e.key === 'Escape') setEditingTarget(null);
+                            }}
+                          />
+                        ) : (
+                          <strong
+                            onDoubleClick={() => setEditingTarget(`${group.id}:title`)}
+                            className="navigation-editable-text navigation-active-group-title"
+                          >
+                            {group.title}
+                          </strong>
+                        )}
+
+                        {isDescriptionEditing ? (
+                          <input
+                            className="navigation-inline-input navigation-inline-input-compact"
+                            value={group.description || ''}
+                            autoFocus
+                            placeholder="可留空"
+                            onChange={(e) => updateActiveGroup(group.id, { description: e.target.value })}
+                            onBlur={() => setEditingTarget(null)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') setEditingTarget(null);
+                              if (e.key === 'Escape') setEditingTarget(null);
+                            }}
+                          />
+                        ) : (
+                          <p
+                            onDoubleClick={() => setEditingTarget(`${group.id}:description`)}
+                            className="navigation-editable-text navigation-plan-muted"
+                          >
+                            {group.description || '双击补充这个任务的说明'}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="navigation-active-group-actions">
+                        {hasCurrentStep && <em className="navigation-plan-current-badge">当前任务</em>}
+                        <button
+                          type="button"
+                          className="navigation-inline-icon-button navigation-group-collapse-button"
+                          onClick={() => setCollapsedGroups((prev) => ({ ...prev, [group.id]: !isCollapsed }))}
+                          aria-label={isCollapsed ? '展开任务' : '收起任务'}
+                          title={isCollapsed ? '展开任务' : '收起任务'}
+                        >
+                          {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {!isCollapsed && (
+                      <div className="navigation-active-step-list">
+                        {relatedSteps.map((step, index) => {
+                          const isTitleEditing = editingTarget === `${step.id}:title`;
+                          const isGuidanceEditing = editingTarget === `${step.id}:guidance`;
+                          const globalIndex = session.executionSteps.findIndex((item) => item.id === step.id);
+                          const isCurrent = globalIndex === session.currentStepIndex;
+                          return (
+                            <div
+                              key={step.id}
+                              ref={isCurrent ? currentStepRef : null}
+                              className={`navigation-active-step-item ${isCurrent ? 'is-current' : ''} ${step.status === 'completed' ? 'is-completed' : ''}`}
+                            >
+                              <div className="navigation-active-step-index">{index + 1}</div>
+                              <div className="navigation-active-step-content">
+                                <div className="navigation-plan-step-head">
+                                  {isTitleEditing ? (
+                                    <input
+                                      className="navigation-inline-input navigation-inline-title navigation-inline-input-compact"
+                                      value={step.title}
+                                      autoFocus
+                                      onChange={(e) => updateActiveStep(step.id, { title: e.target.value })}
+                                      onBlur={() => setEditingTarget(null)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') setEditingTarget(null);
+                                        if (e.key === 'Escape') setEditingTarget(null);
+                                      }}
+                                    />
+                                  ) : (
+                                    <strong onDoubleClick={() => setEditingTarget(`${step.id}:title`)} className="navigation-editable-text">
+                                      {step.title}
+                                    </strong>
+                                  )}
+                                  {isCurrent && <em className="navigation-plan-current-badge">当前步骤</em>}
+                                </div>
+
+                                {isGuidanceEditing ? (
+                                  <textarea
+                                    className="navigation-inline-textarea navigation-inline-textarea-compact"
+                                    rows={2}
+                                    value={step.guidance}
+                                    autoFocus
+                                    onChange={(e) => updateActiveStep(step.id, { guidance: e.target.value })}
+                                    onBlur={() => setEditingTarget(null)}
+                                    onKeyDown={(e) => {
+                                      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') setEditingTarget(null);
+                                      if (e.key === 'Escape') setEditingTarget(null);
+                                    }}
+                                  />
+                                ) : (
+                                  <p onDoubleClick={() => setEditingTarget(`${step.id}:guidance`)} className="navigation-editable-text navigation-plan-muted">
+                                    {step.guidance}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+  );
+}
+
 function NavigationSessionView({ session }: { session: NavigationSession }) {
   const preferences = useNavigationPreferenceStore((state) => state.preferences);
   const completeCurrentStep = useNavigationStore((state) => state.completeCurrentStep);
@@ -1616,7 +2349,18 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
   const setHandsFreeWaiting = useNavigationStore((state) => state.setHandsFreeWaiting);
   const setLastVoiceTranscript = useNavigationStore((state) => state.setLastVoiceTranscript);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isTaskListOpen, setIsTaskListOpen] = useState(false);
   const [isFocusOpen, setIsFocusOpen] = useState(false);
+  const [isKRSheetOpen, setIsKRSheetOpen] = useState(false);
+  const [focusCountdown, setFocusCountdown] = useState<{
+    minutes: number;
+    endsAt: number;
+    stepId: string;
+    notified: boolean;
+    isPaused: boolean;
+    remainingSecondsWhenPaused?: number;
+  } | null>(null);
+  const [focusFinishedNotice, setFocusFinishedNotice] = useState<{ stepTitle: string; minutes: number } | null>(null);
   const [showHandsFreeIntro, setShowHandsFreeIntro] = useState(false);
   const [showDifficultySheet, setShowDifficultySheet] = useState(false);
   const [difficultyInput, setDifficultyInput] = useState('');
@@ -1632,6 +2376,13 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
   const isFinalStep = session.currentStepIndex >= session.executionSteps.length - 1;
   const isFinalStepAwaitingCompletion = isFinalStep && !!session.awaitingFinalCompletion;
   const elapsedLabel = formatElapsedCompact(currentStep?.startedAt || session.startedAt, elapsedNow);
+  const remainingFocusSeconds = focusCountdown
+    ? (focusCountdown.isPaused
+      ? Math.max(0, focusCountdown.remainingSecondsWhenPaused || 0)
+      : Math.max(0, Math.ceil((focusCountdown.endsAt - elapsedNow) / 1000)))
+    : 0;
+  const focusCountdownLabel = formatFocusCountdown(remainingFocusSeconds);
+  const isFocusPaused = !!focusCountdown?.isPaused;
   const isInsertedStep = currentStep?.source === 'difficulty_detour' || currentStep?.source === 'inserted_flow';
   const sceneExecutionScore = sessionMoodScore(currentStep, isInsertedStep, session);
   const sceneEnergyLevel = sessionMoodEnergy(currentStep, isInsertedStep, session);
@@ -1639,10 +2390,6 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
   const preferredVoiceMode = session.handsFree?.preferredVoiceMode || 'system';
   const waitingForCommand = !!session.handsFree?.waitingForCommand;
   const lastTranscript = session.handsFree?.lastTranscript;
-  const recentSteps = useMemo(
-    () => session.executionSteps.slice(Math.max(0, session.currentStepIndex - 2), session.currentStepIndex + 1),
-    [session.executionSteps, session.currentStepIndex]
-  );
   const stepSpeechGuardRef = useRef<string>('');
   const speechTextRef = useRef('');
   const pauseListeningUntilRef = useRef(0);
@@ -1769,6 +2516,23 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
     return () => window.clearInterval(timer);
   }, [session.status, currentStep?.startedAt, session.startedAt]);
 
+  useEffect(() => {
+    if (!focusCountdown) return;
+    if (focusCountdown.stepId !== currentStep?.id) {
+      setFocusCountdown(null);
+      return;
+    }
+    if (focusCountdown.isPaused) return;
+    if (focusCountdown.notified || focusCountdown.endsAt > elapsedNow) return;
+
+    playFocusCompleteTone();
+    setFocusFinishedNotice({
+      stepTitle: currentStep?.title || '这一步',
+      minutes: focusCountdown.minutes,
+    });
+    setFocusCountdown((prev) => prev ? { ...prev, notified: true } : prev);
+  }, [focusCountdown, currentStep?.id, currentStep?.title, elapsedNow]);
+
   const handleResolveDifficulty = async (message: string) => {
     if (!currentStep || !message) return;
 
@@ -1828,6 +2592,53 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
     setGenerating(false);
     setError(result.error || '暂时没整理出新的绕路方式，再试一次吧');
     console.error('[导航] 处理中途困难失败', result.error);
+  };
+
+  const handleStartFocusCountdown = (minutes: number) => {
+    if (!currentStep) return;
+    setFocusFinishedNotice(null);
+    setFocusCountdown({
+      minutes,
+      endsAt: Date.now() + minutes * 60 * 1000,
+      stepId: currentStep.id,
+      notified: false,
+      isPaused: false,
+    });
+    setIsFocusOpen(false);
+  };
+
+  const handlePauseFocusCountdown = () => {
+    setFocusCountdown((prev) => {
+      if (!prev || prev.isPaused) return prev;
+      const remainingSeconds = Math.max(0, Math.ceil((prev.endsAt - Date.now()) / 1000));
+      return {
+        ...prev,
+        isPaused: true,
+        remainingSecondsWhenPaused: remainingSeconds,
+      };
+    });
+  };
+
+  const handleResumeFocusCountdown = () => {
+    setFocusCountdown((prev) => {
+      if (!prev || !prev.isPaused) return prev;
+      const remainingSeconds = Math.max(0, prev.remainingSecondsWhenPaused || 0);
+      return {
+        ...prev,
+        isPaused: false,
+        endsAt: Date.now() + remainingSeconds * 1000,
+        remainingSecondsWhenPaused: undefined,
+      };
+    });
+  };
+
+  const handleExitFocusCountdown = () => {
+    setFocusCountdown(null);
+  };
+
+  const handleCloseFocusFinishedNotice = () => {
+    setFocusFinishedNotice(null);
+    setFocusCountdown(null);
   };
 
   useEffect(() => {
@@ -1952,14 +2763,46 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
     );
   }
 
+  const currentGroup = getCurrentNavigationGroup(session);
+  const currentGroupGoal = currentGroup?.linkedGoalId
+    ? useGoalStore.getState().getGoalById(currentGroup.linkedGoalId)
+    : null;
+  const currentGroupKrCount = currentGroup?.krDimensionValues
+    ? Object.values(currentGroup.krDimensionValues).filter((value) => Number(value) > 0).length
+    : 0;
+  const focusStepProgressLabel = `第 ${session.currentStepIndex + 1} 步 / 共 ${session.executionSteps.length} 步`;
+  const focusTaskLabel = currentGroup?.title || session.title;
+  const nextStep = session.executionSteps[session.currentStepIndex + 1];
+
   return (
     <div className="navigation-shell navigation-state-shell">
-      <div className="navigation-topbar">
-        <div>
-          <h2 className="navigation-title">{session.title}</h2>
-          <p className="navigation-subtitle">完成后会汇总成 {session.timelineGroups.length} 个时间轴任务。</p>
+      <div className="navigation-topbar navigation-topbar-task">
+        <div className="navigation-topbar-main navigation-topbar-task-main">
+          <div>
+            <div className="navigation-title-row navigation-title-row-task">
+              <h2 className="navigation-title navigation-title-task">{currentGroup?.title || session.title}</h2>
+              {currentGroup && (
+                <button className={`navigation-kr-pill ${currentGroupGoal ? 'is-linked' : ''}`} onClick={() => setIsKRSheetOpen(true)} title="给当前任务补目标和关键结果">
+                  <Target className="w-4 h-4" />
+                  <span>
+                    KR
+                    {currentGroupGoal ? ` · ${currentGroupGoal.name}` : ''}
+                    {currentGroupKrCount > 0 ? ` · ${currentGroupKrCount} 项` : ''}
+                  </span>
+                </button>
+              )}
+            </div>
+          </div>
         </div>
-        <div className="navigation-topbar-actions">
+        <div className="navigation-topbar-actions navigation-topbar-task-actions">
+          <button
+            className={`navigation-icon-button navigation-plan-toggle ${isTaskListOpen ? 'is-active' : ''}`}
+            onClick={() => setIsTaskListOpen((prev) => !prev)}
+            aria-label={isTaskListOpen ? '收起任务列表' : '展开任务列表'}
+            title={isTaskListOpen ? '收起任务列表' : '展开任务列表'}
+          >
+            {isTaskListOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
           <button className="navigation-icon-button" onClick={() => setIsSettingsOpen(true)}>
             <Settings className="w-4 h-4" />
           </button>
@@ -1969,6 +2812,8 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
         </div>
       </div>
 
+      {isTaskListOpen && <NavigationActivePlanEditor session={session} onClose={() => setIsTaskListOpen(false)} />}
+
       <div className="navigation-progress-track">
         <div className="navigation-progress-fill" style={{ width: `${((session.currentStepIndex + 1) / session.executionSteps.length) * 100}%` }} />
       </div>
@@ -1977,6 +2822,7 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
         step={currentStep}
         stepIndex={session.currentStepIndex}
         stepCount={session.executionSteps.length}
+        nextStepTitle={nextStep?.title}
         elapsedLabel={elapsedLabel}
         onContinue={() => {
           stopListening();
@@ -2025,6 +2871,14 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
         />
       )}
 
+      {isKRSheetOpen && currentGroup && (
+        <NavigationKRSheet
+          session={session}
+          group={currentGroup}
+          onClose={() => setIsKRSheetOpen(false)}
+        />
+      )}
+
       {showHandsFreeIntro && (
         <NavigationHandsFreeIntro
           onClose={() => setShowHandsFreeIntro(false)}
@@ -2040,7 +2894,65 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
           didFallbackToSystem={didFallbackToSystem}
         />
       )}
-      {isFocusOpen && <NavigationFocusSheet defaultMinutes={currentStep.focusMinutes || 10} onClose={() => setIsFocusOpen(false)} />}
+      {isFocusOpen && currentStep && (
+        <NavigationFocusSheet
+          stepTitle={currentStep.title}
+          defaultMinutes={currentStep.focusMinutes || 10}
+          onStart={handleStartFocusCountdown}
+          onClose={() => setIsFocusOpen(false)}
+        />
+      )}
+      {focusCountdown && currentStep ? (
+        <div className="navigation-focus-fullscreen" role="dialog" aria-modal="true">
+          <div className="navigation-focus-fullscreen-inner">
+            <div className="navigation-focus-fullscreen-topbar">
+              <span className="navigation-focus-fullscreen-step">{focusStepProgressLabel}</span>
+              <span className="navigation-focus-fullscreen-task">{focusTaskLabel}</span>
+            </div>
+            <span className="navigation-focus-fullscreen-kicker">{isFocusPaused ? '已暂停' : '正在专注'}</span>
+            <h2 className="navigation-focus-fullscreen-title">{currentStep.title}</h2>
+            <div className="navigation-focus-fullscreen-timer">{focusCountdownLabel}</div>
+            <div className="navigation-focus-fullscreen-meta">
+              本轮 {focusCountdown.minutes}m{isFocusPaused ? ' · 已暂停' : ''}
+            </div>
+            <div className="navigation-focus-fullscreen-actions">
+              <button className="navigation-secondary-button navigation-focus-fullscreen-secondary" onClick={handleExitFocusCountdown}>
+                退出专注
+              </button>
+              <button
+                className="navigation-primary-button navigation-focus-fullscreen-exit"
+                onClick={isFocusPaused ? handleResumeFocusCountdown : handlePauseFocusCountdown}
+              >
+                {isFocusPaused ? '继续' : '暂停'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {focusFinishedNotice ? (
+        <div className="navigation-focus-finished-backdrop" role="dialog" aria-modal="true">
+          <div className="navigation-focus-finished-card">
+            <span className="navigation-focus-finished-kicker">专注结束</span>
+            <h3>{focusFinishedNotice.stepTitle}</h3>
+            <p>你设定的 {focusFinishedNotice.minutes}m 已经到了。</p>
+            <div className="navigation-focus-finished-actions">
+              <button className="navigation-secondary-button" onClick={handleCloseFocusFinishedNotice}>
+                知道了
+              </button>
+              <button
+                className="navigation-primary-button"
+                onClick={() => {
+                  const minutes = focusFinishedNotice.minutes;
+                  handleCloseFocusFinishedNotice();
+                  handleStartFocusCountdown(minutes);
+                }}
+              >
+                再专注一轮
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {isSettingsOpen && <NavigationSettingsSheet onClose={() => setIsSettingsOpen(false)} />}
     </div>
   );

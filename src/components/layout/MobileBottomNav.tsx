@@ -26,7 +26,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   const [longPressTimer, setLongPressTimer] = React.useState<NodeJS.Timeout | null>(null);
 
   const handleLongPressStart = (e: React.TouchEvent | React.MouseEvent) => {
-    e.preventDefault();
+    if ('cancelable' in e && e.cancelable) {
+      e.preventDefault();
+    }
     const timer = setTimeout(() => {
       onLongPress?.();
     }, 500);

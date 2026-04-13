@@ -91,17 +91,20 @@ const setRootViewportVars = () => {
   const root = document.documentElement;
   const safeAreaTop = 'env(safe-area-inset-top, 0px)';
   const safeAreaBottom = 'env(safe-area-inset-bottom, 0px)';
+  const navSafeArea = '0px';
   const { visibleHeight, viewportOffsetTop, keyboardOffset } = getKeyboardMetrics();
   const effectiveVisibleHeight = Math.max(0, visibleHeight);
   const composerOffset = keyboardOffset > 0
     ? `${keyboardOffset}px`
-    : `calc(var(--mobile-bottom-nav-height) + ${safeAreaBottom})`;
+    : 'var(--mobile-bottom-nav-total-height)';
   const mobileBottomGap = keyboardOffset > 0
     ? `calc(${safeAreaBottom} + 12px)`
-    : `calc(var(--mobile-bottom-nav-height) + ${safeAreaBottom})`;
+    : 'var(--mobile-bottom-nav-total-height)';
 
   root.style.setProperty('--app-safe-area-top', safeAreaTop);
   root.style.setProperty('--app-safe-area-bottom', safeAreaBottom);
+  root.style.setProperty('--mobile-bottom-nav-safe-area', navSafeArea);
+  root.style.setProperty('--mobile-bottom-nav-total-height', 'calc(var(--mobile-bottom-nav-height) + var(--mobile-bottom-nav-safe-area))');
   root.style.setProperty('--app-visible-viewport-height', `${effectiveVisibleHeight}px`);
   root.style.setProperty('--app-viewport-offset-top', `${viewportOffsetTop}px`);
   root.style.setProperty('--app-keyboard-offset', `${keyboardOffset}px`);
