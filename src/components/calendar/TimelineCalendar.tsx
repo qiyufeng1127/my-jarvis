@@ -10,6 +10,7 @@ import InboxView from './InboxView';
 import QuickStartView from './QuickStartView';
 import ImportExportButton from './ImportExportButton';
 import NavigationModeView from '@/components/navigation/NavigationModeView';
+import { ComponentErrorBoundary } from '@/components/shared';
 
 type TimelineActiveView = 'timeline' | 'inbox' | 'quickStart' | 'navigation' | 'navigationTrend';
 
@@ -655,9 +656,19 @@ export default function TimelineCalendar({
               isDark={isDark}
             />
           ) : activeView === 'navigation' ? (
-            <NavigationModeView />
+            <ComponentErrorBoundary
+              fallbackTitle="导航模式加载失败"
+              fallbackDescription="导航面板刚刚报错了，但我已经拦住异常，不会再让时间轴整页白屏。"
+            >
+              <NavigationModeView />
+            </ComponentErrorBoundary>
           ) : activeView === 'navigationTrend' ? (
-            <NavigationModeView initialScreen="trend" />
+            <ComponentErrorBoundary
+              fallbackTitle="导航可视化加载失败"
+              fallbackDescription="导航可视化刚刚报错了，但时间轴页面仍然保留。你可以稍后再试。"
+            >
+              <NavigationModeView initialScreen="trend" />
+            </ComponentErrorBoundary>
           ) : (
             <NewTimelineView
               tasks={tasks}

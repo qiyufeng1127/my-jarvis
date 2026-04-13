@@ -46,7 +46,7 @@ import { aiService } from '@/services/aiService';
 import { SmartScheduleService } from '@/services/smartScheduleService';
 import { useTaskStore } from '@/stores/taskStore';
 import { useSideHustleStore } from '@/stores/sideHustleStore';
-import type { Task, TaskType, TaskPriority } from '@/types';
+import type { Task, TaskType, TaskPriority, SideHustle } from '@/types';
 import UnifiedTaskEditor from '@/components/shared/UnifiedTaskEditor';
 import { 
   useLocalStorage, 
@@ -991,6 +991,19 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
     console.log('🔍 [编辑器状态] editingTasks.length:', editingTasks.length);
     console.log('🔍 [编辑器状态] 是否应该显示编辑器:', showTaskEditor && editingTasks.length > 0);
   }, [showTaskEditor, editingTasks]);
+
+  const handleFocusCapture = () => {
+    window.setTimeout(() => {
+      textareaRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }, 80);
+  };
+
+  const scrollIntoSafeView = (element?: HTMLElement | null) => {
+    if (!element) return;
+    window.setTimeout(() => {
+      element.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }, 80);
+  };
 
   // 监听 AI 打开任务编辑器事件
   useEffect(() => {

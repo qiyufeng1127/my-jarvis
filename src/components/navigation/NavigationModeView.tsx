@@ -1160,32 +1160,6 @@ function NavigationComposer({ initialInput = '' }: { initialInput?: string }) {
         </div>
       </div>
 
-      {krSheetGroup && (
-        <NavigationKRSheet
-          session={session}
-          group={krSheetGroup}
-          mode="preview"
-          onClose={() => setKrSheetGroupId(null)}
-        />
-      )}
-
-      {krSheetGroup && (
-        <NavigationKRSheet
-          session={session}
-          group={krSheetGroup}
-          mode="preview"
-          onClose={() => setKrSheetGroupId(null)}
-        />
-      )}
-
-      {krSheetGroup && (
-        <NavigationKRSheet
-          session={session}
-          group={krSheetGroup}
-          mode="preview"
-          onClose={() => setKrSheetGroupId(null)}
-        />
-      )}
       {isSettingsOpen && <NavigationSettingsSheet onClose={() => setIsSettingsOpen(false)} />}
     </div>
   );

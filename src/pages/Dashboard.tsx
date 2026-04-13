@@ -129,14 +129,14 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* AI 对话框 - 使用 FloatingAIChat - 只在时间轴界面显示 */}
-      {currentModule === 'timeline' && (
+      {/* AI 对话框临时下线，先避免整页被运行时异常带白屏 */}
+      {/* {currentModule === 'timeline' && (
         <FloatingAIChat 
           isFullScreen={isAIChatOpen} 
           onClose={() => setIsAIChatOpen(false)} 
           currentModule={currentModule}
         />
-      )}
+      )} */}
 
       {/* AI 智能输入框 - 临时禁用 */}
       {/* <AISmartInput isOpen={isAISmartOpen} onClose={() => setIsAISmartOpen(false)} /> */}

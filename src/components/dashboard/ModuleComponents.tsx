@@ -10,6 +10,7 @@ import { MoneyTracker } from '@/components/money';
 import MoodWeeklyChart from '@/components/journal/MoodWeeklyChart';
 import FloatingAIChat from '@/components/ai/FloatingAIChat';
 import HabitCanModule from '@/components/habits/HabitCanModule';
+import { ComponentErrorBoundary } from '@/components/shared';
 import SOPLibrary from '@/components/sop/SOPLibrary';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
@@ -1523,10 +1524,15 @@ export function TimelineModule({ isDark = false, bgColor = '#ffffff', moduleSize
       {/* AI对话全屏弹窗 */}
       {showAIChat && (
         <div className="fixed inset-0 z-[100000] bg-white">
-          <FloatingAIChat 
-            isFullScreen={true}
-            onClose={() => setShowAIChat(false)}
-          />
+          <ComponentErrorBoundary
+            fallbackTitle="AI 助手加载失败"
+            fallbackDescription="AI 面板刚刚报错了，但我已经拦住异常，不会再把整页带白。你可以先关闭后重试。"
+          >
+            <FloatingAIChat 
+              isFullScreen={true}
+              onClose={() => setShowAIChat(false)}
+            />
+          </ComponentErrorBoundary>
         </div>
       )}
     </>

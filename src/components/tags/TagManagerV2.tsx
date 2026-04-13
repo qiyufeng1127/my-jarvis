@@ -676,20 +676,17 @@ ${tagList}
   
   return (
     <>
-      {/* 背景遮罩 - 点击关闭 */}
       <div
         className="fixed inset-0 bg-black/30 z-40"
         onClick={onClose}
       />
 
-      {/* 弹窗内容 */}
       <div className="fixed inset-0 z-[2147483647] flex flex-col">
         <div
           className="w-full h-full flex flex-col"
           style={{ backgroundColor: bgColor }}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* 头部 */}
           <div
             className="flex items-start justify-between gap-3 px-6 py-6 pt-14 border-b shrink-0"
             style={{ borderColor }}
@@ -756,351 +753,111 @@ ${tagList}
             </div>
           </div>
 
-          {/* 主内容区域 - 可滚动 */}
-          <div className="flex-1 overflow-y-auto pb-20">
-        {/* 时间范围选择 */}
-        <div className="flex items-center justify-center gap-2 px-6 py-4 bg-white">
-          {[
-            { id: 'today', label: 'Today' },
-            { id: 'week', label: 'Weekly' },
-            { id: 'overall', label: 'Overall' },
-          ].map((range) => (
-            <button
-              key={range.id}
-              onClick={() => setTimeRange(range.id as TimeRange)}
-              className="px-6 py-2 rounded-full text-sm font-semibold transition-all"
-              style={{
-                backgroundColor: timeRange === range.id ? '#DD617C' : '#F5F5F7',
-                color: timeRange === range.id ? '#ffffff' : '#8E8E93',
-              }}
-            >
-              {range.label}
-            </button>
-          ))}
-        </div>
-
-        {/* 圆环图区域 */}
-        {topTags.length > 0 && (
-          <div className="px-6 py-6">
-            <div className="relative w-full max-w-xs mx-auto">
-              <div className="relative">
-                <Doughnut data={doughnutData} options={doughnutOptions} />
-                
-                {/* 中心分数显示 */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <div className="text-5xl font-bold" style={{ color: textColor }}>{habitScore}</div>
-                  <div className="text-xs mt-1" style={{ color: secondaryColor }}>Your daily habits score</div>
-                  <div className="text-xs mt-1" style={{ color: secondaryColor }}>compared 😊</div>
-                </div>
-              </div>
-
-              {/* 图标嵌入在圆环内 - 每个图标对应一个圆环段的中心 */}
-              <div className="absolute inset-0 pointer-events-none">
-                {topTags.map((tag, index) => {
-                  // 计算每个圆环段的中心角度
-                  const totalValue = topTags.reduce((sum, t) => sum + t.duration, 0);
-                  let startAngle = -Math.PI / 2; // 从顶部开始
-                  
-                  // 计算当前标签之前所有标签的角度总和
-                  for (let i = 0; i < index; i++) {
-                    startAngle += (topTags[i].duration / totalValue) * 2 * Math.PI;
-                  }
-                  
-                  // 当前标签的角度
-                  const currentAngle = (tag.duration / totalValue) * 2 * Math.PI;
-                  // 图标放在当前段的中心
-                  const angle = startAngle + currentAngle / 2;
-                  
-                  const radius = 100; // 图标在圆环中间位置
-                  const x = Math.cos(angle) * radius;
-                  const y = Math.sin(angle) * radius;
-                  
-                  return (
-                    <div
-                      key={tag.name}
-                      className="absolute"
-                      style={{
-                        left: '50%',
-                        top: '50%',
-                        transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`,
-                      }}
-                    >
-                      {/* 直接显示emoji，不要白色背景 */}
-                      <div className="text-3xl">
-                        {tag.emoji || '📊'}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+          <div className="flex-1 overflow-y-auto pb-20 px-6 py-6 space-y-6">
+            <div className="flex items-center justify-center gap-2">
+              {[
+                { id: 'today', label: 'Today' },
+                { id: 'week', label: 'Weekly' },
+                { id: 'overall', label: 'Overall' },
+              ].map((range) => (
+                <button
+                  key={range.id}
+                  onClick={() => setTimeRange(range.id as TimeRange)}
+                  className="px-6 py-2 rounded-full text-sm font-semibold transition-all"
+                  style={{
+                    backgroundColor: timeRange === range.id ? '#DD617C' : '#F5F5F7',
+                    color: timeRange === range.id ? '#ffffff' : '#8E8E93',
+                  }}
+                >
+                  {range.label}
+                </button>
+              ))}
             </div>
 
-            {/* Add habit 按钮 */}
-            <div className="flex justify-center gap-3 mt-8">
-              <button 
-                className="px-6 py-3 rounded-full font-semibold text-sm shadow-lg active:scale-95 transition-transform"
-                style={{
-                  backgroundColor: '#6D9978',
-                  color: '#ffffff',
-                }}
+            {topTags.length > 0 && (
+              <div className="max-w-xs mx-auto">
+                <Doughnut data={doughnutData} options={doughnutOptions} />
+                <div className="text-center mt-4" style={{ color: textColor }}>
+                  今日习惯分数：{habitScore}
+                </div>
+              </div>
+            )}
+
+            <TagRankingList
+              tags={displayTags}
+              isDark={isDark}
+            />
+
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={handleSyncTasksToTags}
+                disabled={isSyncing}
+                className="w-12 h-12 rounded-full flex items-center justify-center active:scale-95 transition-transform shadow-md"
+                style={{ backgroundColor: '#52A5CE', opacity: isSyncing ? 0.5 : 1 }}
+                title="同步时间轴数据"
               >
-                Add habit
+                <span className="text-2xl">{isSyncing ? '⏳' : '🔄'}</span>
+              </button>
+
+              <button
+                onClick={handleSmartCategorize}
+                disabled={isSmartCategorizing}
+                className="w-12 h-12 rounded-full flex items-center justify-center active:scale-95 transition-transform shadow-md"
+                style={{ backgroundColor: '#DD617C' }}
+                title="AI智能分类"
+              >
+                <span className="text-2xl">🪄</span>
+              </button>
+
+              <button
+                onClick={() => setShowCreateFolder(true)}
+                className="w-12 h-12 rounded-full flex items-center justify-center active:scale-95 transition-transform shadow-md"
+                style={{ backgroundColor: '#E8C259' }}
+                title="新建文件夹"
+              >
+                <span className="text-2xl">📁</span>
+              </button>
+
+              <button
+                onClick={() => setShowAddTag(true)}
+                className="w-12 h-12 rounded-full flex items-center justify-center active:scale-95 transition-transform shadow-md"
+                style={{ backgroundColor: '#6D9978' }}
+                title="添加标签"
+              >
+                <span className="text-2xl">➕</span>
               </button>
             </div>
 
-            {/* 对比信息 */}
-            {tagDurations.length === 0 && (
-              <div className="mt-6 px-4 py-3 rounded-2xl" style={{ backgroundColor: '#FFF5E5' }}>
-                <p className="text-sm text-center" style={{ color: '#AC0327' }}>
-                  Your habits score dropped <span className="font-bold">12%</span> compared to yesterday.
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-        
-        {/* 分隔线 */}
-        <div className="h-2" style={{ backgroundColor: cardBg }} />
-
-        {/* 标签排行榜 */}
-        <div>
-          <TagRankingList
-            tags={displayTags}
-            isDark={isDark}
-          />
-        </div>
-        
-        {/* 分隔线 */}
-        <div className="h-2" style={{ backgroundColor: cardBg }} />
-        
-        {/* 标签管理区域 */}
-        <div className="px-6 pb-8 pt-6">
-          <div className="flex items-center justify-end gap-2 mb-4">
-            {/* 同步任务数据按钮 */}
-            <button
-              onClick={handleSyncTasksToTags}
-              disabled={isSyncing}
-              className="w-12 h-12 rounded-full flex items-center justify-center active:scale-95 transition-transform shadow-md"
-              style={{ backgroundColor: '#52A5CE', opacity: isSyncing ? 0.5 : 1 }}
-              title="同步时间轴数据"
-            >
-              <span className="text-2xl">{isSyncing ? '⏳' : '🔄'}</span>
-            </button>
-            
-            {/* AI智能分类按钮 - 只有图标 */}
-            <button
-              onClick={handleSmartCategorize}
-              disabled={isSmartCategorizing}
-              className="w-12 h-12 rounded-full flex items-center justify-center active:scale-95 transition-transform shadow-md"
-              style={{ backgroundColor: '#DD617C' }}
-              title="AI智能分类"
-            >
-              <span className="text-2xl">🪄</span>
-            </button>
-            
-            {/* 新建文件夹按钮 - 只有图标 */}
-            <button
-              onClick={() => setShowCreateFolder(true)}
-              className="w-12 h-12 rounded-full flex items-center justify-center active:scale-95 transition-transform shadow-md"
-              style={{ backgroundColor: '#E8C259' }}
-              title="新建文件夹"
-            >
-              <span className="text-2xl">📁</span>
-            </button>
-            
-            {/* 添加标签按钮 - 只有图标 */}
-            <button
-              onClick={() => setShowAddTag(true)}
-              className="w-12 h-12 rounded-full flex items-center justify-center active:scale-95 transition-transform shadow-md"
-              style={{ backgroundColor: '#6D9978' }}
-              title="添加标签"
-            >
-              <span className="text-2xl">➕</span>
-            </button>
-          </div>
-
-          {/* 添加新标签输入框 */}
-          {showAddTag && (
-            <div className="mb-4 p-4 rounded-xl" style={{ backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF' }}>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={newTagInput}
-                  onChange={(e) => setNewTagInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleAddTag();
-                    } else if (e.key === 'Escape') {
-                      setShowAddTag(false);
-                      setNewTagInput('');
-                    }
-                  }}
-                  placeholder="输入标签名称（例如：照相馆工作）"
-                  className="flex-1 px-4 py-2 rounded-lg border focus:outline-none focus:border-blue-500"
-                  style={{ 
-                    backgroundColor: bgColor,
-                    color: textColor,
-                    borderColor: borderColor
-                  }}
-                  autoFocus
-                />
-                <button
-                  onClick={handleAddTag}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold active:scale-95 transition-transform"
-                >
-                  确定
-                </button>
-                <button
-                  onClick={() => {
-                    setShowAddTag(false);
-                    setNewTagInput('');
-                  }}
-                  className="px-4 py-2 rounded-lg font-semibold active:scale-95 transition-transform"
-                  style={{ backgroundColor: cardBg, color: textColor }}
-                >
-                  取消
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* 创建新文件夹弹窗 */}
-          {showCreateFolder && (
-            <div className="mb-4 p-4 rounded-xl" style={{ backgroundColor: isDark ? 'rgba(221, 97, 124, 0.1)' : '#FFF1F2' }}>
-              <h3 className="text-sm font-semibold mb-3" style={{ color: textColor }}>创建新文件夹</h3>
-              <div className="space-y-3">
-                {/* 文件夹名称 */}
-                <div>
-                  <label className="text-xs mb-1 block" style={{ color: secondaryColor }}>文件夹名称</label>
+            {showAddTag && (
+              <div className="p-4 rounded-xl" style={{ backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF' }}>
+                <div className="flex items-center gap-2">
                   <input
                     type="text"
-                    value={newFolderName}
-                    onChange={(e) => setNewFolderName(e.target.value)}
-                    placeholder="例如：工作、学习、生活"
-                    className="w-full px-4 py-2 rounded-lg border focus:outline-none focus:border-pink-500"
-                    style={{ 
-                      backgroundColor: bgColor,
-                      color: textColor,
-                      borderColor: borderColor
+                    value={newTagInput}
+                    onChange={(e) => setNewTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        void handleAddTag();
+                      } else if (e.key === 'Escape') {
+                        setShowAddTag(false);
+                        setNewTagInput('');
+                      }
                     }}
+                    placeholder="输入标签名称（例如：照相馆工作）"
+                    className="flex-1 px-4 py-2 rounded-lg border focus:outline-none focus:border-blue-500"
+                    style={{ backgroundColor: bgColor, color: textColor, borderColor: borderColor }}
                     autoFocus
                   />
-                </div>
-                
-                {/* Emoji选择 */}
-                <div>
-                  <label className="text-xs mb-1 block" style={{ color: secondaryColor }}>图标 Emoji</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={newFolderEmoji}
-                      onChange={(e) => setNewFolderEmoji(e.target.value)}
-                      placeholder="📁"
-                      className="w-20 px-4 py-2 rounded-lg border text-center text-2xl focus:outline-none focus:border-pink-500"
-                      style={{ 
-                        backgroundColor: bgColor,
-                        color: textColor,
-                        borderColor: borderColor
-                      }}
-                      maxLength={2}
-                    />
-                    <div className="flex gap-1 flex-wrap flex-1">
-                      {['📁', '💼', '🎯', '📚', '🏠', '💪', '🎨', '🎮', '💰', '🌟', '🔥', '✨'].map(emoji => (
-                        <button
-                          key={emoji}
-                          onClick={() => setNewFolderEmoji(emoji)}
-                          className="w-10 h-10 rounded-lg hover:bg-gray-100 active:scale-95 transition-all text-xl"
-                          style={{ backgroundColor: newFolderEmoji === emoji ? cardBg : 'transparent' }}
-                        >
-                          {emoji}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                
-                {/* 颜色选择 */}
-                <div>
-                  <label className="text-xs mb-1 block" style={{ color: secondaryColor }}>文件夹颜色</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={newFolderColor}
-                      onChange={(e) => setNewFolderColor(e.target.value)}
-                      className="w-12 h-10 rounded-lg border cursor-pointer"
-                      style={{ borderColor: borderColor }}
-                    />
-                    <input
-                      type="text"
-                      value={newFolderColor}
-                      onChange={(e) => setNewFolderColor(e.target.value)}
-                      className="flex-1 px-4 py-2 rounded-lg border focus:outline-none focus:border-pink-500"
-                      style={{ 
-                        backgroundColor: bgColor,
-                        color: textColor,
-                        borderColor: borderColor
-                      }}
-                      placeholder="#52A5CE"
-                    />
-                  </div>
-                  <div className="flex gap-2 mt-2 flex-wrap">
-                    {['#6D9978', '#E8C259', '#DD617C', '#AC0327', '#D1CBBA', '#52A5CE', '#8B7355', '#4A90E2'].map(color => (
-                      <button
-                        key={color}
-                        onClick={() => setNewFolderColor(color)}
-                        className="w-10 h-10 rounded-lg active:scale-95 transition-all border-2"
-                        style={{ 
-                          backgroundColor: color,
-                          borderColor: newFolderColor === color ? textColor : 'transparent'
-                        }}
-                        title={color}
-                      />
-                    ))}
-                  </div>
-                </div>
-                
-                {/* 预览 */}
-                <div className="p-3 rounded-lg" style={{ backgroundColor: `${newFolderColor}15` }}>
-                  <div className="flex items-center gap-3">
-                    <div 
-                      className="w-10 h-10 rounded-lg flex items-center justify-center text-2xl"
-                      style={{ backgroundColor: newFolderColor }}
-                    >
-                      {newFolderEmoji}
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-semibold" style={{ color: textColor }}>
-                        {newFolderName || '文件夹名称'}
-                      </div>
-                      <div className="text-xs" style={{ color: secondaryColor }}>预览效果</div>
-                    </div>
-                    <div 
-                      className="px-3 py-1 rounded-full text-xs font-medium"
-                      style={{ 
-                        backgroundColor: newFolderColor,
-                        color: '#fff',
-                      }}
-                    >
-                      {newFolderColor}
-                    </div>
-                  </div>
-                </div>
-                
-                {/* 操作按钮 */}
-                <div className="flex items-center gap-2 pt-2">
                   <button
-                    onClick={handleCreateFolder}
-                    className="flex-1 px-4 py-2 rounded-lg font-semibold active:scale-95 transition-transform"
-                    style={{ backgroundColor: '#DD617C', color: '#fff' }}
+                    onClick={() => void handleAddTag()}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold active:scale-95 transition-transform"
                   >
-                    创建文件夹
+                    确定
                   </button>
                   <button
                     onClick={() => {
-                      setShowCreateFolder(false);
-                      setNewFolderName('');
-                      setNewFolderEmoji('📁');
-                      setNewFolderColor('#52A5CE');
+                      setShowAddTag(false);
+                      setNewTagInput('');
                     }}
                     className="px-4 py-2 rounded-lg font-semibold active:scale-95 transition-transform"
                     style={{ backgroundColor: cardBg, color: textColor }}
@@ -1109,274 +866,180 @@ ${tagList}
                   </button>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* 文件夹列表 */}
-          <div className="space-y-3">
-            {folders.map((folder) => {
-              const isExpanded = expandedFolders.has(folder.id);
-              const folderTags = getTagsByFolder(folder.id);
-              
-              return (
-                <div key={folder.id} className="rounded-xl overflow-hidden" style={{ border: `1px solid ${borderColor}` }}>
-                  {/* 文件夹头部 */}
-                  <button
-                    onClick={() => toggleFolder(folder.id)}
-                    className="w-full flex items-center gap-3 p-4 hover:opacity-80 transition-opacity"
-                    style={{ backgroundColor: `${folder.color}15` }}
-                  >
-                    {/* 展开/收起图标 */}
-                    {isExpanded ? (
-                      <ChevronDown size={20} style={{ color: secondaryColor }} className="flex-shrink-0" />
-                    ) : (
-                      <ChevronRight size={20} style={{ color: secondaryColor }} className="flex-shrink-0" />
-                    )}
-                    
-                    {/* 文件夹图标和颜色指示器 */}
-                    <div 
-                      className="w-10 h-10 rounded-lg flex items-center justify-center text-2xl flex-shrink-0"
-                      style={{ backgroundColor: folder.color }}
-                    >
-                      {folder.emoji}
-                    </div>
-                    
-                    {/* 文件夹信息 */}
-                    <div className="flex-1 text-left">
-                      <div className="font-semibold" style={{ color: textColor }}>{folder.name}</div>
-                      <div className="text-xs mt-0.5" style={{ color: secondaryColor }}>
-                        {folderTags.length} 个标签
-                      </div>
-                    </div>
-                    
-                    {/* 颜色标签 - 可点击编辑 */}
-                    {editingFolderColor === folder.id ? (
-                      <div
-                        className="flex items-center gap-2"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <input
-                          type="color"
-                          value={tempFolderColor}
-                          onChange={(e) => setTempFolderColor(e.target.value)}
-                          className="w-8 h-8 rounded cursor-pointer"
-                        />
-                        <input
-                          type="text"
-                          value={tempFolderColor}
-                          onChange={(e) => setTempFolderColor(e.target.value)}
-                          className="w-24 px-2 py-1 rounded text-xs border"
-                          style={{
-                            backgroundColor: bgColor,
-                            color: textColor,
-                            borderColor: borderColor
-                          }}
-                          placeholder="#52A5CE"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleConfirmFolderColor(folder.id)}
-                          className="px-2 py-1 rounded text-xs font-semibold"
-                          style={{ backgroundColor: '#6D9978', color: '#fff' }}
-                        >
-                          ✓
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleCancelFolderColor}
-                          className="px-2 py-1 rounded text-xs font-semibold"
-                          style={{ backgroundColor: cardBg, color: textColor }}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ) : (
-                      <div
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleStartEditFolderColor(folder.id, folder.color);
-                        }}
-                        className="px-3 py-1 rounded-full text-xs font-medium hover:opacity-80 transition-opacity cursor-pointer"
-                        style={{
-                          backgroundColor: folder.color,
-                          color: '#fff',
-                        }}
-                        title="点击修改颜色"
-                      >
-                        {folder.color}
-                      </div>
-                    )}
-                  </button>
-
-                  {/* 文件夹内的标签列表 */}
-                  {isExpanded && (
-                    <div style={{ borderTop: `1px solid ${borderColor}`, backgroundColor: bgColor }}>
-                      {folderTags.length > 0 ? (
-                        <div className="p-3 space-y-2">
-                          {folderTags.map((tag) => (
-                            <div
-                              key={tag.name}
-                              className="flex items-center gap-3 p-3 rounded-lg hover:opacity-80 transition-opacity"
-                              style={{ backgroundColor: cardBg }}
-                            >
-                              {/* 标签信息 */}
-                              <div className="flex items-center gap-2 flex-1 min-w-0">
-                                <span className="text-xl flex-shrink-0">{tag.emoji || '🏷️'}</span>
-                                
-                                {editingTag === tag.name ? (
-                                  // 编辑模式
-                                  <input
-                                    type="text"
-                                    value={newTagName}
-                                    onChange={(e) => setNewTagName(e.target.value)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') {
-                                        handleRenameTag(tag.name);
-                                      } else if (e.key === 'Escape') {
-                                        setEditingTag(null);
-                                        setNewTagName('');
-                                      }
-                                    }}
-                                    onBlur={() => handleRenameTag(tag.name)}
-                                    className="flex-1 px-3 py-1 rounded-lg border border-blue-500 focus:outline-none"
-                                    style={{ backgroundColor: bgColor, color: textColor }}
-                                    autoFocus
-                                  />
-                                ) : (
-                                  // 显示模式
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-sm font-medium truncate" style={{ color: textColor }}>
-                                        {tag.name}
-                                      </span>
-                                      {tag.isDisabled && (
-                                        <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: cardBg, color: secondaryColor }}>
-                                          已禁用
-                                        </span>
-                                      )}
-                                      {tag.emojiLocked && (
-                                        <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: cardBg, color: secondaryColor }}>
-                                          emoji已锁定
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div className="text-xs mt-0.5" style={{ color: secondaryColor }}>
-                                      使用 {tag.usageCount} 次 · {Math.round(tag.totalDuration / 60)}h
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* 操作按钮 */}
-                              {editingTag !== tag.name && (
-                                <div className="flex items-center gap-2 flex-shrink-0">
-                                  <button
-                                    onClick={() => {
-                                      setEditingTag(tag.name);
-                                      setNewTagName(tag.name);
-                                    }}
-                                    className="p-2 rounded-lg active:opacity-80 transition-opacity"
-                                    style={{ backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#DBEAFE', color: '#2563EB' }}
-                                    title="重命名标签"
-                                  >
-                                    <Edit2 size={14} />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteTag(tag.name)}
-                                    className="p-2 rounded-lg active:opacity-80 transition-opacity"
-                                    style={{ backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : '#FEE2E2', color: '#DC2626' }}
-                                    title="删除标签"
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="p-6 text-center text-sm" style={{ color: secondaryColor }}>
-                          该文件夹暂无标签
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* 未分类标签 */}
-          {allTagsIncludingDisabled.filter(tag => !tag.folderId).length > 0 && (
-            <div className="mt-6">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-semibold" style={{ color: textColor }}>未分类标签</h3>
-                
-                {/* 智能分配到文件夹按钮 */}
-                <button
-                  onClick={handleSmartCategorize}
-                  disabled={isSmartCategorizing}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium active:scale-95 transition-all"
-                  style={{ 
-                    backgroundColor: '#DD617C', 
-                    color: '#fff',
-                    opacity: isSmartCategorizing ? 0.5 : 1 
-                  }}
-                  title="AI智能分配到文件夹"
-                >
-                  <Wand2 size={16} />
-                  <span>{isSmartCategorizing ? '分配中...' : '智能分配到文件夹'}</span>
-                </button>
-              </div>
-              <div className="space-y-2">
-                {allTagsIncludingDisabled
-                  .filter(tag => !tag.folderId)
-                  .map((tag) => (
-                    <UncategorizedTagItem
-                      key={tag.name}
-                      tag={tag}
-                      bgColor={bgColor}
-                      cardBg={cardBg}
-                      borderColor={borderColor}
-                      textColor={textColor}
-                      secondaryColor={secondaryColor}
-                      isDark={isDark}
-                      isEditing={editingTag === tag.name}
-                      editValue={newTagName}
-                      onEdit={() => {
-                        setEditingTag(tag.name);
-                        setNewTagName(tag.name);
-                      }}
-                      onDelete={() => handleDeleteTag(tag.name)}
-                      onUpdateEmoji={(emoji) => updateTag(tag.name, tag.name, emoji, undefined, { lockEmoji: true })}
-                      onEditChange={(value) => setNewTagName(value)}
-                      onEditConfirm={() => handleRenameTag(tag.name)}
-                      onEditCancel={() => {
-                        setEditingTag(null);
-                        setNewTagName('');
-                      }}
+            {showCreateFolder && (
+              <div className="p-4 rounded-xl" style={{ backgroundColor: isDark ? 'rgba(221, 97, 124, 0.1)' : '#FFF1F2' }}>
+                <h3 className="text-sm font-semibold mb-3" style={{ color: textColor }}>创建新文件夹</h3>
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    value={newFolderName}
+                    onChange={(e) => setNewFolderName(e.target.value)}
+                    placeholder="文件夹名称"
+                    className="w-full px-4 py-2 rounded-lg border focus:outline-none"
+                    style={{ backgroundColor: bgColor, color: textColor, borderColor: borderColor }}
+                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newFolderEmoji}
+                      onChange={(e) => setNewFolderEmoji(e.target.value)}
+                      className="w-20 px-4 py-2 rounded-lg border text-center text-2xl focus:outline-none"
+                      style={{ backgroundColor: bgColor, color: textColor, borderColor: borderColor }}
+                      maxLength={2}
                     />
-                  ))}
+                    <input
+                      type="text"
+                      value={newFolderColor}
+                      onChange={(e) => setNewFolderColor(e.target.value)}
+                      className="flex-1 px-4 py-2 rounded-lg border focus:outline-none"
+                      style={{ backgroundColor: bgColor, color: textColor, borderColor: borderColor }}
+                      placeholder="#52A5CE"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 pt-2">
+                    <button
+                      onClick={handleCreateFolder}
+                      className="flex-1 px-4 py-2 rounded-lg font-semibold active:scale-95 transition-transform"
+                      style={{ backgroundColor: '#DD617C', color: '#fff' }}
+                    >
+                      创建文件夹
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowCreateFolder(false);
+                        setNewFolderName('');
+                        setNewFolderEmoji('📁');
+                        setNewFolderColor('#52A5CE');
+                      }}
+                      className="px-4 py-2 rounded-lg font-semibold active:scale-95 transition-transform"
+                      style={{ backgroundColor: cardBg, color: textColor }}
+                    >
+                      取消
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* 提示信息 */}
-          <div className="mt-6 rounded-xl p-4" style={{ backgroundColor: isDark ? 'rgba(124, 58, 237, 0.08)' : '#F5F3FF' }}>
-            <p className="text-sm" style={{ color: isDark ? '#E9D5FF' : '#7C3AED' }}>
-              🎨 <strong>文件夹颜色：</strong>文件夹的颜色会自动应用到该文件夹下所有标签的任务卡片背景色。
-            </p>
-            <p className="text-sm mt-2" style={{ color: isDark ? '#E9D5FF' : '#7C3AED' }}>
-              💡 <strong>提示：</strong>重命名标签后，所有使用该标签的任务都会自动更新。AI在分配标签时会优先使用这里的标签。
-            </p>
-            <p className="text-sm mt-2" style={{ color: isDark ? '#E9D5FF' : '#7C3AED' }}>
-              🔄 <strong>数据同步：</strong>点击"同步时间轴数据"按钮，可以从已完成的任务重新计算所有标签的使用次数、时长、收入、支出和时薪。
-            </p>
+            <div className="space-y-3">
+              {folders.map((folder) => {
+                const folderTags = getTagsByFolder(folder.id);
+                const isExpanded = expandedFolders.has(folder.id);
+
+                return (
+                  <div key={folder.id} className="rounded-xl overflow-hidden" style={{ border: `1px solid ${borderColor}` }}>
+                    <button
+                      onClick={() => toggleFolder(folder.id)}
+                      className="w-full flex items-center gap-3 p-4 hover:opacity-80 transition-opacity"
+                      style={{ backgroundColor: `${folder.color}15` }}
+                    >
+                      {isExpanded ? (
+                        <ChevronDown size={20} style={{ color: secondaryColor }} className="flex-shrink-0" />
+                      ) : (
+                        <ChevronRight size={20} style={{ color: secondaryColor }} className="flex-shrink-0" />
+                      )}
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center text-2xl flex-shrink-0" style={{ backgroundColor: folder.color }}>
+                        {folder.emoji}
+                      </div>
+                      <div className="flex-1 text-left">
+                        <div className="font-semibold" style={{ color: textColor }}>{folder.name}</div>
+                        <div className="text-xs mt-0.5" style={{ color: secondaryColor }}>{folderTags.length} 个标签</div>
+                      </div>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="p-3 space-y-2" style={{ borderTop: `1px solid ${borderColor}`, backgroundColor: bgColor }}>
+                        {folderTags.length > 0 ? folderTags.map((tag) => (
+                          <div key={tag.name} className="flex items-center justify-between gap-3 p-3 rounded-lg" style={{ backgroundColor: cardBg }}>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-xl">{tag.emoji || '🏷️'}</span>
+                              <span className="text-sm font-medium truncate" style={{ color: textColor }}>{tag.name}</span>
+                            </div>
+                            <button
+                              onClick={() => handleDeleteTag(tag.name)}
+                              className="p-2 rounded-lg active:opacity-80 transition-opacity"
+                              style={{ backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : '#FEE2E2', color: '#DC2626' }}
+                              title="删除标签"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        )) : (
+                          <div className="p-6 text-center text-sm" style={{ color: secondaryColor }}>
+                            该文件夹暂无标签
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {allTagsIncludingDisabled.filter(tag => !tag.folderId).length > 0 && (
+              <div className="mt-6">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold" style={{ color: textColor }}>未分类标签</h3>
+                  <button
+                    onClick={handleSmartCategorize}
+                    disabled={isSmartCategorizing}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium active:scale-95 transition-all"
+                    style={{ backgroundColor: '#DD617C', color: '#fff', opacity: isSmartCategorizing ? 0.5 : 1 }}
+                    title="AI智能分配到文件夹"
+                  >
+                    <Wand2 size={16} />
+                    <span>{isSmartCategorizing ? '分配中...' : '智能分配到文件夹'}</span>
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {allTagsIncludingDisabled
+                    .filter(tag => !tag.folderId)
+                    .map((tag) => (
+                      <UncategorizedTagItem
+                        key={tag.name}
+                        tag={tag}
+                        bgColor={bgColor}
+                        cardBg={cardBg}
+                        borderColor={borderColor}
+                        textColor={textColor}
+                        secondaryColor={secondaryColor}
+                        isDark={isDark}
+                        isEditing={editingTag === tag.name}
+                        editValue={newTagName}
+                        onEdit={() => {
+                          setEditingTag(tag.name);
+                          setNewTagName(tag.name);
+                        }}
+                        onDelete={() => handleDeleteTag(tag.name)}
+                        onUpdateEmoji={(emoji) => updateTag(tag.name, tag.name, emoji, undefined, { lockEmoji: true })}
+                        onEditChange={(value) => setNewTagName(value)}
+                        onEditConfirm={() => handleRenameTag(tag.name)}
+                        onEditCancel={() => {
+                          setEditingTag(null);
+                          setNewTagName('');
+                        }}
+                      />
+                    ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-6 rounded-xl p-4" style={{ backgroundColor: isDark ? 'rgba(124, 58, 237, 0.08)' : '#F5F3FF' }}>
+              <p className="text-sm" style={{ color: isDark ? '#E9D5FF' : '#7C3AED' }}>
+                🎨 <strong>文件夹颜色：</strong>文件夹的颜色会自动应用到该文件夹下所有标签的任务卡片背景色。
+              </p>
+              <p className="text-sm mt-2" style={{ color: isDark ? '#E9D5FF' : '#7C3AED' }}>
+                💡 <strong>提示：</strong>重命名标签后，所有使用该标签的任务都会自动更新。AI在分配标签时会优先使用这里的标签。
+              </p>
+              <p className="text-sm mt-2" style={{ color: isDark ? '#E9D5FF' : '#7C3AED' }}>
+                🔄 <strong>数据同步：</strong>点击“同步时间轴数据”按钮，可以从已完成的任务重新计算所有标签的使用次数、时长、收入、支出和时薪。
+              </p>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-    </div>
-  </>
+    </>
   );
 }
