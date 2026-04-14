@@ -10,8 +10,82 @@ import { useVoiceRecognition } from '@/hooks/useVoiceRecognition';
 import GoalForm, { type GoalFormData } from '@/components/growth/GoalForm';
 import { buildGoalPayloadFromForm, buildQuickGoalFormData } from '@/utils/goalSubmission';
 import type { LongTermGoal } from '@/types';
-import type { NavigationBottleEntry, NavigationExecutionStep, NavigationSession, NavigationStateSnapshot, NavigationTimelineGroup } from '@/types/navigation';
+import type { NavigationBottleEntry, NavigationExecutionStep, NavigationSession, NavigationStateSnapshot, NavigationTimelineGroup, NavigationEmojiPreference } from '@/types/navigation';
 import './navigation.css';
+
+const NAVIGATION_EMOJI_SUGGESTIONS = ['🚀', '🪄', '🌱', '🧹', '🧼', '👟', '🚪', '👜', '🍳', '🥣', '✅', '🌙'];
+
+function NavigationEmojiEditor({
+  currentEmoji,
+  onSelect,
+  onClose,
+}: {
+  currentEmoji: string;
+  onSelect: (emoji: string) => void;
+  onClose: () => void;
+}) {
+  const [customEmoji, setCustomEmoji] = useState(currentEmoji);
+  const [isCustomMode, setIsCustomMode] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!isCustomMode) return;
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, [isCustomMode]);
+
+  return (
+    <div className="navigation-emoji-editor" role="dialog" aria-label="编辑步骤 emoji">
+      <div className="navigation-emoji-editor-header">
+        {isCustomMode ? (
+          <input
+            ref={inputRef}
+            className="navigation-inline-input navigation-emoji-editor-input"
+            value={customEmoji}
+            onChange={(e) => setCustomEmoji(e.target.value)}
+            placeholder="输入 emoji"
+            maxLength={8}
+          />
+        ) : (
+          <button
+            type="button"
+            className="navigation-emoji-custom-trigger"
+            onClick={() => setIsCustomMode(true)}
+            title="自定义输入 emoji"
+          >
+            <span aria-hidden="true">{customEmoji || '🙂'}</span>
+          </button>
+        )}
+        <button type="button" className="navigation-icon-button" onClick={onClose} title="关闭 emoji 编辑器">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+      <div className="navigation-emoji-editor-grid">
+        {NAVIGATION_EMOJI_SUGGESTIONS.map((emoji) => (
+          <button
+            key={emoji}
+            type="button"
+            className={`navigation-emoji-choice ${emoji === currentEmoji ? 'is-active' : ''}`}
+            onClick={() => onSelect(emoji)}
+            title={`使用 ${emoji}`}
+          >
+            {emoji}
+          </button>
+        ))}
+      </div>
+      <div className="navigation-emoji-editor-actions">
+        <button
+          type="button"
+          className="navigation-primary-button navigation-emoji-editor-apply"
+          onClick={() => isCustomMode && customEmoji.trim() && onSelect(customEmoji.trim())}
+          disabled={!isCustomMode || !customEmoji.trim()}
+        >
+          确定
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function buildInsertedFlowResponseText(message: string | undefined, currentStepTitle: string) {
   if (message?.trim()) return message.trim();
@@ -240,7 +314,37 @@ function getEmojiByScore(score: number) {
   return '😶';
 }
 
-function getStepMeaningEmoji(stepTitle: string) {
+function getLearnedStepMeaningEmoji(stepTitle: string, guidance = '', emojiPreferences: NavigationEmojiPreference[] = []) {
+  const text = `${stepTitle} ${guidance}`.toLowerCase();
+  let bestEmoji = '';
+  let bestScore = 0;
+
+  emojiPreferences.forEach((item) => {
+    const keyword = item.keyword?.trim().toLowerCase();
+    if (!keyword || !item.emoji) return;
+
+    let score = 0;
+    if (text.includes(keyword)) {
+      score = keyword.length * 10 + item.weight * 5;
+    } else {
+      score = scoreKeywordMatch(text.replace(/\s+/g, ''), keyword.replace(/\s+/g, '')) + item.weight * 3;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestEmoji = item.emoji;
+    }
+  });
+
+  return bestScore > 0 ? bestEmoji : '';
+}
+
+function getStepMeaningEmoji(stepTitle: string, guidance = '', customEmoji?: string, emojiPreferences: NavigationEmojiPreference[] = []) {
+  if (customEmoji?.trim()) return customEmoji.trim();
+
+  const learnedEmoji = getLearnedStepMeaningEmoji(stepTitle, guidance, emojiPreferences);
+  if (learnedEmoji) return learnedEmoji;
+
   const title = stepTitle.toLowerCase().replace(/\s+/g, '');
 
   let bestEmoji = '🧩';
@@ -399,7 +503,7 @@ function getCollectedEmojiLayout(index: number, seedKey: string, columnCount: nu
 }
 
 
-function buildCollectedStepEmojis(session: NavigationSession, now = Date.now()) {
+function buildCollectedStepEmojis(session: NavigationSession, emojiPreferences: NavigationEmojiPreference[] = [], now = Date.now()) {
   const completedSteps = session.executionSteps
     .filter((step) => step.status === 'completed' && step.completedAt)
     .sort((a, b) => new Date(a.completedAt || 0).getTime() - new Date(b.completedAt || 0).getTime());
@@ -408,7 +512,7 @@ function buildCollectedStepEmojis(session: NavigationSession, now = Date.now()) 
 
   return uniqueCompletedSteps.map((step, index, list) => ({
     id: `collected-${step.id}`,
-    emoji: getStepMeaningEmoji(step.title),
+    emoji: getStepMeaningEmoji(step.title, step.guidance, step.meaningEmoji, emojiPreferences),
     stepId: step.id,
     isFresh: index === list.length - 1 && session.status === 'active' && now - new Date(step.completedAt || now).getTime() < 90000,
   }));
@@ -968,7 +1072,7 @@ function NavigationGroupGoalSummary({ group }: { group: NavigationTimelineGroup 
 }
 
 function NavigationSettingsSheet({ onClose }: { onClose: () => void }) {
-  const { preferences, updatePreferences, setCustomPrompt, resetPreferences } = useNavigationPreferenceStore();
+  const { preferences, updatePreferences, setCustomPrompt, resetPreferences, removeEmojiPreference } = useNavigationPreferenceStore();
 
   return (
     <div className="navigation-sheet-backdrop">
@@ -1047,6 +1151,34 @@ function NavigationSettingsSheet({ onClose }: { onClose: () => void }) {
             rows={3}
           />
         </label>
+
+        <div className="navigation-field">
+          <span>已学会的 Emoji 习惯</span>
+          <div className="navigation-card-list">
+            {preferences.emojiPreferences.length === 0 ? (
+              <div className="navigation-group-card">
+                <strong>还没有学习记录</strong>
+                <p>你在导航里双击步骤 emoji 手动修改后，我会慢慢记住你的习惯。</p>
+              </div>
+            ) : (
+              preferences.emojiPreferences.slice(0, 24).map((item) => (
+                <div key={`${item.keyword}-${item.emoji}`} className="navigation-group-card">
+                  <div className="navigation-inline-row">
+                    <strong>{item.emoji} {item.keyword}</strong>
+                    <button
+                      className="navigation-inline-icon-button"
+                      onClick={() => removeEmojiPreference({ keyword: item.keyword, emoji: item.emoji })}
+                      title="删除这条学习记录"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <p>学习次数：{item.weight} · 最近更新：{new Date(item.updatedAt).toLocaleDateString('zh-CN')}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
 
         <div className="navigation-sheet-actions">
           <button className="navigation-secondary-button" onClick={resetPreferences}>恢复默认</button>
@@ -1661,12 +1793,14 @@ function NavigationPreview({
   const updatePreviewStep = useNavigationStore((state) => state.updatePreviewStep);
   const replacePreviewSteps = useNavigationStore((state) => state.replacePreviewSteps);
   const preferences = useNavigationPreferenceStore((state) => state.preferences);
+  const learnStepEmojiPreference = useNavigationPreferenceStore((state) => state.learnStepEmojiPreference);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showPreState, setShowPreState] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
   const [isRegeneratingTitles, setIsRegeneratingTitles] = useState(false);
   const [isRegeneratingSteps, setIsRegeneratingSteps] = useState(false);
+  const [emojiEditingStepId, setEmojiEditingStepId] = useState<string | null>(null);
   const [krSheetGroupId, setKrSheetGroupId] = useState<string | null>(null);
   const isInsertedFlowPreview = session.previewMode === 'inserted_flow';
   const krSheetGroup = krSheetGroupId
@@ -1725,6 +1859,19 @@ function NavigationPreview({
       })));
     }
     setIsRegeneratingSteps(false);
+  };
+
+  const handleEditPreviewStepEmoji = (step: NavigationExecutionStep, nextEmoji: string) => {
+    const currentEmoji = getStepMeaningEmoji(step.title, step.guidance, step.meaningEmoji, preferences.emojiPreferences);
+    if (!nextEmoji || nextEmoji === currentEmoji) return;
+
+    updatePreviewStep(step.id, { meaningEmoji: nextEmoji });
+    learnStepEmojiPreference({
+      title: step.title,
+      guidance: step.guidance,
+      emoji: nextEmoji,
+    });
+    setEmojiEditingStepId(null);
   };
 
   return (
@@ -1895,7 +2042,7 @@ function NavigationPreview({
             <TimerReset className="w-4 h-4" />
           </button>
         </div>
-        <div className="navigation-metadata">共 {session.executionSteps.length} 步 · 第一步会尽量无痛启动{isEditMode ? ' · 双击可修改' : ''}</div>
+        <div className="navigation-metadata">共 {session.executionSteps.length} 步 · 第一步会尽量无痛启动 · 点步骤前面的 emoji 就能改</div>
         <div className="navigation-step-preview-list">
           {session.executionSteps.map((step, index) => {
             const isTitleEditing = editingTarget === `${step.id}:title`;
@@ -1917,13 +2064,32 @@ function NavigationPreview({
                       }}
                     />
                   ) : (
-                    <strong
-                      onClick={() => isEditMode && setEditingTarget(`${step.id}:title`)}
-                      onDoubleClick={() => isEditMode && setEditingTarget(`${step.id}:title`)}
-                      className={isEditMode ? 'navigation-editable-text' : ''}
-                    >
-                      {step.title}
-                    </strong>
+                    <div className="navigation-inline-row navigation-inline-row-top">
+                      <div className="navigation-emoji-anchor">
+                        <button
+                          type="button"
+                          className={`navigation-inline-icon-button is-active ${emojiEditingStepId === step.id ? 'is-open' : ''}`}
+                          onClick={() => setEmojiEditingStepId((prev) => prev === step.id ? null : step.id)}
+                          onDoubleClick={() => setEmojiEditingStepId((prev) => prev === step.id ? null : step.id)}
+                          title="点这里修改这一步的 emoji"
+                        >
+                          <span aria-hidden="true">{getStepMeaningEmoji(step.title, step.guidance, step.meaningEmoji, preferences.emojiPreferences)}</span>
+                        </button>
+                        {emojiEditingStepId === step.id && (
+                          <NavigationEmojiEditor
+                            currentEmoji={getStepMeaningEmoji(step.title, step.guidance, step.meaningEmoji, preferences.emojiPreferences)}
+                            onSelect={(emoji) => handleEditPreviewStepEmoji(step, emoji)}
+                            onClose={() => setEmojiEditingStepId(null)}
+                          />
+                        )}
+                      </div>
+                      <strong
+                        onClick={() => isEditMode && setEditingTarget(`${step.id}:title`)}
+                        className={isEditMode ? 'navigation-editable-text' : ''}
+                      >
+                        {step.title}
+                      </strong>
+                    </div>
                   )}
                   {isGuidanceEditing ? (
                     <textarea
@@ -1939,13 +2105,15 @@ function NavigationPreview({
                       }}
                     />
                   ) : (
-                    <p
-                      onClick={() => isEditMode && setEditingTarget(`${step.id}:guidance`)}
-                      onDoubleClick={() => isEditMode && setEditingTarget(`${step.id}:guidance`)}
-                      className={isEditMode ? 'navigation-editable-text' : ''}
-                    >
-                      {step.guidance}
-                    </p>
+                    <>
+                      <p
+                        onClick={() => isEditMode && setEditingTarget(`${step.id}:guidance`)}
+                        onDoubleClick={() => isEditMode && setEditingTarget(`${step.id}:guidance`)}
+                        className={isEditMode ? 'navigation-editable-text' : ''}
+                      >
+                        {step.guidance}
+                      </p>
+                    </>
                   )}
               </div>
             </div>
@@ -1993,6 +2161,9 @@ function NavigationScene({
   sceneElapsedMinutes,
   totalElapsedMinutes,
   currentStepTitle,
+  currentStepGuidance,
+  currentStepEmoji,
+  emojiPreferences,
   collectedEmojis,
   idleMarkCount,
   driftOffset,
@@ -2004,12 +2175,15 @@ function NavigationScene({
   sceneElapsedMinutes: number;
   totalElapsedMinutes: number;
   currentStepTitle: string;
+  currentStepGuidance: string;
+  currentStepEmoji?: string;
+  emojiPreferences: NavigationEmojiPreference[];
   collectedEmojis: NavigationCollectedEmojiItem[];
   idleMarkCount: number;
   driftOffset: { x: number; y: number };
 }) {
   const feelingEmoji = getEmojiByScore(executionScore);
-  const stepEmoji = getStepMeaningEmoji(currentStepTitle);
+  const stepEmoji = getStepMeaningEmoji(currentStepTitle, currentStepGuidance, currentStepEmoji, emojiPreferences);
   const normalizedScore = clampScore(executionScore);
   const normalizedEnergy = clampScore(energyLevel);
   const sceneProgress = clampScore((normalizedScore * 0.72) + (normalizedEnergy * 0.28));
@@ -2265,6 +2439,9 @@ function NavigationStepCard({
   onOpenDifficulty,
   onOpenFocus,
   onOpenHandsFree,
+  onEditStepEmoji,
+  isEmojiEditorOpen,
+  emojiEditor,
   isVoiceMode,
   isListening,
   voiceStatusText,
@@ -2277,6 +2454,7 @@ function NavigationStepCard({
   energyLevel,
   recentExecutionGain,
   collectedEmojis,
+  emojiPreferences,
   idleMarkCount,
   driftOffset,
 }: {
@@ -2293,6 +2471,9 @@ function NavigationStepCard({
   onOpenDifficulty: () => void;
   onOpenFocus: () => void;
   onOpenHandsFree: () => void;
+  onEditStepEmoji: () => void;
+  isEmojiEditorOpen: boolean;
+  emojiEditor?: React.ReactNode;
   isVoiceMode: boolean;
   isListening: boolean;
   voiceStatusText: string;
@@ -2305,6 +2486,7 @@ function NavigationStepCard({
   energyLevel: number;
   recentExecutionGain: number;
   collectedEmojis: NavigationCollectedEmojiItem[];
+  emojiPreferences: NavigationEmojiPreference[];
   idleMarkCount: number;
   driftOffset: { x: number; y: number };
 }) {
@@ -2319,9 +2501,9 @@ function NavigationStepCard({
         </div>
       )}
 
-      <div className="navigation-step-reference-visual-wrap">
+      <div className="navigation-step-reference-visual-wrap" title="步骤表意场景">
         <NavigationScene
-          key={`${step.id}-${recentExecutionGain}-${Math.floor(sceneElapsedMinutes / 2)}-${collectedEmojis.length}`}
+          key={`${step.id}-${recentExecutionGain}-${Math.floor(sceneElapsedMinutes / 2)}-${collectedEmojis.length}-${step.meaningEmoji || ''}`}
           executionScore={executionScore}
           energyLevel={energyLevel}
           recentGain={recentExecutionGain}
@@ -2329,6 +2511,9 @@ function NavigationStepCard({
           sceneElapsedMinutes={sceneElapsedMinutes}
           totalElapsedMinutes={totalSessionElapsedMinutes}
           currentStepTitle={step.title}
+          currentStepGuidance={step.guidance}
+          currentStepEmoji={step.meaningEmoji}
+          emojiPreferences={emojiPreferences}
           collectedEmojis={collectedEmojis}
           idleMarkCount={idleMarkCount}
           driftOffset={driftOffset}
@@ -2337,7 +2522,21 @@ function NavigationStepCard({
 
       <div className="navigation-step-reference-copy">
         <div className="navigation-step-reference-copy-card">
-          <h3>{step.title}</h3>
+          <div className="navigation-inline-row navigation-inline-row-top">
+            <div className="navigation-emoji-anchor navigation-emoji-anchor-inline">
+              <button
+                type="button"
+                className={`navigation-inline-icon-button ${isEmojiEditorOpen ? 'is-open' : ''}`}
+                onClick={onEditStepEmoji}
+                onDoubleClick={onEditStepEmoji}
+                title="点这里修改这一步的 emoji"
+              >
+                <span aria-hidden="true">{getStepMeaningEmoji(step.title, step.guidance, step.meaningEmoji, emojiPreferences)}</span>
+              </button>
+              {isEmojiEditorOpen ? emojiEditor : null}
+            </div>
+            <h3>{step.title}</h3>
+          </div>
           <p>{step.guidance}</p>
         </div>
       </div>
@@ -2584,7 +2783,7 @@ function NavigationActivePlanEditor({
                                     />
                                   ) : (
                                     <strong onDoubleClick={() => setEditingTarget(`${step.id}:title`)} className="navigation-editable-text">
-                                      {step.title}
+                                      {getStepMeaningEmoji(step.title, step.guidance, step.meaningEmoji, preferences.emojiPreferences)} {step.title}
                                     </strong>
                                   )}
                                   {isCurrent && <em className="navigation-plan-current-badge">当前步骤</em>}
@@ -2626,6 +2825,7 @@ function NavigationActivePlanEditor({
 
 function NavigationSessionView({ session }: { session: NavigationSession }) {
   const preferences = useNavigationPreferenceStore((state) => state.preferences);
+  const learnStepEmojiPreference = useNavigationPreferenceStore((state) => state.learnStepEmojiPreference);
   const completeCurrentStep = useNavigationStore((state) => state.completeCurrentStep);
   const finalizeSession = useNavigationStore((state) => state.finalizeSession);
   const decayExecutionScore = useNavigationStore((state) => state.decayExecutionScore);
@@ -2640,6 +2840,7 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
   const markHandsFreeIntroSeen = useNavigationStore((state) => state.markHandsFreeIntroSeen);
   const setHandsFreeWaiting = useNavigationStore((state) => state.setHandsFreeWaiting);
   const setLastVoiceTranscript = useNavigationStore((state) => state.setLastVoiceTranscript);
+  const updateActiveStep = useNavigationStore((state) => state.updateActiveStep);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isTaskListOpen, setIsTaskListOpen] = useState(false);
   const [isFocusOpen, setIsFocusOpen] = useState(false);
@@ -2655,6 +2856,7 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
   const [focusFinishedNotice, setFocusFinishedNotice] = useState<{ stepTitle: string; minutes: number } | null>(null);
   const [showHandsFreeIntro, setShowHandsFreeIntro] = useState(false);
   const [showDifficultySheet, setShowDifficultySheet] = useState(false);
+  const [emojiEditorOpen, setEmojiEditorOpen] = useState(false);
   const [difficultyInput, setDifficultyInput] = useState('');
   const [difficultyMessage, setDifficultyMessage] = useState('');
   const [isResolvingDifficulty, setIsResolvingDifficulty] = useState(false);
@@ -2693,7 +2895,7 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
   const isInsertedStep = currentStep?.source === 'difficulty_detour' || currentStep?.source === 'inserted_flow';
   const sceneExecutionScore = sessionMoodScore(currentStep, isInsertedStep, session);
   const sceneEnergyLevel = sessionMoodEnergy(currentStep, isInsertedStep, session);
-  const collectedEmojis = useMemo(() => buildCollectedStepEmojis(session, elapsedNow), [session, elapsedNow]);
+  const collectedEmojis = useMemo(() => buildCollectedStepEmojis(session, preferences.emojiPreferences, elapsedNow), [session, preferences.emojiPreferences, elapsedNow]);
   const activeIdleMarks = isSleepProtectedStep(currentStep?.title)
     ? 0
     : Math.max(0, Math.floor((elapsedNow - new Date(session.lastProgressAt || session.startedAt || session.createdAt).getTime()) / (30 * 60 * 1000)));
@@ -2705,6 +2907,19 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
   const speechTextRef = useRef('');
   const pauseListeningUntilRef = useRef(0);
   const { speak, stop, pause, resume, isSpeaking, isEdgeVoiceConfigured, playbackSource, didFallbackToSystem } = useSpeechSynthesis({ voiceMode: preferredVoiceMode });
+  const handleEditCurrentStepEmoji = (nextEmoji: string) => {
+    if (!currentStep) return;
+    const currentEmoji = getStepMeaningEmoji(currentStep.title, currentStep.guidance, currentStep.meaningEmoji, preferences.emojiPreferences);
+    if (!nextEmoji || nextEmoji === currentEmoji) return;
+
+    updateActiveStep(currentStep.id, { meaningEmoji: nextEmoji });
+    learnStepEmojiPreference({
+      title: currentStep.title,
+      guidance: currentStep.guidance,
+      emoji: nextEmoji,
+    });
+    setEmojiEditorOpen(false);
+  };
   const unlockVoiceCommand = () => {
     window.setTimeout(() => {
       voiceCommandLockRef.current = false;
@@ -3171,6 +3386,7 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
         sceneElapsedMinutes={sceneElapsedMinutes}
         totalSessionElapsedMinutes={totalSessionElapsedMinutes}
         collectedEmojis={collectedEmojis}
+        emojiPreferences={preferences.emojiPreferences}
         driftOffset={driftOffset}
         onContinue={() => {
           stopListening();
@@ -3187,6 +3403,15 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
         isFinalStepAwaitingCompletion={isFinalStepAwaitingCompletion}
         onOpenDifficulty={() => setShowDifficultySheet(true)}
         onOpenFocus={() => setIsFocusOpen(true)}
+        onEditStepEmoji={() => setEmojiEditorOpen((prev) => !prev)}
+        isEmojiEditorOpen={emojiEditorOpen}
+        emojiEditor={(
+          <NavigationEmojiEditor
+            currentEmoji={getStepMeaningEmoji(currentStep.title, currentStep.guidance, currentStep.meaningEmoji, preferences.emojiPreferences)}
+            onSelect={handleEditCurrentStepEmoji}
+            onClose={() => setEmojiEditorOpen(false)}
+          />
+        )}
         onOpenHandsFree={() => {
           if (handsFreeEnabled) {
             setHandsFreeEnabled(false);
@@ -3210,6 +3435,7 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
         recentExecutionGain={session.recentExecutionGain || 0}
         idleMarkCount={activeIdleMarks}
       />
+
 
       {showDifficultySheet && (
         <NavigationDifficultySheet

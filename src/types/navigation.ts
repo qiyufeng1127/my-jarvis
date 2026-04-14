@@ -3,6 +3,7 @@ export interface NavigationExecutionStep {
   groupId: string;
   title: string;
   guidance: string;
+  meaningEmoji?: string;
   focusMinutes?: number;
   estimatedMinutes?: number;
   location?: string;
@@ -127,6 +128,13 @@ export interface NavigationParsedRules {
   suggestQuickNutritiousMealWhenCooking?: boolean;
 }
 
+export interface NavigationEmojiPreference {
+  keyword: string;
+  emoji: string;
+  weight: number;
+  updatedAt: string;
+}
+
 export interface NavigationPreferences {
   customPrompt: string;
   granularity: 'ultra_fine' | 'balanced' | 'slightly_coarse';
@@ -135,6 +143,7 @@ export interface NavigationPreferences {
   tone: 'gentle' | 'calm' | 'encouraging';
   homeLayout: string;
   parsedRules: NavigationParsedRules;
+  emojiPreferences: NavigationEmojiPreference[];
   updatedAt: string;
 }
 

@@ -192,6 +192,7 @@ export default function NewTimelineView({
   const [draggedTask, setDraggedTask] = useState<string | null>(null);
   const [dragStartY, setDragStartY] = useState<number>(0);
   const [dragStartTime, setDragStartTime] = useState<Date | null>(null);
+  const [currentViewTime, setCurrentViewTime] = useState(() => Date.now());
   const dragRef = useRef<HTMLDivElement>(null);
 
   // 通知父组件编辑状态变化
@@ -1037,6 +1038,39 @@ export default function NewTimelineView({
     return '✅';
   };
 
+  const getSnowProgress = (task: Task | undefined) => {
+    if (!task) return 0;
+
+    const persistentMarks = task.persistentDelayMarks || 0;
+    const startTimeouts = task.startTimeoutCount || 0;
+    const completeTimeouts = task.completeTimeoutCount || 0;
+    const baseLevel = persistentMarks * 18 + startTimeouts * 10 + completeTimeouts * 12;
+
+    let activeGrowth = 0;
+    const now = currentViewTime;
+
+    if (task.status === 'waiting_start' && task.scheduledStart) {
+      const startAt = new Date(task.scheduledStart).getTime();
+      if (now > startAt) {
+        const overdueMinutes = (now - startAt) / 60000;
+        activeGrowth = Math.min(28, overdueMinutes * 1.8);
+      }
+    }
+
+    if (task.status === 'in_progress' && task.scheduledEnd) {
+      const endAt = new Date(task.scheduledEnd).getTime();
+      if (now > endAt) {
+        const overdueMinutes = (now - endAt) / 60000;
+        activeGrowth = Math.max(activeGrowth, Math.min(34, overdueMinutes * 1.2));
+      } else {
+        const remainingRatio = Math.max(0, (endAt - now) / Math.max(endAt - (task.actualStart ? new Date(task.actualStart).getTime() : now), 1));
+        activeGrowth = Math.max(activeGrowth, Math.min(10, (1 - remainingRatio) * 10));
+      }
+    }
+
+    return Math.max(0, Math.min(82, baseLevel + activeGrowth));
+  };
+
   // 根据任务获取关联目标文本
   const getGoalText = (task: Task): string => {
     const linkedGoalIds = Object.keys(task.longTermGoals || {}).filter((goalId) => (task.longTermGoals?.[goalId] || 0) > 0);
@@ -1409,7 +1443,12 @@ export default function NewTimelineView({
   
   // 组件卸载时清理所有定时器
   useEffect(() => {
+    const timer = window.setInterval(() => {
+      setCurrentViewTime(Date.now());
+    }, 1000);
+
     return () => {
+      window.clearInterval(timer);
       TaskMonitor.stopAll();
     };
   }, []);
@@ -3585,6 +3624,8 @@ export default function NewTimelineView({
         {timeBlocks.map((block, index) => {
         const isExpanded = expandedCards.has(block.id);
         const gap = gaps.find(g => g.id === `gap-${index}`);
+        const taskRecord = allTasks.find(t => t.id === block.id);
+        const snowProgress = getSnowProgress(taskRecord);
 
         return (
           <div key={block.id}>
@@ -3610,7 +3651,7 @@ export default function NewTimelineView({
               {/* 任务卡片主体 - 手机版缩小 */}
               <div 
                 data-task-id={block.id}
-                className={`flex-1 ${isMobile ? 'rounded-xl' : 'rounded-2xl'} shadow-lg overflow-hidden relative`}
+                className={`flex-1 ${isMobile ? 'rounded-xl' : 'rounded-2xl'} shadow-lg overflow-hidden relative isolate`}
                 style={{ 
                   background: block.color,
                   opacity: block.isCompleted ? (block.isMutterRecord ? 0.98 : 0.6) : 1,
@@ -3619,6 +3660,34 @@ export default function NewTimelineView({
                   border: undefined,
                 }}
               >
+                {/* 积雪层 */}
+                {snowProgress > 0 && !block.isMutterRecord && (
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] overflow-hidden rounded-b-2xl">
+                    <div
+                      className="relative w-full transition-all duration-1000 ease-out"
+                      style={{
+                        height: `${snowProgress}%`,
+                        background: 'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(244,248,255,0.72) 35%, rgba(232,239,248,0.92) 100%)',
+                        boxShadow: 'inset 0 10px 18px rgba(255,255,255,0.22)',
+                      }}
+                    >
+                      <div
+                        className="absolute inset-x-[-8%] top-[-10px] h-5"
+                        style={{
+                          background: 'radial-gradient(circle at 8% 120%, rgba(255,255,255,0.95) 0 18px, transparent 19px), radial-gradient(circle at 28% 120%, rgba(255,255,255,0.9) 0 22px, transparent 23px), radial-gradient(circle at 48% 120%, rgba(255,255,255,0.96) 0 20px, transparent 21px), radial-gradient(circle at 68% 120%, rgba(255,255,255,0.88) 0 24px, transparent 25px), radial-gradient(circle at 88% 120%, rgba(255,255,255,0.94) 0 18px, transparent 19px)',
+                          opacity: 0.95,
+                        }}
+                      />
+                      <div
+                        className="absolute right-3 top-2 text-[10px] font-black tracking-[0.2em]"
+                        style={{ color: 'rgba(67, 90, 111, 0.72)' }}
+                      >
+                        积雪 {Math.round(snowProgress)}%
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* 任务状态标记 - 右上角显示超时和低效率标记 */}
                 <TaskStatusBadge
                   taskId={block.id}
@@ -3627,6 +3696,7 @@ export default function NewTimelineView({
                   isCompleted={block.isCompleted}
                   startTimeoutCount={allTasks.find(t => t.id === block.id)?.startTimeoutCount || 0}
                   completeTimeoutCount={allTasks.find(t => t.id === block.id)?.completeTimeoutCount || 0}
+                  persistentDelayMarks={allTasks.find(t => t.id === block.id)?.persistentDelayMarks || 0}
                   efficiencyLevel={block.efficiencyLevel}
                   completionEfficiency={block.completionEfficiency}
                   mandatoryReflection={allTasks.find(t => t.id === block.id)?.mandatoryReflection}
@@ -3727,16 +3797,18 @@ export default function NewTimelineView({
                          }, actualEndTime, goldReward);
                        }
                      }}
-                     onTimeoutUpdate={(startTimeoutCount, completeTimeoutCount) => {
+                     onTimeoutUpdate={(startTimeoutCount, completeTimeoutCount, persistentDelayMarks) => {
                        const taskRecord = allTasks.find((item) => item.id === block.id);
                        const prevStartTimeoutCount = taskRecord?.startTimeoutCount || 0;
                        const prevCompleteTimeoutCount = taskRecord?.completeTimeoutCount || 0;
+                       const prevPersistentDelayMarks = taskRecord?.persistentDelayMarks || 0;
                        const nextStartTimeoutFlag = startTimeoutCount > 0;
                        const nextCompleteTimeoutFlag = completeTimeoutCount > 0;
 
                        if (
                          prevStartTimeoutCount === startTimeoutCount &&
                          prevCompleteTimeoutCount === completeTimeoutCount &&
+                         prevPersistentDelayMarks === persistentDelayMarks &&
                          !!taskRecord?.startVerificationTimeout === nextStartTimeoutFlag &&
                          !!taskRecord?.completionTimeout === nextCompleteTimeoutFlag
                        ) {
@@ -3744,13 +3816,14 @@ export default function NewTimelineView({
                        }
 
                        // 保存超时数据到任务对象
-                       console.log(`💾 保存超时数据: 启动${startTimeoutCount}次, 完成${completeTimeoutCount}次`);
+                       console.log(`💾 保存超时数据: 启动${startTimeoutCount}次, 完成${completeTimeoutCount}次, 红叉${persistentDelayMarks}次`);
                        
                        onTaskUpdate(block.id, {
                          startVerificationTimeout: nextStartTimeoutFlag,
                          startTimeoutCount: startTimeoutCount,
                          completionTimeout: nextCompleteTimeoutFlag,
                          completeTimeoutCount: completeTimeoutCount,
+                         persistentDelayMarks,
                        });
 
                        if (startTimeoutCount >= START_DELAY_FORM_THRESHOLD) {
@@ -3867,6 +3940,21 @@ export default function NewTimelineView({
                       </div>
                     ) : (
                     <>
+                    {snowProgress > 0 && (
+                      <div className="mb-1 flex items-center gap-2">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/20">
+                          <div
+                            className="h-full rounded-full transition-all duration-1000 ease-out"
+                            style={{
+                              width: `${Math.max(8, Math.min(100, snowProgress))}%`,
+                              background: 'linear-gradient(90deg, rgba(255,255,255,0.92) 0%, rgba(236,244,255,0.98) 100%)',
+                              boxShadow: '0 0 10px rgba(255,255,255,0.35)',
+                            }}
+                          />
+                        </div>
+                        <span className="text-[10px] font-black tracking-[0.16em] text-white/90">雪 {Math.round(snowProgress)}%</span>
+                      </div>
+                    )}
                     {linkedTaskId === block.id && (
                       <div
                         className="mb-2 rounded-full px-3 py-1 text-[10px] font-black tracking-[0.14em]"

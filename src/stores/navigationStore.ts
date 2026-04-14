@@ -314,6 +314,7 @@ const mergeInsertedFlowIntoSession = (
       groupId: mappedGroupId,
       title: step.title,
       guidance: step.guidance,
+      meaningEmoji: step.meaningEmoji,
       focusMinutes: step.focusMinutes,
       estimatedMinutes: step.estimatedMinutes,
       location: step.location,
@@ -539,6 +540,7 @@ export const useNavigationStore = create<NavigationStoreState>()(
             previewMode: 'initial',
             executionSteps: alignedPlan.executionSteps.map((step, index) => ({
               ...step,
+              meaningEmoji: step.meaningEmoji,
               status: 'pending',
               sortOrder: index,
             })),
@@ -572,6 +574,7 @@ export const useNavigationStore = create<NavigationStoreState>()(
 
         const rawExecutionSteps = (partial.executionSteps || session.executionSteps).map((step, index) => ({
           ...step,
+          meaningEmoji: step.meaningEmoji || session.executionSteps[index]?.meaningEmoji,
           status: session.executionSteps[index]?.status || 'pending' as const,
           sortOrder: index,
         }));
@@ -838,6 +841,7 @@ export const useNavigationStore = create<NavigationStoreState>()(
                 groupId: step.groupId,
                 title: step.title,
                 guidance: step.guidance,
+                meaningEmoji: step.meaningEmoji,
                 focusMinutes: step.focusMinutes,
                 estimatedMinutes: step.estimatedMinutes,
                 location: step.location,

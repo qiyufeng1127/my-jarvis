@@ -1052,6 +1052,102 @@
   color: var(--color-primary);
 }
 
+.navigation-emoji-editor-section {
+  margin-top: 12px;
+}
+
+.navigation-emoji-anchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.navigation-emoji-anchor-inline {
+  align-self: flex-start;
+}
+
+.navigation-emoji-editor {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 30;
+  width: 212px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 249, 252, 0.98), rgba(255, 241, 247, 0.97));
+  border: 1px solid rgba(214, 132, 162, 0.22);
+  box-shadow: 0 14px 30px rgba(163, 72, 108, 0.14);
+}
+
+.navigation-emoji-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.navigation-emoji-custom-trigger {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 12px;
+  border: 1px solid rgba(214, 132, 162, 0.22);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 21px;
+  line-height: 1;
+}
+
+.navigation-emoji-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.navigation-emoji-choice {
+  min-height: 36px;
+  border: 1px solid rgba(214, 132, 162, 0.18);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.82);
+  font-size: 20px;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.navigation-emoji-choice.is-active {
+  border-color: rgba(198, 83, 134, 0.48);
+  box-shadow: 0 10px 24px rgba(198, 83, 134, 0.14);
+  transform: translateY(-1px);
+}
+
+.navigation-inline-icon-button.is-open {
+  border-color: rgba(198, 83, 134, 0.48);
+  box-shadow: 0 10px 24px rgba(198, 83, 134, 0.14);
+  background: rgba(255, 246, 250, 0.98);
+}
+
+.navigation-emoji-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.navigation-emoji-editor-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.navigation-emoji-editor-apply {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+}
+
 .navigation-primary-button:hover,
 .navigation-secondary-button:hover,
 .navigation-soft-button:hover,

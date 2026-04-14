@@ -4,7 +4,7 @@
  */
 
 import { useState, useMemo } from 'react';
-import { AlertTriangle, ShieldAlert } from 'lucide-react';
+import { ShieldAlert } from 'lucide-react';
 
 interface TaskStatusBadgeProps {
   taskId: string;
@@ -13,6 +13,7 @@ interface TaskStatusBadgeProps {
   isCompleted: boolean;
   startTimeoutCount?: number; // 启动超时次数
   completeTimeoutCount?: number; // 完成超时次数
+  persistentDelayMarks?: number; // 持久化拖延标记（红叉）
   efficiencyLevel?: 'excellent' | 'good' | 'average' | 'poor'; // 效率等级
   completionEfficiency?: number; // 完成效率
   mandatoryReflection?: {
@@ -31,6 +32,7 @@ export default function TaskStatusBadge({
   isCompleted,
   startTimeoutCount = 0,
   completeTimeoutCount = 0,
+  persistentDelayMarks = 0,
   efficiencyLevel,
   completionEfficiency,
   mandatoryReflection,
@@ -39,6 +41,7 @@ export default function TaskStatusBadge({
 }: TaskStatusBadgeProps) {
   const [showHistory, setShowHistory] = useState(false);
   const totalTimeouts = startTimeoutCount + completeTimeoutCount;
+  const visibleIssueCount = totalTimeouts + persistentDelayMarks;
   const hasLowEfficiency = efficiencyLevel === 'poor' || efficiencyLevel === 'average' || (completionEfficiency !== undefined && completionEfficiency < 60);
   const hasMandatoryReflection = mandatoryReflection?.required && !mandatoryReflection?.resolved;
   const badgeTone = useMemo(() => {
@@ -48,6 +51,14 @@ export default function TaskStatusBadge({
         icon: '⛔',
         text: '必填',
         title: '必须先填写追责表单',
+      };
+    }
+    if (persistentDelayMarks > 0) {
+      return {
+        bg: 'rgba(220, 38, 38, 0.95)',
+        icon: '❌',
+        text: String(persistentDelayMarks),
+        title: '查看拖延警告历史',
       };
     }
     if (totalTimeouts > 0) {
@@ -67,7 +78,7 @@ export default function TaskStatusBadge({
   });
   
   // 如果没有任何标记，不显示
-  if (totalTimeouts === 0 && !hasLowEfficiency && !hasMandatoryReflection) {
+  if (visibleIssueCount === 0 && !hasLowEfficiency && !hasMandatoryReflection) {
     return null;
   }
 
@@ -142,6 +153,19 @@ export default function TaskStatusBadge({
                     <p>• 当前任务已被锁定，必须先提交表单。</p>
                     <p>• 未提交前：不能完成任务、不能删除任务、不能关闭追责表单。</p>
                     <p>• 触发原因：{mandatoryReflection?.trigger === 'start_delay' ? '启动拖延次数过多' : '任务低效率超时'}</p>
+                  </div>
+                </div>
+              )}
+
+              {persistentDelayMarks > 0 && (
+                <div className="p-3 bg-rose-50 border border-rose-300 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-lg">❌</span>
+                    <span className="font-semibold text-rose-800">拖延警告</span>
+                  </div>
+                  <div className="text-sm text-gray-700">
+                    <p>• 累计警告：<span className="font-bold text-rose-700">{persistentDelayMarks} 次</span></p>
+                    <p className="text-xs text-gray-500 mt-1">每次超过30分钟没有点继续，就会永久保留一个红叉警告</p>
                   </div>
                 </div>
               )}

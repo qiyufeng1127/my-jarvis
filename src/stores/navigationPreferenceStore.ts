@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { NavigationParsedRules, NavigationPreferences } from '@/types/navigation';
+import type { NavigationEmojiPreference, NavigationParsedRules, NavigationPreferences } from '@/types/navigation';
 
 const DEFAULT_CUSTOM_PROMPT = `我是一个infp，摩羯座，adhd的自由职业女生，我尤其的启动困难，所以第一个步骤一定要无痛快速启动！！！
 一个任务至少十个步骤以上，并且启动超级简单。
@@ -42,6 +42,23 @@ const DEFAULT_PARSED_RULES: NavigationParsedRules = {
 
 const DEFAULT_HOME_LAYOUT = '楼上：卧室、拍摄间。楼下：厕所、进门区、客厅、厨房、工作区（工作基本都在楼下完成）。';
 
+const DEFAULT_EMOJI_PREFERENCES: NavigationEmojiPreference[] = [];
+
+function extractEmojiLearningKeywords(text: string) {
+  const normalized = text
+    .toLowerCase()
+    .replace(/[\n\r]+/g, ' ')
+    .replace(/[，。！？、,.!?;:：；()（）\[\]{}“”"'‘’/\\|+-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!normalized) return [];
+
+  const directPhrases = normalized.match(/[\u4e00-\u9fa5]{2,8}|[a-z0-9]{3,}/g) || [];
+  const unique = Array.from(new Set(directPhrases.map((item) => item.trim()).filter(Boolean)));
+  return unique.slice(0, 12);
+}
+
 const createDefaultPreferences = (): NavigationPreferences => ({
   customPrompt: DEFAULT_CUSTOM_PROMPT,
   granularity: 'ultra_fine',
@@ -50,6 +67,7 @@ const createDefaultPreferences = (): NavigationPreferences => ({
   tone: 'gentle',
   homeLayout: DEFAULT_HOME_LAYOUT,
   parsedRules: DEFAULT_PARSED_RULES,
+  emojiPreferences: DEFAULT_EMOJI_PREFERENCES,
   updatedAt: new Date().toISOString(),
 });
 
@@ -58,6 +76,8 @@ interface NavigationPreferenceState {
   updatePreferences: (updates: Partial<NavigationPreferences>) => void;
   setCustomPrompt: (prompt: string) => void;
   setParsedRules: (rules: Partial<NavigationParsedRules>) => void;
+  learnStepEmojiPreference: (payload: { title: string; guidance?: string; emoji: string }) => void;
+  removeEmojiPreference: (payload: { keyword: string; emoji: string }) => void;
   resetPreferences: () => void;
 }
 
@@ -91,6 +111,55 @@ export const useNavigationPreferenceStore = create<NavigationPreferenceState>()(
               ...state.preferences.parsedRules,
               ...rules,
             },
+            updatedAt: new Date().toISOString(),
+          },
+        }));
+      },
+      learnStepEmojiPreference: ({ title, guidance, emoji }) => {
+        const keywords = extractEmojiLearningKeywords(`${title} ${guidance || ''}`);
+        if (!emoji || keywords.length === 0) return;
+
+        set((state) => {
+          const now = new Date().toISOString();
+          const existing = [...state.preferences.emojiPreferences];
+
+          keywords.forEach((keyword) => {
+            const matchIndex = existing.findIndex((item) => item.keyword === keyword && item.emoji === emoji);
+            if (matchIndex >= 0) {
+              existing[matchIndex] = {
+                ...existing[matchIndex],
+                weight: existing[matchIndex].weight + 1,
+                updatedAt: now,
+              };
+            } else {
+              existing.push({
+                keyword,
+                emoji,
+                weight: 1,
+                updatedAt: now,
+              });
+            }
+          });
+
+          return {
+            preferences: {
+              ...state.preferences,
+              emojiPreferences: existing
+                .sort((a, b) => {
+                  if (b.weight !== a.weight) return b.weight - a.weight;
+                  return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+                })
+                .slice(0, 400),
+              updatedAt: now,
+            },
+          };
+        });
+      },
+      removeEmojiPreference: ({ keyword, emoji }) => {
+        set((state) => ({
+          preferences: {
+            ...state.preferences,
+            emojiPreferences: state.preferences.emojiPreferences.filter((item) => !(item.keyword === keyword && item.emoji === emoji)),
             updatedAt: new Date().toISOString(),
           },
         }));

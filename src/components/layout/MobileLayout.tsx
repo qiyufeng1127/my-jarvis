@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useKeyboardAvoidance } from '@/hooks';
 import eventBus from '@/utils/eventBus';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGrowthStore } from '@/stores/growthStore';
@@ -78,6 +79,8 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
   const currentLevel = useLevelStore((state) => state.currentLevel);
   const currentExp = useLevelStore((state) => state.currentExp);
   const getCurrentLevelConfig = useLevelStore((state) => state.getCurrentLevelConfig);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const { handleFocusCapture } = useKeyboardAvoidance(scrollContainerRef);
   const getNextLevelConfig = useLevelStore((state) => state.getNextLevelConfig);
   
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
@@ -321,6 +324,8 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
 
       {/* 主内容区域 - 统一安全区滚动容器 */}
       <div 
+        ref={scrollContainerRef}
+        onFocusCapture={handleFocusCapture}
         className="flex-1 overflow-y-auto overflow-x-hidden mobile-app-scroll"
       >
         {bridgePulse && ['memory', 'goals', 'timeline'].includes(activeTab) && (

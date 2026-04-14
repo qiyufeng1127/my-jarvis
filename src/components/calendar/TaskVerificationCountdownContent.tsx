@@ -18,7 +18,7 @@ interface TaskVerificationCountdownContentProps {
   completeKeywords?: string[];
   onStart?: (actualStartTime: Date, calculatedEndTime: Date) => void;
   onComplete?: (actualEndTime: Date) => void;
-  onTimeoutUpdate?: (startTimeoutCount: number, completeTimeoutCount: number) => void;
+  onTimeoutUpdate?: (startTimeoutCount: number, completeTimeoutCount: number, persistentDelayMarks: number) => void;
 }
 
 // 倒计时状态：等待启动 -> 启动倒计时(2分钟) -> 上传验证中 -> 完成倒计时(任务总时长) -> 已完成
@@ -66,6 +66,7 @@ export default function TaskVerificationCountdownContent({
     [taskId]
   );
   const timeoutUpdateRef = useRef(onTimeoutUpdate);
+  const persistentDelayMarksRef = useRef(0);
   const lastHandledTimeoutRef = useRef<{ startDeadline: string | null; taskDeadline: string | null }>({
     startDeadline: null,
     taskDeadline: null,
@@ -94,6 +95,10 @@ export default function TaskVerificationCountdownContent({
   }, [onTimeoutUpdate]);
 
   useEffect(() => {
+    persistentDelayMarksRef.current = persistentDelayMarks;
+  }, [persistentDelayMarks]);
+
+  useEffect(() => {
     taskMetaRef.current = {
       taskId,
       taskTitle,
@@ -108,6 +113,16 @@ export default function TaskVerificationCountdownContent({
   
   // 持久化key
   const storageKey = `countdown_${taskId}`;
+  const delayMarksStorageKey = `delay_marks_${taskId}`;
+  const readStoredDelayMarks = useCallback(() => {
+    try {
+      const savedMarks = Number(localStorage.getItem(delayMarksStorageKey) || '0');
+      return Number.isFinite(savedMarks) ? savedMarks : 0;
+    } catch (error) {
+      console.error('❌ 读取拖延警告失败:', error);
+      return 0;
+    }
+  }, [delayMarksStorageKey]);
   
   // 从localStorage加载状态
   const loadState = useCallback((): CountdownState | null => {
@@ -159,7 +174,7 @@ export default function TaskVerificationCountdownContent({
       console.log(`💾 保存倒计时状态: ${taskTitle}`, normalizedState);
       
       // 通知父组件超时次数更新
-      timeoutUpdateRef.current?.(normalizedState.startTimeoutCount, normalizedState.completeTimeoutCount);
+      timeoutUpdateRef.current?.(normalizedState.startTimeoutCount, normalizedState.completeTimeoutCount, persistentDelayMarksRef.current);
     } catch (error) {
       console.error('❌ 保存倒计时状态失败:', error);
     }
@@ -179,6 +194,29 @@ export default function TaskVerificationCountdownContent({
   }, [loadState, taskTitle, scheduledStart, scheduledEnd]);
   
   const [state, setState] = useState<CountdownState>(initState);
+  const [persistentDelayMarks, setPersistentDelayMarks] = useState(() => readStoredDelayMarks());
+  const [snowPhase, setSnowPhase] = useState(0);
+
+  useEffect(() => {
+    const nextMarks = readStoredDelayMarks();
+    persistentDelayMarksRef.current = nextMarks;
+    setPersistentDelayMarks(nextMarks);
+    timeoutUpdateRef.current?.(state.startTimeoutCount, state.completeTimeoutCount, nextMarks);
+  }, [readStoredDelayMarks, state.startTimeoutCount, state.completeTimeoutCount]);
+
+  const addPersistentDelayMark = useCallback(() => {
+    setPersistentDelayMarks(prev => {
+      const next = prev + 1;
+      persistentDelayMarksRef.current = next;
+      try {
+        localStorage.setItem(delayMarksStorageKey, String(next));
+      } catch (error) {
+        console.error('❌ 保存拖延警告失败:', error);
+      }
+      timeoutUpdateRef.current?.(state.startTimeoutCount, state.completeTimeoutCount, next);
+      return next;
+    });
+  }, [delayMarksStorageKey, state.startTimeoutCount, state.completeTimeoutCount]);
 
   useEffect(() => {
     lastHandledTimeoutRef.current = {
@@ -240,6 +278,14 @@ export default function TaskVerificationCountdownContent({
   // 实时计算剩余时间（基于截止时间）- 使用时间戳确保后台运行
   const [currentTime, setCurrentTime] = useState(Date.now());
   
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setSnowPhase(prev => (prev + 1) % 1000);
+    }, 1600);
+
+    return () => window.clearInterval(timer);
+  }, []);
+  
   const startCountdownLeft = state.startDeadline 
     ? Math.max(0, Math.floor((new Date(state.startDeadline).getTime() - currentTime) / 1000))
     : 120;
@@ -247,6 +293,28 @@ export default function TaskVerificationCountdownContent({
   const taskCountdownLeft = state.taskDeadline
     ? Math.max(0, Math.floor((new Date(state.taskDeadline).getTime() - currentTime) / 1000))
     : 0;
+
+  const getVisibleSnowLevel = () => {
+    const persistentBase = persistentDelayMarks * 18;
+    const timeoutBase = state.startTimeoutCount * 8 + state.completeTimeoutCount * 10;
+
+    if (state.status === 'start_countdown' && state.startDeadline) {
+      const total = 120;
+      const elapsed = total - startCountdownLeft;
+      return Math.min(82, persistentBase + timeoutBase + (elapsed / total) * 26);
+    }
+
+    if (state.status === 'task_countdown' && state.taskDeadline) {
+      const total = Math.max(1, Math.floor((new Date(state.taskDeadline).getTime() - new Date(state.actualStartTime || scheduledStart).getTime()) / 1000));
+      const elapsed = Math.max(0, total - taskCountdownLeft);
+      return Math.min(82, Math.max(persistentBase + timeoutBase, persistentBase + (elapsed / total) * 14));
+    }
+
+    return Math.min(82, persistentBase + timeoutBase);
+  };
+
+  const visibleSnowLevel = getVisibleSnowLevel();
+  const snowBobOffset = (snowPhase % 2 === 0 ? 0 : 2);
 
   // 🔧 注册任务到后台调度服务
   useEffect(() => {
@@ -565,6 +633,36 @@ export default function TaskVerificationCountdownContent({
   // 已移除旧的紧急验证提醒
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [previewType, setPreviewType] = useState<'start' | 'complete' | null>(null);
+  const continueTimeoutRef = useRef<number | null>(null);
+
+  const clearContinueTimeout = useCallback(() => {
+    if (continueTimeoutRef.current) {
+      window.clearTimeout(continueTimeoutRef.current);
+      continueTimeoutRef.current = null;
+    }
+  }, []);
+
+  const schedulePersistentDelayWarning = useCallback(() => {
+    clearContinueTimeout();
+    continueTimeoutRef.current = window.setTimeout(() => {
+      console.log(`❌ 超过30分钟未继续，记录红叉警告: ${taskTitle}`);
+      addPersistentDelayMark();
+    }, 30 * 60 * 1000);
+  }, [addPersistentDelayMark, clearContinueTimeout, taskTitle]);
+
+  useEffect(() => {
+    const isWaitingForContinue = state.status === 'start_countdown' || state.status === 'task_countdown';
+
+    if (isWaitingForContinue) {
+      schedulePersistentDelayWarning();
+    } else {
+      clearContinueTimeout();
+    }
+
+    return () => {
+      clearContinueTimeout();
+    };
+  }, [state.status, schedulePersistentDelayWarning, clearContinueTimeout]);
 
   // 启动任务（无验证直接启动，有验证需上传照片）
   const handleStartTask = useCallback(async (useCamera: boolean = false) => {
@@ -604,6 +702,7 @@ export default function TaskVerificationCountdownContent({
         scheduledStart: state.scheduledStart || scheduledStart.toISOString(),
         scheduledEnd: new Date(now.getTime() + taskSeconds * 1000).toISOString(),
       };
+      clearContinueTimeout();
       setState(newState);
       saveState(newState);
       
@@ -819,6 +918,7 @@ export default function TaskVerificationCountdownContent({
             scheduledStart: state.scheduledStart || scheduledStart.toISOString(),
             scheduledEnd: new Date(now.getTime() + taskSeconds * 1000).toISOString(),
           };
+          clearContinueTimeout();
           setState(newState);
           saveState(newState);
           setIsUploading(false);
@@ -891,7 +991,7 @@ export default function TaskVerificationCountdownContent({
           
           // 🔧 通过 onTimeoutUpdate 回调将超时数据传递给父组件
           if (onTimeoutUpdate) {
-            onTimeoutUpdate(state.startTimeoutCount, state.completeTimeoutCount);
+            onTimeoutUpdate(state.startTimeoutCount, state.completeTimeoutCount, persistentDelayMarks);
           }
           
           localStorage.removeItem(storageKey);
@@ -945,7 +1045,7 @@ export default function TaskVerificationCountdownContent({
       // 5秒后清除日志
       setTimeout(() => clearLogs(), 5000);
     }
-  }, [previewImage, previewType, startKeywords, completeKeywords, state, goldReward, taskId, taskTitle, scheduledEnd, onStart, onComplete, storageKey]);
+  }, [previewImage, previewType, startKeywords, completeKeywords, state, goldReward, taskId, taskTitle, scheduledEnd, onStart, onComplete, storageKey, clearContinueTimeout, persistentDelayMarks]);
 
   // 🔧 新增：取消预览
   const handleCancelPreview = useCallback(() => {
@@ -1015,6 +1115,7 @@ export default function TaskVerificationCountdownContent({
         ...state,
         status: 'completed' as CountdownStatus,
       };
+      clearContinueTimeout();
       setState(newState);
       saveState(newState);
       
@@ -1195,6 +1296,25 @@ export default function TaskVerificationCountdownContent({
   if (state.status === 'start_countdown') {
     return (
       <div className="w-full flex flex-col items-center py-2 bg-transparent relative">
+        {visibleSnowLevel > 0 && (
+          <div className="pointer-events-none absolute inset-x-2 bottom-0 z-0 overflow-hidden rounded-b-2xl">
+            <div
+              className="relative transition-all duration-1000 ease-out"
+              style={{
+                height: `${visibleSnowLevel}%`,
+                transform: `translateY(${snowBobOffset}px)`,
+                background: 'linear-gradient(180deg, rgba(255,255,255,0.16) 0%, rgba(246,249,255,0.7) 42%, rgba(230,238,247,0.92) 100%)',
+              }}
+            >
+              <div
+                className="absolute inset-x-[-6%] top-[-8px] h-4"
+                style={{
+                  background: 'radial-gradient(circle at 10% 120%, rgba(255,255,255,0.92) 0 15px, transparent 16px), radial-gradient(circle at 34% 120%, rgba(255,255,255,0.95) 0 18px, transparent 19px), radial-gradient(circle at 58% 120%, rgba(255,255,255,0.9) 0 16px, transparent 17px), radial-gradient(circle at 82% 120%, rgba(255,255,255,0.96) 0 17px, transparent 18px)',
+                }}
+              />
+            </div>
+          </div>
+        )}
         {/* 右上角按钮组 */}
         <div className="absolute top-2 right-2 flex items-center gap-2">
           {/* 坏习惯历史按钮 */}
@@ -1534,6 +1654,25 @@ export default function TaskVerificationCountdownContent({
   if (state.status === 'task_countdown') {
     return (
       <div className="w-full flex flex-col items-center py-2 bg-transparent relative">
+        {visibleSnowLevel > 0 && (
+          <div className="pointer-events-none absolute inset-x-2 bottom-0 z-0 overflow-hidden rounded-b-2xl">
+            <div
+              className="relative transition-all duration-1000 ease-out"
+              style={{
+                height: `${visibleSnowLevel}%`,
+                transform: `translateY(${snowBobOffset}px)`,
+                background: 'linear-gradient(180deg, rgba(255,255,255,0.14) 0%, rgba(244,248,255,0.68) 38%, rgba(228,236,246,0.92) 100%)',
+              }}
+            >
+              <div
+                className="absolute inset-x-[-6%] top-[-8px] h-4"
+                style={{
+                  background: 'radial-gradient(circle at 10% 120%, rgba(255,255,255,0.92) 0 15px, transparent 16px), radial-gradient(circle at 34% 120%, rgba(255,255,255,0.95) 0 18px, transparent 19px), radial-gradient(circle at 58% 120%, rgba(255,255,255,0.9) 0 16px, transparent 17px), radial-gradient(circle at 82% 120%, rgba(255,255,255,0.96) 0 17px, transparent 18px)',
+                }}
+              />
+            </div>
+          </div>
+        )}
         {/* 右上角按钮组 */}
         <div className="absolute top-2 right-2 flex items-center gap-2">
           {/* 坏习惯历史按钮 */}

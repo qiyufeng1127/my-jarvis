@@ -116,6 +116,7 @@ export interface Task {
   startVerificationDeadline?: Date; // 启动验证截止时间（2分钟倒计时）
   startVerificationTimeout?: boolean; // 启动验证是否超时
   startTimeoutCount?: number; // 启动超时次数
+  persistentDelayMarks?: number; // 30分钟未继续累计红叉警告
   completionDeadline?: Date; // 完成验证截止时间（任务总时长倒计时）
   completionTimeout?: boolean; // 完成验证是否超时
   completeTimeoutCount?: number; // 完成超时次数
