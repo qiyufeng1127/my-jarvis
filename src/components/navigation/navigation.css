@@ -526,6 +526,13 @@
   resize: vertical;
 }
 
+.navigation-composer {
+  min-height: 112px;
+  max-height: min(30vh, 220px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .navigation-field {
   display: flex;
   flex-direction: column;

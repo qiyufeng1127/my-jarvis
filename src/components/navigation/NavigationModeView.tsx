@@ -1380,7 +1380,7 @@ function NavigationComposer({ initialInput = '' }: { initialInput?: string }) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="比如：我现在不想起床，但是得起床穿衣服下楼洗衣服洗漱给猫倒猫粮再倒水喝"
-          rows={8}
+          rows={4}
         />
 
         <div className="navigation-action-row">

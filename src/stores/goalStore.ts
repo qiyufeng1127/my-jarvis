@@ -23,6 +23,40 @@ const defaultTheme = {
   label: '海蓝',
 };
 
+function normalizeGoalDedupeText(value: unknown) {
+  return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function normalizeGoalDedupeDate(value: unknown) {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(String(value));
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString().slice(0, 10);
+}
+
+function buildGoalDedupeKey(goal: Partial<LongTermGoal>) {
+  return [
+    normalizeGoalDedupeText(goal.name),
+    normalizeGoalDedupeDate(goal.startDate),
+    normalizeGoalDedupeDate(goal.endDate || goal.deadline),
+    Number(goal.currentValue || 0),
+    Number(goal.targetValue || 0),
+  ].join('__');
+}
+
+function dedupePersistedGoals(goals: LongTermGoal[]) {
+  const seen = new Set<string>();
+
+  return goals.filter((goal) => {
+    const key = buildGoalDedupeKey(goal);
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
 function alignRecentGoalDateToCurrentCycle(date: Date, referenceDate: Date) {
   const normalizedDate = new Date(date);
   const normalizedReference = new Date(referenceDate);
@@ -262,7 +296,7 @@ export const useGoalStore = create<GoalState>()(
             if (!str) return null;
             const parsed = JSON.parse(str);
             if (parsed?.state?.goals) {
-              parsed.state.goals = parsed.state.goals.map((goal: any) => buildGoal({
+              parsed.state.goals = dedupePersistedGoals(parsed.state.goals.map((goal: any) => buildGoal({
                 ...goal,
                 deadline: goal.deadline ? new Date(goal.deadline) : undefined,
                 startDate: goal.startDate ? new Date(goal.startDate) : undefined,
@@ -270,7 +304,7 @@ export const useGoalStore = create<GoalState>()(
                 completedAt: goal.completedAt ? new Date(goal.completedAt) : undefined,
                 createdAt: goal.createdAt ? new Date(goal.createdAt) : undefined,
                 updatedAt: goal.updatedAt ? new Date(goal.updatedAt) : undefined,
-              }));
+              })));
             }
             return parsed;
           } catch (error) {

@@ -7,6 +7,30 @@ import { useGoalStore } from '@/stores/goalStore';
 import { useMemoryStore } from '@/stores/memoryStore';
 import eventBus from '@/utils/eventBus';
 
+function normalizeGoalIdentityText(value: unknown) {
+  return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function toIdentityDate(value: unknown) {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(String(value));
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString().slice(0, 10);
+}
+
+function buildGoalIdentity(goal: {
+  goalTitle?: string;
+  name?: string;
+  startDate?: string | Date | null;
+  deadline?: string | Date | null;
+  endDate?: string | Date | null;
+}) {
+  const title = normalizeGoalIdentityText(goal.goalTitle || goal.name || '');
+  const start = toIdentityDate(goal.startDate);
+  const end = toIdentityDate(goal.deadline || goal.endDate);
+  return `${title}__${start}__${end}`;
+}
+
 /**
  * AI 助手完整系统提示词
  * 基于 AI_ASSISTANT_SYSTEM_PROMPT.md
@@ -952,8 +976,25 @@ class AIAssistantService {
         };
       }
 
+      const existingGoalIdentities = new Set(
+        goalStore.goals.map((goal) => buildGoalIdentity({
+          name: goal.name,
+          startDate: goal.startDate,
+          endDate: goal.endDate,
+        }))
+      );
+
+      const uniqueParsedGoals = parsedGoals.filter((goal: any) => {
+        const identity = buildGoalIdentity(goal);
+        if (!identity || existingGoalIdentities.has(identity)) {
+          return false;
+        }
+        existingGoalIdentities.add(identity);
+        return true;
+      });
+
       const createdGoals = params.action === 'create_from_document'
-        ? parsedGoals.map((goal: any, index: number) => {
+        ? uniqueParsedGoals.map((goal: any, index: number) => {
             const keyResults = Array.isArray(goal.keyResults) ? goal.keyResults : [];
             const dailyInvestment = goal.dailyInvestment || {};
             const estimatedDailyHours = typeof dailyInvestment.hours === 'number'
@@ -1006,7 +1047,9 @@ class AIAssistantService {
       return {
         success: true,
         message: params.action === 'create_from_document'
-          ? `已根据目标文档创建 ${createdGoals.length} 个总目标`
+          ? createdGoals.length > 0
+            ? `已根据目标文档创建 ${createdGoals.length} 个总目标`
+            : '这些目标已经创建过了，没有重复添加'
           : `已智能拆解整份目标文档，共识别 ${parsedGoals.length} 个总目标`,
         data: {
           mode: 'document_analysis',
