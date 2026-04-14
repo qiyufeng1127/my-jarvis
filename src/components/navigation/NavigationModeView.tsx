@@ -279,54 +279,104 @@ interface NavigationCollectedEmojiItem {
 
 const STEP_EMOJI_RULES: { emoji: string; keywords: string[] }[] = [
   { emoji: '💡', keywords: ['关灯', '开灯', '灯', '照明', '台灯'] },
+  { emoji: '🕯️', keywords: ['夜灯', '氛围灯', '床头灯'] },
   { emoji: '🚽', keywords: ['洗手间', '厕所', '卫生间', '马桶'] },
+  { emoji: '🪠', keywords: ['通厕', '疏通', '马桶刷'] },
   { emoji: '🚰', keywords: ['水龙头', '洗手', '接水', '冲水', '水'] },
+  { emoji: '🫗', keywords: ['倒水', '倒茶', '倒饮料', '续水'] },
   { emoji: '🗑️', keywords: ['垃圾', '倒垃圾', '扔垃圾', '垃圾袋', '垃圾桶'] },
+  { emoji: '♻️', keywords: ['回收', '分类垃圾', '可回收'] },
   { emoji: '🪥', keywords: ['洗漱', '刷牙', '牙', '漱口', '牙刷'] },
+  { emoji: '🦷', keywords: ['牙线', '护牙', '牙套'] },
   { emoji: '🧴', keywords: ['洗脸', '护肤', '面膜', '乳液', '擦脸'] },
+  { emoji: '🧼', keywords: ['香皂', '肥皂', '清洁皮肤'] },
   { emoji: '🛁', keywords: ['洗澡', '沐浴', '泡澡'] },
+  { emoji: '🚿', keywords: ['淋浴', '冲澡'] },
   { emoji: '🫧', keywords: ['洗头', '吹头', '泡泡', '清洁'] },
-  { emoji: '💧', keywords: ['喝水', '倒水', '热水', '温水'] },
+  { emoji: '🪮', keywords: ['梳头', '整理头发', '扎头发'] },
+  { emoji: '💧', keywords: ['喝水', '热水', '温水'] },
+  { emoji: '🥤', keywords: ['果汁', '汽水', '饮品', '冷饮'] },
   { emoji: '🍽️', keywords: ['吃饭', '早餐', '午饭', '晚饭', '做饭', '煮饭', '用餐'] },
+  { emoji: '🍳', keywords: ['煎蛋', '炒菜', '下厨', '备餐'] },
   { emoji: '🍎', keywords: ['水果', '苹果', '香蕉', '吃点东西', '加餐'] },
+  { emoji: '🥗', keywords: ['沙拉', '轻食', '蔬菜'] },
   { emoji: '☕', keywords: ['咖啡', '奶茶', '饮料', '茶'] },
+  { emoji: '🫖', keywords: ['泡茶', '茶壶', '热茶'] },
   { emoji: '🛏️', keywords: ['起床', '下床', '坐起来', '上床'] },
+  { emoji: '⏰', keywords: ['闹钟', '叫醒', '定时'] },
   { emoji: '👕', keywords: ['穿衣', '换衣', '衣服', '换鞋', '整理穿搭'] },
+  { emoji: '🧥', keywords: ['外套', '穿外套', '披衣服'] },
   { emoji: '🧦', keywords: ['袜子', '鞋', '鞋子'] },
+  { emoji: '👟', keywords: ['运动鞋', '出门鞋', '穿鞋'] },
   { emoji: '🚪', keywords: ['出门', '离开', '进去', '进门', '回家', '开门', '关门'] },
+  { emoji: '🪪', keywords: ['门禁', '工卡', '刷卡'] },
   { emoji: '🔑', keywords: ['钥匙', '锁门', '开锁'] },
+  { emoji: '🔐', keywords: ['反锁', '密码锁', '上锁'] },
   { emoji: '🚌', keywords: ['通勤', '坐车', '地铁', '公交', '打车'] },
+  { emoji: '🚇', keywords: ['地铁站', '乘地铁'] },
   { emoji: '🚶', keywords: ['走路', '散步', '下楼', '上楼', '去一趟'] },
+  { emoji: '🪜', keywords: ['楼梯', '爬楼'] },
   { emoji: '🏃', keywords: ['运动', '锻炼', '拉伸', '跑步', '跳操'] },
+  { emoji: '🏋️', keywords: ['力量训练', '健身', '举铁'] },
   { emoji: '🧘', keywords: ['冥想', '呼吸', '放松', '平静一下'] },
+  { emoji: '😮‍💨', keywords: ['深呼吸', '缓一缓', '喘口气'] },
   { emoji: '📚', keywords: ['学习', '看书', '复习', '背诵', '阅读'] },
+  { emoji: '📝', keywords: ['笔记', '记笔记', '摘抄'] },
   { emoji: '✍️', keywords: ['写', '文档', '总结', '方案', '作业', '记录'] },
+  { emoji: '🗒️', keywords: ['列清单', '草稿', '便签'] },
   { emoji: '💻', keywords: ['电脑', '代码', '开发', '表格', '整理文件', '办公'] },
+  { emoji: '⌨️', keywords: ['打字', '键盘', '输入'] },
   { emoji: '📱', keywords: ['手机', '消息', '微信', '打开 app', '回复消息'] },
+  { emoji: '📲', keywords: ['回消息', '刷手机', '查看通知'] },
   { emoji: '💬', keywords: ['沟通', '聊天', '回复', '发消息', '联系'] },
+  { emoji: '🗣️', keywords: ['讨论', '交流', '说明'] },
   { emoji: '📞', keywords: ['电话', '打电话', '语音'] },
+  { emoji: '🎧', keywords: ['语音会议', '开会', '听会'] },
   { emoji: '🧹', keywords: ['清理', '整理', '收拾', '打扫', '擦桌子'] },
+  { emoji: '🪣', keywords: ['拖地', '打水', '清洁桶'] },
   { emoji: '🧺', keywords: ['洗衣', '晾衣', '叠衣', '收衣服'] },
+  { emoji: '🧷', keywords: ['缝补', '别针', '整理小物'] },
   { emoji: '🛍️', keywords: ['买', '采购', '购物', '下单', '快递'] },
+  { emoji: '🛒', keywords: ['购物车', '逛超市', '采购清单'] },
   { emoji: '📦', keywords: ['快递', '拆包', '收包裹'] },
+  { emoji: '✂️', keywords: ['拆快递', '剪开包裹'] },
   { emoji: '🐾', keywords: ['猫', '狗', '宠物', '喂猫', '喂狗', '铲猫砂'] },
+  { emoji: '🦴', keywords: ['宠物零食', '遛狗', '逗猫'] },
   { emoji: '💊', keywords: ['药', '吃药', '看病', '医院'] },
+  { emoji: '🩺', keywords: ['体检', '问诊', '测体温'] },
   { emoji: '🌙', keywords: ['睡', '休息', '午睡', '躺下'] },
+  { emoji: '😴', keywords: ['入眠', '困了', '打盹'] },
   { emoji: '🗂️', keywords: ['计划', '安排', '拆解', '待办', '梳理'] },
+  { emoji: '📆', keywords: ['日程', '排期', '日历'] },
   { emoji: '🧾', keywords: ['账单', '报销', '付款', '缴费'] },
+  { emoji: '💸', keywords: ['转账', '付款码', '花钱'] },
   { emoji: '🪴', keywords: ['植物', '浇花'] },
+  { emoji: '🌱', keywords: ['发芽', '照料植物', '修剪植物'] },
   { emoji: '🪟', keywords: ['窗', '窗户', '拉窗帘', '开窗', '关窗'] },
+  { emoji: '🪞', keywords: ['镜子', '照镜子'] },
   { emoji: '🛋️', keywords: ['沙发', '坐下', '整理房间'] },
+  { emoji: '🪑', keywords: ['椅子', '坐回工位', '搬椅子'] },
+  { emoji: '📖', keywords: ['翻书', '读资料', '教材'] },
+  { emoji: '🔍', keywords: ['查资料', '搜索', '查找'] },
+  { emoji: '🧠', keywords: ['思考', '想一想', '构思'] },
+  { emoji: '🎯', keywords: ['专注', '完成目标', '攻克'] },
+  { emoji: '✅', keywords: ['完成', '搞定', '结束', '收尾'] },
+  { emoji: '🫶', keywords: ['鼓励自己', '奖励自己', '庆祝一下'] },
 ];
 
 function scoreKeywordMatch(title: string, keyword: string) {
   if (!keyword) return 0;
-  if (title.includes(keyword)) return keyword.length * 4;
+  if (title.includes(keyword)) return keyword.length * 10;
 
-  const uniqueChars = Array.from(new Set(keyword.split('').filter((char) => char.trim())));
+  const cleanKeyword = keyword.replace(/\s+/g, '');
+  if (cleanKeyword.length <= 2) return 0;
+
+  const uniqueChars = Array.from(new Set(cleanKeyword.split('').filter((char) => char.trim())));
   const overlap = uniqueChars.filter((char) => title.includes(char)).length;
-  if (overlap === uniqueChars.length && uniqueChars.length > 1) return uniqueChars.length * 2.5;
-  if (overlap >= Math.min(2, uniqueChars.length)) return overlap * 1.2;
+  const overlapRatio = uniqueChars.length > 0 ? overlap / uniqueChars.length : 0;
+
+  if (uniqueChars.length >= 4 && overlapRatio >= 0.75) return uniqueChars.length * 2;
+  if (uniqueChars.length >= 3 && overlapRatio >= 1) return uniqueChars.length * 2.5;
   return 0;
 }
 
@@ -2274,7 +2324,7 @@ function NavigationStepCard({
           sceneElapsedMinutes={sceneElapsedMinutes}
           currentStepTitle={step.title}
           collectedEmojis={collectedEmojis}
-          idleMarkCount={activeIdleMarks}
+          idleMarkCount={idleMarkCount}
           driftOffset={driftOffset}
         />
       </div>
