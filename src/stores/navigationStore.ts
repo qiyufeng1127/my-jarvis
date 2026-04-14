@@ -7,6 +7,7 @@ import type {
   NavigationPlannerResult,
   NavigationSession,
   NavigationStateSnapshot,
+  NavigationBottleEntry,
 } from '@/types/navigation';
 import { useTaskStore } from '@/stores/taskStore';
 import { useGoalStore } from '@/stores/goalStore';
@@ -41,6 +42,47 @@ const buildTimelineTaskGoals = (title: string, sessionTitle: string, linkedGoalI
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
+const NAVIGATION_IDLE_MARK_INTERVAL_MS = 30 * 60 * 1000;
+const NAVIGATION_EMOJI_CARRY_WINDOW_MS = 90 * 60 * 1000;
+
+const createSceneCarryoverSeed = (lastFinishedAt?: string | null) => {
+  if (!lastFinishedAt) {
+    return {
+      executionScore: 24,
+      energyLevel: 50,
+      carriedFromRecentSession: false,
+    };
+  }
+
+  const finishedAt = new Date(lastFinishedAt).getTime();
+  if (Number.isNaN(finishedAt)) {
+    return {
+      executionScore: 24,
+      energyLevel: 50,
+      carriedFromRecentSession: false,
+    };
+  }
+
+  const elapsed = Date.now() - finishedAt;
+  if (elapsed >= NAVIGATION_EMOJI_CARRY_WINDOW_MS) {
+    return {
+      executionScore: 24,
+      energyLevel: 50,
+      carriedFromRecentSession: false,
+    };
+  }
+
+  const freshness = 1 - (elapsed / NAVIGATION_EMOJI_CARRY_WINDOW_MS);
+  const executionScore = clamp(24 + freshness * 68, 24, 92);
+  const energyLevel = clamp(50 + freshness * 34, 50, 88);
+
+  return {
+    executionScore,
+    energyLevel,
+    carriedFromRecentSession: true,
+  };
+};
+
 const sortByStartedAt = (steps: NavigationExecutionStep[]) =>
   [...steps].sort((a, b) => {
     const aTime = a.startedAt ? new Date(a.startedAt).getTime() : Number.MAX_SAFE_INTEGER;
@@ -54,6 +96,63 @@ const sortByCompletedAt = (steps: NavigationExecutionStep[]) =>
     const bTime = b.completedAt ? new Date(b.completedAt).getTime() : 0;
     return bTime - aTime;
   });
+
+const toNavigationDateKey = (dateLike?: string) => {
+  const source = dateLike ? new Date(dateLike) : new Date();
+  if (Number.isNaN(source.getTime())) {
+    const fallback = new Date();
+    return `${fallback.getFullYear()}-${String(fallback.getMonth() + 1).padStart(2, '0')}-${String(fallback.getDate()).padStart(2, '0')}`;
+  }
+  return `${source.getFullYear()}-${String(source.getMonth() + 1).padStart(2, '0')}-${String(source.getDate()).padStart(2, '0')}`;
+};
+
+const getBottleMeaningEmoji = (stepTitle: string) => {
+  const title = stepTitle.toLowerCase().replace(/\s+/g, '');
+  if (/(灯|照明)/.test(title)) return '💡';
+  if (/(洗手间|厕所|卫生间)/.test(title)) return '🚽';
+  if (/(洗|刷牙|洗漱|护肤|清洁)/.test(title)) return '🫧';
+  if (/(垃圾)/.test(title)) return '🗑️';
+  if (/(吃|饭|早餐|午饭|晚饭|做饭)/.test(title)) return '🍽️';
+  if (/(喝水|水|接水)/.test(title)) return '💧';
+  if (/(出门|回家|开门|关门)/.test(title)) return '🚪';
+  if (/(走|下楼|上楼|去)/.test(title)) return '🚶';
+  if (/(学习|看书|读)/.test(title)) return '📚';
+  if (/(写|文档|记录|总结)/.test(title)) return '✍️';
+  if (/(电脑|代码|开发|表格)/.test(title)) return '💻';
+  if (/(整理|收拾|打扫)/.test(title)) return '🧹';
+  if (/(洗衣|晾衣|叠衣)/.test(title)) return '🧺';
+  if (/(睡|休息)/.test(title)) return '🌙';
+  return '🧩';
+};
+
+const isSleepProtectedStep = (stepTitle?: string) => {
+  const title = (stepTitle || '').toLowerCase().replace(/\s+/g, '');
+  return /(睡|睡觉|入睡|午睡|补觉|躺下|休息|闭眼|就寝|上床)/.test(title);
+};
+
+const buildBottleEntryFromSession = (session: NavigationSession, completedAt: string): NavigationBottleEntry => {
+  const emojis = session.executionSteps
+    .filter((step) => step.status === 'completed')
+    .map((step) => ({ step, emoji: getBottleMeaningEmoji(step.title) }))
+    .filter((item, index, list) => list.findIndex((candidate) => candidate.step.id === item.step.id) === index)
+    .map((item) => item.emoji);
+
+  const referenceTime = session.lastProgressAt || session.startedAt || session.createdAt;
+  const currentStep = session.executionSteps[session.currentStepIndex];
+  const idleMarks = session.status === 'active' || isSleepProtectedStep(currentStep?.title)
+    ? 0
+    : Math.max(0, Math.floor((new Date(completedAt).getTime() - new Date(referenceTime).getTime()) / NAVIGATION_IDLE_MARK_INTERVAL_MS));
+
+  return {
+    id: crypto.randomUUID(),
+    sessionId: session.id,
+    title: session.title,
+    date: toNavigationDateKey(completedAt),
+    emojis,
+    inefficiencyMarks: idleMarks,
+    createdAt: completedAt,
+  };
+};
 
 const createDefaultHandsFree = (): NavigationHandsFreeState => ({
   enabled: false,
@@ -166,6 +265,7 @@ const mergeInsertedFlowIntoSession = (
 interface NavigationStoreState {
   currentSession: NavigationSession | null;
   suspendedSession: NavigationSession | null;
+  bottleEntries: NavigationBottleEntry[];
   isGenerating: boolean;
   isSyncingToTimeline: boolean;
   isResolvingDifficulty: boolean;
@@ -223,6 +323,7 @@ export const useNavigationStore = create<NavigationStoreState>()(
     (set, get) => ({
       currentSession: null,
       suspendedSession: null,
+      bottleEntries: [],
       isGenerating: false,
       isSyncingToTimeline: false,
       isResolvingDifficulty: false,
@@ -231,6 +332,8 @@ export const useNavigationStore = create<NavigationStoreState>()(
       setError: (message) => set({ error: message }),
       createDraftSession: (rawInput) => {
         const now = new Date().toISOString();
+        const previousSession = get().currentSession;
+        const sceneCarryover = createSceneCarryoverSeed(previousSession?.completedAt);
         set({
           currentSession: {
             id: crypto.randomUUID(),
@@ -241,8 +344,8 @@ export const useNavigationStore = create<NavigationStoreState>()(
             executionSteps: [],
             timelineGroups: [],
             currentStepIndex: 0,
-            executionScore: 24,
-            energyLevel: 50,
+            executionScore: sceneCarryover.executionScore,
+            energyLevel: sceneCarryover.energyLevel,
             recentExecutionGain: 0,
             lastProgressAt: now,
             generationStage: 'waiting_ai',
@@ -316,6 +419,8 @@ export const useNavigationStore = create<NavigationStoreState>()(
       },
       setPlannedSession: (rawInput, result) => {
         const now = new Date().toISOString();
+        const previousSession = get().currentSession;
+        const sceneCarryover = createSceneCarryoverSeed(previousSession?.completedAt);
         set({
           currentSession: {
             id: crypto.randomUUID(),
@@ -332,8 +437,8 @@ export const useNavigationStore = create<NavigationStoreState>()(
               ...group,
             })),
             currentStepIndex: 0,
-            executionScore: 28,
-            energyLevel: 56,
+            executionScore: sceneCarryover.executionScore,
+            energyLevel: sceneCarryover.energyLevel,
             recentExecutionGain: 0,
             lastProgressAt: now,
             summary: result.summary,
@@ -783,6 +888,13 @@ export const useNavigationStore = create<NavigationStoreState>()(
           return step;
         });
 
+        const bottleEntry = buildBottleEntryFromSession({
+          ...session,
+          executionSteps: updatedSteps,
+          status: 'completed',
+          completedAt: now,
+        }, now);
+
         set({
           currentSession: {
             ...session,
@@ -794,11 +906,13 @@ export const useNavigationStore = create<NavigationStoreState>()(
             recentExecutionGain: Math.max(1, session.recentExecutionGain || 0),
             lastProgressAt: now,
             completedAt: now,
+            bottleEntries: [...(session.bottleEntries || []), bottleEntry],
             handsFree: {
               ...session.handsFree,
               waitingForCommand: false,
             },
           },
+          bottleEntries: [...get().bottleEntries, bottleEntry],
         });
       },
       skipCurrentStep: () => {
@@ -853,16 +967,11 @@ export const useNavigationStore = create<NavigationStoreState>()(
         const session = get().currentSession;
         if (!session || session.status !== 'active') return;
 
-        const referenceTime = session.lastProgressAt || session.startedAt || session.createdAt;
-        const minutesIdle = Math.max(0, (Date.now() - new Date(referenceTime).getTime()) / 60000);
-        const scoreDecay = Math.min(18, Math.floor(minutesIdle / 5) * 2);
-        const energyDecay = Math.min(14, Math.floor(minutesIdle / 6) * 2);
+        if ((session.recentExecutionGain || 0) === 0) return;
 
         set({
           currentSession: {
             ...session,
-            executionScore: clamp(session.executionScore - scoreDecay, 0, 100),
-            energyLevel: clamp(session.energyLevel - energyDecay, 0, 100),
             recentExecutionGain: 0,
           },
         });
@@ -1058,10 +1167,11 @@ export const useNavigationStore = create<NavigationStoreState>()(
     }),
     {
       name: 'manifestos-navigation-session',
-      version: 3,
+      version: 4,
       partialize: (state) => ({
         currentSession: state.currentSession,
         suspendedSession: state.suspendedSession,
+        bottleEntries: state.bottleEntries,
       }),
     }
   )

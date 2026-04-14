@@ -47,6 +47,16 @@ export interface NavigationHandsFreeState {
   lastHeardAt?: string;
 }
 
+export interface NavigationBottleEntry {
+  id: string;
+  sessionId: string;
+  title: string;
+  date: string;
+  emojis: string[];
+  inefficiencyMarks: number;
+  createdAt: string;
+}
+
 export interface NavigationDifficultyDetourResult {
   assistantMessage: string;
   detourGroup: {
@@ -101,6 +111,7 @@ export interface NavigationSession {
   preState?: NavigationStateSnapshot;
   postState?: NavigationStateSnapshot;
   handsFree?: NavigationHandsFreeState;
+  bottleEntries?: NavigationBottleEntry[];
 }
 
 export interface NavigationParsedRules {

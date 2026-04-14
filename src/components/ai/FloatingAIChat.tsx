@@ -53,7 +53,8 @@ import {
   useColorTheme, 
   useDraggable, 
   useResizable, 
-  useThinkingProcess 
+  useThinkingProcess,
+  useKeyboardAvoidance 
 } from '@/hooks';
 import { AISmartProcessor } from '@/services/aiSmartService';
 import {
@@ -904,6 +905,11 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
     size: { width: 400, height: 600 },
     bgColor: '#ffffff',
   });
+  const [viewportSize, setViewportSize] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  });
+  const isMobileViewport = viewportSize.width <= 768;
   
   const [isOpen, setIsOpen] = useState(persistedState.isOpen);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -977,6 +983,10 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
     minSize: { width: 320, height: 400 },
   });
   const { thinkingSteps, addStep: addThinkingStep, clearSteps: clearThinkingSteps } = useThinkingProcess();
+  const keyboardAvoidance = useKeyboardAvoidance(chatRef);
+  const mobileConversationBottomPadding = isSelectionMode && selectedCount > 0 ? 112 : 168;
+  const mobileDockBottom = 'max(12px, calc(var(--app-safe-area-bottom) + 12px))';
+  const mobileChatHeight = Math.min(Math.max(viewportSize.height - 96, 420), 720);
   
   // 任务编辑器状态
   const [showTaskEditor, setShowTaskEditor] = useState(false);
@@ -992,18 +1002,7 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
     console.log('🔍 [编辑器状态] 是否应该显示编辑器:', showTaskEditor && editingTasks.length > 0);
   }, [showTaskEditor, editingTasks]);
 
-  const handleFocusCapture = () => {
-    window.setTimeout(() => {
-      textareaRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    }, 80);
-  };
-
-  const scrollIntoSafeView = (element?: HTMLElement | null) => {
-    if (!element) return;
-    window.setTimeout(() => {
-      element.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    }, 80);
-  };
+  const { handleFocusCapture, scrollIntoSafeView } = keyboardAvoidance;
 
   // 监听 AI 打开任务编辑器事件
   useEffect(() => {
@@ -1030,6 +1029,22 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
       conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
     }
   }, [messages]);
+
+  useEffect(() => {
+    const syncViewportSize = () => {
+      setViewportSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+
+    syncViewportSize();
+    window.addEventListener('resize', syncViewportSize);
+
+    return () => {
+      window.removeEventListener('resize', syncViewportSize);
+    };
+  }, []);
 
   // 自动调整输入框高度
   useEffect(() => {
@@ -4682,7 +4697,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
         <div
           className="absolute inset-x-0 bottom-0 z-[1001] border-t border-neutral-200 bg-white shadow-[0_-8px_24px_rgba(15,23,42,0.08)] keyboard-aware-docked"
           style={{
-            paddingBottom: 'max(12px, calc(var(--app-safe-area-bottom) + 8px))',
+            paddingBottom: isMobileViewport ? 'max(12px, calc(var(--app-safe-area-bottom) + 8px))' : 'max(12px, calc(var(--app-safe-area-bottom) + 8px))',
           }}
           onFocusCapture={handleFocusCapture}
         >
@@ -4731,26 +4746,28 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
               {/* 输入区域 */}
               <div className="px-3 pb-3" onFocusCapture={handleFocusCapture}>
                 <div className="flex items-end space-x-2">
-                  <textarea
-                    ref={textareaRef}
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder={contextMode === 'goal'
-                      ? '已进入“关于目标”模式，直接粘贴整段目标文档，我会先做智能目标分析...'
-                      : contextMode === 'income'
-                      ? pendingIncomeClarification
-                        ? '这笔收支还没确认归属，直接回复副业名字或序号...'
-                        : '已进入“收支记录”模式，直接记收入、支出，或说“退出收支模式”...'
-                      : contextMode === 'mutter'
-                      ? '已进入“心情碎碎念”模式，直接说你的想法或心情...'
-                      : '对我说点什么...'}
-                    className="flex-1 px-3 py-3 rounded-2xl resize-none focus:outline-none text-sm border border-gray-300 focus:border-blue-500 overflow-y-auto bg-white"
-                    style={{
-                      minHeight: '52px',
-                      maxHeight: '120px',
-                    }}
-                  />
+                  <div className="min-w-0 flex-1">
+                    <textarea
+                      ref={textareaRef}
+                      value={inputValue}
+                      onChange={(e) => setInputValue(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder={contextMode === 'goal'
+                        ? '已进入“关于目标”模式，直接粘贴整段目标文档，我会先做智能目标分析...'
+                        : contextMode === 'income'
+                        ? pendingIncomeClarification
+                          ? '这笔收支还没确认归属，直接回复副业名字或序号...'
+                          : '已进入“收支记录”模式，直接记收入、支出，或说“退出收支模式”...'
+                        : contextMode === 'mutter'
+                        ? '已进入“心情碎碎念”模式，直接说你的想法或心情...'
+                        : '对我说点什么...'}
+                      className="w-full px-3 py-3 rounded-2xl resize-none focus:outline-none text-sm border border-gray-300 focus:border-blue-500 overflow-y-auto bg-white"
+                      style={{
+                        minHeight: '52px',
+                        maxHeight: '120px',
+                      }}
+                    />
+                  </div>
                   <button
                     onClick={handleSend}
                     disabled={!inputValue.trim() || isProcessing}
@@ -4788,17 +4805,19 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
       {!isOpen && currentModule === 'timeline' && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed w-16 h-16 rounded-full shadow-2xl hover:scale-110 transition-all flex items-center justify-center"
+          className="fixed flex items-center justify-center rounded-full shadow-2xl transition-all hover:scale-110"
           style={{ 
             backgroundColor: '#E8C259',
             color: '#ffffff',
             zIndex: 99999,
-            bottom: '88px',
+            bottom: isMobileViewport ? 'calc(var(--app-safe-area-bottom) + 84px)' : '88px',
             right: '16px',
+            width: isMobileViewport ? '56px' : '64px',
+            height: isMobileViewport ? '56px' : '64px',
           }}
           title="AI助手"
         >
-          <span className="text-3xl">🤖</span>
+          <span className={isMobileViewport ? 'text-2xl' : 'text-3xl'}>🤖</span>
         </button>
       )}
 
@@ -4806,15 +4825,18 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
       {isOpen && (
         <div
           ref={chatRef}
-          className="fixed rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+          className="fixed flex flex-col overflow-hidden shadow-2xl"
           style={{
-            left: position.x,
-            top: position.y,
-            width: isMinimized ? '320px' : `${size.width}px`,
-            height: isMinimized ? '60px' : `${size.height}px`,
-            maxHeight: isMinimized ? '60px' : `${size.height}px`,
+            left: isMobileViewport ? '12px' : position.x,
+            right: isMobileViewport ? '12px' : 'auto',
+            top: isMobileViewport ? 'max(12px, env(safe-area-inset-top, 0px) + 12px)' : position.y,
+            bottom: isMobileViewport ? mobileDockBottom : 'auto',
+            width: isMobileViewport ? 'auto' : (isMinimized ? '320px' : `${size.width}px`),
+            height: isMobileViewport ? (isMinimized ? '60px' : `${mobileChatHeight}px`) : (isMinimized ? '60px' : `${size.height}px`),
+            maxHeight: isMobileViewport ? (isMinimized ? '60px' : `${mobileChatHeight}px`) : (isMinimized ? '60px' : `${size.height}px`),
+            borderRadius: isMobileViewport ? '24px' : '16px',
             zIndex: 1000,
-            cursor: isDragging ? 'grabbing' : isResizing ? 'se-resize' : 'default',
+            cursor: isMobileViewport ? 'default' : (isDragging ? 'grabbing' : isResizing ? 'se-resize' : 'default'),
             backgroundColor: bgColor,
           }}
           onClick={() => setShowColorPicker(false)}
@@ -4822,9 +4844,9 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
           {/* 原有的浮动窗口内容 */}
           {/* 头部 - 可拖拽 */}
           <div
-            className="px-4 py-3 flex items-center justify-between cursor-move"
+            className={`px-4 py-3 flex items-center justify-between ${isMobileViewport ? '' : 'cursor-move'}`}
             style={{ backgroundColor: theme.bgColor, color: theme.textColor }}
-            onMouseDown={handleDragStart}
+            onMouseDown={isMobileViewport ? undefined : handleDragStart}
           >
             <div className="flex items-center space-x-2">
               <GripVertical className="w-4 h-4 opacity-50" />
@@ -4922,7 +4944,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
                 className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3"
                 style={{
                   backgroundColor: theme.cardBg,
-                  paddingBottom: '172px',
+                  paddingBottom: isMobileViewport ? `${mobileConversationBottomPadding}px` : '172px',
                 }}
               >
                 {messages.map((message) => {

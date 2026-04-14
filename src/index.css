@@ -32,7 +32,6 @@ html, body, #root {
   padding: 0 !important;
   width: 100%;
   min-height: var(--app-visible-viewport-height);
-  height: var(--app-visible-viewport-height);
   background-color: #ffffff !important;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
@@ -190,7 +189,6 @@ input, textarea, select {
   body,
   #root {
     width: 100% !important;
-    height: var(--app-visible-viewport-height) !important;
     min-height: var(--app-visible-viewport-height) !important;
     overflow: hidden !important;
     background-color: #ffffff !important;

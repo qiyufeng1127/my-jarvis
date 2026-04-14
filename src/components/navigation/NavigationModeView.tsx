@@ -10,7 +10,7 @@ import { useVoiceRecognition } from '@/hooks/useVoiceRecognition';
 import GoalForm, { type GoalFormData } from '@/components/growth/GoalForm';
 import { buildGoalPayloadFromForm, buildQuickGoalFormData } from '@/utils/goalSubmission';
 import type { LongTermGoal } from '@/types';
-import type { NavigationExecutionStep, NavigationSession, NavigationStateSnapshot, NavigationTimelineGroup } from '@/types/navigation';
+import type { NavigationBottleEntry, NavigationExecutionStep, NavigationSession, NavigationStateSnapshot, NavigationTimelineGroup } from '@/types/navigation';
 import './navigation.css';
 
 function buildInsertedFlowResponseText(message: string | undefined, currentStepTitle: string) {
@@ -224,12 +224,193 @@ function buildTrendStory(session: NavigationSession) {
 }
 
 function getEmojiByScore(score: number) {
-  if (score >= 86) return '🥳';
-  if (score >= 66) return '😄';
-  if (score >= 46) return '🙂';
-  if (score >= 31) return '😐';
-  if (score >= 16) return '🙁';
-  return '😞';
+  if (score >= 96) return '🤩';
+  if (score >= 90) return '🥳';
+  if (score >= 84) return '😁';
+  if (score >= 78) return '😆';
+  if (score >= 72) return '😄';
+  if (score >= 66) return '😊';
+  if (score >= 58) return '🙂';
+  if (score >= 50) return '😉';
+  if (score >= 42) return '😌';
+  if (score >= 34) return '😐';
+  if (score >= 26) return '🥺';
+  if (score >= 18) return '😵‍💫';
+  if (score >= 10) return '😮‍💨';
+  return '😶';
+}
+
+function getStepMeaningEmoji(stepTitle: string) {
+  const title = stepTitle.toLowerCase().replace(/\s+/g, '');
+
+  let bestEmoji = '🧩';
+  let bestScore = 0;
+
+  for (const rule of STEP_EMOJI_RULES) {
+    let ruleScore = 0;
+    for (const keyword of rule.keywords) {
+      ruleScore = Math.max(ruleScore, scoreKeywordMatch(title, keyword));
+    }
+    if (ruleScore > bestScore) {
+      bestScore = ruleScore;
+      bestEmoji = rule.emoji;
+    }
+  }
+
+  if (bestScore > 0) return bestEmoji;
+
+  if (/(收|拿|放|开|关|去|回|做|弄|搞|处理|整理)/.test(title)) return '👐';
+  if (/(看|读|听|想|记|查)/.test(title)) return '🧠';
+  if (/(走|跑|动|上|下)/.test(title)) return '🚶';
+  return '🧷';
+}
+
+function isSleepProtectedStep(stepTitle?: string) {
+  const title = (stepTitle || '').toLowerCase().replace(/\s+/g, '');
+  return /(睡|睡觉|入睡|午睡|补觉|躺下|休息|闭眼|就寝|上床)/.test(title);
+}
+
+interface NavigationCollectedEmojiItem {
+  id: string;
+  emoji: string;
+  stepId: string;
+  isFresh?: boolean;
+}
+
+const STEP_EMOJI_RULES: { emoji: string; keywords: string[] }[] = [
+  { emoji: '💡', keywords: ['关灯', '开灯', '灯', '照明', '台灯'] },
+  { emoji: '🚽', keywords: ['洗手间', '厕所', '卫生间', '马桶'] },
+  { emoji: '🚰', keywords: ['水龙头', '洗手', '接水', '冲水', '水'] },
+  { emoji: '🗑️', keywords: ['垃圾', '倒垃圾', '扔垃圾', '垃圾袋', '垃圾桶'] },
+  { emoji: '🪥', keywords: ['洗漱', '刷牙', '牙', '漱口', '牙刷'] },
+  { emoji: '🧴', keywords: ['洗脸', '护肤', '面膜', '乳液', '擦脸'] },
+  { emoji: '🛁', keywords: ['洗澡', '沐浴', '泡澡'] },
+  { emoji: '🫧', keywords: ['洗头', '吹头', '泡泡', '清洁'] },
+  { emoji: '💧', keywords: ['喝水', '倒水', '热水', '温水'] },
+  { emoji: '🍽️', keywords: ['吃饭', '早餐', '午饭', '晚饭', '做饭', '煮饭', '用餐'] },
+  { emoji: '🍎', keywords: ['水果', '苹果', '香蕉', '吃点东西', '加餐'] },
+  { emoji: '☕', keywords: ['咖啡', '奶茶', '饮料', '茶'] },
+  { emoji: '🛏️', keywords: ['起床', '下床', '坐起来', '上床'] },
+  { emoji: '👕', keywords: ['穿衣', '换衣', '衣服', '换鞋', '整理穿搭'] },
+  { emoji: '🧦', keywords: ['袜子', '鞋', '鞋子'] },
+  { emoji: '🚪', keywords: ['出门', '离开', '进去', '进门', '回家', '开门', '关门'] },
+  { emoji: '🔑', keywords: ['钥匙', '锁门', '开锁'] },
+  { emoji: '🚌', keywords: ['通勤', '坐车', '地铁', '公交', '打车'] },
+  { emoji: '🚶', keywords: ['走路', '散步', '下楼', '上楼', '去一趟'] },
+  { emoji: '🏃', keywords: ['运动', '锻炼', '拉伸', '跑步', '跳操'] },
+  { emoji: '🧘', keywords: ['冥想', '呼吸', '放松', '平静一下'] },
+  { emoji: '📚', keywords: ['学习', '看书', '复习', '背诵', '阅读'] },
+  { emoji: '✍️', keywords: ['写', '文档', '总结', '方案', '作业', '记录'] },
+  { emoji: '💻', keywords: ['电脑', '代码', '开发', '表格', '整理文件', '办公'] },
+  { emoji: '📱', keywords: ['手机', '消息', '微信', '打开 app', '回复消息'] },
+  { emoji: '💬', keywords: ['沟通', '聊天', '回复', '发消息', '联系'] },
+  { emoji: '📞', keywords: ['电话', '打电话', '语音'] },
+  { emoji: '🧹', keywords: ['清理', '整理', '收拾', '打扫', '擦桌子'] },
+  { emoji: '🧺', keywords: ['洗衣', '晾衣', '叠衣', '收衣服'] },
+  { emoji: '🛍️', keywords: ['买', '采购', '购物', '下单', '快递'] },
+  { emoji: '📦', keywords: ['快递', '拆包', '收包裹'] },
+  { emoji: '🐾', keywords: ['猫', '狗', '宠物', '喂猫', '喂狗', '铲猫砂'] },
+  { emoji: '💊', keywords: ['药', '吃药', '看病', '医院'] },
+  { emoji: '🌙', keywords: ['睡', '休息', '午睡', '躺下'] },
+  { emoji: '🗂️', keywords: ['计划', '安排', '拆解', '待办', '梳理'] },
+  { emoji: '🧾', keywords: ['账单', '报销', '付款', '缴费'] },
+  { emoji: '🪴', keywords: ['植物', '浇花'] },
+  { emoji: '🪟', keywords: ['窗', '窗户', '拉窗帘', '开窗', '关窗'] },
+  { emoji: '🛋️', keywords: ['沙发', '坐下', '整理房间'] },
+];
+
+function scoreKeywordMatch(title: string, keyword: string) {
+  if (!keyword) return 0;
+  if (title.includes(keyword)) return keyword.length * 4;
+
+  const uniqueChars = Array.from(new Set(keyword.split('').filter((char) => char.trim())));
+  const overlap = uniqueChars.filter((char) => title.includes(char)).length;
+  if (overlap === uniqueChars.length && uniqueChars.length > 1) return uniqueChars.length * 2.5;
+  if (overlap >= Math.min(2, uniqueChars.length)) return overlap * 1.2;
+  return 0;
+}
+
+function hashEmojiLayoutSeed(value: string) {
+  return value.split('').reduce((sum, char, index) => sum + char.charCodeAt(0) * (index + 1), 0);
+}
+
+function getCollectedEmojiLayout(index: number, seedKey: string, columnCount: number) {
+  const row = Math.floor(index / columnCount);
+  const column = index % columnCount;
+  const seed = hashEmojiLayoutSeed(seedKey);
+  const horizontalJitter = ((seed % 9) - 4) * (row === 0 ? 1.5 : 1.1);
+  const verticalJitter = (((Math.floor(seed / 7)) % 7) - 3) * 0.7;
+  const rotate = ((Math.floor(seed / 13) % 11) - 5) * 5;
+  const pileCurve = Math.abs(column - (columnCount - 1) / 2) * (row === 0 ? 0.9 : 0.55);
+  const left = 10 + column * 6.4 + (row % 2 === 0 ? 0 : 2.8) + horizontalJitter;
+  const bottom = 4 + row * 10.2 + verticalJitter - pileCurve;
+
+  return { left, bottom, rotate };
+}
+
+
+function buildCollectedStepEmojis(session: NavigationSession, now = Date.now()) {
+  const completedSteps = session.executionSteps
+    .filter((step) => step.status === 'completed' && step.completedAt)
+    .sort((a, b) => new Date(a.completedAt || 0).getTime() - new Date(b.completedAt || 0).getTime());
+
+  const uniqueCompletedSteps = completedSteps.filter((step, index, list) => list.findIndex((item) => item.id === step.id) === index);
+
+  return uniqueCompletedSteps.map((step, index, list) => ({
+    id: `collected-${step.id}`,
+    emoji: getStepMeaningEmoji(step.title),
+    stepId: step.id,
+    isFresh: index === list.length - 1 && session.status === 'active' && now - new Date(step.completedAt || now).getTime() < 90000,
+  }));
+}
+
+function formatCollectionDateTag(date?: string) {
+  if (!date) return '今天';
+  const value = new Date(date);
+  if (Number.isNaN(value.getTime())) return '今天';
+  return `${value.getMonth() + 1}月${value.getDate()}日`;
+}
+
+function formatBottleHistoryDate(date: string) {
+  const value = new Date(date);
+  if (Number.isNaN(value.getTime())) return date;
+  return `${value.getMonth() + 1}月${value.getDate()}日`;
+}
+
+function toLocalDateKey(dateLike?: string | number | Date) {
+  const value = dateLike ? new Date(dateLike) : new Date();
+  if (Number.isNaN(value.getTime())) return new Date().toISOString().slice(0, 10);
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+}
+
+function buildBottleStackLayout(items: string[], seedKey: string, columnCount: number) {
+  return items.map((emoji, index) => {
+    const layout = getCollectedEmojiLayout(index, `${seedKey}-${emoji}-${index}`, columnCount);
+    return {
+      emoji,
+      left: layout.left,
+      bottom: Math.max(2, layout.bottom),
+      rotate: layout.rotate,
+    };
+  });
+}
+
+function buildDailyBottleGroups(entries: NavigationBottleEntry[]) {
+  const groups = new Map<string, NavigationBottleEntry[]>();
+  entries.forEach((entry) => {
+    const list = groups.get(entry.date) || [];
+    list.push(entry);
+    groups.set(entry.date, list);
+  });
+
+  return Array.from(groups.entries())
+    .sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime())
+    .map(([date, dayEntries]) => ({
+      date,
+      entries: [...dayEntries].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+      emojis: dayEntries.flatMap((entry) => entry.emojis),
+      inefficiencyMarks: dayEntries.reduce((sum, entry) => sum + entry.inefficiencyMarks, 0),
+    }));
 }
 
 function difficultyLabel(value?: number) {
@@ -1759,38 +1940,71 @@ function NavigationScene({
   energyLevel,
   recentGain,
   elapsedLabel,
+  sceneElapsedMinutes,
+  currentStepTitle,
+  collectedEmojis,
+  idleMarkCount,
+  driftOffset,
 }: {
   executionScore: number;
   energyLevel: number;
   recentGain: number;
   elapsedLabel: string;
+  sceneElapsedMinutes: number;
+  currentStepTitle: string;
+  collectedEmojis: NavigationCollectedEmojiItem[];
+  idleMarkCount: number;
+  driftOffset: { x: number; y: number };
 }) {
-  const emoji = getEmojiByScore(executionScore);
-  const scale = 0.9 + executionScore / 100 * 0.34;
-  const sparkleOpacity = 0.34 + energyLevel / 100 * 0.22;
-  const snowHeight = 14 + executionScore * 0.24 + energyLevel * 0.1;
-  const orbBottom = Math.max(8, snowHeight - 10);
+  const feelingEmoji = getEmojiByScore(executionScore);
+  const stepEmoji = getStepMeaningEmoji(currentStepTitle);
+  const normalizedScore = clampScore(executionScore);
+  const normalizedEnergy = clampScore(energyLevel);
+  const sceneProgress = clampScore((normalizedScore * 0.72) + (normalizedEnergy * 0.28));
+  const timePressure = Math.min(1, sceneElapsedMinutes / 22);
+  const efficiencyRelief = Math.min(1, (normalizedScore / 100) * 0.72 + Math.min(recentGain, 18) / 24);
+  const snowDepth = Math.max(0, Math.min(126, 4 + (timePressure * 118) - (efficiencyRelief * 46)));
+  const pairScale = 0.48 + (sceneProgress / 100) * 0.92 + Math.min(recentGain, 20) * 0.008;
+  const currentPairBottom = Math.max(20, Math.min(40, snowDepth - 8));
   const starLayout = [
-    { left: '14%', top: '12%', duration: '8.2s', delay: '0.2s', size: '7px' },
-    { left: '24%', top: '21%', duration: '6.7s', delay: '1.4s', size: '5px' },
-    { left: '37%', top: '10%', duration: '7.9s', delay: '0.8s', size: '6px' },
-    { left: '49%', top: '16%', duration: '6.3s', delay: '2.1s', size: '5px' },
-    { left: '58%', top: '8%', duration: '7.5s', delay: '1.1s', size: '6px' },
-    { left: '71%', top: '24%', duration: '8.8s', delay: '0.5s', size: '5px' },
-    { left: '83%', top: '17%', duration: '6.9s', delay: '1.7s', size: '6px' },
-    { left: '19%', top: '35%', duration: '8.4s', delay: '2.6s', size: '5px' },
-    { left: '42%', top: '31%', duration: '7.2s', delay: '3.2s', size: '7px' },
-    { left: '63%', top: '38%', duration: '8.1s', delay: '2.2s', size: '5px' },
-    { left: '78%', top: '33%', duration: '6.8s', delay: '3.5s', size: '6px' },
+    { left: '4%', top: '8%', duration: '6.6s', delay: '0.3s', size: '6px' },
+    { left: '9%', top: '18%', duration: '7.1s', delay: '1.1s', size: '5px' },
+    { left: '14%', top: '6%', duration: '6.1s', delay: '2.1s', size: '7px' },
+    { left: '19%', top: '25%', duration: '7.5s', delay: '0.8s', size: '5px' },
+    { left: '24%', top: '12%', duration: '6.4s', delay: '1.6s', size: '6px' },
+    { left: '30%', top: '7%', duration: '6.9s', delay: '2.7s', size: '6px' },
+    { left: '35%', top: '21%', duration: '6.5s', delay: '0.2s', size: '5px' },
+    { left: '40%', top: '10%', duration: '7.2s', delay: '1.4s', size: '6px' },
+    { left: '46%', top: '5%', duration: '6.0s', delay: '2.4s', size: '7px' },
+    { left: '51%', top: '18%', duration: '7.6s', delay: '0.7s', size: '5px' },
+    { left: '56%', top: '9%', duration: '6.6s', delay: '1.9s', size: '6px' },
+    { left: '61%', top: '24%', duration: '7.0s', delay: '0.5s', size: '5px' },
+    { left: '67%', top: '11%', duration: '6.2s', delay: '2.2s', size: '6px' },
+    { left: '72%', top: '6%', duration: '7.4s', delay: '1.2s', size: '7px' },
+    { left: '77%', top: '17%', duration: '6.8s', delay: '2.8s', size: '5px' },
+    { left: '82%', top: '8%', duration: '6.4s', delay: '1.5s', size: '6px' },
+    { left: '87%', top: '22%', duration: '7.1s', delay: '0.9s', size: '5px' },
+    { left: '92%', top: '10%', duration: '6.7s', delay: '2.5s', size: '6px' },
+    { left: '12%', top: '33%', duration: '7.2s', delay: '3.1s', size: '5px' },
+    { left: '26%', top: '36%', duration: '6.5s', delay: '3.5s', size: '6px' },
+    { left: '41%', top: '34%', duration: '7.0s', delay: '2.9s', size: '5px' },
+    { left: '57%', top: '35%', duration: '6.6s', delay: '3.3s', size: '6px' },
+    { left: '71%', top: '37%', duration: '7.3s', delay: '3.0s', size: '5px' },
+    { left: '85%', top: '32%', duration: '6.9s', delay: '3.4s', size: '6px' },
   ];
 
   return (
     <div className="navigation-scene-frame">
-      <div className="navigation-scene">
-        {recentGain > 0 && <div className="navigation-execution-burst">+{recentGain} 执行力</div>}
+      <div
+        className="navigation-scene"
+        style={{
+          transform: `translate3d(${driftOffset.x}px, ${driftOffset.y}px, 0)`,
+        }}
+      >
+        {recentGain > 0 && <div className="navigation-execution-burst is-highlighted">+{recentGain} 执行力</div>}
         <div className="navigation-scene-elapsed">{elapsedLabel}</div>
-        <div className="navigation-sparkles navigation-sparkles-back" style={{ opacity: sparkleOpacity * 0.4 }} />
-        <div className="navigation-sparkles navigation-sparkles-mid" style={{ opacity: sparkleOpacity * 0.68 }} />
+        <div className="navigation-sparkles navigation-sparkles-back" style={{ opacity: 0.18 + (normalizedEnergy / 100) * 0.2 }} />
+        <div className="navigation-sparkles navigation-sparkles-mid" style={{ opacity: 0.24 + (normalizedEnergy / 100) * 0.26 }} />
         <div className="navigation-snowflakes" aria-hidden="true">
           {starLayout.map((star, index) => (
             <span
@@ -1807,11 +2021,46 @@ function NavigationScene({
             </span>
           ))}
         </div>
-        <div className="navigation-snowbank" style={{ height: `${snowHeight}px` }}>
-          <div className="navigation-snowbank-wave" />
+        <div className="navigation-collection-bed" aria-hidden="true">
+          {collectedEmojis.map((item, index) => {
+            const layout = getCollectedEmojiLayout(index, item.stepId, 10);
+            return (
+              <span
+                key={item.id}
+                className={`navigation-collected-emoji ${item.isFresh ? 'is-fresh' : ''}`}
+                style={{
+                  left: `${layout.left}%`,
+                  bottom: `${layout.bottom}px`,
+                  transform: `rotate(${layout.rotate}deg)`,
+                }}
+              >
+                {item.emoji}
+              </span>
+            );
+          })}
+          {idleMarkCount > 0 && (
+            <div className="navigation-idle-cross-pile">
+              {Array.from({ length: idleMarkCount }).map((_, index) => (
+                <span key={`idle-cross-${index}`} className="navigation-idle-cross-emoji">❌</span>
+              ))}
+            </div>
+          )}
         </div>
-        <div className="navigation-emoji-orb" style={{ bottom: `${orbBottom}px`, transform: `translateX(-50%) scale(${scale})` }}>
-          <span className="navigation-emoji" role="img" aria-label="当前状态">{emoji}</span>
+        <div className="navigation-snowbank" style={{ height: `${snowDepth}px` }}>
+          <svg className="navigation-snowbank-wave" viewBox="0 0 320 120" preserveAspectRatio="none" aria-hidden="true">
+            <path
+              className="navigation-snowbank-wave-back"
+              d="M0 102 C10 90 22 88 34 96 C46 104 58 112 70 104 C82 96 94 84 106 92 C118 100 130 114 142 106 C154 98 166 86 178 94 C190 102 202 114 214 106 C226 98 238 86 250 94 C262 102 274 114 286 106 C298 98 309 90 320 96 L320 120 L0 120 Z"
+            />
+            <path
+              className="navigation-snowbank-wave-front"
+              d="M0 110 C9 98 20 96 31 104 C42 112 53 118 64 110 C75 102 86 90 97 98 C108 106 119 120 130 112 C141 104 152 92 163 100 C174 108 185 120 196 112 C207 104 218 92 229 100 C240 108 251 120 262 112 C273 104 284 92 295 100 C306 108 314 106 320 108 L320 120 L0 120 Z"
+            />
+          </svg>
+        </div>
+        <div className="navigation-current-pair" style={{ bottom: `${currentPairBottom}px`, transform: `translateX(-50%) scale(${pairScale})` }}>
+          <span className="navigation-current-pair-emoji is-feeling" role="img" aria-label="当前情绪">{feelingEmoji}</span>
+          <span className="navigation-current-pair-emoji is-step" role="img" aria-label="当前步骤含义">{stepEmoji}</span>
         </div>
       </div>
     </div>
@@ -1954,6 +2203,7 @@ function NavigationStepCard({
   stepIndex,
   stepCount,
   elapsedLabel,
+  sceneElapsedMinutes,
   nextStepTitle,
   onContinue,
   onCompleteNavigation,
@@ -1972,12 +2222,16 @@ function NavigationStepCard({
   executionScore,
   energyLevel,
   recentExecutionGain,
+  collectedEmojis,
+  idleMarkCount,
+  driftOffset,
 }: {
   step: NavigationExecutionStep;
   stepIndex: number;
   stepCount: number;
-  nextStepTitle?: string;
   elapsedLabel: string;
+  sceneElapsedMinutes: number;
+  nextStepTitle?: string;
   onContinue: () => void;
   onCompleteNavigation: () => void;
   isFinalStepAwaitingCompletion: boolean;
@@ -1995,6 +2249,9 @@ function NavigationStepCard({
   executionScore: number;
   energyLevel: number;
   recentExecutionGain: number;
+  collectedEmojis: NavigationCollectedEmojiItem[];
+  idleMarkCount: number;
+  driftOffset: { x: number; y: number };
 }) {
   return (
     <div className="navigation-step-card navigation-step-reference-card">
@@ -2009,11 +2266,16 @@ function NavigationStepCard({
 
       <div className="navigation-step-reference-visual-wrap">
         <NavigationScene
-          key={`${step.id}-${recentExecutionGain}`}
+          key={`${step.id}-${recentExecutionGain}-${Math.floor(sceneElapsedMinutes / 2)}-${collectedEmojis.length}`}
           executionScore={executionScore}
           energyLevel={energyLevel}
           recentGain={recentExecutionGain}
           elapsedLabel={elapsedLabel}
+          sceneElapsedMinutes={sceneElapsedMinutes}
+          currentStepTitle={step.title}
+          collectedEmojis={collectedEmojis}
+          idleMarkCount={activeIdleMarks}
+          driftOffset={driftOffset}
         />
       </div>
 
@@ -2342,6 +2604,7 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
   const [isResolvingDifficulty, setIsResolvingDifficulty] = useState(false);
   const [voiceStatusText, setVoiceStatusText] = useState('语音未开启');
   const [elapsedNow, setElapsedNow] = useState(() => Date.now());
+  const [driftOffset, setDriftOffset] = useState({ x: 0, y: 0 });
   const difficultyRequestIdRef = useRef(0);
   const voiceCommandLockRef = useRef(false);
   const lastVoiceCommandRef = useRef('');
@@ -2350,6 +2613,13 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
   const isFinalStep = session.currentStepIndex >= session.executionSteps.length - 1;
   const isFinalStepAwaitingCompletion = isFinalStep && !!session.awaitingFinalCompletion;
   const elapsedLabel = formatElapsedCompact(currentStep?.startedAt || session.startedAt, elapsedNow);
+  const sceneElapsedMinutes = (() => {
+    const sceneStart = currentStep?.startedAt || session.startedAt;
+    if (!sceneStart) return 0;
+    const sceneStartTime = new Date(sceneStart).getTime();
+    if (Number.isNaN(sceneStartTime)) return 0;
+    return Math.max(0, Math.floor((elapsedNow - sceneStartTime) / 60000));
+  })();
   const remainingFocusSeconds = focusCountdown
     ? (focusCountdown.isPaused
       ? Math.max(0, focusCountdown.remainingSecondsWhenPaused || 0)
@@ -2360,6 +2630,10 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
   const isInsertedStep = currentStep?.source === 'difficulty_detour' || currentStep?.source === 'inserted_flow';
   const sceneExecutionScore = sessionMoodScore(currentStep, isInsertedStep, session);
   const sceneEnergyLevel = sessionMoodEnergy(currentStep, isInsertedStep, session);
+  const collectedEmojis = useMemo(() => buildCollectedStepEmojis(session, elapsedNow), [session, elapsedNow]);
+  const activeIdleMarks = isSleepProtectedStep(currentStep?.title)
+    ? 0
+    : Math.max(0, Math.floor((elapsedNow - new Date(session.lastProgressAt || session.startedAt || session.createdAt).getTime()) / (30 * 60 * 1000)));
   const handsFreeEnabled = !!session.handsFree?.enabled;
   const preferredVoiceMode = session.handsFree?.preferredVoiceMode || 'system';
   const waitingForCommand = !!session.handsFree?.waitingForCommand;
@@ -2616,6 +2890,39 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
   };
 
   useEffect(() => {
+    const updateDrift = (x: number, y: number) => {
+      setDriftOffset({
+        x: Math.max(-10, Math.min(10, x)),
+        y: Math.max(-8, Math.min(8, y)),
+      });
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const x = ((event.clientX / window.innerWidth) - 0.5) * 12;
+      const y = ((event.clientY / window.innerHeight) - 0.5) * 8;
+      updateDrift(x, y);
+    };
+
+    const handleDeviceOrientation = (event: DeviceOrientationEvent) => {
+      const gamma = event.gamma || 0;
+      const beta = event.beta || 0;
+      updateDrift(gamma * 0.35, (beta - 45) * 0.08);
+    };
+
+    const resetDrift = () => setDriftOffset({ x: 0, y: 0 });
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerleave', resetDrift);
+    window.addEventListener('deviceorientation', handleDeviceOrientation);
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerleave', resetDrift);
+      window.removeEventListener('deviceorientation', handleDeviceOrientation);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!handsFreeEnabled || !currentStep || session.status !== 'active') return;
 
     const stepSpeechKey = `${currentStep.id}:${currentStep.title}:${currentStep.guidance}`;
@@ -2798,6 +3105,9 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
         stepCount={session.executionSteps.length}
         nextStepTitle={nextStep?.title}
         elapsedLabel={elapsedLabel}
+        sceneElapsedMinutes={sceneElapsedMinutes}
+        collectedEmojis={collectedEmojis}
+        driftOffset={driftOffset}
         onContinue={() => {
           stopListening();
           setHandsFreeWaiting(false);
@@ -2834,6 +3144,7 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
         executionScore={sceneExecutionScore}
         energyLevel={sceneEnergyLevel}
         recentExecutionGain={session.recentExecutionGain || 0}
+        idleMarkCount={activeIdleMarks}
       />
 
       {showDifficultySheet && (
@@ -2936,6 +3247,7 @@ function NavigationCompletionView({ session, autoOpenTrend = false }: { session:
   const syncSessionToTimeline = useNavigationStore((state) => state.syncSessionToTimeline);
   const savePostState = useNavigationStore((state) => state.savePostState);
   const clearSession = useNavigationStore((state) => state.clearSession);
+  const bottleEntries = useNavigationStore((state) => state.bottleEntries);
   const isSyncingToTimeline = useNavigationStore((state) => state.isSyncingToTimeline);
   const [showPostState, setShowPostState] = useState(!session.postState);
   const [analysisResult, setAnalysisResult] = useState<{
@@ -3029,6 +3341,24 @@ function NavigationCompletionView({ session, autoOpenTrend = false }: { session:
   const trendStory = buildTrendStory(session);
   const selectedTrendStage = trendStory.stages.find((stage) => stage.id === selectedTrendStageId) || trendStory.stages[1] || trendStory.stages[0];
   const hoveredTrendStage = trendStory.stages.find((stage) => stage.id === hoveredTrendStageId) || selectedTrendStage;
+  const collectedBottleEmojis = useMemo(() => buildCollectedStepEmojis(session), [session]);
+  const activeIdleMarks = session.status === 'active'
+    ? Math.max(0, Math.floor((Date.now() - new Date(session.lastProgressAt || session.startedAt || session.createdAt).getTime()) / (30 * 60 * 1000)))
+    : 0;
+  const allBottleEntries = useMemo(() => {
+    const merged = [...bottleEntries];
+    const currentSessionEntries = session.bottleEntries || [];
+    currentSessionEntries.forEach((entry) => {
+      if (!merged.some((item) => item.id === entry.id)) {
+        merged.push(entry);
+      }
+    });
+    return merged;
+  }, [bottleEntries, session.bottleEntries]);
+  const dailyBottleGroups = useMemo(() => buildDailyBottleGroups(allBottleEntries), [allBottleEntries]);
+  const todayBottleGroup = dailyBottleGroups.find((group) => group.date === toLocalDateKey(session.completedAt || session.startedAt || Date.now()))
+    || dailyBottleGroups.find((group) => group.date === toLocalDateKey())
+    || null;
 
   if (showPostState) {
     return (
@@ -3120,6 +3450,97 @@ function NavigationCompletionView({ session, autoOpenTrend = false }: { session:
             </div>
           </div>
         )}
+
+        <div className="navigation-completion-emoji-bottle-card navigation-completion-emoji-bottle-card-today">
+          <div className="navigation-completion-emoji-bottle-head">
+            <div>
+              <strong>🫙 今日收集瓶</strong>
+              <small>{todayBottleGroup ? `今天一共收了 ${todayBottleGroup.emojis.length} 个表意 emoji` : '今天的瓶子还没有装满'}</small>
+            </div>
+            <span>{formatCollectionDateTag(session.completedAt || session.startedAt)}</span>
+          </div>
+          <div className="navigation-completion-emoji-bottle-wrap navigation-completion-emoji-bottle-wrap-large">
+            <div className="navigation-completion-emoji-bottle-cork" />
+            <div className="navigation-completion-emoji-bottle-neck" />
+            <div className="navigation-completion-emoji-bottle-body navigation-completion-emoji-bottle-body-glow">
+              <div className="navigation-completion-emoji-bottle-shine" />
+              {todayBottleGroup && todayBottleGroup.emojis.length > 0 ? buildBottleStackLayout(todayBottleGroup.emojis, todayBottleGroup.date, 7).map((item, index) => (
+                <span
+                  key={`${todayBottleGroup.date}-${index}-${item.emoji}`}
+                  className="navigation-completion-bottle-emoji navigation-completion-bottle-emoji-piled"
+                  style={{ left: `${item.left}%`, bottom: `${item.bottom}px`, transform: `rotate(${item.rotate}deg)` }}
+                >
+                  {item.emoji}
+                </span>
+              )) : <span className="navigation-completion-bottle-empty">今天这一瓶还空着</span>}
+              {todayBottleGroup && todayBottleGroup.inefficiencyMarks > 0 ? (
+                <div className="navigation-completion-bottle-crosses">
+                  {Array.from({ length: todayBottleGroup.inefficiencyMarks }).map((_, index) => (
+                    <span key={`cross-${index}`} className="navigation-completion-bottle-cross">❌</span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <div className="navigation-completion-emoji-bottle-tag">{todayBottleGroup ? `${formatBottleHistoryDate(todayBottleGroup.date)} · ${todayBottleGroup.entries.length} 瓶汇总` : formatCollectionDateTag(session.completedAt || session.startedAt)}</div>
+          </div>
+        </div>
+
+        <div className="navigation-completion-bottle-history-card">
+          <div className="navigation-completion-bottle-history-head">
+            <div>
+              <strong>📚 每天的收集瓶</strong>
+              <p>一天的总瓶子 = 这一天里所有收集瓶的总和。</p>
+            </div>
+          </div>
+          <div className="navigation-completion-bottle-history-list">
+            {dailyBottleGroups.length > 0 ? dailyBottleGroups.map((group) => (
+              <div key={group.date} className="navigation-completion-bottle-history-item">
+                <div className="navigation-completion-bottle-history-item-head">
+                  <div>
+                    <strong>{formatBottleHistoryDate(group.date)}</strong>
+                    <small>{group.entries.length} 瓶 · {group.emojis.length} 个收集 emoji</small>
+                  </div>
+                  {group.inefficiencyMarks > 0 ? <span className="navigation-completion-bottle-history-cross-tag">低效率 {group.inefficiencyMarks} 次 ❌</span> : <span className="navigation-completion-bottle-history-good-tag">今天没挂叉</span>}
+                </div>
+                <div className="navigation-completion-bottle-history-preview">
+                  <div className="navigation-completion-bottle-history-mini-bottle">
+                    <div className="navigation-completion-bottle-history-mini-neck" />
+                    <div className="navigation-completion-bottle-history-mini-body">
+                      {group.emojis.length > 0 ? buildBottleStackLayout(group.emojis, `history-${group.date}`, 6).slice(0, 18).map((item, index) => (
+                        <span
+                          key={`history-${group.date}-${index}`}
+                          className="navigation-completion-bottle-history-mini-emoji"
+                          style={{ left: `${item.left}%`, bottom: `${item.bottom}px`, transform: `rotate(${item.rotate}deg)` }}
+                        >
+                          {item.emoji}
+                        </span>
+                      )) : <span className="navigation-completion-bottle-empty">暂无收集</span>}
+                    </div>
+                  </div>
+                  <div className="navigation-completion-bottle-history-entries">
+                    {group.entries.map((entry) => (
+                      <div key={entry.id} className="navigation-completion-bottle-history-entry">
+                        <span>{entry.title}</span>
+                        <div>
+                          {entry.emojis.map((emoji, index) => <em key={`${entry.id}-${index}`}>{emoji}</em>)}
+                          {entry.inefficiencyMarks > 0 ? Array.from({ length: entry.inefficiencyMarks }).map((_, index) => <b key={`${entry.id}-cross-${index}`}>❌</b>) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )) : (
+              <div className="navigation-completion-empty-card">
+                <div className="navigation-completion-empty-emoji">🫙</div>
+                <div className="navigation-completion-empty-copy">
+                  <strong>还没有历史收集瓶</strong>
+                  <p>完成几次导航之后，这里就会按天把你的瓶子都汇总起来。</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
 
         <div className="navigation-completion-analysis-shell">
           <div className="navigation-completion-analysis-header">

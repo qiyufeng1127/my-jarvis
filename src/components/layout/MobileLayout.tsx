@@ -84,16 +84,14 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
 
   // 防止整个页面滚动
   useEffect(() => {
-    // 禁用 body 滚动
+    // 仅禁用 body 滚动，避免移动端键盘与 fixed body 冲突
     document.body.style.overflow = 'hidden';
-    document.body.style.position = 'fixed';
     document.body.style.width = '100%';
     document.body.style.height = '100%';
     
     return () => {
       // 清理：恢复 body 滚动
       document.body.style.overflow = '';
-      document.body.style.position = '';
       document.body.style.width = '';
       document.body.style.height = '';
     };
