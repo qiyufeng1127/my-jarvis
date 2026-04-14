@@ -161,6 +161,112 @@ const createDefaultHandsFree = (): NavigationHandsFreeState => ({
   preferredVoiceMode: 'system',
 });
 
+const NAVIGATION_SEMANTIC_TOKEN_RULES: Array<{ token: string; pattern: RegExp }> = [
+  { token: 'toilet', pattern: /(厕所|卫生间|洗手间|马桶|如厕|便|尿|冲水)/ },
+  { token: 'wash', pattern: /(洗手|刷牙|洗脸|洗漱|护肤|清洁)/ },
+  { token: 'laundry', pattern: /(洗衣|衣服|脏衣|晾衣|叠衣|洗衣机|衣篮|脏衣篮)/ },
+  { token: 'desk', pattern: /(桌子|书桌|桌面|桌上)/ },
+  { token: 'livingroom', pattern: /(客厅|沙发|茶几|电视柜)/ },
+  { token: 'kitchen', pattern: /(厨房|做饭|锅|碗|灶|冰箱|餐桌)/ },
+  { token: 'trash', pattern: /(垃圾|垃圾袋|扔垃圾)/ },
+  { token: 'floor', pattern: /(地板|拖地|扫地|吸尘)/ },
+  { token: 'bedroom', pattern: /(卧室|床|被子|枕头|床头)/ },
+  { token: 'bathroom', pattern: /(浴室|洗澡|淋浴)/ },
+  { token: 'outdoor', pattern: /(出门|下楼|上楼|门口|快递|取东西)/ },
+  { token: 'meal', pattern: /(早餐|午饭|晚饭|吃饭|喝水)/ },
+  { token: 'organize', pattern: /(收拾|整理|归位|摆好)/ },
+];
+
+const normalizeNavigationSemanticText = (text?: string) => (text || '').replace(/\s+/g, '').toLowerCase();
+
+const extractNavigationSemanticTokens = (text?: string) => {
+  const normalized = normalizeNavigationSemanticText(text);
+  const tokens = new Set<string>();
+  NAVIGATION_SEMANTIC_TOKEN_RULES.forEach(({ token, pattern }) => {
+    if (pattern.test(normalized)) {
+      tokens.add(token);
+    }
+  });
+  return tokens;
+};
+
+const getNavigationSemanticScore = (groupTitle: string, groupDescription: string | undefined, stepTitle: string, stepGuidance: string) => {
+  const groupText = `${groupTitle}${groupDescription || ''}`;
+  const stepText = `${stepTitle}${stepGuidance}`;
+  const groupTokens = extractNavigationSemanticTokens(groupText);
+  const stepTokens = extractNavigationSemanticTokens(stepText);
+
+  let score = 0;
+  stepTokens.forEach((token) => {
+    if (groupTokens.has(token)) {
+      score += 3;
+    }
+  });
+
+  const normalizedGroupTitle = normalizeNavigationSemanticText(groupTitle);
+  const normalizedStepText = normalizeNavigationSemanticText(stepText);
+  const significantChars = Array.from(new Set(normalizedGroupTitle.split('').filter((char) => /[\u4e00-\u9fa5a-z0-9]/.test(char) && !'的一二三四五六七八九十去把将再先后并且然后这个那个'.includes(char))));
+  significantChars.forEach((char) => {
+    if (normalizedStepText.includes(char)) {
+      score += 0.45;
+    }
+  });
+
+  return score;
+};
+
+const alignNavigationPlanGroups = <TGroup extends { id: string; title: string; description?: string; stepIds: string[] }, TStep extends { id: string; groupId: string; title: string; guidance: string }>(
+  timelineGroups: TGroup[],
+  executionSteps: TStep[],
+) => {
+  if (timelineGroups.length === 0 || executionSteps.length === 0) {
+    return { timelineGroups, executionSteps };
+  }
+
+  const fallbackGroupId = timelineGroups[0].id;
+  const groupOrder = new Map(timelineGroups.map((group, index) => [group.id, index]));
+  const originalStepIdOwner = new Map<string, string>();
+  timelineGroups.forEach((group) => {
+    group.stepIds.forEach((stepId) => {
+      if (!originalStepIdOwner.has(stepId)) {
+        originalStepIdOwner.set(stepId, group.id);
+      }
+    });
+  });
+
+  const nextSteps = executionSteps.map((step, stepIndex) => {
+    let bestGroupId = timelineGroups.find((group) => group.id === step.groupId)?.id || originalStepIdOwner.get(step.id) || fallbackGroupId;
+    let bestScore = -Infinity;
+
+    timelineGroups.forEach((group, groupIndex) => {
+      let score = getNavigationSemanticScore(group.title, group.description, step.title, step.guidance);
+      if (group.id === step.groupId) score += 1.6;
+      if (originalStepIdOwner.get(step.id) === group.id) score += 2.1;
+      score += Math.max(0, 1.2 - Math.abs(groupIndex - stepIndex) * 0.45);
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestGroupId = group.id;
+      }
+    });
+
+    return {
+      ...step,
+      groupId: bestGroupId,
+    };
+  });
+
+  const nextGroups = timelineGroups.map((group) => ({
+    ...group,
+    stepIds: nextSteps.filter((step) => step.groupId === group.id).map((step) => step.id),
+  }));
+
+  return {
+    timelineGroups: nextGroups,
+    executionSteps: nextSteps,
+  };
+};
+
 const mergeInsertedFlowIntoSession = (
   session: NavigationSession,
   result: NavigationInsertedFlowResult,
@@ -225,9 +331,11 @@ const mergeInsertedFlowIntoSession = (
     return nextStep;
   });
 
+  const alignedInsertedPlan = alignNavigationPlanGroups(insertedGroups, insertedSteps);
+
   const executionSteps = [
     ...session.executionSteps.slice(0, currentStepIndex),
-    ...insertedSteps,
+    ...alignedInsertedPlan.executionSteps,
     {
       ...currentStep,
       status: 'pending' as const,
@@ -246,10 +354,10 @@ const mergeInsertedFlowIntoSession = (
   const timelineGroups = currentGroupIndex >= 0
     ? [
         ...session.timelineGroups.slice(0, currentGroupIndex),
-        ...insertedGroups,
+        ...alignedInsertedPlan.timelineGroups,
         ...session.timelineGroups.slice(currentGroupIndex),
       ]
-    : [...session.timelineGroups, ...insertedGroups];
+    : [...session.timelineGroups, ...alignedInsertedPlan.timelineGroups];
 
   return {
     ...session,
@@ -421,6 +529,7 @@ export const useNavigationStore = create<NavigationStoreState>()(
         const now = new Date().toISOString();
         const previousSession = get().currentSession;
         const sceneCarryover = createSceneCarryoverSeed(previousSession?.completedAt);
+        const alignedPlan = alignNavigationPlanGroups(result.timelineGroups, result.executionSteps);
         set({
           currentSession: {
             id: crypto.randomUUID(),
@@ -428,12 +537,12 @@ export const useNavigationStore = create<NavigationStoreState>()(
             rawInput,
             status: 'preview',
             previewMode: 'initial',
-            executionSteps: result.executionSteps.map((step, index) => ({
+            executionSteps: alignedPlan.executionSteps.map((step, index) => ({
               ...step,
               status: 'pending',
               sortOrder: index,
             })),
-            timelineGroups: result.timelineGroups.map((group) => ({
+            timelineGroups: alignedPlan.timelineGroups.map((group) => ({
               ...group,
             })),
             currentStepIndex: 0,
@@ -461,14 +570,17 @@ export const useNavigationStore = create<NavigationStoreState>()(
         const session = get().currentSession;
         if (!session || session.status !== 'preview' || session.rawInput !== rawInput) return;
 
-        const nextExecutionSteps = (partial.executionSteps || session.executionSteps).map((step, index) => ({
+        const rawExecutionSteps = (partial.executionSteps || session.executionSteps).map((step, index) => ({
           ...step,
           status: session.executionSteps[index]?.status || 'pending' as const,
           sortOrder: index,
         }));
-        const nextTimelineGroups = (partial.timelineGroups || session.timelineGroups).map((group) => ({
+        const rawTimelineGroups = (partial.timelineGroups || session.timelineGroups).map((group) => ({
           ...group,
         }));
+        const alignedPlan = alignNavigationPlanGroups(rawTimelineGroups, rawExecutionSteps);
+        const nextExecutionSteps = alignedPlan.executionSteps;
+        const nextTimelineGroups = alignedPlan.timelineGroups;
         const nextSummary = partial.summary ?? session.summary;
         const nextTitle = partial.sessionTitle || session.title || '导航模式';
         const hasAnyContent = nextExecutionSteps.length > 0 || nextTimelineGroups.length > 0;
@@ -1173,6 +1285,22 @@ export const useNavigationStore = create<NavigationStoreState>()(
         suspendedSession: state.suspendedSession,
         bottleEntries: state.bottleEntries,
       }),
+      migrate: (persistedState) => {
+        const state = (persistedState || {}) as Partial<NavigationStoreState> & {
+          state?: Partial<NavigationStoreState>;
+        };
+        const source = state.state && typeof state.state === 'object' ? state.state : state;
+
+        return {
+          currentSession: source.currentSession ?? null,
+          suspendedSession: source.suspendedSession ?? null,
+          bottleEntries: Array.isArray(source.bottleEntries) ? source.bottleEntries : [],
+          isGenerating: false,
+          isSyncingToTimeline: false,
+          isResolvingDifficulty: false,
+          error: null,
+        } as Partial<NavigationStoreState>;
+      },
     }
   )
 );

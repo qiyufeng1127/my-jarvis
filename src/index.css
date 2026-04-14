@@ -78,8 +78,8 @@ body {
 }
 
 html[data-keyboard-open='true'] .mobile-app-scroll {
-  padding-bottom: var(--app-mobile-scroll-padding-bottom-keyboard);
-  scroll-padding-bottom: var(--app-mobile-scroll-snap-bottom-keyboard);
+  padding-bottom: max(0px, var(--app-safe-area-bottom));
+  scroll-padding-bottom: max(12px, calc(var(--app-safe-area-bottom) + 12px));
 }
 
 .mobile-app-scroll > *:first-child {
@@ -88,6 +88,10 @@ html[data-keyboard-open='true'] .mobile-app-scroll {
 
 .mobile-app-scroll > *:last-child {
   scroll-margin-bottom: var(--app-mobile-bottom-gap);
+}
+
+html[data-keyboard-open='true'] .mobile-app-scroll > *:last-child {
+  scroll-margin-bottom: max(0px, calc(var(--app-safe-area-bottom) + 8px));
 }
 
 .keyboard-safe-area-top {
@@ -139,11 +143,11 @@ html[data-keyboard-open='true'] .mobile-app-scroll {
 }
 
 .keyboard-aware-composer {
-  padding-bottom: calc(var(--app-keyboard-offset) + var(--app-safe-area-bottom));
+  padding-bottom: var(--app-safe-area-bottom);
 }
 
 .keyboard-aware-docked {
-  bottom: var(--app-composer-offset) !important;
+  bottom: 0 !important;
   padding-bottom: max(8px, var(--app-safe-area-bottom));
 }
 

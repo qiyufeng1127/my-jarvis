@@ -1991,6 +1991,7 @@ function NavigationScene({
   recentGain,
   elapsedLabel,
   sceneElapsedMinutes,
+  totalElapsedMinutes,
   currentStepTitle,
   collectedEmojis,
   idleMarkCount,
@@ -2001,6 +2002,7 @@ function NavigationScene({
   recentGain: number;
   elapsedLabel: string;
   sceneElapsedMinutes: number;
+  totalElapsedMinutes: number;
   currentStepTitle: string;
   collectedEmojis: NavigationCollectedEmojiItem[];
   idleMarkCount: number;
@@ -2012,8 +2014,9 @@ function NavigationScene({
   const normalizedEnergy = clampScore(energyLevel);
   const sceneProgress = clampScore((normalizedScore * 0.72) + (normalizedEnergy * 0.28));
   const timePressure = Math.min(1, sceneElapsedMinutes / 22);
+  const totalTimePressure = Math.min(1, totalElapsedMinutes / 160);
   const efficiencyRelief = Math.min(1, (normalizedScore / 100) * 0.72 + Math.min(recentGain, 18) / 24);
-  const snowDepth = Math.max(0, Math.min(126, 4 + (timePressure * 118) - (efficiencyRelief * 46)));
+  const snowDepth = Math.max(18, Math.min(140, 10 + (timePressure * 54) + (totalTimePressure * 86) + collectedEmojis.length * 2.2 - idleMarkCount * 6 - (efficiencyRelief * 24)));
   const pairScale = 0.48 + (sceneProgress / 100) * 0.92 + Math.min(recentGain, 20) * 0.008;
   const currentPairBottom = Math.max(20, Math.min(40, snowDepth - 8));
   const starLayout = [
@@ -2254,6 +2257,7 @@ function NavigationStepCard({
   stepCount,
   elapsedLabel,
   sceneElapsedMinutes,
+  totalSessionElapsedMinutes,
   nextStepTitle,
   onContinue,
   onCompleteNavigation,
@@ -2281,6 +2285,7 @@ function NavigationStepCard({
   stepCount: number;
   elapsedLabel: string;
   sceneElapsedMinutes: number;
+  totalSessionElapsedMinutes: number;
   nextStepTitle?: string;
   onContinue: () => void;
   onCompleteNavigation: () => void;
@@ -2322,6 +2327,7 @@ function NavigationStepCard({
           recentGain={recentExecutionGain}
           elapsedLabel={elapsedLabel}
           sceneElapsedMinutes={sceneElapsedMinutes}
+          totalElapsedMinutes={totalSessionElapsedMinutes}
           currentStepTitle={step.title}
           collectedEmojis={collectedEmojis}
           idleMarkCount={idleMarkCount}
@@ -2663,6 +2669,13 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
   const isFinalStep = session.currentStepIndex >= session.executionSteps.length - 1;
   const isFinalStepAwaitingCompletion = isFinalStep && !!session.awaitingFinalCompletion;
   const elapsedLabel = formatElapsedCompact(currentStep?.startedAt || session.startedAt, elapsedNow);
+  const totalSessionElapsedMinutes = (() => {
+    const sessionStart = session.startedAt;
+    if (!sessionStart) return 0;
+    const sessionStartTime = new Date(sessionStart).getTime();
+    if (Number.isNaN(sessionStartTime)) return 0;
+    return Math.max(0, Math.floor((elapsedNow - sessionStartTime) / 60000));
+  })();
   const sceneElapsedMinutes = (() => {
     const sceneStart = currentStep?.startedAt || session.startedAt;
     if (!sceneStart) return 0;
@@ -3156,6 +3169,7 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
         nextStepTitle={nextStep?.title}
         elapsedLabel={elapsedLabel}
         sceneElapsedMinutes={sceneElapsedMinutes}
+        totalSessionElapsedMinutes={totalSessionElapsedMinutes}
         collectedEmojis={collectedEmojis}
         driftOffset={driftOffset}
         onContinue={() => {
