@@ -34,6 +34,13 @@
   padding-bottom: 0;
 }
 
+html[data-keyboard-open='true'] .navigation-session-shell {
+  min-height: var(--app-visible-viewport-height);
+  height: var(--app-visible-viewport-height);
+  justify-content: flex-end;
+  overflow: hidden;
+}
+
 .navigation-topbar,
 .navigation-sheet-header,
 .navigation-topbar-actions,
@@ -93,14 +100,21 @@ html[data-keyboard-open='true'] .navigation-session-shell {
   justify-content: flex-end;
 }
 
-html[data-keyboard-open='true'] .navigation-session-shell > .navigation-topbar,
-html[data-keyboard-open='true'] .navigation-session-shell .navigation-home-archived-section,
-html[data-keyboard-open='true'] .navigation-session-shell .navigation-badge-row,
 html[data-keyboard-open='true'] .navigation-session-shell .navigation-panel .navigation-action-row {
   display: none;
 }
 
+html[data-keyboard-open='true'] .navigation-session-shell .navigation-panel .navigation-composer {
+  flex: 0 0 auto;
+}
+
 html[data-keyboard-open='true'] .navigation-session-shell .navigation-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
   padding: 0;
   border: none;
   border-radius: 0;
@@ -1434,13 +1448,17 @@ html[data-keyboard-open='true'] .navigation-session-shell .navigation-panel {
   }
 
   html[data-keyboard-open='true'] .navigation-composer {
+    display: block;
+    width: 100%;
     min-height: 112px;
-    max-height: none;
+    max-height: 38vh;
     margin: 0;
     padding: 14px 16px;
     border-inline: 0;
     border-bottom: 0;
     border-radius: 16px 16px 0 0;
+    overflow-y: auto;
+    flex: 0 0 auto;
   }
 
   .navigation-topbar-task-actions {
