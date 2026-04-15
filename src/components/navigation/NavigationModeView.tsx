@@ -984,16 +984,6 @@ function NavigationKRSheet({
           </button>
         </div>
 
-        <div className="navigation-kr-section navigation-kr-section-hero">
-          <div className="navigation-kr-duration-card">
-            <div>
-              <div className="navigation-small-note">当前任务累计时长</div>
-              <strong>{actualDurationMinutes} 分钟</strong>
-            </div>
-            <div className="navigation-kr-duration-side">保存后会跟随这个任务标题写入时间轴</div>
-          </div>
-        </div>
-
         <div className="navigation-kr-section">
           <div className="navigation-kr-label-row">
             <span>关联目标</span>
@@ -1014,7 +1004,7 @@ function NavigationKRSheet({
               setSaveError(null);
               setSaveSuccess(null);
             }}
-            className="navigation-composer"
+            className="navigation-composer navigation-kr-goal-select"
           >
             <option value="">请选择目标</option>
             {selectableGoals.map((goal) => (

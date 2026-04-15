@@ -138,67 +138,67 @@ export default function GoalForm({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-[#e9e9ee] keyboard-aware-modal-shell">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-[#f3f2f7] keyboard-aware-modal-shell">
       <form
         ref={scrollRef}
         onFocusCapture={handleFocusCapture}
         onSubmit={handleSubmit}
-        className="mx-auto min-h-full max-w-xl px-4 pb-16 keyboard-aware-scroll"
+        className="min-h-full w-full keyboard-aware-scroll"
       >
-        <div className="rounded-[32px] bg-white/85 px-4 py-4 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur keyboard-aware-modal-card">
-          <div className="mb-5 flex items-center justify-between">
-            <button type="button" onClick={onCancel} className="rounded-full bg-[#f5f5f8] px-4 py-2 text-[17px] font-medium text-[#3a3a3c]">
+        <div className="min-h-screen w-full bg-[#f3f2f7] px-3 py-3 pb-24 keyboard-aware-modal-card sm:px-4 sm:py-4 sm:pb-28">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <button type="button" onClick={onCancel} className="rounded-full border border-[#e8e7ef] bg-white px-4 py-2 text-[15px] font-semibold text-[#4a4658] shadow-[0_6px_18px_rgba(15,23,42,0.05)]">
               取消
             </button>
-            <div className="text-[20px] font-semibold text-[#111111]">编辑</div>
-            <button type="submit" className="rounded-full bg-[#f5f5f8] px-4 py-2 text-[17px] font-semibold text-[#111111]">
+            <div className="text-[18px] font-semibold tracking-[0.01em] text-[#17151f]">编辑目标</div>
+            <button type="submit" className="rounded-full bg-[linear-gradient(135deg,#1a8cff,#0a84ff)] px-4 py-2 text-[15px] font-semibold text-white shadow-[0_10px_24px_rgba(10,132,255,0.24)]">
               保存
             </button>
           </div>
 
-          <div className="space-y-5">
-            <section className="rounded-[26px] bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
+          <div className="space-y-3">
+            <section className="rounded-[22px] border border-[#f0eef5] bg-white px-3 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.045)] sm:px-4">
               <input
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
                 onFocus={() => scrollIntoSafeView(document.activeElement as HTMLElement | null)}
                 placeholder="填写目标名称"
-                className="w-full rounded-[18px] bg-[#f7f7fa] px-4 py-3 text-[18px] text-[#111111] placeholder:text-[#8e8e93] outline-none"
+                className="w-full rounded-[16px] bg-[#f7f7fa] px-4 py-2.5 text-[17px] font-semibold text-[#111111] placeholder:text-[#8e8e93] outline-none"
               />
               {errors.name && <p className="mt-2 text-sm text-[#ff3b30]">{errors.name}</p>}
             </section>
 
-            <section className="rounded-[26px] bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between border-b border-[#ececf1] pb-3">
+            <section className="rounded-[22px] border border-[#f0eef5] bg-white px-3 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.045)] sm:px-4">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b border-[#ececf1] pb-2.5">
                   <span className="text-[16px] text-[#3a3a3c]">开始日期</span>
                   <input
                     type="date"
                     value={formData.startDate}
                     onChange={(e) => setFormData((prev) => ({ ...prev, startDate: e.target.value }))}
-                    className="rounded-full bg-[#f3f3f6] px-4 py-2 text-[16px] text-[#111111] outline-none [color-scheme:light]"
+                    className="rounded-full bg-[#f3f3f6] px-3 py-1.5 text-[15px] text-[#111111] outline-none [color-scheme:light]"
                   />
                 </div>
-                <div className="flex items-center justify-between border-b border-[#ececf1] pb-3">
+                <div className="flex items-center justify-between border-b border-[#ececf1] pb-2.5">
                   <span className="text-[16px] text-[#3a3a3c]">结束日期</span>
                   <input
                     type="date"
                     value={formData.endDate}
                     onChange={(e) => setFormData((prev) => ({ ...prev, endDate: e.target.value }))}
-                    className="rounded-full bg-[#f3f3f6] px-4 py-2 text-[16px] text-[#111111] outline-none [color-scheme:light]"
+                    className="rounded-full bg-[#f3f3f6] px-3 py-1.5 text-[15px] text-[#111111] outline-none [color-scheme:light]"
                   />
                 </div>
                 <div className="flex items-center justify-between pt-1">
-                  <span className="text-[16px] text-[#8e8e93]">持续天数</span>
-                  <span className="text-[18px] font-medium text-[#8e8e93]">{durationDays || 0}</span>
+                  <span className="text-[15px] text-[#8e8e93]">持续天数</span>
+                  <span className="text-[17px] font-medium text-[#8e8e93]">{durationDays || 0}</span>
                 </div>
               </div>
               {(errors.startDate || errors.endDate) && <p className="mt-2 text-sm text-[#ff3b30]">{errors.startDate || errors.endDate}</p>}
             </section>
 
-            <section className="rounded-[26px] bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
-              <div className="mb-3 text-[16px] text-[#3a3a3c]">预计耗费总时长</div>
+            <section className="rounded-[22px] border border-[#f0eef5] bg-white px-3 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.045)] sm:px-4">
+              <div className="mb-2 text-[15px] font-medium text-[#3a3a3c]">预计耗费总时长</div>
               <div className="flex items-end justify-between gap-3">
                 <input
                   type="number"
@@ -207,16 +207,16 @@ export default function GoalForm({
                   value={formData.estimatedTotalHours}
                   onChange={(e) => setFormData((prev) => ({ ...prev, estimatedTotalHours: Number(e.target.value || 0) }))}
                   onFocus={() => scrollIntoSafeView(document.activeElement as HTMLElement | null)}
-                  className="w-full rounded-[18px] bg-[#f7f7fa] px-4 py-3 text-[22px] font-semibold text-[#111111] placeholder:text-[#8e8e93] outline-none"
+                  className="w-full rounded-[16px] bg-[#f7f7fa] px-4 py-2.5 text-[20px] font-semibold text-[#111111] placeholder:text-[#8e8e93] outline-none"
                 />
-                <div className="whitespace-nowrap pb-2 text-[16px] text-[#8e8e93]">约 {estimatedDailyHours || 0} h / 天</div>
+                <div className="whitespace-nowrap pb-1.5 text-[14px] text-[#8e8e93]">约 {estimatedDailyHours || 0} h / 天</div>
               </div>
-              <div className="mt-2 text-sm text-[#8e8e93]">可选，单位：小时</div>
+              <div className="mt-1 text-[12px] text-[#8e8e93]">可选，单位：小时</div>
               {errors.estimatedTotalHours && <p className="mt-2 text-sm text-[#ff3b30]">{errors.estimatedTotalHours}</p>}
             </section>
 
-            <section className="rounded-[26px] bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
-              <div className="mb-3 text-[16px] text-[#3a3a3c]">目标收入</div>
+            <section className="rounded-[22px] border border-[#f0eef5] bg-white px-3 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.045)] sm:px-4">
+              <div className="mb-2 text-[15px] font-medium text-[#3a3a3c]">目标收入</div>
               <div className="flex items-end justify-between gap-3">
                 <input
                   type="number"
@@ -225,41 +225,41 @@ export default function GoalForm({
                   value={formData.targetIncome}
                   onChange={(e) => setFormData((prev) => ({ ...prev, targetIncome: Number(e.target.value || 0) }))}
                   onFocus={() => scrollIntoSafeView(document.activeElement as HTMLElement | null)}
-                  className="w-full rounded-[18px] bg-[#f7f7fa] px-4 py-3 text-[22px] font-semibold text-[#111111] placeholder:text-[#8e8e93] outline-none"
+                  className="w-full rounded-[16px] bg-[#f7f7fa] px-4 py-2.5 text-[20px] font-semibold text-[#111111] placeholder:text-[#8e8e93] outline-none"
                 />
-                <div className="whitespace-nowrap pb-2 text-[16px] text-[#8e8e93]">元</div>
+                <div className="whitespace-nowrap pb-1.5 text-[14px] text-[#8e8e93]">元</div>
               </div>
-              <div className="mt-2 text-sm text-[#8e8e93]">用于查看该目标的收入完成情况</div>
+              <div className="mt-1 text-[12px] text-[#8e8e93]">用于查看该目标的收入完成情况</div>
             </section>
 
-            <section className="rounded-[26px] bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
-              <div className="mb-4 flex items-center justify-between">
+            <section className="rounded-[22px] border border-[#f0eef5] bg-white px-3 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.045)] sm:px-4">
+              <div className="mb-3 flex items-center justify-between">
                 <div>
-                  <div className="text-[16px] text-[#3a3a3c]">客观进度</div>
-                  <div className="mt-1 text-sm text-[#8e8e93]">按项目维度量化客观进度，在效率权重里合并成一条总进度。</div>
+                  <div className="text-[15px] font-medium text-[#3a3a3c]">客观进度</div>
+                  <div className="mt-1 text-[12px] leading-5 text-[#8e8e93]">按项目维度量化客观进度，在效率权重里合并成一条总进度。</div>
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {formData.dimensions.map((item, index) => (
-                  <div key={item.id} className="rounded-[22px] bg-[#f4f4f8] px-3 py-3">
-                    <div className="grid grid-cols-1 gap-3">
+                  <div key={item.id} className="rounded-[18px] border border-[#eceaf1] bg-[#f7f7fa] px-3 py-3">
+                    <div className="grid grid-cols-1 gap-2.5">
                       <input
                         type="text"
                         value={item.name}
                         onChange={(e) => updateMetric(item.id, { name: e.target.value })}
                         onFocus={() => scrollIntoSafeView(document.activeElement as HTMLElement | null)}
                         placeholder="名称"
-                        className="w-full rounded-[14px] border border-[#e4e4ea] bg-white px-3 py-3 text-[16px] text-[#111111] placeholder:text-[#8e8e93] outline-none"
+                        className="w-full rounded-[12px] border border-[#e4e4ea] bg-white px-3 py-2.5 text-[15px] text-[#111111] placeholder:text-[#8e8e93] outline-none"
                       />
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-2.5">
                         <input
                           type="text"
                           value={item.unit}
                           onChange={(e) => updateMetric(item.id, { unit: e.target.value })}
                           onFocus={() => scrollIntoSafeView(document.activeElement as HTMLElement | null)}
                           placeholder="单位"
-                          className="w-full rounded-[14px] border border-[#e4e4ea] bg-white px-3 py-3 text-[16px] text-[#111111] placeholder:text-[#8e8e93] outline-none"
+                          className="w-full rounded-[12px] border border-[#e4e4ea] bg-white px-3 py-2.5 text-[15px] text-[#111111] placeholder:text-[#8e8e93] outline-none"
                         />
                         <input
                           type="number"
@@ -267,7 +267,7 @@ export default function GoalForm({
                           value={item.targetValue}
                           onChange={(e) => updateMetric(item.id, { targetValue: Number(e.target.value || 0) })}
                           placeholder="目标总量"
-                          className="w-full rounded-[14px] border border-[#e4e4ea] bg-white px-3 py-3 text-[16px] text-[#111111] placeholder:text-[#8e8e93] outline-none"
+                          className="w-full rounded-[12px] border border-[#e4e4ea] bg-white px-3 py-2.5 text-[15px] text-[#111111] placeholder:text-[#8e8e93] outline-none"
                         />
                       </div>
                       <div className="flex items-center gap-2">
@@ -277,10 +277,10 @@ export default function GoalForm({
                           max="100"
                           value={item.weight}
                           onChange={(e) => updateMetric(item.id, { weight: Number(e.target.value || 0) })}
-                          className="w-24 rounded-[14px] border border-[#e4e4ea] bg-white px-3 py-3 text-[16px] text-[#111111] placeholder:text-[#8e8e93] outline-none"
+                          className="w-20 rounded-[12px] border border-[#e4e4ea] bg-white px-3 py-2.5 text-[15px] text-[#111111] placeholder:text-[#8e8e93] outline-none"
                         />
-                        <span className="text-[16px] text-[#3a3a3c]">%</span>
-                        <button type="button" onClick={() => removeMetric(item.id)} className="ml-auto rounded-full bg-white p-2 text-[#0A84FF] shadow-sm">
+                        <span className="text-[15px] text-[#3a3a3c]">%</span>
+                        <button type="button" onClick={() => removeMetric(item.id)} className="ml-auto rounded-full border border-[#e7e7ee] bg-white p-2 text-[#0A84FF] shadow-sm">
                           <Minus className="h-4 w-4" />
                         </button>
                       </div>
@@ -294,46 +294,46 @@ export default function GoalForm({
                 ))}
               </div>
 
-              <div className="mt-4 border-t border-[#ececf1] pt-4">
-                <div className="text-[16px] text-[#3a3a3c]">当前权重和：{totalWeight}%</div>
+              <div className="mt-3 border-t border-[#ececf1] pt-3">
+                <div className="text-[15px] font-medium text-[#3a3a3c]">当前权重和：{totalWeight}%</div>
                 {errors.weight && <p className="mt-2 text-sm text-[#ff3b30]">{errors.weight}</p>}
               </div>
 
-              <button type="button" onClick={addMetric} className="mt-4 inline-flex items-center gap-2 text-[17px] font-medium text-[#007aff]">
+              <button type="button" onClick={addMetric} className="mt-3 inline-flex items-center gap-2 rounded-full bg-[#eef6ff] px-3 py-2 text-[15px] font-semibold text-[#007aff]">
                 <Plus className="h-4 w-4" /> 添加维度
               </button>
             </section>
 
-            <section className="rounded-[26px] bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
-              <div className="text-[16px] text-[#3a3a3c]">主题颜色</div>
-              <div className="mt-4 flex flex-wrap items-center gap-4">
+            <section className="rounded-[22px] border border-[#f0eef5] bg-white px-3 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.045)] sm:px-4">
+              <div className="text-[15px] font-medium text-[#3a3a3c]">主题颜色</div>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
                 {themeOptions.map((theme) => {
                   const active = formData.theme.color === theme.color;
                   return (
-                    <button key={theme.color} type="button" onClick={() => setFormData((prev) => ({ ...prev, theme }))} className="flex flex-col items-center gap-2">
+                    <button key={theme.color} type="button" onClick={() => setFormData((prev) => ({ ...prev, theme }))} className="flex flex-col items-center gap-1.5">
                       <span
-                        className="block h-12 w-12 rounded-full border-4 transition"
+                        className="block h-10 w-10 rounded-full border-[3px] transition"
                         style={{
                           backgroundColor: theme.color,
                           borderColor: active ? '#111111' : 'transparent',
                         }}
                       />
-                      <span className="text-xs text-[#6b7280]">{theme.label}</span>
+                      <span className="text-[11px] text-[#6b7280]">{theme.label}</span>
                     </button>
                   );
                 })}
 
-                <label className="flex cursor-pointer flex-col items-center gap-2">
+                <label className="flex cursor-pointer flex-col items-center gap-1.5">
                   <span
-                    className="flex h-12 w-12 items-center justify-center rounded-full border-4 transition"
+                    className="flex h-10 w-10 items-center justify-center rounded-full border-[3px] transition"
                     style={{
                       backgroundColor: formData.theme.color,
                       borderColor: themeOptions.some((theme) => theme.color === formData.theme.color) ? 'transparent' : '#111111',
                     }}
                   >
-                    <span className="text-[11px] font-semibold text-white mix-blend-difference">自定义</span>
+                    <span className="text-[10px] font-semibold text-white mix-blend-difference">自定义</span>
                   </span>
-                  <span className="text-xs text-[#6b7280]">自定义</span>
+                  <span className="text-[11px] text-[#6b7280]">自定义</span>
                   <input
                     type="color"
                     value={formData.theme.color}
@@ -347,11 +347,11 @@ export default function GoalForm({
                   />
                 </label>
               </div>
-              <div className="mt-3 flex items-center justify-between gap-3 rounded-[18px] bg-[#f7f7fa] px-4 py-3">
-                <span className="text-sm text-[#8e8e93]">当前主题色</span>
-                <span className="text-[15px] font-medium text-[#111111]">{formData.theme.color.toUpperCase()}</span>
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-[16px] bg-[#f7f7fa] px-4 py-2.5">
+                <span className="text-[12px] text-[#8e8e93]">当前主题色</span>
+                <span className="text-[14px] font-medium text-[#111111]">{formData.theme.color.toUpperCase()}</span>
               </div>
-              <div className="mt-3 text-sm text-[#8e8e93]">可选预设颜色，也可以使用自定义颜色作为目标展示色</div>
+              <div className="mt-2 text-[12px] leading-5 text-[#8e8e93]">可选预设颜色，也可以使用自定义颜色作为目标展示色</div>
             </section>
 
           </div>
