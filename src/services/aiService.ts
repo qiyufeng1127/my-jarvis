@@ -19,6 +19,21 @@ interface AIResponse {
   error?: string;
 }
 
+const EATING_TASK_PATTERN = /(吃饭|吃早饭|吃午饭|吃晚饭|吃夜宵|吃早餐|吃零食|吃点东西)/;
+const COOKING_TASK_PATTERN = /(做饭|下厨|炒菜|煮饭|煮面|做吃的|备菜|切菜|准备餐食|烹饪)/;
+const COOKING_STEP_PATTERN = /(看冰箱|看有什么吃的|准备食材|解冻|加热烹饪)/;
+
+const buildTaskDecomposeUserInput = (taskDescription: string) => {
+  const isEatingTask = EATING_TASK_PATTERN.test(taskDescription);
+  const hasCookingIntent = COOKING_TASK_PATTERN.test(taskDescription) || COOKING_STEP_PATTERN.test(taskDescription);
+
+  if (isEatingTask && !hasCookingIntent) {
+    return `${taskDescription}\n\n补充约束：这是“吃东西”任务，不是“做饭”任务。不要添加打开冰箱、看有什么吃的、准备食材、做饭、炒菜等步骤；除非用户明确提到做饭或烹饪动作。`;
+  }
+
+  return taskDescription;
+};
+
 // AI服务类
 class AIService {
   // 调用AI API
@@ -554,19 +569,30 @@ work, study, life, housework, health, social, hobby, startup, finance, family, p
    - **后续任务 = 前一个任务结束时间**
    - **如果用户明确说了时长（如"30分钟"），使用该时长；否则根据任务类型估算**
 
-3. **智能分配中文标签**（至少2个）：
+3. **饮食任务拆解规则（非常重要，必须严格遵守）**：
+   - **“吃饭 / 吃早饭 / 吃午饭 / 吃晚饭 / 吃夜宵 / 吃早餐 / 吃零食 / 吃点东西” 和 “做饭 / 炒菜 / 煮饭 / 做吃的 / 准备做饭” 是两类完全不同的任务**
+   - 如果用户说的是 **吃饭、吃夜宵、吃零食、吃点东西**，但**没有明确说**“做饭 / 下厨 / 炒 / 煮 / 切菜 / 备菜 / 看冰箱 / 看有什么吃的 / 解冻 / 加热烹饪”等准备和烹饪动作：
+     - **不要擅自添加**“打开冰箱”“看看有什么吃的”“做饭”“炒菜”“准备食材”等步骤
+     - 应该理解为：**直接把现成食物拿到合适的区域，然后开始吃**
+     - 如果用户本身还提到了搭配行为，例如“边吃边看视频”“吃饭配个视频”，可以把“打开喜欢的视频”拆成单独一步；否则不要额外加戏
+   - 只有当用户明确说要 **做饭 / 煮饭 / 炒菜 / 下厨 / 准备餐食** 时，才可以拆出“看食材、备菜、烹饪”等步骤
+   - **宁可少拆，也不要把“吃饭”误拆成“做饭”流程**
+
+4. **智能分配中文标签**（至少2个）：
    ${userTags.length > 0 ? `- **优先从用户已有标签中选择**：${userTags.join('、')}` : ''}
    - 吃药 → ["健康", "日常"]
    - 给猫咪铲粑粑 → ["宠物", "家务"]
    - 洗衣服 → ["家务", "生活"]
    - 在Pinterest找文创设计 → ["设计", "灵感", "工作"]
    - 照相馆工作 → ["照相馆工作", "工作"]（如果用户有自定义标签，优先使用）
+   - 吃饭、夜宵、零食 → ["饮食", "生活"]
+   - 做饭、炒菜、备菜 → ["饮食", "家务"]
    - **不要使用英文标签！全部用中文！**
 
-4. **智能识别位置**（用中文）：
+5. **智能识别位置**（用中文）：
    - 吃药、工作、学习、设计 → "工作区"
    - 洗漱、洗衣服、铲粑粑 → "厕所"
-   - 吃饭、洗碗、倒猫粮 → "厨房"
+   - 吃饭、洗碗、倒猫粮、做饭、备菜 → "厨房"
    - 在线活动（Pinterest、小红书等）→ "工作区"
 
 返回JSON格式：
@@ -628,21 +654,44 @@ work, study, life, housework, health, social, hobby, startup, finance, family, p
   ]
 }
 
+**示例5（吃饭不是做饭）：**
+输入："吃夜宵"
+当前时间：22:00
+输出：
+{
+  "tasks": [
+    {"title": "把准备好的夜宵拿到工作区", "duration": 3, "startTime": "22:00", "category": "life", "priority": "medium", "location": "厨房", "tags": ["饮食", "生活"]},
+    {"title": "吃夜宵", "duration": 20, "startTime": "22:03", "category": "life", "priority": "medium", "location": "工作区", "tags": ["饮食", "生活"]}
+  ]
+}
+
+**示例6（明确做饭才拆烹饪）：**
+输入："去做饭"
+当前时间：18:00
+输出：
+{
+  "tasks": [
+    {"title": "准备食材", "duration": 10, "startTime": "18:00", "category": "life", "priority": "medium", "location": "厨房", "tags": ["饮食", "家务"]},
+    {"title": "做饭", "duration": 20, "startTime": "18:10", "category": "life", "priority": "medium", "location": "厨房", "tags": ["饮食", "家务"]}
+  ]
+}
+
 **只返回JSON，不要其他内容。记住：**
 1. **每个独立动作分解成单独任务（识别"然后"、"接着"等关键词）**
 2. **正确计算时间（5分钟后 = 当前时间 + 5分钟）**
 3. **识别用户明确说的时长（如"30分钟"）**
 4. **识别地点+动作的组合（如"在Pinterest找设计"）**
-5. 所有标签必须是中文
-6. 位置必须是中文
-7. **优先使用用户已有的标签**
-8. 每个任务至少2个标签`;
+5. **“吃饭”和“做饭”必须严格分开，不能把吃饭自动扩写成做饭流程**
+6. 所有标签必须是中文
+7. 位置必须是中文
+8. **优先使用用户已有的标签**
+9. 每个任务至少2个标签`;
 
     console.log('🔍 [AI Service] 准备调用 chat 方法');
 
     const response = await this.chat([
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: taskDescription },
+      { role: 'user', content: buildTaskDecomposeUserInput(taskDescription) },
     ]);
 
     console.log('🔍 [AI Service] chat 方法返回:', response);

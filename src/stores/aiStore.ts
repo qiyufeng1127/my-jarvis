@@ -194,13 +194,6 @@ export const useAIStore = create<AIStore>()(
 
       chatStream: async (messages, onChunk, options) => {
         const { config, isConfigured } = get();
-        console.log('[AIStore.chatStream] 被调用', {
-          configured: isConfigured(),
-          endpoint: config.apiEndpoint,
-          model: config.model,
-          messageCount: messages.length,
-          options,
-        });
 
         if (!isConfigured()) {
           return {
@@ -210,6 +203,8 @@ export const useAIStore = create<AIStore>()(
         }
 
         try {
+          const requestStartedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+          let firstChunkAt: number | null = null;
           console.log('🌊 [AI流式请求] 开始请求:', {
             endpoint: resolveApiEndpoint(config.apiEndpoint),
             model: config.model,
@@ -272,6 +267,8 @@ export const useAIStore = create<AIStore>()(
           const decoder = new TextDecoder();
           let fullContent = '';
           let sseBuffer = '';
+          let chunkCount = 0;
+          let eventCount = 0;
 
           if (!reader) {
             return {
@@ -302,6 +299,13 @@ export const useAIStore = create<AIStore>()(
                   const content = json.choices?.[0]?.delta?.content || '';
 
                   if (content) {
+                    if (firstChunkAt === null) {
+                      firstChunkAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+                      console.log('⚡ [AI流式请求] 首个内容 chunk 到达:', {
+                        latencyMs: Math.round(firstChunkAt - requestStartedAt),
+                      });
+                    }
+                    eventCount += 1;
                     fullContent += content;
                     onChunk(content);
                   }
@@ -317,8 +321,6 @@ export const useAIStore = create<AIStore>()(
             }
           };
 
-          console.log('📖 [AI流式请求] 开始读取流...');
-          let chunkCount = 0;
           let streamEnded = false;
 
           while (!streamEnded) {
@@ -327,14 +329,20 @@ export const useAIStore = create<AIStore>()(
             if (done) {
               sseBuffer += decoder.decode();
               processSSEBuffer(true);
-              console.log('✅ [AI流式请求] 流读取完成，总长度:', fullContent.length);
+              const streamFinishedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+              console.log('✅ [AI流式请求] 流读取完成', {
+                totalChars: fullContent.length,
+                chunkCount,
+                eventCount,
+                totalDurationMs: Math.round(streamFinishedAt - requestStartedAt),
+                firstContentLatencyMs: firstChunkAt === null ? null : Math.round(firstChunkAt - requestStartedAt),
+              });
               streamEnded = true;
               continue;
             }
 
             const chunk = decoder.decode(value, { stream: true });
             chunkCount += 1;
-            console.log('[AIStore.chatStream] 原始 chunk', { chunkCount, chunk });
             sseBuffer += chunk;
             processSSEBuffer(false);
           }

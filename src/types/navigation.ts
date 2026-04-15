@@ -83,6 +83,8 @@ export interface NavigationSession {
   title: string;
   rawInput: string;
   status: 'draft' | 'preview' | 'active' | 'paused' | 'completed' | 'cancelled';
+  abandoned?: boolean;
+  archivedAt?: string;
   previewMode?: 'initial' | 'inserted_flow';
   previewContext?: {
     assistantMessage?: string;
