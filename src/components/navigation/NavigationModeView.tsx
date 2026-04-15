@@ -974,10 +974,10 @@ function NavigationKRSheet({
   return (
     <div className="navigation-sheet-backdrop">
       <div className="navigation-sheet-card navigation-kr-sheet">
-        <div className="navigation-sheet-header">
-          <div>
+        <div className="navigation-sheet-header navigation-kr-sheet-header">
+          <div className="navigation-kr-sheet-title-block">
             <h3>给当前任务补目标 / KR</h3>
-            <p>{group.title}</p>
+            <div className="navigation-kr-task-pill" title={group.title}>{group.title}</div>
           </div>
           <button onClick={onClose} className="navigation-icon-button">
             <X className="w-4 h-4" />
@@ -2780,6 +2780,10 @@ function NavigationActivePlanEditor({
     timelineGroups: session.timelineGroups,
     executionSteps: session.executionSteps,
   }));
+  const previousPlanShapeRef = useRef({
+    groupCount: session.timelineGroups.length,
+    stepCount: session.executionSteps.length,
+  });
   const [groupMenu, setGroupMenu] = useState<{ groupId: string } | null>(null);
   const [stepMenu, setStepMenu] = useState<{ stepId: string } | null>(null);
   const longPressTimerRef = useRef<number | null>(null);
@@ -2807,20 +2811,28 @@ function NavigationActivePlanEditor({
     setCollapsedGroups((prev) => session.timelineGroups.reduce<Record<string, boolean>>((acc, group) => {
       const relatedSteps = session.executionSteps.filter((step) => step.groupId === group.id);
       const hasCurrentStep = relatedSteps.some((step) => session.executionSteps.findIndex((item) => item.id === step.id) === session.currentStepIndex);
-      acc[group.id] = prev[group.id] ?? !hasCurrentStep;
+      const isNewGroup = !(group.id in prev);
+      acc[group.id] = isNewGroup ? false : (prev[group.id] ?? !hasCurrentStep);
       return acc;
     }, {}));
   }, [session.timelineGroups, session.executionSteps, session.currentStepIndex]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      currentStepRef.current?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-      });
-    }, 80);
-    return () => window.clearTimeout(timer);
-  }, [session.currentStepIndex]);
+    const previousShape = previousPlanShapeRef.current;
+    const hasNewStreamedContent = session.timelineGroups.length > previousShape.groupCount || session.executionSteps.length > previousShape.stepCount;
+
+    if (hasNewStreamedContent) {
+      setSavedSnapshot(JSON.stringify({
+        timelineGroups: session.timelineGroups,
+        executionSteps: session.executionSteps,
+      }));
+    }
+
+    previousPlanShapeRef.current = {
+      groupCount: session.timelineGroups.length,
+      stepCount: session.executionSteps.length,
+    };
+  }, [session.timelineGroups, session.executionSteps]);
 
   useEffect(() => {
     const handleWindowPointerUp = () => {
@@ -3171,7 +3183,7 @@ function NavigationActivePlanEditor({
   );
 }
 
-function NavigationSessionView({ session }: { session: NavigationSession }) {
+function NavigationSessionView({ session, onReturnToComposer }: { session: NavigationSession; onReturnToComposer: (rawInput: string) => void }) {
   const preferences = useNavigationPreferenceStore((state) => state.preferences);
   const learnStepEmojiPreference = useNavigationPreferenceStore((state) => state.learnStepEmojiPreference);
   const completeCurrentStep = useNavigationStore((state) => state.completeCurrentStep);
@@ -3181,6 +3193,7 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
   const resumeSession = useNavigationStore((state) => state.resumeSession);
   const archiveSession = useNavigationStore((state) => state.archiveSession);
   const abandonSession = useNavigationStore((state) => state.abandonSession);
+  const clearSession = useNavigationStore((state) => state.clearSession);
   const createInsertedFlowDraft = useNavigationStore((state) => state.createInsertedFlowDraft);
   const applyStreamingPlan = useNavigationStore((state) => state.applyStreamingPlan);
   const setGenerating = useNavigationStore((state) => state.setGenerating);
@@ -3873,12 +3886,24 @@ function NavigationSessionView({ session }: { session: NavigationSession }) {
             存档
           </button>
           <button
-            className="navigation-solid-button navigation-solid-button-secondary"
+            className="navigation-solid-button navigation-solid-button-primary"
             onClick={() => {
               stop();
               stopListening();
               setHandsFreeWaiting(false);
               abandonSession();
+            }}
+          >
+            完成
+          </button>
+          <button
+            className="navigation-solid-button navigation-solid-button-danger"
+            onClick={() => {
+              stop();
+              stopListening();
+              setHandsFreeWaiting(false);
+              onReturnToComposer(session.rawInput);
+              clearSession();
             }}
           >
             放弃
@@ -4643,8 +4668,8 @@ export default function NavigationModeView({ initialScreen = 'default' }: { init
     <div className="navigation-root">
       {!session && <NavigationComposer key={`composer-${composerDraft}`} initialInput={composerDraft} />}
       {session?.status === 'preview' && <NavigationPreview session={session} onReturnToComposer={setComposerDraft} />}
-      {session?.status === 'active' && <NavigationSessionView session={session} />}
-      {session?.status === 'paused' && <NavigationSessionView session={session} />}
+      {session?.status === 'active' && <NavigationSessionView session={session} onReturnToComposer={setComposerDraft} />}
+      {session?.status === 'paused' && <NavigationSessionView session={session} onReturnToComposer={setComposerDraft} />}
       {session?.status === 'completed' && <NavigationCompletionView session={session} autoOpenTrend={initialScreen === 'trend'} />}
       {session?.status === 'cancelled' && <NavigationComposer key={`composer-${composerDraft}`} initialInput={composerDraft} />}
       {session?.status === 'draft' && <NavigationComposer key={`composer-${composerDraft}`} initialInput={composerDraft} />}

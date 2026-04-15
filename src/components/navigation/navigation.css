@@ -81,6 +81,33 @@
   padding-bottom: 0;
 }
 
+html[data-keyboard-open='true'] .navigation-root {
+  padding-bottom: 0;
+}
+
+html[data-keyboard-open='true'] .navigation-shell {
+  gap: 4px;
+}
+
+html[data-keyboard-open='true'] .navigation-session-shell {
+  justify-content: flex-end;
+}
+
+html[data-keyboard-open='true'] .navigation-session-shell > .navigation-topbar,
+html[data-keyboard-open='true'] .navigation-session-shell .navigation-home-archived-section,
+html[data-keyboard-open='true'] .navigation-session-shell .navigation-badge-row,
+html[data-keyboard-open='true'] .navigation-session-shell .navigation-panel .navigation-action-row {
+  display: none;
+}
+
+html[data-keyboard-open='true'] .navigation-session-shell .navigation-panel {
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
 .navigation-session-toolbar {
   display: flex;
   flex-direction: column;
@@ -557,6 +584,10 @@
     height: 38px;
     min-width: 38px;
     min-height: 38px;
+  }
+
+  .navigation-session-toolbar-actions {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -1083,6 +1114,22 @@
   flex-shrink: 0;
 }
 
+.navigation-session-toolbar-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.navigation-solid-button-danger {
+  background: linear-gradient(135deg, #e05a5a, #c93636);
+  color: #ffffff;
+  border: 1px solid rgba(171, 34, 34, 0.28);
+}
+
+.navigation-solid-button-danger:hover {
+  background: linear-gradient(135deg, #e86a6a, #d53f3f);
+}
+
 .navigation-plan-save-button {
   min-height: 34px;
   padding: 0 12px;
@@ -1276,6 +1323,42 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  html[data-keyboard-open='true'] .navigation-root {
+    padding-inline: 0;
+  }
+
+  html[data-keyboard-open='true'] .navigation-shell {
+    max-width: none;
+    gap: 0;
+  }
+
+  html[data-keyboard-open='true'] .navigation-topbar {
+    margin-bottom: 0;
+  }
+
+  html[data-keyboard-open='true'] .navigation-panel,
+  html[data-keyboard-open='true'] .navigation-section,
+  html[data-keyboard-open='true'] .navigation-step-card,
+  html[data-keyboard-open='true'] .navigation-completion-card,
+  html[data-keyboard-open='true'] .navigation-sheet-card,
+  html[data-keyboard-open='true'] .navigation-state-card {
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  html[data-keyboard-open='true'] .navigation-composer {
+    min-height: 112px;
+    max-height: none;
+    margin: 0;
+    padding: 14px 16px;
+    border-inline: 0;
+    border-bottom: 0;
+    border-radius: 16px 16px 0 0;
   }
 
   .navigation-topbar-task-actions {

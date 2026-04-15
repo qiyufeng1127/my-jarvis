@@ -736,42 +736,60 @@ export const useNavigationStore = create<NavigationStoreState>()(
         const alignedPlan = alignNavigationPlanGroups(rawTimelineGroups, rawExecutionSteps);
         const nextExecutionSteps = alignedPlan.executionSteps;
         const nextTimelineGroups = alignedPlan.timelineGroups;
+
+        const normalizeCompareText = (value?: string) => (value || '').replace(/\s+/g, '').trim();
+        const currentStepTitles = new Set(session.executionSteps.map((step) => normalizeCompareText(step.title)).filter(Boolean));
+        const nextStepTitles = new Set(nextExecutionSteps.map((step) => normalizeCompareText(step.title)).filter(Boolean));
+        const currentGroupTitles = new Set(session.timelineGroups.map((group) => normalizeCompareText(group.title)).filter(Boolean));
+        const nextGroupTitles = new Set(nextTimelineGroups.map((group) => normalizeCompareText(group.title)).filter(Boolean));
+        const missingVisibleStepTitleCount = Array.from(currentStepTitles).filter((title) => !nextStepTitles.has(title)).length;
+        const missingVisibleGroupTitleCount = Array.from(currentGroupTitles).filter((title) => !nextGroupTitles.has(title)).length;
+        const isRegressionResult =
+          nextExecutionSteps.length < session.executionSteps.length
+          || nextTimelineGroups.length < session.timelineGroups.length
+          || missingVisibleStepTitleCount > 0
+          || missingVisibleGroupTitleCount > 0;
+        const shouldPreserveVisiblePlan = isFinal
+          && ['preview', 'active', 'paused'].includes(session.status)
+          && isRegressionResult;
+        const safeExecutionSteps = shouldPreserveVisiblePlan ? session.executionSteps : nextExecutionSteps;
+        const safeTimelineGroups = shouldPreserveVisiblePlan ? session.timelineGroups : nextTimelineGroups;
         const nextSummary = partial.summary ?? session.summary;
         const nextTitle = partial.sessionTitle || session.title || '导航模式';
-        const hasAnyContent = nextExecutionSteps.length > 0 || nextTimelineGroups.length > 0;
+        const hasAnyContent = safeExecutionSteps.length > 0 || safeTimelineGroups.length > 0;
         const previousProgress = session.generationProgress;
-        const nextTotalStepCount = nextExecutionSteps.length;
-        const nextTotalGroupCount = nextTimelineGroups.length;
+        const nextTotalStepCount = safeExecutionSteps.length;
+        const nextTotalGroupCount = safeTimelineGroups.length;
         const nextRevealedGroupCount = isFinal
           ? nextTotalGroupCount
           : Math.min(
               nextTotalGroupCount,
-              Math.max(previousProgress?.revealedGroupCount || 0, rawTimelineGroups.length > 0 ? PREVIEW_EARLY_REVEAL_GROUP_COUNT : 0)
+              Math.max(previousProgress?.revealedGroupCount || 0, safeTimelineGroups.length > 0 ? PREVIEW_EARLY_REVEAL_GROUP_COUNT : 0)
             );
         const nextRevealedStepCount = isFinal
           ? nextTotalStepCount
           : Math.min(
               nextTotalStepCount,
-              Math.max(previousProgress?.revealedStepCount || 0, nextExecutionSteps.length > 0 ? Math.min(PREVIEW_EARLY_REVEAL_STEP_COUNT, nextTotalStepCount) : 0)
+              Math.max(previousProgress?.revealedStepCount || 0, safeExecutionSteps.length > 0 ? Math.min(PREVIEW_EARLY_REVEAL_STEP_COUNT, nextTotalStepCount) : 0)
             );
 
         const activeCurrentStep = session.executionSteps[session.currentStepIndex];
         const matchedActiveStepIndex = activeCurrentStep
-          ? nextExecutionSteps.findIndex((step) => step.id === activeCurrentStep.id)
+          ? safeExecutionSteps.findIndex((step) => step.id === activeCurrentStep.id)
           : -1;
         const nextCurrentStepIndex = session.status === 'preview'
           ? session.currentStepIndex
           : matchedActiveStepIndex >= 0
             ? matchedActiveStepIndex
-            : Math.min(session.currentStepIndex, Math.max(0, nextExecutionSteps.length - 1));
+            : Math.min(session.currentStepIndex, Math.max(0, safeExecutionSteps.length - 1));
 
         set({
           currentSession: {
             ...session,
             title: nextTitle,
             summary: nextSummary,
-            executionSteps: nextExecutionSteps,
-            timelineGroups: nextTimelineGroups,
+            executionSteps: safeExecutionSteps,
+            timelineGroups: safeTimelineGroups,
             currentStepIndex: nextCurrentStepIndex,
             generationStage: isFinal ? 'idle' : (hasAnyContent ? 'building' : 'waiting_ai'),
             generationProgress: {

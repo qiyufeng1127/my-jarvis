@@ -233,10 +233,11 @@ const finalizeNavigationPlannerResult = async (
   return sanitizeEatingNavigationPlan(rawInput, nextResult);
 };
 
-const EATING_NAVIGATION_PATTERN = /(吃饭|吃早饭|吃午饭|吃晚饭|吃夜宵|吃早餐|吃零食|吃点东西)/;
+const EATING_NAVIGATION_PATTERN = /(吃饭|吃早饭|吃午饭|吃晚饭|吃夜宵|吃早餐|吃零食|吃点东西|热饭|把饭打热|打热饭|加热.*饭|微波炉.*饭)/;
 const COOKING_NAVIGATION_PATTERN = /(做饭|下厨|炒菜|煮饭|煮面|做吃的|备菜|切菜|准备餐食|烹饪)/;
+const NON_EATING_WORK_PATTERN = /(网站|网页|页面|figma|设计|文创|预览图|psd|png|导出|上传|百度云|优化|收尾|排版|文件|源文件|海报|ui|产品图|banner|电商)/i;
 const EATING_NAVIGATION_BLOCKED_PATTERN = /(冰箱|看有什么吃的|现成的食物|最不费劲的选项|三明治|沙拉|剩饭|准备食材|备菜|做饭|烹饪)/;
-const EATING_NAVIGATION_ALLOWED_PATTERN = /(吃|视频|剧|拿到|端到|放到|坐下)/;
+const EATING_NAVIGATION_ALLOWED_PATTERN = /(吃|视频|剧|拿到|端到|放到|坐下|加热|微波|热一下)/;
 const EATING_LOCATION_HINT_PATTERN = /(卧室|厨房|客厅|沙发|工作区|餐桌|书桌|桌子|地方|待着的地方)/;
 const EATING_EXPLICIT_LOCATION_PATTERN = /(卧室|厨房|客厅|沙发|工作区|餐桌|书桌|桌子|饭桌|餐厅)/;
 
@@ -270,14 +271,16 @@ const sanitizeEatingNavigationPlan = (
   rawInput: string,
   result: NavigationPlannerResult,
 ): NavigationPlannerResult => {
-  const isEatingTask = EATING_NAVIGATION_PATTERN.test(rawInput);
-  const hasCookingIntent = COOKING_NAVIGATION_PATTERN.test(rawInput);
+  const normalizedRawInput = normalizeInlineText(rawInput);
+  const isEatingTask = EATING_NAVIGATION_PATTERN.test(normalizedRawInput);
+  const hasCookingIntent = COOKING_NAVIGATION_PATTERN.test(normalizedRawInput);
+  const hasNonEatingWork = NON_EATING_WORK_PATTERN.test(normalizedRawInput);
 
-  if (!isEatingTask || hasCookingIntent) {
+  if (!isEatingTask || hasCookingIntent || hasNonEatingWork) {
     return result;
   }
 
-  const hasExplicitLocation = EATING_EXPLICIT_LOCATION_PATTERN.test(rawInput);
+  const hasExplicitLocation = EATING_EXPLICIT_LOCATION_PATTERN.test(normalizedRawInput);
 
   const filteredSteps = result.executionSteps
     .filter((step) => {
@@ -816,6 +819,7 @@ export class AIUnifiedService {
       let fullContent = '';
       let lastPartialSignature = '';
       let latestMeaningfulPartial: NavigationPlannerResult | null = null;
+      let latestVisiblePartial: NavigationPlannerResult | null = null;
       let earliestRunnablePartial: Partial<NavigationPlannerResult> | null = null;
       let earliestRunnablePublished = false;
       let chunkCounter = 0;
@@ -862,6 +866,7 @@ export class AIUnifiedService {
             });
             if (signature !== lastPartialSignature) {
               lastPartialSignature = signature;
+              latestVisiblePartial = normalizedPartial;
               if (hasMeaningfulPlannerContent(normalizedPartial)) {
                 latestMeaningfulPartial = normalizedPartial;
               }
@@ -878,9 +883,16 @@ export class AIUnifiedService {
       );
 
       const finalParsed = streamResult.content ? tryParsePlannerResult(streamResult.content, rawInput) : null;
-      const resolvedResult = finalParsed && hasMeaningfulPlannerContent(finalParsed)
-        ? finalParsed
-        : latestMeaningfulPartial;
+      const resolvedResultCandidates = [
+        finalParsed,
+        latestVisiblePartial,
+        latestMeaningfulPartial,
+      ].filter((item): item is NavigationPlannerResult => !!item);
+      const resolvedResult = resolvedResultCandidates.sort((a, b) => {
+        const stepDelta = b.executionSteps.length - a.executionSteps.length;
+        if (stepDelta !== 0) return stepDelta;
+        return b.timelineGroups.length - a.timelineGroups.length;
+      })[0] || null;
       console.log('[导航服务] 流式请求完成', {
         success: streamResult.success,
         chunkCounter,
@@ -888,8 +900,11 @@ export class AIUnifiedService {
         finalParsedGroupCount: finalParsed?.timelineGroups.length || 0,
         latestMeaningfulStepCount: latestMeaningfulPartial?.executionSteps.length || 0,
         latestMeaningfulGroupCount: latestMeaningfulPartial?.timelineGroups.length || 0,
+        latestVisibleStepCount: latestVisiblePartial?.executionSteps.length || 0,
+        latestVisibleGroupCount: latestVisiblePartial?.timelineGroups.length || 0,
         resolvedStepCount: resolvedResult?.executionSteps.length || 0,
         resolvedGroupCount: resolvedResult?.timelineGroups.length || 0,
+        resolvedSource: resolvedResult === finalParsed ? 'finalParsed' : resolvedResult === latestVisiblePartial ? 'latestVisiblePartial' : resolvedResult === latestMeaningfulPartial ? 'latestMeaningfulPartial' : 'none',
       });
       if (streamResult.success && resolvedResult) {
         const finalizedResult = await finalizeNavigationPlannerResult(rawInput, resolvedResult);
@@ -906,9 +921,10 @@ export class AIUnifiedService {
           executionSteps: earliestRunnablePartial.executionSteps || [],
           timelineGroups: earliestRunnablePartial.timelineGroups || [],
         };
+        const finalizedFallbackResult = await finalizeNavigationPlannerResult(rawInput, fallbackRunnableResult);
         return {
           success: true,
-          data: fallbackRunnableResult,
+          data: finalizedFallbackResult,
         };
       }
 

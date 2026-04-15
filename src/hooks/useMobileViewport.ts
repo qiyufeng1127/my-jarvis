@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { FocusEvent, RefObject } from 'react';
 
 const KEYBOARD_THRESHOLD = 120;
-const SCROLL_PADDING = 16;
-const EXTRA_VISIBLE_GAP = 20;
+const SCROLL_PADDING_TOP = 16;
+const SCROLL_PADDING_BOTTOM = 4;
+const EXTRA_VISIBLE_GAP = 0;
 const RETRY_DELAYS = [0, 120, 260, 420];
 const DEBUG_KEYBOARD_VAR = '--app-debug-keyboard-offset';
 const FOCUS_SWITCH_GRACE_MS = 180;
@@ -98,7 +99,7 @@ const setRootViewportVars = () => {
     ? `${keyboardOffset}px`
     : 'var(--mobile-bottom-nav-total-height)';
   const mobileBottomGap = keyboardOffset > 0
-    ? `calc(${safeAreaBottom} + 12px)`
+    ? '0px'
     : 'var(--mobile-bottom-nav-total-height)';
 
   root.style.setProperty('--app-safe-area-top', safeAreaTop);
@@ -123,8 +124,8 @@ const scrollElementIntoKeyboardView = (element: HTMLElement | null, container?: 
 
   if (!targetContainer || targetContainer === document.body || targetContainer === document.documentElement) {
     const elementRect = element.getBoundingClientRect();
-    const visibleTop = viewportOffsetTop + SCROLL_PADDING;
-    const visibleBottom = effectiveKeyboardTop - SCROLL_PADDING - EXTRA_VISIBLE_GAP;
+    const visibleTop = viewportOffsetTop + SCROLL_PADDING_TOP;
+    const visibleBottom = effectiveKeyboardTop - SCROLL_PADDING_BOTTOM - EXTRA_VISIBLE_GAP;
 
     if (elementRect.top < visibleTop || elementRect.bottom > visibleBottom) {
       element.scrollIntoView({ behavior: 'auto', block: keyboardOffset > 0 ? 'center' : 'nearest' });
@@ -134,13 +135,13 @@ const scrollElementIntoKeyboardView = (element: HTMLElement | null, container?: 
 
   const containerRect = targetContainer.getBoundingClientRect();
   const elementRect = element.getBoundingClientRect();
-  const visibleTop = Math.max(containerRect.top + SCROLL_PADDING, viewportOffsetTop + SCROLL_PADDING);
-  const visibleBottom = Math.min(containerRect.bottom, effectiveKeyboardTop) - SCROLL_PADDING - EXTRA_VISIBLE_GAP;
+  const visibleTop = Math.max(containerRect.top + SCROLL_PADDING_TOP, viewportOffsetTop + SCROLL_PADDING_TOP);
+  const visibleBottom = Math.min(containerRect.bottom, effectiveKeyboardTop) - SCROLL_PADDING_BOTTOM - EXTRA_VISIBLE_GAP;
   const currentScroll = targetContainer.scrollTop;
 
   if (elementRect.top < visibleTop) {
     targetContainer.scrollTo({
-      top: Math.max(0, currentScroll - (visibleTop - elementRect.top) - 24),
+      top: Math.max(0, currentScroll - (visibleTop - elementRect.top) - 12),
       behavior: 'auto',
     });
     return;
@@ -149,7 +150,7 @@ const scrollElementIntoKeyboardView = (element: HTMLElement | null, container?: 
   if (elementRect.bottom > visibleBottom) {
     const delta = elementRect.bottom - visibleBottom;
     targetContainer.scrollTo({
-      top: Math.max(0, currentScroll + delta + 24),
+      top: Math.max(0, currentScroll + delta + 8),
       behavior: 'auto',
     });
     return;
