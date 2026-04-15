@@ -1840,7 +1840,7 @@ html[data-keyboard-open='true'] .navigation-shell {
 
 .navigation-snowbank-fill {
   position: absolute;
-  inset: 18px 0 0 0;
+  inset: 0;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), #ffffff 45%, #f9feff 100%);
 }
 

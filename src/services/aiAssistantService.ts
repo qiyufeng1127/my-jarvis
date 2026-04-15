@@ -31,6 +31,40 @@ function buildGoalIdentity(goal: {
   return `${title}__${start}__${end}`;
 }
 
+function extractDeadlineTextFromGoalTitle(title: unknown) {
+  const rawTitle = String(title || '').trim();
+  if (!rawTitle) {
+    return {
+      cleanTitle: '',
+      deadlineText: null as string | null,
+    };
+  }
+
+  const patterns = [
+    /^(?<deadline>(?:\d{1,2}月\d{1,2}[日号]?|\d{1,2}[\/.-]\d{1,2}|\d{1,2}[日号]|本周|这周|本月|这个月|周末前|这周末前|本周末前|\d+天(?:之内|内|后|之前|前)?))前?(?:完成|做完|达成)?(?<title>.+)$/,
+    /^(?:请)?在(?<deadline>(?:\d{1,2}月\d{1,2}[日号]?|\d{1,2}[\/.-]\d{1,2}|\d{1,2}[日号]|本周|这周|本月|这个月|周末前|这周末前|本周末前|\d+天(?:之内|内|后|之前|前)?))前?(?:完成|做完|达成)?(?<title>.+)$/,
+    /^(?<title>.+?)要在(?<deadline>(?:\d{1,2}月\d{1,2}[日号]?|\d{1,2}[\/.-]\d{1,2}|\d{1,2}[日号]|本周|这周|本月|这个月|周末前|这周末前|本周末前|\d+天(?:之内|内|后|之前|前)?))前?(?:完成|做完|达成)?$/,
+    /^(?<title>.+?)在(?<deadline>(?:\d{1,2}月\d{1,2}[日号]?|\d{1,2}[\/.-]\d{1,2}|\d{1,2}[日号]|本周|这周|本月|这个月|周末前|这周末前|本周末前|\d+天(?:之内|内|后|之前|前)?))前?(?:完成|做完|达成)?$/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = rawTitle.match(pattern);
+    const deadlineText = match?.groups?.deadline?.trim();
+    const extractedTitle = match?.groups?.title?.trim();
+    if (!deadlineText || !extractedTitle) continue;
+
+    return {
+      cleanTitle: extractedTitle.replace(/^[，,\s]+|[，,\s]+$/g, ''),
+      deadlineText,
+    };
+  }
+
+  return {
+    cleanTitle: rawTitle,
+    deadlineText: null as string | null,
+  };
+}
+
 /**
  * AI 助手完整系统提示词
  * 基于 AI_ASSISTANT_SYSTEM_PROMPT.md
@@ -342,6 +376,12 @@ function getPersonalityPrompt(personality: any): string {
 }
 
 function normalizeGoalTimeline(goal: any) {
+  const normalizedTitle = extractDeadlineTextFromGoalTitle(goal?.goalTitle || goal?.name || '');
+  const normalizedGoal = {
+    ...goal,
+    goalTitle: normalizedTitle.cleanTitle || goal?.goalTitle || goal?.name || '',
+    deadline: goal?.deadline || normalizedTitle.deadlineText,
+  };
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
@@ -368,8 +408,8 @@ function normalizeGoalTimeline(goal: any) {
     return toEndOfDay(adjusted);
   };
 
-  const startDate = goal?.startDate
-    ? toStartOfDay(new Date(goal.startDate))
+  const startDate = normalizedGoal?.startDate
+    ? toStartOfDay(new Date(normalizedGoal.startDate))
     : startOfToday;
 
   const resolveTimeline = (value: any) => {
@@ -458,25 +498,26 @@ function normalizeGoalTimeline(goal: any) {
     return { startDate, deadline: undefined as Date | undefined };
   };
 
-  const resolvedTimeline = resolveTimeline(goal?.deadline);
-  const resolvedStartDate = goal?.startDate ? startDate : resolvedTimeline.startDate;
+  const resolvedTimeline = resolveTimeline(normalizedGoal?.deadline);
+  const resolvedStartDate = normalizedGoal?.startDate ? startDate : resolvedTimeline.startDate;
   const deadline = resolvedTimeline.deadline;
-  const estimatedDailyHours = typeof goal?.dailyInvestment?.hours === 'number'
-    ? goal.dailyInvestment.hours
-    : typeof goal?.dailyInvestmentHours === 'number'
-    ? goal.dailyInvestmentHours
-    : typeof goal?.estimatedDailyHours === 'number'
-    ? goal.estimatedDailyHours
+  const estimatedDailyHours = typeof normalizedGoal?.dailyInvestment?.hours === 'number'
+    ? normalizedGoal.dailyInvestment.hours
+    : typeof normalizedGoal?.dailyInvestmentHours === 'number'
+    ? normalizedGoal.dailyInvestmentHours
+    : typeof normalizedGoal?.estimatedDailyHours === 'number'
+    ? normalizedGoal.estimatedDailyHours
     : 0;
 
   const estimatedTotalHours = deadline
     ? Number((estimatedDailyHours * Math.max(1, Math.ceil((deadline.getTime() - resolvedStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1)).toFixed(1))
-    : Number((goal?.estimatedTotalHours || 0).toFixed?.(1) || goal?.estimatedTotalHours || 0);
+    : Number((normalizedGoal?.estimatedTotalHours || 0).toFixed?.(1) || normalizedGoal?.estimatedTotalHours || 0);
 
   return {
-    ...goal,
+    ...normalizedGoal,
+    goalTitle: normalizedTitle.cleanTitle || normalizedGoal.goalTitle,
     startDate: resolvedStartDate.toISOString(),
-    deadline: deadline ? deadline.toISOString() : goal?.deadline || null,
+    deadline: deadline ? deadline.toISOString() : normalizedGoal?.deadline || null,
     estimatedDailyHours,
     estimatedTotalHours,
   };

@@ -23,6 +23,14 @@ const defaultTheme = {
   label: '海蓝',
 };
 
+function createStableId(prefix: string) {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function normalizeGoalDedupeText(value: unknown) {
   return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
 }
@@ -144,7 +152,7 @@ function buildGoal(goalData: Partial<LongTermGoal>): LongTermGoal {
     : undefined;
 
   const dimensions = (goalData.dimensions || []).map((dimension, index) => ({
-    id: dimension.id || `metric-${Date.now()}-${index}`,
+    id: dimension.id || createStableId(`metric-${index}`),
     name: dimension.name || `维度 ${index + 1}`,
     unit: dimension.unit || '',
     targetValue: dimension.targetValue || 0,
@@ -156,7 +164,7 @@ function buildGoal(goalData: Partial<LongTermGoal>): LongTermGoal {
   const currentValue = goalData.currentValue ?? dimensions.reduce((sum, dimension) => sum + dimension.currentValue, 0);
 
   return {
-    id: goalData.id || `goal-${Date.now()}`,
+    id: goalData.id || createStableId('goal'),
     userId: goalData.userId || 'local-user',
     name: goalData.name || '',
     description: goalData.description || '',
@@ -199,8 +207,12 @@ export const useGoalStore = create<GoalState>()(
       createGoal: (goalData) => {
         const newGoal = buildGoal(goalData);
 
-        set({
-          goals: [...get().goals, newGoal],
+        set((state) => {
+          const goals = state.goals.some((goal) => goal.id === newGoal.id)
+            ? state.goals.map((goal) => (goal.id === newGoal.id ? newGoal : goal))
+            : [...state.goals, newGoal];
+
+          return { goals };
         });
 
         console.log('🎯 目标已创建:', newGoal.name);
