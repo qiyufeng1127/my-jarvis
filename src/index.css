@@ -17,7 +17,6 @@
   --app-mobile-scroll-padding-top: var(--app-mobile-top-gap);
   --app-mobile-scroll-padding-bottom: var(--app-mobile-bottom-gap);
   --app-mobile-scroll-padding-bottom-keyboard: max(12px, calc(var(--app-safe-area-bottom) + 12px));
-  --app-mobile-scroll-snap-bottom-keyboard: calc(var(--app-keyboard-offset) + var(--app-safe-area-bottom) + 24px);
 }
 
 /* 全局重置 - 确保没有任何多余空白 */
@@ -78,8 +77,13 @@ body {
 }
 
 html[data-keyboard-open='true'] .mobile-app-scroll {
-  padding-bottom: max(0px, var(--app-safe-area-bottom));
+  padding-bottom: 0;
   scroll-padding-bottom: max(12px, calc(var(--app-safe-area-bottom) + 12px));
+}
+
+html[data-keyboard-open='true'][data-navigation-mode='true'] .mobile-app-scroll {
+  padding-bottom: 0;
+  scroll-padding-bottom: 0;
 }
 
 .mobile-app-scroll > *:first-child {
@@ -105,7 +109,7 @@ html[data-keyboard-open='true'] .mobile-app-scroll > *:last-child {
 .keyboard-aware-modal-shell {
   padding-top: max(12px, calc(var(--app-safe-area-top) + 8px));
   padding-right: 12px;
-  padding-bottom: max(12px, calc(var(--app-safe-area-bottom) + var(--app-keyboard-offset) + 8px));
+  padding-bottom: max(12px, calc(var(--app-safe-area-bottom) + 8px));
   padding-left: 12px;
   align-items: flex-start;
   justify-content: center;
@@ -126,7 +130,7 @@ html[data-keyboard-open='true'] .mobile-app-scroll > *:last-child {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   scroll-padding-top: calc(var(--app-safe-area-top) + 16px);
-  scroll-padding-bottom: calc(var(--app-keyboard-offset) + var(--app-safe-area-bottom) + 24px);
+  scroll-padding-bottom: max(12px, calc(var(--app-safe-area-bottom) + 12px));
 }
 
 .keyboard-aware-modal-content {
@@ -144,6 +148,10 @@ html[data-keyboard-open='true'] .mobile-app-scroll > *:last-child {
 
 .keyboard-aware-composer {
   padding-bottom: var(--app-safe-area-bottom);
+}
+
+html[data-keyboard-open='true'] .keyboard-aware-composer {
+  padding-bottom: 0;
 }
 
 .keyboard-aware-docked {

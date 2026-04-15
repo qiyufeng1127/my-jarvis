@@ -98,6 +98,8 @@ export interface NavigationSession {
   energyLevel: number;
   recentExecutionGain?: number;
   lastProgressAt?: string;
+  accumulatedSnowProgress?: number;
+  accumulatedInefficiencyMarks?: number;
   summary?: string;
   generationStage?: 'idle' | 'waiting_ai' | 'building';
   generationProgress?: {

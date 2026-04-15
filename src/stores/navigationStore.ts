@@ -46,6 +46,34 @@ const NAVIGATION_IDLE_MARK_INTERVAL_MS = 30 * 60 * 1000;
 const NAVIGATION_EMOJI_CARRY_WINDOW_MS = 90 * 60 * 1000;
 const PREVIEW_EARLY_REVEAL_GROUP_COUNT = 1;
 const PREVIEW_EARLY_REVEAL_STEP_COUNT = 2;
+const NAVIGATION_SNOW_DROP_PER_CONTINUE = 0.05;
+
+const settleSessionAccumulation = (session: NavigationSession, nowIso = new Date().toISOString()) => {
+  const referenceTime = session.lastProgressAt || session.startedAt || session.createdAt;
+  const referenceMs = new Date(referenceTime).getTime();
+  const nowMs = new Date(nowIso).getTime();
+
+  if (Number.isNaN(referenceMs) || Number.isNaN(nowMs) || nowMs <= referenceMs) {
+    return {
+      snowProgress: session.accumulatedSnowProgress ?? 0,
+      inefficiencyMarks: session.accumulatedInefficiencyMarks ?? 0,
+    };
+  }
+
+  const elapsedMs = nowMs - referenceMs;
+  const snowGrowth = elapsedMs / (2 * 60 * 60 * 1000);
+  const nextSnowProgress = Math.min(1, (session.accumulatedSnowProgress ?? 0) + snowGrowth);
+  const addedInefficiencyMarks = isSleepProtectedStep(session.executionSteps[session.currentStepIndex]?.title)
+    ? 0
+    : Math.floor(elapsedMs / NAVIGATION_IDLE_MARK_INTERVAL_MS);
+
+  return {
+    snowProgress: nextSnowProgress,
+    inefficiencyMarks: (session.accumulatedInefficiencyMarks ?? 0) + addedInefficiencyMarks,
+  };
+};
+
+const applyContinueRelief = (snowProgress: number) => Math.max(0, snowProgress - NAVIGATION_SNOW_DROP_PER_CONTINUE);
 
 const createSceneCarryoverSeed = (lastFinishedAt?: string | null) => {
   if (!lastFinishedAt) {
@@ -139,11 +167,12 @@ const buildBottleEntryFromSession = (session: NavigationSession, completedAt: st
     .filter((item, index, list) => list.findIndex((candidate) => candidate.step.id === item.step.id) === index)
     .map((item) => item.emoji);
 
-  const referenceTime = session.lastProgressAt || session.startedAt || session.createdAt;
   const currentStep = session.executionSteps[session.currentStepIndex];
-  const idleMarks = session.status === 'active' || isSleepProtectedStep(currentStep?.title)
-    ? 0
-    : Math.max(0, Math.floor((new Date(completedAt).getTime() - new Date(referenceTime).getTime()) / NAVIGATION_IDLE_MARK_INTERVAL_MS));
+  const idleMarks = session.accumulatedInefficiencyMarks !== undefined
+    ? session.accumulatedInefficiencyMarks
+    : (session.status === 'active' || isSleepProtectedStep(currentStep?.title)
+      ? 0
+      : Math.max(0, Math.floor((new Date(completedAt).getTime() - new Date(session.lastProgressAt || session.startedAt || session.createdAt).getTime()) / NAVIGATION_IDLE_MARK_INTERVAL_MS)));
 
   return {
     id: crypto.randomUUID(),
@@ -590,6 +619,8 @@ export const useNavigationStore = create<NavigationStoreState>()(
             energyLevel: sceneCarryover.energyLevel,
             recentExecutionGain: 0,
             lastProgressAt: now,
+            accumulatedSnowProgress: 0,
+            accumulatedInefficiencyMarks: 0,
             generationStage: 'waiting_ai',
             generationProgress: {
               revealedStepCount: 0,
@@ -625,6 +656,8 @@ export const useNavigationStore = create<NavigationStoreState>()(
             energyLevel: baseSession.energyLevel,
             recentExecutionGain: 0,
             lastProgressAt: now,
+            accumulatedSnowProgress: baseSession.accumulatedSnowProgress ?? 0,
+            accumulatedInefficiencyMarks: baseSession.accumulatedInefficiencyMarks ?? 0,
             generationStage: 'waiting_ai',
             generationProgress: {
               revealedStepCount: 0,
@@ -1198,6 +1231,7 @@ export const useNavigationStore = create<NavigationStoreState>()(
         const session = get().currentSession;
         if (!session || !['active', 'paused'].includes(session.status)) return;
         const now = new Date().toISOString();
+        const settled = settleSessionAccumulation(session, now);
         const currentStep = session.executionSteps[session.currentStepIndex];
         const updatedSteps = session.executionSteps.map((step, index) => {
           if (index !== session.currentStepIndex || !currentStep) return step;
@@ -1211,22 +1245,22 @@ export const useNavigationStore = create<NavigationStoreState>()(
           return step;
         });
 
-        const bottleEntry = buildBottleEntryFromSession({
+        const completedSession = {
           ...session,
           executionSteps: updatedSteps,
-          status: 'completed',
+          status: 'completed' as const,
           completedAt: now,
-        }, now);
+          accumulatedSnowProgress: settled.snowProgress,
+          accumulatedInefficiencyMarks: settled.inefficiencyMarks,
+        };
+        const bottleEntry = buildBottleEntryFromSession(completedSession, now);
 
         set({
           currentSession: {
-            ...session,
-            status: 'completed',
+            ...completedSession,
             abandoned: true,
             awaitingFinalCompletion: false,
-            executionSteps: updatedSteps,
             lastProgressAt: now,
-            completedAt: now,
             archivedAt: undefined,
             bottleEntries: [...(session.bottleEntries || []), bottleEntry],
             handsFree: {
@@ -1246,11 +1280,13 @@ export const useNavigationStore = create<NavigationStoreState>()(
         const session = get().currentSession;
         if (!session || session.status !== 'active') return;
         const now = new Date().toISOString();
+        const settled = settleSessionAccumulation(session, now);
         const currentStep = session.executionSteps[session.currentStepIndex];
         if (!currentStep) return;
 
         const isLastStep = session.currentStepIndex >= session.executionSteps.length - 1;
         const perStepGain = session.executionSteps.length > 0 ? 100 / session.executionSteps.length : 0;
+        const relievedSnowProgress = applyContinueRelief(settled.snowProgress);
 
         if (isLastStep) {
           const updatedSteps = session.executionSteps.map((step, index) => {
@@ -1276,6 +1312,8 @@ export const useNavigationStore = create<NavigationStoreState>()(
               energyLevel: clamp(session.energyLevel + perStepGain * 0.2, 0, 100),
               recentExecutionGain: Math.max(1, Math.round(perStepGain * 0.35)),
               lastProgressAt: now,
+              accumulatedSnowProgress: relievedSnowProgress,
+              accumulatedInefficiencyMarks: settled.inefficiencyMarks,
               completedAt: undefined,
               handsFree: {
                 ...session.handsFree,
@@ -1316,6 +1354,8 @@ export const useNavigationStore = create<NavigationStoreState>()(
             energyLevel: clamp(session.energyLevel + perStepGain * 0.55, 0, 100),
             recentExecutionGain: Math.max(1, Math.round(perStepGain)),
             lastProgressAt: now,
+            accumulatedSnowProgress: relievedSnowProgress,
+            accumulatedInefficiencyMarks: settled.inefficiencyMarks,
             completedAt: session.completedAt,
             handsFree: {
               ...session.handsFree,
@@ -1328,6 +1368,7 @@ export const useNavigationStore = create<NavigationStoreState>()(
         const session = get().currentSession;
         if (!session || session.status !== 'active') return;
         const now = new Date().toISOString();
+        const settled = settleSessionAccumulation(session, now);
         const currentStep = session.executionSteps[session.currentStepIndex];
         if (!currentStep) return;
 
@@ -1343,24 +1384,24 @@ export const useNavigationStore = create<NavigationStoreState>()(
           return step;
         });
 
-        const bottleEntry = buildBottleEntryFromSession({
+        const completedSession = {
           ...session,
           executionSteps: updatedSteps,
-          status: 'completed',
+          status: 'completed' as const,
           completedAt: now,
-        }, now);
+          accumulatedSnowProgress: settled.snowProgress,
+          accumulatedInefficiencyMarks: settled.inefficiencyMarks,
+        };
+        const bottleEntry = buildBottleEntryFromSession(completedSession, now);
 
         set({
           currentSession: {
-            ...session,
-            status: 'completed',
+            ...completedSession,
             awaitingFinalCompletion: false,
-            executionSteps: updatedSteps,
             executionScore: clamp(Math.max(session.executionScore, 92), 0, 100),
             energyLevel: clamp(session.energyLevel + 6, 0, 100),
             recentExecutionGain: Math.max(1, session.recentExecutionGain || 0),
             lastProgressAt: now,
-            completedAt: now,
             bottleEntries: [...(session.bottleEntries || []), bottleEntry],
             handsFree: {
               ...session.handsFree,
@@ -1374,6 +1415,7 @@ export const useNavigationStore = create<NavigationStoreState>()(
         const session = get().currentSession;
         if (!session || session.status !== 'active') return;
         const now = new Date().toISOString();
+        const settled = settleSessionAccumulation(session, now);
         const currentStep = session.executionSteps[session.currentStepIndex];
         if (!currentStep) return;
 
@@ -1410,6 +1452,8 @@ export const useNavigationStore = create<NavigationStoreState>()(
             energyLevel: clamp(session.energyLevel + 2, 0, 100),
             recentExecutionGain: 0,
             lastProgressAt: now,
+            accumulatedSnowProgress: settled.snowProgress,
+            accumulatedInefficiencyMarks: settled.inefficiencyMarks,
             completedAt: isLastStep ? now : session.completedAt,
             handsFree: {
               ...session.handsFree,

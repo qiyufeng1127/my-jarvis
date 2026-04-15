@@ -96,7 +96,7 @@ const setRootViewportVars = () => {
   const { visibleHeight, viewportOffsetTop, keyboardOffset } = getKeyboardMetrics();
   const effectiveVisibleHeight = Math.max(0, visibleHeight);
   const composerOffset = keyboardOffset > 0
-    ? `${keyboardOffset}px`
+    ? `${Math.max(0, viewportOffsetTop)}px`
     : 'var(--mobile-bottom-nav-total-height)';
   const mobileBottomGap = keyboardOffset > 0
     ? '0px'

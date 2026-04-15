@@ -112,6 +112,10 @@ function NavigationLongPressSheet({
           {subtitle ? <div className="navigation-longpress-subtitle">{subtitle}</div> : null}
         </div>
         <div className="navigation-longpress-actions">
+          <button type="button" className="navigation-longpress-action" onClick={onEdit}>
+            <Pencil className="w-4 h-4" />
+            <span>编辑</span>
+          </button>
           <button type="button" className="navigation-longpress-action" onClick={onInsertBefore}>
             <ChevronUp className="w-4 h-4" />
             <span>在之前插入</span>
@@ -119,10 +123,6 @@ function NavigationLongPressSheet({
           <button type="button" className="navigation-longpress-action" onClick={onInsertAfter}>
             <ChevronDown className="w-4 h-4" />
             <span>在之后插入</span>
-          </button>
-          <button type="button" className="navigation-longpress-action" onClick={onEdit}>
-            <Pencil className="w-4 h-4" />
-            <span>编辑</span>
           </button>
           <button type="button" className="navigation-longpress-action is-danger" onClick={onDelete}>
             <Trash2 className="w-4 h-4" />
@@ -132,6 +132,88 @@ function NavigationLongPressSheet({
         <button type="button" className="navigation-secondary-button navigation-longpress-cancel" onClick={onClose}>
           取消
         </button>
+      </div>
+    </div>
+  );
+}
+
+function NavigationSwipeActionRow({
+  children,
+  onInsertBefore,
+  onInsertAfter,
+  onDelete,
+}: {
+  children: React.ReactNode;
+  onInsertBefore: () => void;
+  onInsertAfter: () => void;
+  onDelete: () => void;
+}) {
+  const ACTIONS_WIDTH = 172;
+  const startXRef = useRef<number | null>(null);
+  const startOffsetRef = useRef(0);
+  const [isOpen, setIsOpen] = useState(false);
+  const [dragOffset, setDragOffset] = useState(0);
+
+  const visualOffset = startXRef.current !== null ? dragOffset : (isOpen ? -ACTIONS_WIDTH : 0);
+
+  const closeActions = () => {
+    startXRef.current = null;
+    startOffsetRef.current = 0;
+    setDragOffset(0);
+    setIsOpen(false);
+  };
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    startXRef.current = event.clientX;
+    startOffsetRef.current = isOpen ? -ACTIONS_WIDTH : 0;
+    setDragOffset(startOffsetRef.current);
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (startXRef.current === null) return;
+    const delta = event.clientX - startXRef.current;
+    const nextOffset = Math.max(-ACTIONS_WIDTH, Math.min(0, startOffsetRef.current + delta));
+    setDragOffset(nextOffset);
+  };
+
+  const handlePointerEnd = () => {
+    if (startXRef.current === null) return;
+    const shouldOpen = dragOffset <= -(ACTIONS_WIDTH * 0.35);
+    startXRef.current = null;
+    startOffsetRef.current = 0;
+    setDragOffset(0);
+    setIsOpen(shouldOpen);
+  };
+
+  const handleAction = (action: () => void) => {
+    closeActions();
+    action();
+  };
+
+  return (
+    <div className={`navigation-swipe-row ${isOpen ? 'is-open' : ''}`}>
+      <div className="navigation-swipe-row-actions" aria-hidden={!isOpen}>
+        <button type="button" className="navigation-swipe-action-chip" onClick={() => handleAction(onInsertBefore)}>
+          前插
+        </button>
+        <button type="button" className="navigation-swipe-action-chip" onClick={() => handleAction(onInsertAfter)}>
+          后插
+        </button>
+        <button type="button" className="navigation-swipe-action-chip is-danger" onClick={() => handleAction(onDelete)}>
+          删除
+        </button>
+      </div>
+      <div
+        className="navigation-swipe-row-content"
+        style={{ transform: `translateX(${visualOffset}px)` }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerEnd}
+        onPointerCancel={handlePointerEnd}
+        onPointerLeave={handlePointerEnd}
+      >
+        {children}
       </div>
     </div>
   );
@@ -542,12 +624,15 @@ function getCollectedEmojiLayout(index: number, seedKey: string, columnCount: nu
   const row = Math.floor(index / columnCount);
   const column = index % columnCount;
   const seed = hashEmojiLayoutSeed(seedKey);
-  const horizontalJitter = ((seed % 9) - 4) * (row === 0 ? 1.5 : 1.1);
-  const verticalJitter = (((Math.floor(seed / 7)) % 7) - 3) * 0.7;
-  const rotate = ((Math.floor(seed / 13) % 11) - 5) * 5;
-  const pileCurve = Math.abs(column - (columnCount - 1) / 2) * (row === 0 ? 0.9 : 0.55);
-  const left = 10 + column * 6.4 + (row % 2 === 0 ? 0 : 2.8) + horizontalJitter;
-  const bottom = 4 + row * 10.2 + verticalJitter - pileCurve;
+  const rowBaseLeft = 12;
+  const spacing = 7.4;
+  const rowFill = Math.min(columnCount, index + 1 - row * columnCount);
+  const rowStartLeft = rowBaseLeft + ((columnCount - rowFill) * spacing) / 2;
+  const horizontalJitter = ((seed % 7) - 3) * (row === 0 ? 0.55 : 0.42);
+  const verticalJitter = (((Math.floor(seed / 7)) % 5) - 2) * 0.45;
+  const rotate = ((Math.floor(seed / 13) % 9) - 4) * 4;
+  const left = rowStartLeft + (column * spacing) + horizontalJitter;
+  const bottom = 3 + row * 8.8 + verticalJitter;
 
   return { left, bottom, rotate };
 }
@@ -1901,7 +1986,6 @@ function NavigationPreview({
   const updatePreviewStep = useNavigationStore((state) => state.updatePreviewStep);
   const replacePreviewSteps = useNavigationStore((state) => state.replacePreviewSteps);
   const preferences = useNavigationPreferenceStore((state) => state.preferences);
-  const learnStepEmojiPreference = useNavigationPreferenceStore((state) => state.learnStepEmojiPreference);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showPreState, setShowPreState] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -1974,11 +2058,6 @@ function NavigationPreview({
     if (!nextEmoji || nextEmoji === currentEmoji) return;
 
     updatePreviewStep(step.id, { meaningEmoji: nextEmoji });
-    learnStepEmojiPreference({
-      title: step.title,
-      guidance: step.guidance,
-      emoji: nextEmoji,
-    });
     setEmojiEditingStepId(null);
   };
 
@@ -2286,6 +2365,7 @@ function NavigationScene({
   emojiPreferences,
   collectedEmojis,
   idleMarkCount,
+  snowProgress,
   driftOffset,
 }: {
   executionScore: number;
@@ -2300,6 +2380,7 @@ function NavigationScene({
   emojiPreferences: NavigationEmojiPreference[];
   collectedEmojis: NavigationCollectedEmojiItem[];
   idleMarkCount: number;
+  snowProgress: number;
   driftOffset: { x: number; y: number };
 }) {
   const feelingEmoji = getEmojiByScore(executionScore);
@@ -2307,10 +2388,8 @@ function NavigationScene({
   const normalizedScore = clampScore(executionScore);
   const normalizedEnergy = clampScore(energyLevel);
   const sceneProgress = clampScore((normalizedScore * 0.72) + (normalizedEnergy * 0.28));
-  const timePressure = Math.min(1, sceneElapsedMinutes / 22);
-  const totalTimePressure = Math.min(1, totalElapsedMinutes / 160);
-  const efficiencyRelief = Math.min(1, (normalizedScore / 100) * 0.72 + Math.min(recentGain, 18) / 24);
-  const snowDepth = Math.max(18, Math.min(140, 10 + (timePressure * 54) + (totalTimePressure * 86) + collectedEmojis.length * 2.2 - idleMarkCount * 6 - (efficiencyRelief * 24)));
+  const snowFillRatio = Math.max(0, Math.min(1, snowProgress));
+  const snowDepth = 148 * snowFillRatio;
   const pairScale = 0.48 + (sceneProgress / 100) * 0.92 + Math.min(recentGain, 20) * 0.008;
   const currentPairBottom = Math.max(20, Math.min(40, snowDepth - 8));
   const starLayout = [
@@ -2385,23 +2464,33 @@ function NavigationScene({
               </span>
             );
           })}
-          {idleMarkCount > 0 && (
-            <div className="navigation-idle-cross-pile">
-              {Array.from({ length: idleMarkCount }).map((_, index) => (
-                <span key={`idle-cross-${index}`} className="navigation-idle-cross-emoji">❌</span>
-              ))}
-            </div>
-          )}
+          {Array.from({ length: idleMarkCount }).map((_, index) => {
+            const layout = getCollectedEmojiLayout(index, `idle-cross-${index}`, 10);
+            return (
+              <span
+                key={`idle-cross-${index}`}
+                className="navigation-idle-cross-emoji"
+                style={{
+                  left: `${layout.left}%`,
+                  bottom: `${Math.max(2, layout.bottom - 1)}px`,
+                  transform: `rotate(${layout.rotate}deg)`,
+                }}
+              >
+                ❌
+              </span>
+            );
+          })}
         </div>
         <div className="navigation-snowbank" style={{ height: `${snowDepth}px` }}>
+          <div className="navigation-snowbank-fill" />
           <svg className="navigation-snowbank-wave" viewBox="0 0 320 120" preserveAspectRatio="none" aria-hidden="true">
             <path
               className="navigation-snowbank-wave-back"
-              d="M0 102 C10 90 22 88 34 96 C46 104 58 112 70 104 C82 96 94 84 106 92 C118 100 130 114 142 106 C154 98 166 86 178 94 C190 102 202 114 214 106 C226 98 238 86 250 94 C262 102 274 114 286 106 C298 98 309 90 320 96 L320 120 L0 120 Z"
+              d="M0 102 C18 98 38 96 58 99 C78 102 98 106 118 103 C138 100 158 96 178 98 C198 100 218 104 238 102 C258 100 278 96 298 98 C308 99 315 100 320 100 L320 120 L0 120 Z"
             />
             <path
               className="navigation-snowbank-wave-front"
-              d="M0 110 C9 98 20 96 31 104 C42 112 53 118 64 110 C75 102 86 90 97 98 C108 106 119 120 130 112 C141 104 152 92 163 100 C174 108 185 120 196 112 C207 104 218 92 229 100 C240 108 251 120 262 112 C273 104 284 92 295 100 C306 108 314 106 320 108 L320 120 L0 120 Z"
+              d="M0 108 C18 105 38 103 58 106 C78 109 98 112 118 109 C138 106 158 103 178 105 C198 107 218 110 238 108 C258 106 278 103 298 105 C308 106 315 107 320 107 L320 120 L0 120 Z"
             />
           </svg>
         </div>
@@ -2561,11 +2650,7 @@ function NavigationStepCard({
   onOpenHandsFree,
   onEditStepEmoji,
   onOpenStepTitleMenu,
-  onStartStepTitleLongPress,
-  onClearStepTitleLongPress,
   onOpenStepGuidanceEditor,
-  onStartStepGuidanceLongPress,
-  onClearStepGuidanceLongPress,
   isEmojiEditorOpen,
   emojiEditor,
   isVoiceMode,
@@ -2582,6 +2667,7 @@ function NavigationStepCard({
   collectedEmojis,
   emojiPreferences,
   idleMarkCount,
+  snowProgress,
   driftOffset,
 }: {
   step: NavigationExecutionStep;
@@ -2599,11 +2685,7 @@ function NavigationStepCard({
   onOpenHandsFree: () => void;
   onEditStepEmoji: () => void;
   onOpenStepTitleMenu: () => void;
-  onStartStepTitleLongPress: () => void;
-  onClearStepTitleLongPress: () => void;
   onOpenStepGuidanceEditor: () => void;
-  onStartStepGuidanceLongPress: () => void;
-  onClearStepGuidanceLongPress: () => void;
   isEmojiEditorOpen: boolean;
   emojiEditor?: React.ReactNode;
   isVoiceMode: boolean;
@@ -2620,6 +2702,7 @@ function NavigationStepCard({
   collectedEmojis: NavigationCollectedEmojiItem[];
   emojiPreferences: NavigationEmojiPreference[];
   idleMarkCount: number;
+  snowProgress: number;
   driftOffset: { x: number; y: number };
 }) {
   return (
@@ -2648,6 +2731,7 @@ function NavigationStepCard({
           emojiPreferences={emojiPreferences}
           collectedEmojis={collectedEmojis}
           idleMarkCount={idleMarkCount}
+          snowProgress={snowProgress}
           driftOffset={driftOffset}
         />
       </div>
@@ -2673,9 +2757,6 @@ function NavigationStepCard({
                 e.preventDefault();
                 onOpenStepTitleMenu();
               }}
-              onPointerDown={onStartStepTitleLongPress}
-              onPointerUp={onClearStepTitleLongPress}
-              onPointerLeave={onClearStepTitleLongPress}
             >
               {step.title}
             </h3>
@@ -2686,9 +2767,6 @@ function NavigationStepCard({
               e.preventDefault();
               onOpenStepGuidanceEditor();
             }}
-            onPointerDown={onStartStepGuidanceLongPress}
-            onPointerUp={onClearStepGuidanceLongPress}
-            onPointerLeave={onClearStepGuidanceLongPress}
           >
             {step.guidance}
           </p>
@@ -2774,18 +2852,12 @@ function NavigationActivePlanEditor({
     groupCount: session.timelineGroups.length,
     stepCount: session.executionSteps.length,
   });
-  const [groupMenu, setGroupMenu] = useState<{ groupId: string } | null>(null);
-  const [stepMenu, setStepMenu] = useState<{ stepId: string } | null>(null);
-  const longPressTimerRef = useRef<number | null>(null);
 
   const currentSnapshot = useMemo(() => JSON.stringify({
     timelineGroups: session.timelineGroups,
     executionSteps: session.executionSteps,
   }), [session.timelineGroups, session.executionSteps]);
   const hasUnsavedChanges = currentSnapshot !== savedSnapshot;
-
-  const menuGroup = groupMenu ? session.timelineGroups.find((group) => group.id === groupMenu.groupId) : null;
-  const menuStep = stepMenu ? session.executionSteps.find((step) => step.id === stepMenu.stepId) : null;
 
   useEffect(() => {
     if (!hasSavedFeedback) return;
@@ -2824,21 +2896,6 @@ function NavigationActivePlanEditor({
     };
   }, [session.timelineGroups, session.executionSteps]);
 
-  useEffect(() => {
-    const handleWindowPointerUp = () => {
-      setGroupMenu(null);
-      setStepMenu(null);
-      clearLongPress();
-    };
-
-    window.addEventListener('scroll', handleWindowPointerUp, true);
-    window.addEventListener('pointerup', clearLongPress);
-    return () => {
-      window.removeEventListener('scroll', handleWindowPointerUp, true);
-      window.removeEventListener('pointerup', clearLongPress);
-    };
-  }, []);
-
   const handleSave = () => {
     setEditingTarget(null);
     setSavedSnapshot(currentSnapshot);
@@ -2847,26 +2904,25 @@ function NavigationActivePlanEditor({
 
   const handleInsertGroup = (targetGroupId: string, position: 'before' | 'after') => {
     const insertedId = insertSessionGroup(targetGroupId, position, { title: '新任务', description: '' });
-    setGroupMenu(null);
     if (!insertedId) return;
     setCollapsedGroups((prev) => ({ ...prev, [insertedId]: false }));
     setEditingTarget(`${insertedId}:title`);
   };
 
-  const handleEditGroup = (groupId: string) => {
-    setGroupMenu(null);
-    setCollapsedGroups((prev) => ({ ...prev, [groupId]: false }));
-    setEditingTarget(`${groupId}:title`);
+  const openGroupDescriptionEditor = (groupId: string) => {
+    setEditingTarget(`${groupId}:description`);
+  };
+
+  const openStepGuidanceEditor = (stepId: string) => {
+    setEditingTarget(`${stepId}:guidance`);
   };
 
   const handleDeleteGroup = (groupId: string) => {
-    setGroupMenu(null);
     removeSessionGroup(groupId);
   };
 
   const handleInsertStep = (targetStepId: string, position: 'before' | 'after') => {
     const insertedId = insertSessionStep(targetStepId, position, { title: '新步骤', guidance: '' });
-    setStepMenu(null);
     if (!insertedId) return;
     const insertedStep = useNavigationStore.getState().currentSession?.executionSteps.find((step) => step.id === insertedId);
     if (insertedStep) {
@@ -2875,58 +2931,7 @@ function NavigationActivePlanEditor({
     setEditingTarget(`${insertedId}:title`);
   };
 
-  const openGroupMenu = (groupId: string) => {
-    setStepMenu(null);
-    setGroupMenu({ groupId });
-  };
-
-  const openGroupDescriptionEditor = (groupId: string) => {
-    clearLongPress();
-    setGroupMenu(null);
-    setStepMenu(null);
-    setEditingTarget(`${groupId}:description`);
-  };
-
-  const openStepMenu = (stepId: string) => {
-    setGroupMenu(null);
-    setStepMenu({ stepId });
-  };
-
-  const openStepGuidanceEditor = (stepId: string) => {
-    clearLongPress();
-    setGroupMenu(null);
-    setStepMenu(null);
-    setEditingTarget(`${stepId}:guidance`);
-  };
-
-  const startLongPress = (type: 'group' | 'step', id: string) => {
-    if (longPressTimerRef.current) {
-      window.clearTimeout(longPressTimerRef.current);
-    }
-    longPressTimerRef.current = window.setTimeout(() => {
-      if (type === 'group') {
-        openGroupMenu(id);
-      } else {
-        openStepMenu(id);
-      }
-      longPressTimerRef.current = null;
-    }, 520);
-  };
-
-  const clearLongPress = () => {
-    if (longPressTimerRef.current) {
-      window.clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-  };
-
-  const handleEditStep = (stepId: string) => {
-    setStepMenu(null);
-    setEditingTarget(`${stepId}:title`);
-  };
-
   const handleDeleteStep = (stepId: string) => {
-    setStepMenu(null);
     removeSessionStep(stepId);
   };
 
@@ -2936,7 +2941,7 @@ function NavigationActivePlanEditor({
         <div className="navigation-active-plan-topbar">
           <div className="navigation-active-plan-topbar-copy">
             <strong>任务列表</strong>
-            <p>长按任务名或步骤名，可以插入、编辑和删除。</p>
+            <p>双击文字直接修改；向左滑动任务或步骤，可前插、后插或删除。</p>
           </div>
           <div className="navigation-active-plan-topbar-actions">
             <button
@@ -2971,211 +2976,158 @@ function NavigationActivePlanEditor({
               const isCollapsed = collapsedGroups[group.id] ?? !hasCurrentStep;
 
               return (
-                <div key={group.id} className={`navigation-group-card navigation-active-group-card ${hasCurrentStep ? 'is-current' : ''} ${isCollapsed ? 'is-collapsed' : ''}`}>
-                  <div className="navigation-active-group-header">
-                    <div className="navigation-active-group-main">
-                      {isTitleEditing ? (
-                        <input
-                          className="navigation-inline-input navigation-inline-title navigation-inline-input-compact"
-                          value={group.title}
-                          autoFocus
-                          onChange={(e) => updateActiveGroup(group.id, { title: e.target.value })}
-                          onBlur={() => setEditingTarget(null)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') setEditingTarget(null);
-                            if (e.key === 'Escape') setEditingTarget(null);
-                          }}
-                        />
-                      ) : (
-                        <strong
-                          onDoubleClick={() => openGroupMenu(group.id)}
-                          onContextMenu={(e) => {
-                            e.preventDefault();
-                            openGroupMenu(group.id);
-                          }}
-                          onPointerDown={() => startLongPress('group', group.id)}
-                          onPointerUp={clearLongPress}
-                          onPointerLeave={clearLongPress}
-                          onPointerCancel={clearLongPress}
-                          className="navigation-editable-text navigation-active-group-title"
-                        >
-                          {group.title}
-                        </strong>
-                      )}
-
-                      {isDescriptionEditing ? (
-                        <input
-                          className="navigation-inline-input navigation-inline-input-compact"
-                          value={group.description || ''}
-                          autoFocus
-                          placeholder="可留空"
-                          onChange={(e) => updateActiveGroup(group.id, { description: e.target.value })}
-                          onBlur={() => setEditingTarget(null)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') setEditingTarget(null);
-                            if (e.key === 'Escape') setEditingTarget(null);
-                          }}
-                        />
-                      ) : (
-                        <p
-                          onDoubleClick={() => openGroupDescriptionEditor(group.id)}
-                          onContextMenu={(e) => {
-                            e.preventDefault();
-                            openGroupDescriptionEditor(group.id);
-                          }}
-                          onPointerDown={() => startLongPress('group', group.id)}
-                          onPointerUp={clearLongPress}
-                          onPointerLeave={clearLongPress}
-                          onPointerCancel={clearLongPress}
-                          className="navigation-editable-text navigation-plan-muted"
-                        >
-                          {group.description || '双击补充这个任务的说明'}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="navigation-active-group-actions">
-                      {hasCurrentStep && <em className="navigation-plan-current-badge">当前任务</em>}
-                      <button
-                        type="button"
-                        className="navigation-inline-icon-button navigation-group-add-button"
-                        onClick={() => handleInsertGroup(group.id, 'after')}
-                        aria-label="在当前任务后插入任务"
-                        title="在当前任务后插入任务"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        className="navigation-inline-icon-button navigation-group-collapse-button"
-                        onClick={() => setCollapsedGroups((prev) => ({ ...prev, [group.id]: !isCollapsed }))}
-                        aria-label={isCollapsed ? '展开任务' : '收起任务'}
-                        title={isCollapsed ? '展开任务' : '收起任务'}
-                      >
-                        {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  {!isCollapsed && (
-                    <div className="navigation-active-step-list">
-                      {relatedSteps.map((step, index) => {
-                        const isTitleEditing = editingTarget === `${step.id}:title`;
-                        const isGuidanceEditing = editingTarget === `${step.id}:guidance`;
-                        const globalIndex = session.executionSteps.findIndex((item) => item.id === step.id);
-                        const isCurrent = globalIndex === session.currentStepIndex;
-                        return (
-                          <div
-                            key={step.id}
-                            ref={isCurrent ? currentStepRef : null}
-                            className={`navigation-active-step-item ${isCurrent ? 'is-current' : ''} ${step.status === 'completed' ? 'is-completed' : ''}`}
+                <NavigationSwipeActionRow
+                  key={group.id}
+                  onInsertBefore={() => handleInsertGroup(group.id, 'before')}
+                  onInsertAfter={() => handleInsertGroup(group.id, 'after')}
+                  onDelete={() => handleDeleteGroup(group.id)}
+                >
+                  <div className={`navigation-group-card navigation-active-group-card ${hasCurrentStep ? 'is-current' : ''} ${isCollapsed ? 'is-collapsed' : ''}`}>
+                    <div className="navigation-active-group-header">
+                      <div className="navigation-active-group-main">
+                        {isTitleEditing ? (
+                          <input
+                            className="navigation-inline-input navigation-inline-title navigation-inline-input-compact"
+                            value={group.title}
+                            autoFocus
+                            onChange={(e) => updateActiveGroup(group.id, { title: e.target.value })}
+                            onBlur={() => setEditingTarget(null)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') setEditingTarget(null);
+                              if (e.key === 'Escape') setEditingTarget(null);
+                            }}
+                          />
+                        ) : (
+                          <strong
+                            onDoubleClick={() => setEditingTarget(`${group.id}:title`)}
+                            className="navigation-editable-text navigation-active-group-title"
                           >
-                            <div className="navigation-active-step-index">{index + 1}</div>
-                            <div className="navigation-active-step-content">
-                              <div className="navigation-plan-step-head">
-                                {isTitleEditing ? (
-                                  <input
-                                    className="navigation-inline-input navigation-inline-title navigation-inline-input-compact"
-                                    value={step.title}
-                                    autoFocus
-                                    onChange={(e) => updateActiveStep(step.id, { title: e.target.value })}
-                                    onBlur={() => setEditingTarget(null)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') setEditingTarget(null);
-                                      if (e.key === 'Escape') setEditingTarget(null);
-                                    }}
-                                  />
-                                ) : (
-                                  <strong
-                                    onDoubleClick={() => openStepMenu(step.id)}
-                                    onContextMenu={(e) => {
-                                      e.preventDefault();
-                                      openStepMenu(step.id);
-                                    }}
-                                    onPointerDown={() => startLongPress('step', step.id)}
-                                    onPointerUp={clearLongPress}
-                                    onPointerLeave={clearLongPress}
-                                    onPointerCancel={clearLongPress}
-                                    className="navigation-editable-text"
-                                  >
-                                    {getStepMeaningEmoji(step.title, step.guidance, step.meaningEmoji, preferences.emojiPreferences)} {step.title}
-                                  </strong>
-                                )}
-                                {isCurrent && <em className="navigation-plan-current-badge">当前步骤</em>}
-                              </div>
+                            {group.title}
+                          </strong>
+                        )}
 
-                              {isGuidanceEditing ? (
-                                <textarea
-                                  className="navigation-inline-textarea navigation-inline-textarea-compact"
-                                  rows={2}
-                                  value={step.guidance}
-                                  autoFocus
-                                  onChange={(e) => updateActiveStep(step.id, { guidance: e.target.value })}
-                                  onBlur={() => setEditingTarget(null)}
-                                  onKeyDown={(e) => {
-                                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') setEditingTarget(null);
-                                    if (e.key === 'Escape') setEditingTarget(null);
-                                  }}
-                                />
-                              ) : (
-                                <p
-                                  onDoubleClick={() => openStepGuidanceEditor(step.id)}
-                                  onContextMenu={(e) => {
-                                    e.preventDefault();
-                                    openStepGuidanceEditor(step.id);
-                                  }}
-                                  onPointerDown={() => startLongPress('step', step.id)}
-                                  onPointerUp={clearLongPress}
-                                  onPointerLeave={clearLongPress}
-                                  onPointerCancel={clearLongPress}
-                                  className="navigation-editable-text navigation-plan-muted"
-                                >
-                                  {step.guidance}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
+                        {isDescriptionEditing ? (
+                          <input
+                            className="navigation-inline-input navigation-inline-input-compact"
+                            value={group.description || ''}
+                            autoFocus
+                            placeholder="可留空"
+                            onChange={(e) => updateActiveGroup(group.id, { description: e.target.value })}
+                            onBlur={() => setEditingTarget(null)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') setEditingTarget(null);
+                              if (e.key === 'Escape') setEditingTarget(null);
+                            }}
+                          />
+                        ) : (
+                          <p
+                            onDoubleClick={() => openGroupDescriptionEditor(group.id)}
+                            className="navigation-editable-text navigation-plan-muted"
+                          >
+                            {group.description || '双击补充这个任务的说明'}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="navigation-active-group-actions">
+                        {hasCurrentStep && <em className="navigation-plan-current-badge">当前任务</em>}
+                        <button
+                          type="button"
+                          className="navigation-inline-icon-button navigation-group-collapse-button"
+                          onClick={() => setCollapsedGroups((prev) => ({ ...prev, [group.id]: !isCollapsed }))}
+                          aria-label={isCollapsed ? '展开任务' : '收起任务'}
+                          title={isCollapsed ? '展开任务' : '收起任务'}
+                        >
+                          {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                        </button>
+                      </div>
                     </div>
-                  )}
-                </div>
+
+                    {!isCollapsed && (
+                      <div className="navigation-active-step-list">
+                        {relatedSteps.map((step, index) => {
+                          const isTitleEditing = editingTarget === `${step.id}:title`;
+                          const isGuidanceEditing = editingTarget === `${step.id}:guidance`;
+                          const globalIndex = session.executionSteps.findIndex((item) => item.id === step.id);
+                          const isCurrent = globalIndex === session.currentStepIndex;
+                          return (
+                            <NavigationSwipeActionRow
+                              key={step.id}
+                              onInsertBefore={() => handleInsertStep(step.id, 'before')}
+                              onInsertAfter={() => handleInsertStep(step.id, 'after')}
+                              onDelete={() => handleDeleteStep(step.id)}
+                            >
+                              <div
+                                ref={isCurrent ? currentStepRef : null}
+                                className={`navigation-active-step-item ${isCurrent ? 'is-current' : ''} ${step.status === 'completed' ? 'is-completed' : ''}`}
+                              >
+                                <div className="navigation-active-step-index">{index + 1}</div>
+                                <div className="navigation-active-step-content">
+                                  <div className="navigation-plan-step-head">
+                                    {isTitleEditing ? (
+                                      <input
+                                        className="navigation-inline-input navigation-inline-title navigation-inline-input-compact"
+                                        value={step.title}
+                                        autoFocus
+                                        onChange={(e) => updateActiveStep(step.id, { title: e.target.value })}
+                                        onBlur={() => setEditingTarget(null)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') setEditingTarget(null);
+                                          if (e.key === 'Escape') setEditingTarget(null);
+                                        }}
+                                      />
+                                    ) : (
+                                      <strong
+                                        onDoubleClick={() => setEditingTarget(`${step.id}:title`)}
+                                        className="navigation-editable-text"
+                                      >
+                                        {getStepMeaningEmoji(step.title, step.guidance, step.meaningEmoji, preferences.emojiPreferences)} {step.title}
+                                      </strong>
+                                    )}
+                                    {isCurrent && <em className="navigation-plan-current-badge">当前步骤</em>}
+                                  </div>
+
+                                  {isGuidanceEditing ? (
+                                    <textarea
+                                      className="navigation-inline-textarea navigation-inline-textarea-compact"
+                                      rows={2}
+                                      value={step.guidance}
+                                      autoFocus
+                                      onChange={(e) => updateActiveStep(step.id, { guidance: e.target.value })}
+                                      onBlur={() => setEditingTarget(null)}
+                                      onKeyDown={(e) => {
+                                        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') setEditingTarget(null);
+                                        if (e.key === 'Escape') setEditingTarget(null);
+                                      }}
+                                    />
+                                  ) : (
+                                    <p
+                                      onDoubleClick={() => openStepGuidanceEditor(step.id)}
+                                      className="navigation-editable-text navigation-plan-muted"
+                                    >
+                                      {step.guidance}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </NavigationSwipeActionRow>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </NavigationSwipeActionRow>
               );
             })}
           </div>
         </div>
       </div>
-
-      {menuGroup && (
-        <NavigationLongPressSheet
-          title={menuGroup.title}
-          subtitle="任务操作"
-          onClose={() => setGroupMenu(null)}
-          onInsertBefore={() => handleInsertGroup(menuGroup.id, 'before')}
-          onInsertAfter={() => handleInsertGroup(menuGroup.id, 'after')}
-          onEdit={() => handleEditGroup(menuGroup.id)}
-          onDelete={() => handleDeleteGroup(menuGroup.id)}
-        />
-      )}
-
-      {menuStep && (
-        <NavigationLongPressSheet
-          title={menuStep.title}
-          subtitle="步骤操作"
-          onClose={() => setStepMenu(null)}
-          onInsertBefore={() => handleInsertStep(menuStep.id, 'before')}
-          onInsertAfter={() => handleInsertStep(menuStep.id, 'after')}
-          onEdit={() => handleEditStep(menuStep.id)}
-          onDelete={() => handleDeleteStep(menuStep.id)}
-        />
-      )}
     </div>
   );
 }
 
 function NavigationSessionView({ session, onReturnToComposer }: { session: NavigationSession; onReturnToComposer: (rawInput: string) => void }) {
   const preferences = useNavigationPreferenceStore((state) => state.preferences);
-  const learnStepEmojiPreference = useNavigationPreferenceStore((state) => state.learnStepEmojiPreference);
   const completeCurrentStep = useNavigationStore((state) => state.completeCurrentStep);
   const finalizeSession = useNavigationStore((state) => state.finalizeSession);
   const decayExecutionScore = useNavigationStore((state) => state.decayExecutionScore);
@@ -3219,10 +3171,6 @@ function NavigationSessionView({ session, onReturnToComposer }: { session: Navig
   const [difficultyMessage, setDifficultyMessage] = useState('');
   const [isResolvingDifficulty, setIsResolvingDifficulty] = useState(false);
   const [voiceStatusText, setVoiceStatusText] = useState('语音未开启');
-  const [taskTitleMenuOpen, setTaskTitleMenuOpen] = useState(false);
-  const [stepTitleMenuOpen, setStepTitleMenuOpen] = useState(false);
-  const taskTitleLongPressTimerRef = useRef<number | null>(null);
-  const stepTitleLongPressTimerRef = useRef<number | null>(null);
   const [elapsedNow, setElapsedNow] = useState(() => Date.now());
   const [driftOffset, setDriftOffset] = useState({ x: 0, y: 0 });
   const difficultyRequestIdRef = useRef(0);
@@ -3247,6 +3195,23 @@ function NavigationSessionView({ session, onReturnToComposer }: { session: Navig
     if (Number.isNaN(sceneStartTime)) return 0;
     return Math.max(0, Math.floor((elapsedNow - sceneStartTime) / 60000));
   })();
+  const accumulatedSnowProgress = (() => {
+    const base = session.accumulatedSnowProgress ?? 0;
+    const referenceTime = session.lastProgressAt || session.startedAt || session.createdAt;
+    const referenceMs = new Date(referenceTime).getTime();
+    if (Number.isNaN(referenceMs)) return base;
+    const elapsedMs = Math.max(0, elapsedNow - referenceMs);
+    return Math.min(1, base + (elapsedMs / (2 * 60 * 60 * 1000)));
+  })();
+  const accumulatedIdleMarks = (() => {
+    const base = session.accumulatedInefficiencyMarks ?? 0;
+    if (isSleepProtectedStep(currentStep?.title)) return base;
+    const referenceTime = session.lastProgressAt || session.startedAt || session.createdAt;
+    const referenceMs = new Date(referenceTime).getTime();
+    if (Number.isNaN(referenceMs)) return base;
+    const elapsedMs = Math.max(0, elapsedNow - referenceMs);
+    return base + Math.floor(elapsedMs / (30 * 60 * 1000));
+  })();
   const remainingFocusSeconds = focusCountdown
     ? (focusCountdown.isPaused
       ? Math.max(0, focusCountdown.remainingSecondsWhenPaused || 0)
@@ -3258,9 +3223,6 @@ function NavigationSessionView({ session, onReturnToComposer }: { session: Navig
   const sceneExecutionScore = sessionMoodScore(currentStep, isInsertedStep, session);
   const sceneEnergyLevel = sessionMoodEnergy(currentStep, isInsertedStep, session);
   const collectedEmojis = useMemo(() => buildCollectedStepEmojis(session, preferences.emojiPreferences, elapsedNow), [session, preferences.emojiPreferences, elapsedNow]);
-  const activeIdleMarks = isSleepProtectedStep(currentStep?.title)
-    ? 0
-    : Math.max(0, Math.floor((elapsedNow - new Date(session.lastProgressAt || session.startedAt || session.createdAt).getTime()) / (30 * 60 * 1000)));
   const handsFreeEnabled = !!session.handsFree?.enabled;
   const preferredVoiceMode = session.handsFree?.preferredVoiceMode || 'system';
   const waitingForCommand = !!session.handsFree?.waitingForCommand;
@@ -3275,64 +3237,17 @@ function NavigationSessionView({ session, onReturnToComposer }: { session: Navig
     if (!nextEmoji || nextEmoji === currentEmoji) return;
 
     updateActiveStep(currentStep.id, { meaningEmoji: nextEmoji });
-    learnStepEmojiPreference({
-      title: currentStep.title,
-      guidance: currentStep.guidance,
-      emoji: nextEmoji,
-    });
     setEmojiEditorOpen(false);
-  };
-
-  const clearTaskTitleLongPress = () => {
-    if (taskTitleLongPressTimerRef.current) {
-      window.clearTimeout(taskTitleLongPressTimerRef.current);
-      taskTitleLongPressTimerRef.current = null;
-    }
-  };
-
-  const clearStepTitleLongPress = () => {
-    if (stepTitleLongPressTimerRef.current) {
-      window.clearTimeout(stepTitleLongPressTimerRef.current);
-      stepTitleLongPressTimerRef.current = null;
-    }
-  };
-
-  const openTaskTitleMenu = () => {
-    setStepTitleMenuOpen(false);
-    setTaskTitleMenuOpen(true);
-  };
-
-  const startTaskTitleLongPress = () => {
-    clearTaskTitleLongPress();
-    taskTitleLongPressTimerRef.current = window.setTimeout(() => {
-      openTaskTitleMenu();
-      taskTitleLongPressTimerRef.current = null;
-    }, 520);
-  };
-
-  const openStepTitleMenu = () => {
-    setTaskTitleMenuOpen(false);
-    setStepTitleMenuOpen(true);
-  };
-
-  const openCurrentStepGuidanceEditor = () => {
-    if (!currentStep) return;
-    openTaskListWithEditor(`${currentStep.id}:guidance`);
-  };
-
-  const startStepTitleLongPress = () => {
-    clearStepTitleLongPress();
-    stepTitleLongPressTimerRef.current = window.setTimeout(() => {
-      openStepTitleMenu();
-      stepTitleLongPressTimerRef.current = null;
-    }, 520);
   };
 
   const openTaskListWithEditor = (target: string) => {
     setTaskListInitialEditingTarget(target);
     setIsTaskListOpen(true);
-    setTaskTitleMenuOpen(false);
-    setStepTitleMenuOpen(false);
+  };
+
+  const openCurrentStepGuidanceEditor = () => {
+    if (!currentStep) return;
+    openTaskListWithEditor(`${currentStep.id}:guidance`);
   };
 
   const handleInsertTaskAroundCurrent = (position: 'before' | 'after') => {
@@ -3361,13 +3276,11 @@ function NavigationSessionView({ session, onReturnToComposer }: { session: Navig
 
   const handleDeleteCurrentTask = () => {
     if (!currentGroup) return;
-    setTaskTitleMenuOpen(false);
     removeSessionGroup(currentGroup.id);
   };
 
   const handleDeleteCurrentStep = () => {
     if (!currentStep) return;
-    setStepTitleMenuOpen(false);
     removeSessionStep(currentStep.id);
   };
   const unlockVoiceCommand = () => {
@@ -3705,16 +3618,6 @@ function NavigationSessionView({ session, onReturnToComposer }: { session: Navig
   ]);
 
   useEffect(() => {
-    const handlePointerUp = () => {
-      clearTaskTitleLongPress();
-      clearStepTitleLongPress();
-    };
-
-    window.addEventListener('pointerup', handlePointerUp);
-    return () => window.removeEventListener('pointerup', handlePointerUp);
-  }, []);
-
-  useEffect(() => {
     if (!handsFreeEnabled || voiceCommandLockRef.current || session.status !== 'active') return;
     if (pauseListeningUntilRef.current > Date.now()) return;
     if (!waitingForCommand && !isListening && !isSpeaking) {
@@ -3794,14 +3697,11 @@ function NavigationSessionView({ session, onReturnToComposer }: { session: Navig
             <div className="navigation-title-row navigation-title-row-task">
               <h2
                 className="navigation-title navigation-title-task"
-                onDoubleClick={openTaskTitleMenu}
+                onDoubleClick={handleEditCurrentTask}
                 onContextMenu={(e) => {
                   e.preventDefault();
-                  openTaskTitleMenu();
+                  handleEditCurrentTask();
                 }}
-                onPointerDown={startTaskTitleLongPress}
-                onPointerUp={clearTaskTitleLongPress}
-                onPointerLeave={clearTaskTitleLongPress}
               >
                 {currentGroup?.title || session.title}
               </h2>
@@ -3961,12 +3861,8 @@ function NavigationSessionView({ session, onReturnToComposer }: { session: Navig
           }
           setShowHandsFreeIntro(true);
         }}
-        onOpenStepTitleMenu={openStepTitleMenu}
-        onStartStepTitleLongPress={startStepTitleLongPress}
-        onClearStepTitleLongPress={clearStepTitleLongPress}
+        onOpenStepTitleMenu={handleEditCurrentStep}
         onOpenStepGuidanceEditor={openCurrentStepGuidanceEditor}
-        onStartStepGuidanceLongPress={startStepTitleLongPress}
-        onClearStepGuidanceLongPress={clearStepTitleLongPress}
         isVoiceMode={handsFreeEnabled}
         isListening={isListening}
         voiceStatusText={voiceStatusText}
@@ -3978,7 +3874,8 @@ function NavigationSessionView({ session, onReturnToComposer }: { session: Navig
         executionScore={sceneExecutionScore}
         energyLevel={sceneEnergyLevel}
         recentExecutionGain={session.recentExecutionGain || 0}
-        idleMarkCount={activeIdleMarks}
+        idleMarkCount={accumulatedIdleMarks}
+        snowProgress={accumulatedSnowProgress}
       />
 
 
@@ -3988,30 +3885,6 @@ function NavigationSessionView({ session, onReturnToComposer }: { session: Navig
           message={difficultyInput}
           onClose={() => setShowDifficultySheet(false)}
           onSubmit={handleResolveDifficulty}
-        />
-      )}
-
-      {taskTitleMenuOpen && currentGroup && (
-        <NavigationLongPressSheet
-          title={currentGroup.title}
-          subtitle="任务操作"
-          onClose={() => setTaskTitleMenuOpen(false)}
-          onInsertBefore={() => handleInsertTaskAroundCurrent('before')}
-          onInsertAfter={() => handleInsertTaskAroundCurrent('after')}
-          onEdit={handleEditCurrentTask}
-          onDelete={handleDeleteCurrentTask}
-        />
-      )}
-
-      {stepTitleMenuOpen && currentStep && (
-        <NavigationLongPressSheet
-          title={currentStep.title}
-          subtitle="步骤操作"
-          onClose={() => setStepTitleMenuOpen(false)}
-          onInsertBefore={() => handleInsertStepAroundCurrent('before')}
-          onInsertAfter={() => handleInsertStepAroundCurrent('after')}
-          onEdit={handleEditCurrentStep}
-          onDelete={handleDeleteCurrentStep}
         />
       )}
 
@@ -4631,6 +4504,14 @@ function NavigationCompletionView({ session, autoOpenTrend = false }: { session:
 export default function NavigationModeView({ initialScreen = 'default' }: { initialScreen?: 'default' | 'trend' }) {
   const session = useNavigationStore((state) => state.currentSession);
   const [composerDraft, setComposerDraft] = useState('');
+
+  useEffect(() => {
+    document.documentElement.dataset.navigationMode = 'true';
+
+    return () => {
+      delete document.documentElement.dataset.navigationMode;
+    };
+  }, []);
 
   if (initialScreen === 'trend' && (!session || session.status !== 'completed')) {
     return (
