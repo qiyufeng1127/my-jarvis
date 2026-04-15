@@ -400,7 +400,7 @@ export default function AIAssistantChat() {
   ];
   
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-gray-900 keyboard-safe-area-top">
+    <div className="flex h-full flex-col bg-white pt-[calc(env(safe-area-inset-top,0px)+10px)] dark:bg-gray-900 keyboard-safe-area-top">
       {showTaskEditor && editingTasks.length > 0 && (
         <UnifiedTaskEditor
           tasks={editingTasks}
@@ -576,7 +576,7 @@ export default function AIAssistantChat() {
       </div>
       
       {/* 输入框 */}
-      <div className="border-t border-gray-200 dark:border-gray-700 p-4 keyboard-aware-composer" onFocusCapture={handleFocusCapture}>
+      <div className="border-t border-gray-200 p-4 keyboard-aware-composer dark:border-gray-700" onFocusCapture={handleFocusCapture}>
         <div className="flex items-end gap-2">
           <textarea
             value={input}
@@ -589,7 +589,7 @@ export default function AIAssistantChat() {
               }
             }}
             placeholder={modePlaceholderMap[activeMode]}
-            className="flex-1 resize-none rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="flex-1 resize-none rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-900 dark:placeholder-gray-400"
             rows={1}
             style={{
               minHeight: '40px',
