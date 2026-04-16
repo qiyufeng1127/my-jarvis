@@ -618,10 +618,29 @@ export const useTagStore = create<TagState>()(
       },
 
       resolveAutoTags: (taskTitle, candidateTags = [], limit = 3) => {
+        const normalizedTitle = taskTitle.toLowerCase().trim();
+        const activeTags = get().getActiveTagsSortedByUsage();
+        const titleMatchedTags = activeTags
+          .filter((tag) => {
+            const normalizedTag = tag.name.toLowerCase();
+            return normalizedTitle.includes(normalizedTag) || normalizedTag.includes(normalizedTitle);
+          })
+          .map((tag) => tag.name)
+          .slice(0, limit);
+
         const matchedCandidateTags = get().matchExistingTagNames(candidateTags);
-        const learnedTags = get().getRecommendedTags(taskTitle, limit + matchedCandidateTags.length);
-        return Array.from(new Set([
+        const prioritizedExistingTags = Array.from(new Set([
+          ...titleMatchedTags,
           ...matchedCandidateTags,
+        ]));
+
+        if (prioritizedExistingTags.length >= limit) {
+          return prioritizedExistingTags.slice(0, limit);
+        }
+
+        const learnedTags = get().getRecommendedTags(taskTitle, limit + prioritizedExistingTags.length);
+        return Array.from(new Set([
+          ...prioritizedExistingTags,
           ...learnedTags,
         ])).slice(0, limit);
       },
@@ -1059,10 +1078,6 @@ export const useTagStore = create<TagState>()(
             }
           });
 
-          Object.values(profile?.relatedTagScores || {}).forEach((value) => {
-            score += value * 0.12;
-          });
-
           score += Math.min(tag.usageCount || 0, 10);
           score += Math.min(profile?.confirmedCount || 0, 12);
           score -= Math.min(profile?.correctedAwayCount || 0, 8);
@@ -1173,7 +1188,6 @@ export const useTagStore = create<TagState>()(
           .map((tag) => {
             const profile = profiles[tag.name];
             const score = tokens.reduce((sum, token) => sum + (profile?.keywordScores?.[token] || 0), 0)
-              + Object.values(profile?.relatedTagScores || {}).reduce((sum, value) => sum + value * 0.12, 0)
               + Math.min(profile?.confirmedCount || 0, 12)
               - Math.min(profile?.correctedAwayCount || 0, 8);
 

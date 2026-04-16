@@ -167,7 +167,7 @@ export default function AddHabitModal({ open, onClose }: AddHabitModalProps) {
           
           {/* 弹窗内容 */}
           <div
-            className="fixed inset-0 flex items-end md:items-center justify-center p-0 md:p-4"
+            className="fixed inset-0 flex items-end md:items-start justify-center p-0 md:p-4 keyboard-aware-modal-shell"
             style={{ zIndex: 2147483649 }}
           >
             <motion.div
@@ -175,8 +175,8 @@ export default function AddHabitModal({ open, onClose }: AddHabitModalProps) {
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: '100%', opacity: 0 }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="rounded-t-3xl md:rounded-3xl w-full md:max-w-2xl h-[90vh] flex flex-col"
-              style={{ backgroundColor: '#FFFFFF' }}
+              className="rounded-t-3xl md:rounded-3xl w-full md:max-w-2xl flex flex-col keyboard-aware-modal-card"
+              style={{ backgroundColor: '#FFFFFF', height: 'min(90vh, var(--app-modal-max-height))' }}
               onClick={(e) => e.stopPropagation()}
             >
               {/* 标题栏 */}

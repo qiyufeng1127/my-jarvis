@@ -12,7 +12,9 @@ import type {
 import { useTaskStore } from '@/stores/taskStore';
 import { useGoalStore } from '@/stores/goalStore';
 import { useGoalContributionStore } from '@/stores/goalContributionStore';
+import { useTagStore } from '@/stores/tagStore';
 import { matchTaskToGoals, convertMatchesToTaskGoals } from '@/services/aiGoalMatcher';
+import { generateSmartTagAssignment } from '@/utils/smartTagAssignment';
 
 const softenTimelineTitle = (title: string) => title.trim();
 
@@ -336,36 +338,91 @@ const createNavigationStepFromSeed = (
   source: step?.source || (session.previewMode === 'inserted_flow' ? 'inserted_flow' : 'planned'),
 });
 
-const removeSessionGroupState = (session: NavigationSession, groupId: string) => {
-  const nextGroups = session.timelineGroups.filter((group) => group.id !== groupId);
-  const nextSteps = session.executionSteps.filter((step) => step.groupId !== groupId);
+const getAdjustedSessionFlowState = (
+  session: NavigationSession,
+  nextSteps: NavigationExecutionStep[],
+  nextGroups: NavigationTimelineGroup[],
+  removedStepIndex: number,
+) => {
+  const normalizedSteps = nextSteps.map((step, index) => ({
+    ...step,
+    sortOrder: index,
+  }));
+  const normalizedGroups = nextGroups.map((group) => ({
+    ...group,
+    stepIds: normalizedSteps.filter((step) => step.groupId === group.id).map((step) => step.id),
+  }));
+
+  const removedCurrentStep = removedStepIndex === session.currentStepIndex;
+  const lastRemainingStepIndex = normalizedSteps.length - 1;
+  const safeCurrentStepIndex = normalizedSteps.length === 0
+    ? 0
+    : removedStepIndex < session.currentStepIndex
+      ? Math.max(0, session.currentStepIndex - 1)
+      : removedCurrentStep
+        ? Math.min(session.currentStepIndex, lastRemainingStepIndex)
+        : Math.min(session.currentStepIndex, lastRemainingStepIndex);
+
+  const nextStatus = normalizedSteps.length === 0
+    ? 'completed'
+    : session.status;
+  const nextAwaitingFinalCompletion = normalizedSteps.length === 0
+    ? false
+    : session.awaitingFinalCompletion && safeCurrentStepIndex === normalizedSteps.length - 1;
+
+  const rehydratedSteps = normalizedSteps.map((step, index) => {
+    if (!['active', 'paused'].includes(nextStatus)) return step;
+
+    if (index < safeCurrentStepIndex) {
+      if (step.status === 'pending' || step.status === 'in_progress') {
+        return { ...step, status: 'completed' as const };
+      }
+      return step;
+    }
+
+    if (index === safeCurrentStepIndex) {
+      if (step.status === 'completed' || step.status === 'skipped') return step;
+      return {
+        ...step,
+        status: 'in_progress' as const,
+        startedAt: step.startedAt || new Date().toISOString(),
+      };
+    }
+
+    if (step.status === 'in_progress') {
+      return { ...step, status: 'pending' as const, startedAt: undefined };
+    }
+
+    return step;
+  });
 
   return {
-    timelineGroups: nextGroups.map((group) => ({
-      ...group,
-      stepIds: nextSteps.filter((step) => step.groupId === group.id).map((step) => step.id),
-    })),
-    executionSteps: nextSteps.map((step, index) => ({
-      ...step,
-      sortOrder: index,
-    })),
+    timelineGroups: normalizedGroups,
+    executionSteps: rehydratedSteps,
+    currentStepIndex: safeCurrentStepIndex,
+    status: nextStatus,
+    awaitingFinalCompletion: nextAwaitingFinalCompletion,
+    completedAt: normalizedSteps.length === 0 ? session.completedAt || new Date().toISOString() : session.completedAt,
   };
 };
 
+const removeSessionGroupState = (session: NavigationSession, groupId: string) => {
+  const removedStepIndex = session.executionSteps.findIndex((step) => step.groupId === groupId);
+  const nextGroups = session.timelineGroups.filter((group) => group.id !== groupId);
+  const nextSteps = session.executionSteps.filter((step) => step.groupId !== groupId);
+
+  return getAdjustedSessionFlowState(session, nextSteps, nextGroups, removedStepIndex);
+};
+
 const removeSessionStepState = (session: NavigationSession, stepId: string) => {
+  const removedStepIndex = session.executionSteps.findIndex((step) => step.id === stepId);
   const nextSteps = session.executionSteps.filter((step) => step.id !== stepId);
   const nextGroups = session.timelineGroups.map((group) => ({
     ...group,
     stepIds: nextSteps.filter((step) => step.groupId === group.id).map((step) => step.id),
   }));
 
-  return {
-    timelineGroups: nextGroups,
-    executionSteps: nextSteps.map((step, index) => ({
-      ...step,
-      sortOrder: index,
-    })),
-  };
+  return getAdjustedSessionFlowState(session, nextSteps, nextGroups, removedStepIndex);
 };
 
 const insertSessionGroupState = (
@@ -964,6 +1021,10 @@ export const useNavigationStore = create<NavigationStoreState>()(
             ...session,
             timelineGroups: nextState.timelineGroups,
             executionSteps: nextState.executionSteps,
+            currentStepIndex: nextState.currentStepIndex,
+            status: nextState.status,
+            awaitingFinalCompletion: nextState.awaitingFinalCompletion,
+            completedAt: nextState.completedAt,
           },
         });
       },
@@ -977,6 +1038,10 @@ export const useNavigationStore = create<NavigationStoreState>()(
             ...session,
             timelineGroups: nextState.timelineGroups,
             executionSteps: nextState.executionSteps,
+            currentStepIndex: nextState.currentStepIndex,
+            status: nextState.status,
+            awaitingFinalCompletion: nextState.awaitingFinalCompletion,
+            completedAt: nextState.completedAt,
           },
         });
       },
@@ -1507,10 +1572,13 @@ export const useNavigationStore = create<NavigationStoreState>()(
 
         try {
           const createTask = useTaskStore.getState().createTask;
+          const taskStore = useTaskStore.getState();
+          const goalStore = useGoalStore.getState();
+          const tagStore = useTagStore.getState();
           const goalContributionStore = useGoalContributionStore.getState();
           const addGoalContributionRecord = goalContributionStore.addRecord;
           const updateGoalContributionRecord = goalContributionStore.updateRecord;
-          const updateGoal = useGoalStore.getState().updateGoal;
+          const updateGoal = goalStore.updateGoal;
 
           for (const group of session.timelineGroups) {
             const groupSteps = session.executionSteps.filter((step) => step.groupId === group.id && step.startedAt && step.completedAt);
@@ -1524,10 +1592,29 @@ export const useNavigationStore = create<NavigationStoreState>()(
 
             const durationMinutes = Math.max(1, Math.round((new Date(actualEnd).getTime() - new Date(actualStart).getTime()) / 60000));
             const timelineTitle = softenTimelineTitle(group.title);
+            const smartTagResult = generateSmartTagAssignment({
+              title: timelineTitle,
+              description: '',
+              tasks: taskStore.tasks,
+              goals: goalStore.goals,
+              currentTaskType: 'life',
+              currentTaskTags: [],
+              currentDurationMinutes: durationMinutes,
+              availableTags: tagStore.getAllTags().map((tag) => ({
+                name: tag.name,
+                usageCount: tag.usageCount,
+                isDisabled: tag.isDisabled,
+              })),
+              getTagDurationRecords: (tagName) => tagStore.getTagDurationRecords(tagName),
+              getLearnedTagScores: (taskTitle) => tagStore.getLearnedTagScores(taskTitle),
+              getRecommendedTags: (taskTitle, limit) => tagStore.getRecommendedTags(taskTitle, limit),
+              findMatchingGoals: (taskTitle, keywords) => goalStore.findMatchingGoals(taskTitle, keywords),
+            });
+            const baseGoldReward = Math.max(1, Math.round(durationMinutes * 0.8));
 
             const createdTask = await createTask({
               title: timelineTitle,
-              description: buildTimelineTaskDescription(session.title, timelineTitle),
+              description: '',
               taskType: 'life',
               priority: 2,
               durationMinutes,
@@ -1536,13 +1623,14 @@ export const useNavigationStore = create<NavigationStoreState>()(
               actualStart: new Date(actualStart),
               actualEnd: new Date(actualEnd),
               status: 'completed',
-              tags: ['导航模式'],
+              tags: smartTagResult.suggestedTags,
               identityTags: ['system:navigation-group'],
               enableProgressCheck: false,
               progressChecks: [],
               growthDimensions: {},
               longTermGoals: buildTimelineTaskGoals(timelineTitle, session.title, group.linkedGoalId),
-              goldEarned: 0,
+              goldReward: baseGoldReward,
+              goldEarned: baseGoldReward,
               penaltyGold: 0,
             });
 
@@ -1611,34 +1699,6 @@ export const useNavigationStore = create<NavigationStoreState>()(
                 }
               }
             }
-          }
-
-          if (session.startedAt && session.completedAt) {
-            const totalMinutes = Math.max(1, Math.round((new Date(session.completedAt).getTime() - new Date(session.startedAt).getTime()) / 60000));
-            const postSummary = session.postState
-              ? `\n完成后状态：难度${session.postState.actualDifficulty || '-'}，脑力${session.postState.brainState ?? '-'}，情绪${session.postState.emotionState ?? '-'}，成就感${session.postState.achievementSense ?? '-'}。${session.postState.reflection ? `\n感想：${session.postState.reflection}` : ''}`
-              : '';
-            const endingSummary = session.abandoned ? '\n本次导航为中途放弃结束，已保留放弃前的实际轨迹。' : '';
-            await createTask({
-              title: `${session.abandoned ? '🧭 导航提前结束：' : '🧭 导航完成：'}${session.title}`,
-              description: `${session.summary || `本次导航共完成 ${session.timelineGroups.length} 个任务块。`}${endingSummary}${postSummary}`,
-              taskType: 'life',
-              priority: 3,
-              durationMinutes: totalMinutes,
-              scheduledStart: new Date(session.startedAt),
-              scheduledEnd: new Date(session.completedAt),
-              actualStart: new Date(session.startedAt),
-              actualEnd: new Date(session.completedAt),
-              status: 'completed',
-              tags: ['导航总结'],
-              identityTags: ['system:navigation-summary'],
-              enableProgressCheck: false,
-              progressChecks: [],
-              growthDimensions: {},
-              longTermGoals: {},
-              goldEarned: 0,
-              penaltyGold: 0,
-            });
           }
 
           set({

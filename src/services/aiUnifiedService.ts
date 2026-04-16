@@ -59,6 +59,7 @@ const cleanTimelineTitleText = (title: string) => title
   .replace(/顺手整理好?/g, '')
   .replace(/顺手收拾好?/g, '')
   .replace(/按现在最顺手的方式/g, '')
+  .replace(/[，,、]{2,}/g, '、')
   .replace(/\s+/g, ' ')
   .trim();
 
@@ -84,287 +85,6 @@ const normalizeTimelineGroups = (
       };
     })
     .filter((group: any) => group.stepIds.length > 0 || group.title);
-};
-
-const rebuildTimelineGroupsFromTitles = (
-  titles: string[],
-  executionSteps: NavigationPlannerResult['executionSteps'],
-  sourceGroups?: NavigationPlannerResult['timelineGroups'],
-) => {
-  const cleanedTitles = titles
-    .map((title) => cleanTimelineTitleText(String(title || '')))
-    .filter(Boolean);
-
-  if (!cleanedTitles.length || !executionSteps.length) {
-    return {
-      executionSteps,
-      timelineGroups: sourceGroups || [],
-    };
-  }
-
-  const groupCount = Math.min(cleanedTitles.length, executionSteps.length);
-  const normalizedTitles = cleanedTitles.slice(0, groupCount);
-  const sourceBuckets = (sourceGroups || [])
-    .map((group) => group.stepIds.filter((stepId) => executionSteps.some((step) => step.id === stepId)).length)
-    .filter((count) => count > 0);
-
-  const bucketSizes = sourceBuckets.length === groupCount
-    ? sourceBuckets
-    : normalizedTitles.map((_, index) => {
-        const remainingSteps = executionSteps.length - index;
-        const remainingGroups = groupCount - index;
-        return Math.max(1, Math.ceil(remainingSteps / remainingGroups));
-      });
-
-  const rebuiltGroups: NavigationPlannerResult['timelineGroups'] = [];
-  const rebuiltSteps: NavigationPlannerResult['executionSteps'] = [];
-  let stepCursor = 0;
-
-  normalizedTitles.forEach((title, index) => {
-    const groupId = `g${index + 1}`;
-    const remainingSteps = executionSteps.length - stepCursor;
-    const remainingGroups = groupCount - index;
-    const desiredSize = bucketSizes[index] || 1;
-    const groupSize = index === groupCount - 1
-      ? remainingSteps
-      : Math.max(1, Math.min(desiredSize, remainingSteps - (remainingGroups - 1)));
-    const stepsInGroup = executionSteps.slice(stepCursor, stepCursor + groupSize).map((step) => ({
-      ...step,
-      groupId,
-    }));
-
-    rebuiltSteps.push(...stepsInGroup);
-    rebuiltGroups.push({
-      id: groupId,
-      title,
-      description: sourceGroups?.[index]?.description || '',
-      stepIds: stepsInGroup.map((step) => step.id),
-    });
-    stepCursor += groupSize;
-  });
-
-  if (stepCursor < executionSteps.length && rebuiltGroups.length) {
-    const lastGroup = rebuiltGroups[rebuiltGroups.length - 1];
-    const remainingSteps = executionSteps.slice(stepCursor).map((step) => ({
-      ...step,
-      groupId: lastGroup.id,
-    }));
-    rebuiltSteps.push(...remainingSteps);
-    lastGroup.stepIds.push(...remainingSteps.map((step) => step.id));
-  }
-
-  return {
-    executionSteps: rebuiltSteps,
-    timelineGroups: rebuiltGroups,
-  };
-};
-
-const rebuildPlannerResultTimeline = async (
-  rawInput: string,
-  result: NavigationPlannerResult,
-) => {
-  if (!result.executionSteps.length) return result;
-
-  const aiResult = await AIUnifiedService.callAI('NAVIGATION_TIMELINE_GROUPER', {
-    rawInput,
-  });
-
-  const titles = Array.isArray(aiResult.data?.titles)
-    ? aiResult.data.titles.map((title: unknown) => cleanTimelineTitleText(String(title || ''))).filter(Boolean)
-    : [];
-
-  const rebuilt = rebuildTimelineGroupsFromTitles(titles, result.executionSteps, result.timelineGroups);
-  const rewrittenGroups = await rewriteTimelineTitlesWithUserTone(rawInput, rebuilt.timelineGroups);
-
-  return {
-    ...result,
-    executionSteps: rebuilt.executionSteps,
-    timelineGroups: rewrittenGroups,
-  };
-};
-
-const hasWeakTimelineGroups = (result: NavigationPlannerResult) => {
-  if (!result.timelineGroups.length) return true;
-
-  const titles = result.timelineGroups
-    .map((group) => cleanTimelineTitleText(String(group.title || '')))
-    .filter(Boolean);
-
-  if (!titles.length) return true;
-
-  const uniqueTitles = new Set(titles.map((title) => title.replace(/\s+/g, '')));
-  if (uniqueTitles.size < Math.max(1, Math.ceil(titles.length / 2))) {
-    return true;
-  }
-
-  return titles.some((title) => TIMELINE_BAD_TITLE_PATTERNS.some((pattern) => pattern.test(title)));
-};
-
-const shouldRewriteTimelineTitles = (groups: NavigationPlannerResult['timelineGroups']) => {
-  if (!groups.length) return false;
-
-  return groups.some((group) => {
-    const title = cleanTimelineTitleText(String(group.title || ''));
-    if (!title) return false;
-
-    return TIMELINE_BAD_TITLE_PATTERNS.some((pattern) => pattern.test(title))
-      || /与|并|处理|启动|事项|流程/.test(title);
-  });
-};
-
-const finalizeNavigationPlannerResult = async (
-  rawInput: string,
-  result: NavigationPlannerResult,
-) => {
-  let nextResult = sanitizeEatingNavigationPlan(rawInput, result);
-
-  if (hasWeakTimelineGroups(nextResult)) {
-    nextResult = await rebuildPlannerResultTimeline(rawInput, nextResult);
-    return sanitizeEatingNavigationPlan(rawInput, nextResult);
-  }
-
-  if (shouldRewriteTimelineTitles(nextResult.timelineGroups)) {
-    nextResult = {
-      ...nextResult,
-      timelineGroups: await rewriteTimelineTitlesWithUserTone(rawInput, nextResult.timelineGroups),
-    };
-  }
-
-  return sanitizeEatingNavigationPlan(rawInput, nextResult);
-};
-
-const EATING_NAVIGATION_PATTERN = /(吃饭|吃早饭|吃午饭|吃晚饭|吃夜宵|吃早餐|吃零食|吃点东西|热饭|把饭打热|打热饭|加热.*饭|微波炉.*饭)/;
-const COOKING_NAVIGATION_PATTERN = /(做饭|下厨|炒菜|煮饭|煮面|做吃的|备菜|切菜|准备餐食|烹饪)/;
-const NON_EATING_WORK_PATTERN = /(网站|网页|页面|figma|设计|文创|预览图|psd|png|导出|上传|百度云|优化|收尾|排版|文件|源文件|海报|ui|产品图|banner|电商)/i;
-const EATING_NAVIGATION_BLOCKED_PATTERN = /(冰箱|看有什么吃的|现成的食物|最不费劲的选项|三明治|沙拉|剩饭|准备食材|备菜|做饭|烹饪)/;
-const EATING_NAVIGATION_ALLOWED_PATTERN = /(吃|视频|剧|拿到|端到|放到|坐下|加热|微波|热一下)/;
-const EATING_LOCATION_HINT_PATTERN = /(卧室|厨房|客厅|沙发|工作区|餐桌|书桌|桌子|地方|待着的地方)/;
-const EATING_EXPLICIT_LOCATION_PATTERN = /(卧室|厨房|客厅|沙发|工作区|餐桌|书桌|桌子|饭桌|餐厅)/;
-
-const stripGuessedEatingLocationText = (text: string) => normalizeInlineText(
-  text
-    .replace(/拿到你打算待着的地方/g, '拿到手边')
-    .replace(/拿到要待的区域/g, '拿到手边')
-    .replace(/放到你打算待着的地方/g, '放到手边')
-    .replace(/放到要待的区域/g, '放到手边')
-    .replace(/比如客厅沙发/g, '')
-    .replace(/比如工作区/g, '')
-    .replace(/比如卧室/g, '')
-    .replace(/在客厅沙发/g, '')
-    .replace(/在客厅/g, '')
-    .replace(/在沙发上/g, '')
-    .replace(/在工作区/g, '')
-    .replace(/在卧室/g, '')
-    .replace(/在餐桌/g, '')
-    .replace(/在书桌/g, '')
-    .replace(/去客厅/g, '')
-    .replace(/去沙发/g, '')
-    .replace(/去工作区/g, '')
-    .replace(/去卧室/g, '')
-    .replace(/\s+/g, ' ')
-    .replace(/（\s*）/g, '')
-    .replace(/\(\s*\)/g, '')
-    .trim()
-);
-
-const sanitizeEatingNavigationPlan = (
-  rawInput: string,
-  result: NavigationPlannerResult,
-): NavigationPlannerResult => {
-  const normalizedRawInput = normalizeInlineText(rawInput);
-  const isEatingTask = EATING_NAVIGATION_PATTERN.test(normalizedRawInput);
-  const hasCookingIntent = COOKING_NAVIGATION_PATTERN.test(normalizedRawInput);
-  const hasNonEatingWork = NON_EATING_WORK_PATTERN.test(normalizedRawInput);
-
-  if (!isEatingTask || hasCookingIntent || hasNonEatingWork) {
-    return result;
-  }
-
-  const hasExplicitLocation = EATING_EXPLICIT_LOCATION_PATTERN.test(normalizedRawInput);
-
-  const filteredSteps = result.executionSteps
-    .filter((step) => {
-      const title = normalizeInlineText(String(step.title || ''));
-      const guidance = normalizeInlineText(String(step.guidance || ''));
-      const text = `${title} ${guidance}`;
-
-      if (!EATING_NAVIGATION_BLOCKED_PATTERN.test(text)) {
-        return true;
-      }
-
-      return EATING_NAVIGATION_ALLOWED_PATTERN.test(title) && !/(做饭|烹饪|备菜|冰箱)/.test(text);
-    })
-    .map((step) => {
-      if (hasExplicitLocation) {
-        return step;
-      }
-
-      const nextTitle = stripGuessedEatingLocationText(String(step.title || ''));
-      const nextGuidance = stripGuessedEatingLocationText(String(step.guidance || ''));
-      const shouldClearLocation = step.location && EATING_LOCATION_HINT_PATTERN.test(String(step.location));
-
-      return {
-        ...step,
-        title: nextTitle || step.title,
-        guidance: nextGuidance || step.guidance,
-        location: shouldClearLocation ? undefined : step.location,
-      };
-    });
-
-  if (!filteredSteps.length) {
-    return result;
-  }
-
-  const validStepIds = new Set(filteredSteps.map((step) => step.id));
-  const filteredGroups = result.timelineGroups
-    .map((group) => ({
-      ...group,
-      stepIds: group.stepIds.filter((stepId) => validStepIds.has(stepId)),
-    }))
-    .filter((group) => group.stepIds.length > 0)
-    .map((group) => hasExplicitLocation
-      ? group
-      : {
-          ...group,
-          title: stripGuessedEatingLocationText(String(group.title || '')) || group.title,
-          description: stripGuessedEatingLocationText(String(group.description || '')),
-        });
-
-  return {
-    ...result,
-    executionSteps: filteredSteps,
-    timelineGroups: filteredGroups,
-  };
-};
-
-const rewriteTimelineTitlesWithUserTone = async (
-  rawInput: string,
-  groups: NavigationPlannerResult['timelineGroups'],
-) => {
-  if (!groups.length) return groups;
-
-  const aiStore = useAIStore.getState();
-  if (!aiStore.isConfigured()) {
-    return groups;
-  }
-
-  const aiResult = await AIUnifiedService.callAI('NAVIGATION_TIMELINE_TITLE_REWRITER', {
-    rawInput,
-    currentTitles: groups.map((group, index) => `${index + 1}. ${group.title}`).join('\n'),
-  });
-
-  const titles = Array.isArray(aiResult.data?.titles)
-    ? aiResult.data.titles.map((title: unknown) => cleanTimelineTitleText(String(title || ''))).filter(Boolean)
-    : [];
-
-  if (!aiResult.success || titles.length === 0) {
-    return groups;
-  }
-
-  return groups.map((group, index) => ({
-    ...group,
-    title: titles[index] || group.title,
-  }));
 };
 
 
@@ -501,23 +221,23 @@ const tryParsePlannerResult = (content: string, rawInput?: string): NavigationPl
 };
 
 const derivePartialPlannerResult = (content: string, rawInput?: string): Partial<NavigationPlannerResult> | null => {
-  const partial = parseEventStreamPlannerResult(content, false, rawInput);
-  if (partial) {
-    return {
-      sessionTitle: partial.sessionTitle,
-      summary: partial.summary,
-      executionSteps: partial.executionSteps.length ? partial.executionSteps : undefined,
-      timelineGroups: partial.timelineGroups.length ? partial.timelineGroups : undefined,
-    };
-  }
-
   const parsedObject = tryParseJsonObject(content);
   const normalizedObject = normalizePlannerResult(parsedObject, rawInput);
   if (normalizedObject) {
     return normalizedObject;
   }
 
-  return null;
+  const partial = parseEventStreamPlannerResult(content, false, rawInput);
+  if (!partial) {
+    return null;
+  }
+
+  return {
+    sessionTitle: partial.sessionTitle,
+    summary: partial.summary,
+    executionSteps: partial.executionSteps.length ? partial.executionSteps : undefined,
+    timelineGroups: partial.timelineGroups.length ? partial.timelineGroups : undefined,
+  };
 };
 
 
@@ -819,45 +539,15 @@ export class AIUnifiedService {
       let fullContent = '';
       let lastPartialSignature = '';
       let latestMeaningfulPartial: NavigationPlannerResult | null = null;
-      let latestVisiblePartial: NavigationPlannerResult | null = null;
-      let earliestRunnablePartial: Partial<NavigationPlannerResult> | null = null;
-      let earliestRunnablePublished = false;
-      let chunkCounter = 0;
       console.log('[导航服务] 进入流式分支', { messagesCount: messages.length });
 
       const streamResult = await aiStore.chatStream(
         messages,
         (chunk) => {
-          chunkCounter += 1;
+          console.log('[导航服务] 收到 chunk', chunk);
           fullContent += chunk;
           const partial = derivePartialPlannerResult(fullContent, rawInput);
           if (partial) {
-            let publishedEarlyThisTick = false;
-            const normalizedPartial: NavigationPlannerResult = {
-              sessionTitle: partial.sessionTitle || '导航模式',
-              summary: partial.summary || '',
-              executionSteps: partial.executionSteps || [],
-              timelineGroups: partial.timelineGroups || [],
-            };
-            const canRunEarly = normalizedPartial.timelineGroups.length >= 1 && normalizedPartial.executionSteps.length >= 2;
-
-            if (canRunEarly && !earliestRunnablePublished) {
-              earliestRunnablePartial = {
-                sessionTitle: normalizedPartial.sessionTitle,
-                summary: normalizedPartial.summary,
-                timelineGroups: normalizedPartial.timelineGroups,
-                executionSteps: normalizedPartial.executionSteps,
-              };
-              earliestRunnablePublished = true;
-              publishedEarlyThisTick = true;
-              console.log('[导航服务] 已拿到可启动首包', {
-                chunkCounter,
-                groupCount: normalizedPartial.timelineGroups.length,
-                stepCount: normalizedPartial.executionSteps.length,
-              });
-              onPartial(earliestRunnablePartial);
-            }
-
             const signature = JSON.stringify({
               title: partial.sessionTitle || '',
               summary: partial.summary || '',
@@ -866,65 +556,34 @@ export class AIUnifiedService {
             });
             if (signature !== lastPartialSignature) {
               lastPartialSignature = signature;
-              latestVisiblePartial = normalizedPartial;
+              const normalizedPartial: NavigationPlannerResult = {
+                sessionTitle: partial.sessionTitle || '导航模式',
+                summary: partial.summary || '',
+                executionSteps: partial.executionSteps || [],
+                timelineGroups: partial.timelineGroups || [],
+              };
               if (hasMeaningfulPlannerContent(normalizedPartial)) {
                 latestMeaningfulPartial = normalizedPartial;
               }
-              if (!publishedEarlyThisTick) {
-                onPartial(partial);
-              }
+              onPartial(partial);
             }
           }
         },
         {
-          maxTokens: Math.min(1400, Math.max(1000, AI_PROMPTS.NAVIGATION_MODE_PLANNER.maxTokens)),
+          maxTokens: Math.min(1200, AI_PROMPTS.NAVIGATION_MODE_PLANNER.maxTokens),
           temperature: AI_PROMPTS.NAVIGATION_MODE_PLANNER.temperature,
         }
       );
 
       const finalParsed = streamResult.content ? tryParsePlannerResult(streamResult.content, rawInput) : null;
-      const resolvedResultCandidates = [
-        finalParsed,
-        latestVisiblePartial,
-        latestMeaningfulPartial,
-      ].filter((item): item is NavigationPlannerResult => !!item);
-      const resolvedResult = resolvedResultCandidates.sort((a, b) => {
-        const stepDelta = b.executionSteps.length - a.executionSteps.length;
-        if (stepDelta !== 0) return stepDelta;
-        return b.timelineGroups.length - a.timelineGroups.length;
-      })[0] || null;
-      console.log('[导航服务] 流式请求完成', {
-        success: streamResult.success,
-        chunkCounter,
-        finalParsedStepCount: finalParsed?.executionSteps.length || 0,
-        finalParsedGroupCount: finalParsed?.timelineGroups.length || 0,
-        latestMeaningfulStepCount: latestMeaningfulPartial?.executionSteps.length || 0,
-        latestMeaningfulGroupCount: latestMeaningfulPartial?.timelineGroups.length || 0,
-        latestVisibleStepCount: latestVisiblePartial?.executionSteps.length || 0,
-        latestVisibleGroupCount: latestVisiblePartial?.timelineGroups.length || 0,
-        resolvedStepCount: resolvedResult?.executionSteps.length || 0,
-        resolvedGroupCount: resolvedResult?.timelineGroups.length || 0,
-        resolvedSource: resolvedResult === finalParsed ? 'finalParsed' : resolvedResult === latestVisiblePartial ? 'latestVisiblePartial' : resolvedResult === latestMeaningfulPartial ? 'latestMeaningfulPartial' : 'none',
-      });
+      const resolvedResult = finalParsed && hasMeaningfulPlannerContent(finalParsed)
+        ? finalParsed
+        : latestMeaningfulPartial;
+      console.log('[导航服务] 流式请求完成', { streamResult, finalParsed, latestMeaningfulPartial, resolvedResult });
       if (streamResult.success && resolvedResult) {
-        const finalizedResult = await finalizeNavigationPlannerResult(rawInput, resolvedResult);
         return {
           success: true,
-          data: finalizedResult,
-        };
-      }
-
-      if (streamResult.success && earliestRunnablePartial) {
-        const fallbackRunnableResult: NavigationPlannerResult = {
-          sessionTitle: earliestRunnablePartial.sessionTitle || '导航模式',
-          summary: earliestRunnablePartial.summary || '',
-          executionSteps: earliestRunnablePartial.executionSteps || [],
-          timelineGroups: earliestRunnablePartial.timelineGroups || [],
-        };
-        const finalizedFallbackResult = await finalizeNavigationPlannerResult(rawInput, fallbackRunnableResult);
-        return {
-          success: true,
-          data: finalizedFallbackResult,
+          data: resolvedResult,
         };
       }
 
@@ -937,11 +596,9 @@ export class AIUnifiedService {
     const aiResult = await this.callAI('NAVIGATION_MODE_PLANNER', variables);
 
     if (aiResult.success && aiResult.data && hasMeaningfulPlannerContent(aiResult.data as NavigationPlannerResult)) {
-      const plannerResult = aiResult.data as NavigationPlannerResult;
-      const finalizedResult = await finalizeNavigationPlannerResult(rawInput, plannerResult);
       return {
         success: true,
-        data: finalizedResult,
+        data: aiResult.data as NavigationPlannerResult,
       };
     }
 
@@ -974,24 +631,16 @@ export class AIUnifiedService {
       };
     }
 
-    const rebuilt = rebuildTimelineGroupsFromTitles(
-      titles,
-      currentGroups.flatMap((group) => group.stepIds.map((stepId) => ({
-        id: stepId,
-        groupId: group.id,
-        title: '',
-        guidance: '',
-      } as any))),
-      currentGroups,
-    );
-    const rewrittenGroups = await rewriteTimelineTitlesWithUserTone(rawInput, rebuilt.timelineGroups);
+    const nextGroups = currentGroups.map((group, index) => ({
+      ...group,
+      title: titles[index] || group.title,
+    }));
 
-    const hasAnyChange = rewrittenGroups.length !== currentGroups.length
-      || rewrittenGroups.some((group, index) => group.title !== currentGroups[index]?.title);
+    const hasAnyChange = nextGroups.some((group, index) => group.title !== currentGroups[index]?.title);
 
     return {
       success: hasAnyChange,
-      data: rewrittenGroups,
+      data: nextGroups,
       error: hasAnyChange ? undefined : '这次生成的时间轴标题和现在差不多',
     };
   }

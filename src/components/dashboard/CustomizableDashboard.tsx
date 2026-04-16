@@ -1686,7 +1686,7 @@ export default function CustomizableDashboard({ onOpenAISmart, onModuleChange }:
         {/* 历史记录弹窗 - iOS 风格 */}
         {showHistoryModal && (
           <div 
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+            className="fixed inset-0 z-[100] flex items-start justify-center p-4 keyboard-aware-modal-shell"
             style={{
               backgroundColor: 'rgba(0, 0, 0, 0.5)',
               backdropFilter: 'blur(10px)',
@@ -1695,7 +1695,7 @@ export default function CustomizableDashboard({ onOpenAISmart, onModuleChange }:
             onClick={() => setShowHistoryModal(null)}
           >
             <div 
-              className="max-w-2xl w-full max-h-[80vh] overflow-hidden rounded-2xl"
+              className="max-w-2xl w-full overflow-hidden rounded-2xl keyboard-aware-modal-card"
               style={{
                 backgroundColor: 'rgba(254, 250, 240, 0.95)',
                 backdropFilter: 'blur(20px)',
@@ -1732,7 +1732,7 @@ export default function CustomizableDashboard({ onOpenAISmart, onModuleChange }:
               </div>
 
               {/* 内容 */}
-              <div className="p-6 overflow-y-auto max-h-[calc(80vh-120px)]">
+              <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(var(--app-modal-max-height) - 120px)' }}>
                 {showHistoryModal === 'gold' && (
                   <div className="space-y-3">
                     <div className="text-center py-8" style={{ color: '#b79858' }}>

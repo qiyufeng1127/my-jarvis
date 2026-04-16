@@ -161,8 +161,9 @@ export default function DimensionDetail({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center p-4 keyboard-aware-modal-shell">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col keyboard-aware-modal-card"
+        style={{ maxHeight: 'var(--app-modal-max-height)' }}>
         {/* 头部 */}
         <div 
           className="p-6 text-white relative overflow-hidden"
@@ -225,7 +226,7 @@ export default function DimensionDetail({
         </div>
 
         {/* 内容区域 */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 keyboard-aware-scroll">
           {/* 时间范围选择 */}
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-bold text-neutral-900 flex items-center">

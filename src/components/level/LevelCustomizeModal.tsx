@@ -61,11 +61,12 @@ export default function LevelCustomizeModal({ isOpen, onClose }: LevelCustomizeM
 
   return (
     <div 
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center p-4 keyboard-aware-modal-shell"
       onClick={onClose}
     >
       <div 
-        className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col"
+        className="bg-white rounded-2xl w-full max-w-md overflow-hidden flex flex-col keyboard-aware-modal-card"
+        style={{ maxHeight: 'var(--app-modal-max-height)' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
@@ -104,7 +105,7 @@ export default function LevelCustomizeModal({ isOpen, onClose }: LevelCustomizeM
         </div>
 
         {/* 内容区域 */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-4 keyboard-aware-scroll">
           {activeTab === 'levels' ? (
             <div className="space-y-3">
               <div className="bg-blue-50 rounded-lg p-3 mb-4">

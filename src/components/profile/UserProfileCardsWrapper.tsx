@@ -82,8 +82,10 @@ export default function UserProfileCardsWrapper({ isOpen, onClose }: UserProfile
   
   if (!profile) {
     return (
-      <div className="fixed inset-0 z-[100] bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex items-center justify-center">
-        <div className="text-center">
+      <div 
+        className="fixed inset-0 z-[100] bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 flex items-start justify-center keyboard-aware-modal-shell"
+      >
+        <div className="text-center keyboard-aware-modal-card" style={{ maxHeight: 'var(--app-modal-max-height)' }}>
           <RefreshCw className="w-12 h-12 animate-spin mx-auto mb-4 text-purple-600" />
           <p className="text-gray-600">正在加载你的画像...</p>
         </div>
@@ -334,9 +336,12 @@ export default function UserProfileCardsWrapper({ isOpen, onClose }: UserProfile
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-white flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-[100] bg-white flex flex-col overflow-hidden keyboard-aware-modal-shell">
       {/* 应用容器 */}
-      <div className="w-full h-full bg-white flex flex-col overflow-hidden relative">
+      <div
+        className="w-full h-full bg-white flex flex-col overflow-hidden relative keyboard-aware-modal-card"
+        style={{ maxHeight: 'var(--app-modal-max-height)' }}
+      >
         
         {/* 顶部栏 */}
         <div className="flex-shrink-0 bg-white px-4 py-3 flex items-center justify-between border-b border-gray-100">
@@ -500,7 +505,7 @@ export default function UserProfileCardsWrapper({ isOpen, onClose }: UserProfile
                   {/* 卡片内容 - 只在主卡片显示 */}
                   {isMainCard && (
                     <>
-                      <div className="space-y-2 mb-4 flex-1 overflow-y-auto">
+                      <div className="space-y-2 mb-4 flex-1 overflow-y-auto keyboard-aware-scroll">
                         {card.content.map((text, i) => (
                           <p key={i} className="text-[13px] text-[#2a2a2a] leading-relaxed">
                             • {text}

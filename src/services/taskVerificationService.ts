@@ -3,6 +3,7 @@
 // ============================================
 
 import { notificationService } from './notificationService';
+import { useNavigationPreferenceStore } from '@/stores/navigationPreferenceStore';
 
 const resolveAiEndpoint = (endpoint: string) => {
   if (typeof window !== 'undefined' && import.meta.env.DEV && endpoint.includes('api.deepseek.com')) {
@@ -66,6 +67,7 @@ export interface SubTask {
   title: string;
   completed: boolean;
   createdAt: Date;
+  emoji?: string;
 }
 
 // ============================================
@@ -224,6 +226,127 @@ export async function generateVerificationKeywords(
 // ============================================
 // AI 拆解子任务
 // ============================================
+const STEP_EMOJI_RULES: Array<{ keywords: string[]; emoji: string }> = [
+  { keywords: ['起床', '醒', '床'], emoji: '⏰' },
+  { keywords: ['写', '记录', '填写', '输出', '文案', '目标'], emoji: '✍️' },
+  { keywords: ['想', '思考', '规划', '分析', '整理思路'], emoji: '🧠' },
+  { keywords: ['准备', '拿', '收集', '确认', '检查'], emoji: '🧰' },
+  { keywords: ['整理', '收纳', '收拾', '归位'], emoji: '🧺' },
+  { keywords: ['洗', '清洁', '打扫'], emoji: '🧼' },
+  { keywords: ['衣服', '穿', '穿搭', '换衣'], emoji: '👕' },
+  { keywords: ['打开', '翻开', '查看'], emoji: '📖' },
+  { keywords: ['学习', '阅读', '复习'], emoji: '📚' },
+  { keywords: ['拍', '照片', '摄影'], emoji: '📷' },
+  { keywords: ['发布', '发送', '提交'], emoji: '📤' },
+  { keywords: ['沟通', '联系', '回复'], emoji: '💬' },
+  { keywords: ['出门', '移动', '去'], emoji: '🚶' },
+  { keywords: ['休息', '睡', '躺'], emoji: '🛌' },
+  { keywords: ['完成', '收尾', '结束'], emoji: '✅' },
+];
+
+const FALLBACK_STEP_EMOJIS = ['🧩', '📝', '🎯', '📌', '✨'];
+
+function stripLeadingEmoji(text: string): string {
+  return text
+    .replace(/^[\p{Extended_Pictographic}\uFE0F\u200D\s]+/gu, '')
+    .replace(/^[\-•·\d.、()（）\s]+/u, '')
+    .trim();
+}
+
+function extractLeadingEmoji(text: string): string {
+  const match = text.trim().match(/^[\p{Extended_Pictographic}\uFE0F\u200D]+/gu);
+  return match?.[0] || '';
+}
+
+function pickStepEmoji(title: string, usedEmojis: Set<string>): string {
+  for (const rule of STEP_EMOJI_RULES) {
+    if (rule.keywords.some(keyword => title.includes(keyword)) && !usedEmojis.has(rule.emoji)) {
+      return rule.emoji;
+    }
+  }
+
+  const fallback = FALLBACK_STEP_EMOJIS.find(emoji => !usedEmojis.has(emoji));
+  return fallback || '📍';
+}
+
+function buildStepEmojiPool(title: string, preferredEmoji?: string): string[] {
+  const normalizedTitle = stripLeadingEmoji(String(title || '').trim());
+  const matchedEmojis = STEP_EMOJI_RULES
+    .filter(rule => rule.keywords.some(keyword => normalizedTitle.includes(keyword)))
+    .map(rule => rule.emoji);
+
+  const { preferences } = useNavigationPreferenceStore.getState();
+  const learnedEmojis = preferences.emojiPreferences
+    .filter((item) => normalizedTitle.includes(item.keyword))
+    .sort((a, b) => {
+      if (b.weight !== a.weight) return b.weight - a.weight;
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    })
+    .map((item) => item.emoji);
+
+  const semanticGroups = [
+    learnedEmojis,
+    matchedEmojis,
+    FALLBACK_STEP_EMOJIS,
+    STEP_EMOJI_RULES
+      .map(rule => rule.emoji)
+      .filter(emoji => !matchedEmojis.includes(emoji)),
+    ['📍', '✨', '💡', '🎈'],
+  ];
+
+  return Array.from(new Set([
+    ...(preferredEmoji ? [preferredEmoji] : []),
+    ...semanticGroups.flat(),
+  ])).filter(Boolean);
+}
+
+export function getStepEmojiRecommendations(subTaskTitles: string[]): string[][] {
+  const usedPrimaryEmojis = new Set<string>();
+
+  return subTaskTitles.map((rawTitle) => {
+    const title = stripLeadingEmoji(String(rawTitle || '').trim());
+    const primaryEmoji = pickStepEmoji(title, usedPrimaryEmojis);
+    usedPrimaryEmojis.add(primaryEmoji);
+
+    const pool = buildStepEmojiPool(title, primaryEmoji);
+    const uniqueRecommendations = [
+      primaryEmoji,
+      ...pool.filter(emoji => emoji !== primaryEmoji),
+    ];
+
+    return uniqueRecommendations.slice(0, 6);
+  });
+}
+
+function normalizeSubTaskTitles(subTasks: unknown[]): string[] {
+  const usedEmojis = new Set<string>();
+
+  return subTasks
+    .map((item) => stripLeadingEmoji(String(item || '').trim()))
+    .filter(Boolean)
+    .slice(0, 5)
+    .map((title) => {
+      const emoji = pickStepEmoji(title, usedEmojis);
+      usedEmojis.add(emoji);
+      return `${emoji} ${title}`;
+    });
+}
+
+export function createSubTasksFromTitles(subTaskTitles: string[]): SubTask[] {
+  return subTaskTitles.map((rawTitle, index) => {
+    const normalizedTitle = String(rawTitle || '').trim();
+    const emoji = extractLeadingEmoji(normalizedTitle);
+
+    return {
+      id: `subtask-${Date.now()}-${Math.random()}-${index}`,
+      title: stripLeadingEmoji(normalizedTitle),
+      completed: false,
+      createdAt: new Date(),
+      emoji: emoji || undefined,
+    };
+  });
+}
+
 export async function generateSubTasks(
   taskTitle: string,
   taskDescription: string,
@@ -280,10 +403,7 @@ export async function generateSubTasks(
       throw new Error('AI返回的任务拆解结果不是数组');
     }
 
-    const normalizedSubTasks = subTasks
-      .map((item) => String(item || '').trim())
-      .filter(Boolean)
-      .slice(0, 5);
+    const normalizedSubTasks = normalizeSubTaskTitles(subTasks);
 
     if (normalizedSubTasks.length === 0) {
       throw new Error('AI返回的任务拆解结果为空');
@@ -293,7 +413,7 @@ export async function generateSubTasks(
     return normalizedSubTasks;
   } catch (error) {
     console.error('AI拆解失败:', error);
-    return ['开始准备', '执行任务', '完成收尾'];
+    return ['🧰 开始准备', '⚡ 执行任务', '✅ 完成收尾'];
   }
 }
 

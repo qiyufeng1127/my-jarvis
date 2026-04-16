@@ -85,21 +85,6 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
   
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
-  // 防止整个页面滚动
-  useEffect(() => {
-    // 仅禁用 body 滚动，避免移动端键盘与 fixed body 冲突
-    document.body.style.overflow = 'hidden';
-    document.body.style.width = '100%';
-    document.body.style.height = '100%';
-    
-    return () => {
-      // 清理：恢复 body 滚动
-      document.body.style.overflow = '';
-      document.body.style.width = '';
-      document.body.style.height = '';
-    };
-  }, []);
-
   useEffect(() => {
     const syncKeyboardState = () => {
       setIsKeyboardOpen(document.documentElement.dataset.keyboardOpen === 'true');
@@ -494,7 +479,7 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
       {/* 编辑导航栏弹窗 - iOS 风格 */}
       {showEditModal && (
         <div 
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          className="fixed inset-0 z-[100] flex items-start justify-center p-4 keyboard-aware-modal-shell"
           style={{
             backgroundColor: 'rgba(0, 0, 0, 0.5)',
             backdropFilter: 'blur(10px)',
@@ -502,7 +487,7 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
           }}
         >
           <div 
-            className="w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col rounded-2xl"
+            className="w-full max-w-md overflow-hidden flex flex-col rounded-2xl keyboard-aware-modal-card"
             style={{
               backgroundColor: 'rgba(254, 250, 240, 0.95)',
               backdropFilter: 'blur(20px)',

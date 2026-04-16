@@ -56,17 +56,20 @@ export default function IncomeExpenseForm({ type, isDark = false, onClose }: Inc
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-start justify-center p-4 keyboard-aware-modal-shell"
       style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-xl p-6"
-        style={{ backgroundColor: isDark ? '#1a1a1a' : '#ffffff' }}
+        className="w-full max-w-md rounded-xl flex flex-col overflow-hidden keyboard-aware-modal-card"
+        style={{ 
+          backgroundColor: isDark ? '#1a1a1a' : '#ffffff',
+          maxHeight: 'var(--app-modal-max-height)'
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* 标题 */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between p-6 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div
               className="p-2 rounded-lg"
@@ -88,7 +91,7 @@ export default function IncomeExpenseForm({ type, isDark = false, onClose }: Inc
         </div>
 
         {/* 表单 */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 p-6 pt-0 overflow-y-auto flex-1 keyboard-aware-scroll">
           {/* 选择副业 */}
           <div>
             <label className="block text-sm font-medium mb-2" style={{ color: textColor }}>

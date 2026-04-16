@@ -155,7 +155,7 @@ export default function GoldDetailsModal({ isOpen, onClose, isDark }: GoldDetail
   }));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 keyboard-aware-modal-shell">
       {/* 背景遮罩 */}
       <div 
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
@@ -164,10 +164,10 @@ export default function GoldDetailsModal({ isOpen, onClose, isDark }: GoldDetail
       
       {/* 弹窗内容 */}
       <div 
-        className="relative w-full max-w-md rounded-2xl shadow-2xl overflow-hidden"
+        className="relative w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col keyboard-aware-modal-card"
         style={{ 
           backgroundColor: isDark ? '#1f2937' : '#ffffff',
-          maxHeight: '80vh'
+          maxHeight: 'var(--app-modal-max-height)'
         }}
       >
         {/* 头部 */}
@@ -237,7 +237,7 @@ export default function GoldDetailsModal({ isOpen, onClose, isDark }: GoldDetail
         </div>
 
         {/* 内容区域 */}
-        <div className="overflow-y-auto" style={{ maxHeight: 'calc(80vh - 180px)' }}>
+        <div className="overflow-y-auto flex-1 keyboard-aware-scroll">
           {activeTab === 'history' ? (
             <div className="p-4 space-y-2">
               {/* 修复重复记录按钮 */}

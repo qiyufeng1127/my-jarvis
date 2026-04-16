@@ -118,8 +118,8 @@ export default function GoalDetail({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center p-4 keyboard-aware-modal-shell">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col keyboard-aware-modal-card">
         {/* 头部 */}
         <div className={`p-6 text-white relative overflow-hidden ${
           isCompleted ? 'bg-gradient-to-r from-green-600 to-emerald-600' : 'bg-gradient-to-r from-blue-600 to-purple-600'
@@ -290,14 +290,17 @@ export default function GoalDetail({
 
         {/* 进度更新表单 */}
         {showUpdateForm && (
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-10">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-start justify-center p-4 z-10 keyboard-aware-modal-shell">
+            <div
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 keyboard-aware-modal-card"
+              style={{ maxHeight: 'var(--app-modal-max-height)' }}
+            >
               <h3 className="text-xl font-bold text-neutral-900 mb-4 flex items-center">
                 <Target className="w-6 h-6 mr-2 text-blue-600" />
                 更新进度
               </h3>
 
-              <div className="space-y-4">
+              <div className="space-y-4 overflow-y-auto keyboard-aware-scroll">
                 <div>
                   <label className="block text-sm font-semibold text-neutral-900 mb-2">
                     新的当前值

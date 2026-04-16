@@ -47,12 +47,12 @@ export default function SideHustleForm({ isDark = false, onClose }: SideHustleFo
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-start justify-center p-4 keyboard-aware-modal-shell"
       style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-xl p-6"
+        className="w-full max-w-md rounded-xl p-6 keyboard-aware-modal-card"
         style={{ backgroundColor: isDark ? '#1a1a1a' : '#ffffff' }}
         onClick={(e) => e.stopPropagation()}
       >

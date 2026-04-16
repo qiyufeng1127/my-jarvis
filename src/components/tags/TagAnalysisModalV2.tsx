@@ -195,12 +195,12 @@ export default function TagAnalysisModalV2({ tag, onClose, isDark = false }: Tag
   
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-start justify-center p-4 keyboard-aware-modal-shell"
       style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
       onClick={onClose}
     >
       <div
-        className="w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden"
+        className="w-full max-w-4xl rounded-3xl shadow-2xl flex flex-col overflow-hidden keyboard-aware-modal-card"
         style={{ backgroundColor: bgColor }}
         onClick={(e) => e.stopPropagation()}
       >

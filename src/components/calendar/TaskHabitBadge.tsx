@@ -114,11 +114,11 @@ export default function TaskHabitBadge({ taskId, taskTitle }: TaskHabitBadgeProp
       {/* 详情弹窗 */}
       {showDetail && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 p-4 keyboard-aware-modal-shell"
           onClick={() => setShowDetail(false)}
         >
           <div
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col"
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden flex flex-col keyboard-aware-modal-card"
             onClick={(e) => e.stopPropagation()}
           >
             {/* 标题栏 */}

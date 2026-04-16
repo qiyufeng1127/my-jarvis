@@ -525,12 +525,15 @@ export default function DailyReviewModal({ isOpen, onClose }: DailyReviewModalPr
 
   return (
     <div 
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[100] flex items-start justify-center bg-black/50 backdrop-blur-sm p-4 keyboard-aware-modal-shell"
       onClick={onClose}
     >
       <div 
-        className="w-full max-w-3xl max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-        style={{ backgroundColor: bgColor }}
+        className="w-full max-w-3xl rounded-2xl shadow-2xl flex flex-col overflow-hidden keyboard-aware-modal-card"
+        style={{ 
+          backgroundColor: bgColor,
+          maxHeight: 'var(--app-modal-max-height)'
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
@@ -616,7 +619,7 @@ export default function DailyReviewModal({ isOpen, onClose }: DailyReviewModalPr
         )}
 
         {/* 内容区域 */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-6 keyboard-aware-scroll">
           {isLoading ? (
             <div className="flex items-center justify-center h-64">
               <div className="text-center">

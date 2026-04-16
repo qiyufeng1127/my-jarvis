@@ -167,13 +167,16 @@ export default function TagAnalysisModal({ tag, onClose, isDark = false }: TagAn
   
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-start justify-center p-4 keyboard-aware-modal-shell"
       style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
       onClick={onClose}
     >
       <div
-        className="w-full max-w-3xl max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-        style={{ backgroundColor: bgColor }}
+        className="w-full max-w-3xl rounded-2xl shadow-2xl flex flex-col overflow-hidden keyboard-aware-modal-card"
+        style={{ 
+          backgroundColor: bgColor,
+          maxHeight: 'var(--app-modal-max-height)'
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
@@ -246,7 +249,7 @@ export default function TagAnalysisModal({ tag, onClose, isDark = false }: TagAn
         </div>
         
         {/* 内容区域 */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-6 keyboard-aware-scroll">
           {/* 统计卡片 */}
           <div className="grid grid-cols-3 gap-4 mb-6">
             <div 

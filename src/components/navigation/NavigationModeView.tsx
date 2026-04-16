@@ -149,42 +149,112 @@ function NavigationSwipeActionRow({
   onDelete: () => void;
 }) {
   const ACTIONS_WIDTH = 172;
+  const rowContentRef = useRef<HTMLDivElement | null>(null);
   const startXRef = useRef<number | null>(null);
   const startOffsetRef = useRef(0);
+  const currentOffsetRef = useRef(0);
+  const frameRef = useRef<number | null>(null);
+  const lastMoveRef = useRef({ x: 0, time: 0, velocity: 0 });
   const [isOpen, setIsOpen] = useState(false);
-  const [dragOffset, setDragOffset] = useState(0);
 
-  const visualOffset = startXRef.current !== null ? dragOffset : (isOpen ? -ACTIONS_WIDTH : 0);
+  const setRowOffset = (offset: number, withTransition = false) => {
+    const node = rowContentRef.current;
+    if (!node) return;
+    const duration = offset === 0 ? '70ms' : '95ms';
+    node.style.transition = withTransition ? `transform ${duration} cubic-bezier(0.2, 0.92, 0.24, 1)` : 'none';
+    node.style.transform = `translate3d(${offset}px, 0, 0)`;
+    currentOffsetRef.current = offset;
+  };
+
+  useEffect(() => {
+    setRowOffset(isOpen ? -ACTIONS_WIDTH : 0, true);
+
+    return () => {
+      if (frameRef.current !== null) {
+        window.cancelAnimationFrame(frameRef.current);
+      }
+    };
+  }, [isOpen]);
 
   const closeActions = () => {
     startXRef.current = null;
     startOffsetRef.current = 0;
-    setDragOffset(0);
+    lastMoveRef.current = { x: 0, time: 0, velocity: 0 };
+    if (frameRef.current !== null) {
+      window.cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    }
     setIsOpen(false);
   };
 
+  const isInteractiveTarget = (target: EventTarget | null) => {
+    if (!(target instanceof HTMLElement)) return false;
+    return !!target.closest('button, input, textarea, select, a, label');
+  };
+
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (isInteractiveTarget(event.target)) return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
+    event.stopPropagation();
+    rowContentRef.current?.setPointerCapture?.(event.pointerId);
     startXRef.current = event.clientX;
-    startOffsetRef.current = isOpen ? -ACTIONS_WIDTH : 0;
-    setDragOffset(startOffsetRef.current);
+    startOffsetRef.current = currentOffsetRef.current;
+    lastMoveRef.current = {
+      x: event.clientX,
+      time: performance.now(),
+      velocity: 0,
+    };
+    setRowOffset(startOffsetRef.current, false);
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     if (startXRef.current === null) return;
+    event.stopPropagation();
     const delta = event.clientX - startXRef.current;
     const nextOffset = Math.max(-ACTIONS_WIDTH, Math.min(0, startOffsetRef.current + delta));
-    setDragOffset(nextOffset);
+    const now = performance.now();
+    const elapsed = Math.max(1, now - lastMoveRef.current.time);
+    const velocity = (event.clientX - lastMoveRef.current.x) / elapsed;
+    lastMoveRef.current = {
+      x: event.clientX,
+      time: now,
+      velocity,
+    };
+
+    if (frameRef.current !== null) {
+      window.cancelAnimationFrame(frameRef.current);
+    }
+
+    frameRef.current = window.requestAnimationFrame(() => {
+      setRowOffset(nextOffset, false);
+      frameRef.current = null;
+    });
   };
 
-  const handlePointerEnd = () => {
+  const handlePointerEnd = (event: React.PointerEvent<HTMLDivElement>) => {
     if (startXRef.current === null) return;
-    const shouldOpen = dragOffset <= -(ACTIONS_WIDTH * 0.35);
+    event.stopPropagation();
+    rowContentRef.current?.releasePointerCapture?.(event.pointerId);
+
+    const deltaX = event.clientX - startXRef.current;
+    const startWasOpen = startOffsetRef.current < 0;
+    const flickOpen = deltaX < -12 && lastMoveRef.current.velocity < -0.3;
+    const flickClose = deltaX > 10 && lastMoveRef.current.velocity > 0.22;
+
+    const shouldOpen = startWasOpen
+      ? !(flickClose || currentOffsetRef.current > -(ACTIONS_WIDTH * 0.58))
+      : flickOpen || currentOffsetRef.current <= -(ACTIONS_WIDTH * 0.1);
+
     startXRef.current = null;
     startOffsetRef.current = 0;
-    setDragOffset(0);
+    lastMoveRef.current = { x: 0, time: 0, velocity: 0 };
+    if (frameRef.current !== null) {
+      window.cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    }
     setIsOpen(shouldOpen);
   };
+
 
   const handleAction = (action: () => void) => {
     closeActions();
@@ -192,8 +262,27 @@ function NavigationSwipeActionRow({
   };
 
   return (
-    <div className={`navigation-swipe-row ${isOpen ? 'is-open' : ''}`}>
-      <div className="navigation-swipe-row-actions" aria-hidden={!isOpen}>
+    <div
+      className={`navigation-swipe-row ${isOpen ? 'is-open' : ''}`}
+      style={{ position: 'relative', overflow: 'hidden', width: '100%' }}
+    >
+      <div
+        className="navigation-swipe-row-actions"
+        aria-hidden={!isOpen}
+        style={{
+          position: 'absolute',
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: `${ACTIONS_WIDTH}px`,
+          display: 'flex',
+          alignItems: 'stretch',
+          justifyContent: 'flex-end',
+          opacity: isOpen ? 1 : 0,
+          pointerEvents: isOpen ? 'auto' : 'none',
+          transition: 'opacity 65ms linear',
+        }}
+      >
         <button type="button" className="navigation-swipe-action-chip" onClick={() => handleAction(onInsertBefore)}>
           前插
         </button>
@@ -205,8 +294,9 @@ function NavigationSwipeActionRow({
         </button>
       </div>
       <div
+        ref={rowContentRef}
         className="navigation-swipe-row-content"
-        style={{ transform: `translateX(${visualOffset}px)` }}
+        style={{ position: 'relative', zIndex: 1, willChange: 'transform', touchAction: 'pan-y' }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerEnd}
@@ -2941,7 +3031,7 @@ function NavigationActivePlanEditor({
         <div className="navigation-active-plan-topbar">
           <div className="navigation-active-plan-topbar-copy">
             <strong>任务列表</strong>
-            <p>双击文字直接修改；向左滑动任务或步骤，可前插、后插或删除。</p>
+            <p>双击文字直接修改；向左滑动任务，可前插、后插或删除任务，删除任务会一并删除下面的小步骤。</p>
           </div>
           <div className="navigation-active-plan-topbar-actions">
             <button
@@ -2976,13 +3066,12 @@ function NavigationActivePlanEditor({
               const isCollapsed = collapsedGroups[group.id] ?? !hasCurrentStep;
 
               return (
-                <NavigationSwipeActionRow
-                  key={group.id}
-                  onInsertBefore={() => handleInsertGroup(group.id, 'before')}
-                  onInsertAfter={() => handleInsertGroup(group.id, 'after')}
-                  onDelete={() => handleDeleteGroup(group.id)}
-                >
-                  <div className={`navigation-group-card navigation-active-group-card ${hasCurrentStep ? 'is-current' : ''} ${isCollapsed ? 'is-collapsed' : ''}`}>
+                <div key={group.id} className={`navigation-group-card navigation-active-group-card ${hasCurrentStep ? 'is-current' : ''} ${isCollapsed ? 'is-collapsed' : ''}`}>
+                  <NavigationSwipeActionRow
+                    onInsertBefore={() => handleInsertGroup(group.id, 'before')}
+                    onInsertAfter={() => handleInsertGroup(group.id, 'after')}
+                    onDelete={() => handleDeleteGroup(group.id)}
+                  >
                     <div className="navigation-active-group-header">
                       <div className="navigation-active-group-main">
                         {isTitleEditing ? (
@@ -3042,25 +3131,26 @@ function NavigationActivePlanEditor({
                         </button>
                       </div>
                     </div>
+                  </NavigationSwipeActionRow>
 
-                    {!isCollapsed && (
-                      <div className="navigation-active-step-list">
-                        {relatedSteps.map((step, index) => {
-                          const isTitleEditing = editingTarget === `${step.id}:title`;
-                          const isGuidanceEditing = editingTarget === `${step.id}:guidance`;
-                          const globalIndex = session.executionSteps.findIndex((item) => item.id === step.id);
-                          const isCurrent = globalIndex === session.currentStepIndex;
-                          return (
-                            <NavigationSwipeActionRow
-                              key={step.id}
-                              onInsertBefore={() => handleInsertStep(step.id, 'before')}
-                              onInsertAfter={() => handleInsertStep(step.id, 'after')}
-                              onDelete={() => handleDeleteStep(step.id)}
+                  {!isCollapsed && (
+                    <div className="navigation-active-step-list">
+                      {relatedSteps.map((step, index) => {
+                        const isTitleEditing = editingTarget === `${step.id}:title`;
+                        const isGuidanceEditing = editingTarget === `${step.id}:guidance`;
+                        const globalIndex = session.executionSteps.findIndex((item) => item.id === step.id);
+                        const isCurrent = globalIndex === session.currentStepIndex;
+                        return (
+                          <NavigationSwipeActionRow
+                            key={step.id}
+                            onInsertBefore={() => handleInsertStep(step.id, 'before')}
+                            onInsertAfter={() => handleInsertStep(step.id, 'after')}
+                            onDelete={() => handleDeleteStep(step.id)}
+                          >
+                            <div
+                              ref={isCurrent ? currentStepRef : null}
+                              className={`navigation-active-step-item ${isCurrent ? 'is-current' : ''} ${step.status === 'completed' ? 'is-completed' : ''}`}
                             >
-                              <div
-                                ref={isCurrent ? currentStepRef : null}
-                                className={`navigation-active-step-item ${isCurrent ? 'is-current' : ''} ${step.status === 'completed' ? 'is-completed' : ''}`}
-                              >
                                 <div className="navigation-active-step-index">{index + 1}</div>
                                 <div className="navigation-active-step-content">
                                   <div className="navigation-plan-step-head">
@@ -3116,7 +3206,6 @@ function NavigationActivePlanEditor({
                       </div>
                     )}
                   </div>
-                </NavigationSwipeActionRow>
               );
             })}
           </div>
@@ -4115,12 +4204,20 @@ function NavigationCompletionView({ session, autoOpenTrend = false }: { session:
 
   return (
     <div className="navigation-shell navigation-state-shell">
+      <div className="navigation-action-row navigation-completion-actions-row navigation-completion-actions-row-top">
+        <button className="navigation-primary-button" onClick={() => syncSessionToTimeline()} disabled={isSyncingToTimeline || !!session.finishedAndSyncedToTimeline}>
+          {session.finishedAndSyncedToTimeline ? '已写入时间轴' : isSyncingToTimeline ? '正在写入...' : '写入时间轴'}
+        </button>
+        <button className="navigation-secondary-button" onClick={() => setShowPostState(true)}>修改完成状态</button>
+        <button className="navigation-secondary-button" onClick={clearSession}>结束并返回</button>
+      </div>
+
       <div className="navigation-completion-card navigation-completion-reference-card navigation-completion-tight-card">
         <div className="navigation-completion-hero">
           <div className="navigation-completion-hero-copy">
             <span className="navigation-completion-eyebrow">{energyTone.emoji} {completionLabel}</span>
-            <h2>{analysisResult?.analysisTitle || (session.abandoned ? '这次虽然提前结束，但已经帮你把进行到一半的状态整理好了' : '这次收尾状态已经整理好了')}</h2>
-            <p>{analysisResult?.summary || (isAnalyzing ? '正在根据你的开始前状态、完成后状态和实际执行过程生成复盘分析…' : session.abandoned ? '你这次是中途放弃结束的，但放弃前已经发生的步骤、时长和轨迹还是会保留下来，可以照常写入时间轴。' : '我会根据你的真实记录，分析你这次在时间预估、难度判断和执行状态上的特点。')}</p>
+            <h2>{analysisResult?.analysisTitle || (session.abandoned ? '这次虽然提前结束，但已整理好当前进度' : '这次收尾状态已经整理好了')}</h2>
+            <p>{analysisResult?.summary || (isAnalyzing ? '正在生成这次的简洁复盘…' : session.abandoned ? '虽然提前结束，但已保留本次真实推进。' : '基于你的真实记录，给你一份精简复盘。')}</p>
           </div>
           <div className="navigation-completion-orb">
             <div className="navigation-completion-orb-ring" />
@@ -4132,195 +4229,94 @@ function NavigationCompletionView({ session, autoOpenTrend = false }: { session:
           </div>
         </div>
 
-        <div className="navigation-completion-summary-grid">
-          <div className="navigation-completion-kpi-card is-primary">
-            <span className="navigation-completion-kpi-label">⏱️ 实际耗时</span>
-            <strong>{formatMinutesLabel(actualMinutes)}</strong>
-            <small>{timeDelta === undefined ? '暂无预估对照' : timeDelta === 0 ? '和预估几乎一致' : timeDelta > 0 ? `比预估多 ${timeDelta} 分钟` : `比预估少 ${Math.abs(timeDelta)} 分钟`}</small>
-          </div>
-          <div className="navigation-completion-kpi-card">
-            <span className="navigation-completion-kpi-label">🪄 执行步数</span>
-            <strong>{completedCount}/{session.executionSteps.length}</strong>
-            <small>{skippedCount > 0 ? `跳过 ${skippedCount} 步，也算真实推进` : session.abandoned ? '这次是提前结束，但已发生的推进仍然保留' : '这次基本完整走完啦'}</small>
-          </div>
-          <div className="navigation-completion-kpi-card">
-            <span className="navigation-completion-kpi-label">🎖️ 成就感</span>
-            <strong>{session.postState?.achievementSense ?? '—'}</strong>
-            <small>{session.postState?.reflection ? '你还留下了自己的复盘心情' : '还可以补一句自己的感受'}</small>
-          </div>
-        </div>
-
-        <div className="navigation-completion-trend-grid">
-          {trendCards.map((card) => (
-            <div key={card.key} className="navigation-completion-trend-card">
-              <div className="navigation-completion-trend-head">
-                <span className="navigation-completion-trend-icon">{card.icon}</span>
-                <div>
-                  <strong>{card.label}</strong>
-                  <small>{card.meta}</small>
-                </div>
+        <div className="navigation-completion-dashboard">
+          <div className="navigation-completion-panel navigation-completion-panel-span-2 navigation-completion-summary-panel">
+            <div className="navigation-completion-summary-grid">
+              <div className="navigation-completion-kpi-card is-primary">
+                <span className="navigation-completion-kpi-label">实际耗时</span>
+                <strong>{formatMinutesLabel(actualMinutes)}</strong>
+                <small>{timeDelta === undefined ? '暂无预估对照' : timeDelta === 0 ? '和预估几乎一致' : timeDelta > 0 ? `比预估多 ${timeDelta} 分钟` : `比预估少 ${Math.abs(timeDelta)} 分钟`}</small>
               </div>
-              <div className="navigation-completion-trend-value-row">
-                <span className="navigation-completion-trend-emoji">{card.tone.emoji}</span>
-                <b>{card.value}</b>
+              <div className="navigation-completion-kpi-card">
+                <span className="navigation-completion-kpi-label">执行步数</span>
+                <strong>{completedCount}/{session.executionSteps.length}</strong>
+                <small>{skippedCount > 0 ? `跳过 ${skippedCount} 步，也算真实推进` : session.abandoned ? '提前结束，但推进已保留' : '这次基本完整走完啦'}</small>
               </div>
-              <em>{card.tone.label}</em>
-            </div>
-          ))}
-        </div>
-
-        <button className="navigation-completion-chart-trigger" onClick={() => hasTrendData && setIsTrendOpen(true)} disabled={!hasTrendData}>
-          <span>{hasTrendData ? '📈 查看今日状态走势' : '🫥 暂时还没有可视化数据'}</span>
-          <small>{hasTrendData ? '把脑力 / 情绪 / 难度体感 / 成就感放到一张更清楚的图里' : '先完成一次导航并填写开始前 / 完成后状态，这里才会出现真正的走势分析'}</small>
-        </button>
-
-        {!hasTrendData && (
-          <div className="navigation-completion-empty-card">
-            <div className="navigation-completion-empty-emoji">📭</div>
-            <div className="navigation-completion-empty-copy">
-              <strong>这里还没有趋势图可以看</strong>
-              <p>先去完成一条导航，并记录开始前和完成后的状态。完成后再点右上这颗 `📈`，这里就会出现你这次的情绪、执行力、成就感和综合走势。✨</p>
+              <div className="navigation-completion-kpi-card">
+                <span className="navigation-completion-kpi-label">成就感</span>
+                <strong>{session.postState?.achievementSense ?? '—'}</strong>
+                <small>{session.postState?.reflection ? '已记录你的感受' : '还没写备注'}</small>
+              </div>
             </div>
           </div>
-        )}
 
-        <div className="navigation-completion-emoji-bottle-card navigation-completion-emoji-bottle-card-today">
-          <div className="navigation-completion-emoji-bottle-head">
-            <div>
-              <strong>🫙 今日收集瓶</strong>
-              <small>{todayBottleGroup ? `今天一共收了 ${todayBottleGroup.emojis.length} 个表意 emoji` : '今天的瓶子还没有装满'}</small>
+          <div className="navigation-completion-panel">
+            <div className="navigation-completion-panel-head">
+              <strong>状态变化</strong>
+              <span>四个关键指标</span>
             </div>
-            <span>{formatCollectionDateTag(session.completedAt || session.startedAt)}</span>
-          </div>
-          <div className="navigation-completion-emoji-bottle-wrap navigation-completion-emoji-bottle-wrap-large">
-            <div className="navigation-completion-emoji-bottle-cork" />
-            <div className="navigation-completion-emoji-bottle-neck" />
-            <div className="navigation-completion-emoji-bottle-body navigation-completion-emoji-bottle-body-glow">
-              <div className="navigation-completion-emoji-bottle-shine" />
-              {todayBottleGroup && todayBottleGroup.emojis.length > 0 ? buildBottleStackLayout(todayBottleGroup.emojis, todayBottleGroup.date, 7).map((item, index) => (
-                <span
-                  key={`${todayBottleGroup.date}-${index}-${item.emoji}`}
-                  className="navigation-completion-bottle-emoji navigation-completion-bottle-emoji-piled"
-                  style={{ left: `${item.left}%`, bottom: `${item.bottom}px`, transform: `rotate(${item.rotate}deg)` }}
-                >
-                  {item.emoji}
-                </span>
-              )) : <span className="navigation-completion-bottle-empty">今天这一瓶还空着</span>}
-              {todayBottleGroup && todayBottleGroup.inefficiencyMarks > 0 ? (
-                <div className="navigation-completion-bottle-crosses">
-                  {Array.from({ length: todayBottleGroup.inefficiencyMarks }).map((_, index) => (
-                    <span key={`cross-${index}`} className="navigation-completion-bottle-cross">❌</span>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-            <div className="navigation-completion-emoji-bottle-tag">{todayBottleGroup ? `${formatBottleHistoryDate(todayBottleGroup.date)} · ${todayBottleGroup.entries.length} 瓶汇总` : formatCollectionDateTag(session.completedAt || session.startedAt)}</div>
-          </div>
-        </div>
-
-        <div className="navigation-completion-bottle-history-card">
-          <div className="navigation-completion-bottle-history-head">
-            <div>
-              <strong>📚 每天的收集瓶</strong>
-              <p>一天的总瓶子 = 这一天里所有收集瓶的总和。</p>
-            </div>
-          </div>
-          <div className="navigation-completion-bottle-history-list">
-            {dailyBottleGroups.length > 0 ? dailyBottleGroups.map((group) => (
-              <div key={group.date} className="navigation-completion-bottle-history-item">
-                <div className="navigation-completion-bottle-history-item-head">
-                  <div>
-                    <strong>{formatBottleHistoryDate(group.date)}</strong>
-                    <small>{group.entries.length} 瓶 · {group.emojis.length} 个收集 emoji</small>
-                  </div>
-                  {group.inefficiencyMarks > 0 ? <span className="navigation-completion-bottle-history-cross-tag">低效率 {group.inefficiencyMarks} 次 ❌</span> : <span className="navigation-completion-bottle-history-good-tag">今天没挂叉</span>}
-                </div>
-                <div className="navigation-completion-bottle-history-preview">
-                  <div className="navigation-completion-bottle-history-mini-bottle">
-                    <div className="navigation-completion-bottle-history-mini-neck" />
-                    <div className="navigation-completion-bottle-history-mini-body">
-                      {group.emojis.length > 0 ? buildBottleStackLayout(group.emojis, `history-${group.date}`, 6).slice(0, 18).map((item, index) => (
-                        <span
-                          key={`history-${group.date}-${index}`}
-                          className="navigation-completion-bottle-history-mini-emoji"
-                          style={{ left: `${item.left}%`, bottom: `${item.bottom}px`, transform: `rotate(${item.rotate}deg)` }}
-                        >
-                          {item.emoji}
-                        </span>
-                      )) : <span className="navigation-completion-bottle-empty">暂无收集</span>}
+            <div className="navigation-completion-trend-grid">
+              {trendCards.map((card) => (
+                <div key={card.key} className="navigation-completion-trend-card">
+                  <div className="navigation-completion-trend-head">
+                    <span className="navigation-completion-trend-icon">{card.icon}</span>
+                    <div>
+                      <strong>{card.label}</strong>
+                      <small>{card.meta}</small>
                     </div>
                   </div>
-                  <div className="navigation-completion-bottle-history-entries">
-                    {group.entries.map((entry) => (
-                      <div key={entry.id} className="navigation-completion-bottle-history-entry">
-                        <span>{entry.title}</span>
-                        <div>
-                          {entry.emojis.map((emoji, index) => <em key={`${entry.id}-${index}`}>{emoji}</em>)}
-                          {entry.inefficiencyMarks > 0 ? Array.from({ length: entry.inefficiencyMarks }).map((_, index) => <b key={`${entry.id}-cross-${index}`}>❌</b>) : null}
-                        </div>
-                      </div>
-                    ))}
+                  <div className="navigation-completion-trend-value-row">
+                    <span className="navigation-completion-trend-emoji">{card.tone.emoji}</span>
+                    <b>{card.value}</b>
                   </div>
+                  <em>{card.tone.label}</em>
                 </div>
-              </div>
-            )) : (
-              <div className="navigation-completion-empty-card">
-                <div className="navigation-completion-empty-emoji">🫙</div>
-                <div className="navigation-completion-empty-copy">
-                  <strong>还没有历史收集瓶</strong>
-                  <p>完成几次导航之后，这里就会按天把你的瓶子都汇总起来。</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="navigation-completion-analysis-shell">
-          <div className="navigation-completion-analysis-header">
-            <div>
-              <strong>📝 这次复盘重点</strong>
-              <p>尽量压缩大段文字，让你一眼就先看到重点。</p>
+              ))}
             </div>
           </div>
 
-          <div className="navigation-completion-analysis-list">
-            {isAnalyzing ? (
-              <div className="navigation-completion-analysis-item">
-                <span>…</span>
-                <p>正在结合你填写的预估时间、实际完成耗时、开始前后状态和备注，整理这次真正有帮助的复盘分析。</p>
+          <div className="navigation-completion-panel navigation-completion-analysis-shell navigation-completion-panel-span-2">
+            <div className="navigation-completion-analysis-header navigation-completion-header-tight">
+              <div>
+                <strong>这次复盘重点</strong>
+                <p>只保留对你真正有用的信息。</p>
               </div>
-            ) : analysisResult ? (
-              <>
-                {analysisResult.insights.map((line, index) => (
-                  <div key={`insight-${index}`} className="navigation-completion-analysis-item">
-                    <span>{['💡', '🧠', '📌', '✨'][index % 4]}</span>
-                    <p>{line}</p>
-                  </div>
-                ))}
-                {analysisResult.nextActions.map((line, index) => (
-                  <div key={`action-${index}`} className="navigation-completion-analysis-item navigation-completion-analysis-item-action">
-                    <span>{['🎯', '🚶', '🛟', '🌱'][index % 4]}</span>
-                    <p>{line}</p>
-                  </div>
-                ))}
-              </>
-            ) : null}
-          </div>
-        </div>
+              <button className="navigation-completion-chart-trigger navigation-completion-chart-trigger-inline" onClick={() => hasTrendData && setIsTrendOpen(true)} disabled={!hasTrendData}>
+                <span>{hasTrendData ? '查看走势' : '暂无走势'}</span>
+              </button>
+            </div>
 
-        {session.postState?.reflection && (
-          <div className="navigation-completion-reflection-card">
-            <div className="navigation-completion-reflection-title">💬 你给自己的备注</div>
-            <p>{session.postState.reflection}</p>
+            <div className="navigation-completion-analysis-list">
+              {isAnalyzing ? (
+                <div className="navigation-completion-analysis-item navigation-completion-analysis-item-full">
+                  <span>…</span>
+                  <p>正在整理这次真正有帮助的复盘分析。</p>
+                </div>
+              ) : analysisResult ? (
+                <>
+                  {analysisResult.insights.map((line, index) => (
+                    <div key={`insight-${index}`} className="navigation-completion-analysis-item">
+                      <span>{['1', '2', '3', '4'][index % 4]}</span>
+                      <p>{line}</p>
+                    </div>
+                  ))}
+                  {analysisResult.nextActions.map((line, index) => (
+                    <div key={`action-${index}`} className="navigation-completion-analysis-item navigation-completion-analysis-item-action">
+                      <span>{['A', 'B', 'C', 'D'][index % 4]}</span>
+                      <p>{line}</p>
+                    </div>
+                  ))}
+                </>
+              ) : null}
+            </div>
           </div>
-        )}
 
-        <div className="navigation-action-row navigation-completion-actions-row">
-          <button className="navigation-primary-button" onClick={() => syncSessionToTimeline()} disabled={isSyncingToTimeline || !!session.finishedAndSyncedToTimeline}>
-            {session.finishedAndSyncedToTimeline ? '已写入时间轴' : isSyncingToTimeline ? '正在写入...' : '写入时间轴'}
-          </button>
-          <button className="navigation-secondary-button" onClick={() => setShowPostState(true)}>修改完成状态</button>
-          <button className="navigation-secondary-button" onClick={clearSession}>结束并返回</button>
+          {session.postState?.reflection && (
+            <div className="navigation-completion-panel navigation-completion-panel-span-2 navigation-completion-reflection-card">
+              <div className="navigation-completion-reflection-title">💬 你给自己的备注</div>
+              <p>{session.postState.reflection}</p>
+            </div>
+          )}
         </div>
       </div>
 

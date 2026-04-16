@@ -95,10 +95,6 @@ export default function TaskVerificationCountdownContent({
   }, [onTimeoutUpdate]);
 
   useEffect(() => {
-    persistentDelayMarksRef.current = persistentDelayMarks;
-  }, [persistentDelayMarks]);
-
-  useEffect(() => {
     taskMetaRef.current = {
       taskId,
       taskTitle,

@@ -463,9 +463,9 @@ export default function UserProfileModal({ isOpen, onClose }: UserProfileModalPr
   const renderDay180Content = () => renderDay90Content();
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[100] flex items-start justify-center bg-black/50 backdrop-blur-sm p-4 keyboard-aware-modal-shell">
       <div 
-        className="w-full max-w-2xl max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+        className="w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col overflow-hidden keyboard-aware-modal-card"
         style={{ backgroundColor: bgColor }}
       >
         {/* 头部 */}

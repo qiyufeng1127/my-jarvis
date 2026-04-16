@@ -145,7 +145,7 @@ export default function GoalForm({
         onSubmit={handleSubmit}
         className="min-h-full w-full keyboard-aware-scroll"
       >
-        <div className="min-h-screen w-full bg-[#f3f2f7] px-3 py-3 pb-24 keyboard-aware-modal-card sm:px-4 sm:py-4 sm:pb-28">
+        <div className="min-h-full w-full bg-[#f3f2f7] px-3 py-3 pb-24 keyboard-aware-modal-card sm:px-4 sm:py-4 sm:pb-28">
           <div className="mb-4 flex items-center justify-between gap-3">
             <button type="button" onClick={onCancel} className="rounded-full border border-[#e8e7ef] bg-white px-4 py-2 text-[15px] font-semibold text-[#4a4658] shadow-[0_6px_18px_rgba(15,23,42,0.05)]">
               取消

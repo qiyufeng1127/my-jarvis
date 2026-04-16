@@ -35,7 +35,7 @@ export interface SmartTagAssignmentResult {
 const splitTokens = (text: string) => Array.from(new Set(
   text
     .trim()
-    .split(/[\s\-_/，。！？、：:（）()【】\[\]]+/)
+    .split(/[\s\-_/，。！？、：:；;（）()【】\[\]]+/)
     .map((token) => token.trim().toLowerCase())
     .filter((token) => token.length >= 2)
 ));
@@ -43,18 +43,18 @@ const splitTokens = (text: string) => Array.from(new Set(
 const inferTaskType = (text: string, fallbackType: TaskType = 'work'): TaskType => {
   if (/(运动|跑步|健身|瑜伽|散步)/.test(text)) return 'health';
   if (/(画画|绘画|创作|拍摄|摄影|写作|设计)/.test(text)) return 'creative';
-  if (/(家务|打扫|整理|做饭|吃饭|厕所|洗澡|洗漱|购物)/.test(text)) return 'life';
+  if (/(家务|打扫|整理|做饭|吃饭|厕所|洗澡|洗漱|洗头|洗发|护发|吹头发|购物)/.test(text)) return 'life';
   if (/(学习|阅读|课程|复习)/.test(text)) return 'study';
   if (/(休息|睡觉|午睡)/.test(text)) return 'rest';
   return fallbackType;
 };
 
 const taskCategoryRules: Array<{ key: string; keywords: string[]; tags: string[] }> = [
-  { key: 'meal', keywords: ['吃饭', '吃早饭', '吃午饭', '吃晚饭', '早餐', '午餐', '晚餐', '用餐', '煮面', '做饭', '做菜'], tags: ['吃饭', '做饭', '日常', '生活'] },
-  { key: 'toilet', keywords: ['上厕所', '厕所', '卫生间', '洗手间', '便意'], tags: ['日常', '生活', '清洁'] },
+  { key: 'wash', keywords: ['洗头', '洗头发', '洗发', '护发', '吹头发', '洗漱', '刷牙', '洗脸', '护肤'], tags: ['清洁', '日常', '生活'] },
   { key: 'shower', keywords: ['洗澡', '冲澡', '沐浴'], tags: ['清洁', '日常', '生活'] },
-  { key: 'wash', keywords: ['洗漱', '刷牙', '洗脸', '护肤'], tags: ['清洁', '日常', '生活'] },
-  { key: 'housework', keywords: ['家务', '打扫', '收拾', '整理', '清洁', '洗衣', '拖地'], tags: ['家务', '清洁', '整理'] },
+  { key: 'toilet', keywords: ['上厕所', '厕所', '卫生间', '洗手间', '便意'], tags: ['日常', '生活', '清洁'] },
+  { key: 'meal', keywords: ['吃饭', '吃早饭', '吃午饭', '吃晚饭', '早餐', '午餐', '晚餐', '用餐', '煮面', '做饭', '做菜'], tags: ['吃饭', '做饭', '日常'] },
+  { key: 'housework', keywords: ['家务', '打扫', '收拾', '整理', '清洁', '洗衣', '拖地', '洗碗', '刷碗', '刷锅', '洗锅', '洗菜', '收厨房'], tags: ['家务', '清洁', '整理'] },
   { key: 'drawing', keywords: ['画画', '绘画', '插画', '临摹', '速写'], tags: ['创作', '绘画', '艺术'] },
   { key: 'writing', keywords: ['写作', '写文章', '写稿', '文案', '写东西'], tags: ['创作', '写作', '工作'] },
   { key: 'study', keywords: ['学习', '复习', '刷题', '阅读', '看书', '课程'], tags: ['学习', '阅读', '成长'] },
@@ -63,14 +63,95 @@ const taskCategoryRules: Array<{ key: string; keywords: string[]; tags: string[]
   { key: 'shooting', keywords: ['拍摄', '摄影', '拍照', '录视频'], tags: ['拍摄', '创作', '艺术'] },
 ];
 
-const detectTaskCategory = (taskTitle: string, taskDescription = '', taskTags: string[] = [], fallbackType: TaskType = 'work') => {
-  const text = `${taskTitle} ${taskDescription} ${taskTags.join(' ')}`.toLowerCase();
-  const matchedRule = taskCategoryRules.find((rule) =>
-    rule.keywords.some((keyword) => text.includes(keyword.toLowerCase())) ||
-    taskTags.some((tag) => rule.tags.includes(tag))
-  );
+const strongCategoryKeys = new Set(['wash', 'shower', 'toilet', 'meal', 'housework']);
 
-  return matchedRule?.key || inferTaskType(text, fallbackType);
+const getCategoryRule = (categoryKey: string) => taskCategoryRules.find((rule) => rule.key === categoryKey);
+
+const getRuleMatchScore = (text: string, tags: string[], rule: { key: string; keywords: string[]; tags: string[] }) => {
+  let score = 0;
+
+  rule.keywords.forEach((keyword) => {
+    const keywordLower = keyword.toLowerCase();
+    if (text.includes(keywordLower)) {
+      score += keyword.length >= 3 ? 10 : 6;
+    }
+  });
+
+  tags.forEach((tag) => {
+    const tagLower = tag.toLowerCase();
+    if (rule.tags.includes(tag)) score += 4;
+    if (rule.keywords.some((keyword) => keyword.toLowerCase().includes(tagLower) || tagLower.includes(keyword.toLowerCase()))) {
+      score += 3;
+    }
+  });
+
+  return score;
+};
+
+const detectTaskCategory = (
+  taskTitle: string,
+  taskDescription = '',
+  taskTags: string[] = [],
+  fallbackType: TaskType = 'work'
+) => {
+  const text = `${taskTitle} ${taskDescription}`.toLowerCase();
+  const scoredRules = taskCategoryRules
+    .map((rule) => ({ rule, score: getRuleMatchScore(text, taskTags, rule) }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (scoredRules.length > 0) {
+    return scoredRules[0].rule.key;
+  }
+
+  return inferTaskType(text, fallbackType);
+};
+
+const rankTagsAgainstRule = (
+  rule: { key: string; keywords: string[]; tags: string[] },
+  normalizedTaskText: string,
+  activeTags: Array<{ name: string; usageCount?: number; isDisabled?: boolean }>
+) => {
+  return activeTags
+    .map((tag) => {
+      const tagLower = tag.name.toLowerCase();
+      let score = 0;
+
+      if (rule.tags.includes(tag.name)) score += 40;
+      if (rule.tags.some((ruleTag) => ruleTag.toLowerCase().includes(tagLower) || tagLower.includes(ruleTag.toLowerCase()))) score += 24;
+      if (rule.keywords.some((keyword) => keyword.toLowerCase().includes(tagLower) || tagLower.includes(keyword.toLowerCase()))) score += 18;
+      if (normalizedTaskText.includes(tagLower) || tagLower.includes(normalizedTaskText)) score += 14;
+
+      if (score > 0) {
+        score += Math.min(tag.usageCount || 0, 6);
+      }
+
+      return {
+        tagName: tag.name,
+        score,
+      };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score);
+};
+
+const buildStrongCategoryTags = (
+  categoryKey: string,
+  normalizedTaskText: string,
+  activeTags: Array<{ name: string; usageCount?: number; isDisabled?: boolean }>
+) => {
+  const rule = getCategoryRule(categoryKey);
+  if (!rule) return [] as string[];
+
+  const rankedExistingTags = rankTagsAgainstRule(rule, normalizedTaskText, activeTags)
+    .map((item) => item.tagName);
+
+  const finalTags = [
+    ...rankedExistingTags,
+    ...rule.tags,
+  ].filter((tagName, index, array) => array.indexOf(tagName) === index);
+
+  return finalTags.slice(0, 3);
 };
 
 export const generateSmartTagAssignment = ({
@@ -90,16 +171,24 @@ export const generateSmartTagAssignment = ({
 }: SmartTagAssignmentParams): SmartTagAssignmentResult => {
   const normalizedTitle = title.trim().toLowerCase();
   const normalizedDescription = description.trim().toLowerCase();
+  const normalizedTaskText = `${normalizedTitle} ${normalizedDescription}`.trim();
   const titleTokens = splitTokens(title);
   const activeTags = availableTags.filter((tag) => !tag.isDisabled);
   const availableTagNames = new Set(activeTags.map((tag) => tag.name));
   const otherTasks = tasks.filter((item) => item.id !== currentTaskId);
-  const currentTaskCategory = detectTaskCategory(title, description, currentTaskTags, currentTaskType);
-  const normalizedTaskText = `${normalizedTitle} ${normalizedDescription}`.trim();
+  const currentTaskCategory = detectTaskCategory(title, description, [], currentTaskType);
+  const isStrongCategoryTask = strongCategoryKeys.has(currentTaskCategory);
 
   const getTextSimilarityScore = (baseText: string, candidateTask: Task) => {
     const candidateText = `${candidateTask.title || ''} ${candidateTask.description || ''}`.toLowerCase();
     if (!candidateText.trim()) return 0;
+
+    const candidateCategory = detectTaskCategory(
+      candidateTask.title || '',
+      candidateTask.description || '',
+      candidateTask.tags || [],
+      candidateTask.taskType || 'work'
+    );
 
     let score = 0;
     if (baseText && candidateText.includes(baseText)) score += 8;
@@ -115,7 +204,7 @@ export const generateSmartTagAssignment = ({
       score += 5;
     }
 
-    if (detectTaskCategory(candidateTask.title || '', candidateTask.description || '', candidateTask.tags || [], candidateTask.taskType || 'work') === currentTaskCategory) {
+    if (candidateCategory === currentTaskCategory && currentTaskCategory !== 'work') {
       score += 10;
     }
 
@@ -132,9 +221,11 @@ export const generateSmartTagAssignment = ({
     .slice(0, 12)
     .map((item) => item.task);
 
-  const categoryMatchedTasks = otherTasks
-    .filter((historyTask) => detectTaskCategory(historyTask.title || '', historyTask.description || '', historyTask.tags || [], historyTask.taskType || 'work') === currentTaskCategory)
-    .slice(0, 24);
+  const categoryMatchedTasks = currentTaskCategory === 'work'
+    ? []
+    : otherTasks
+        .filter((historyTask) => detectTaskCategory(historyTask.title || '', historyTask.description || '', historyTask.tags || [], historyTask.taskType || 'work') === currentTaskCategory)
+        .slice(0, 24);
 
   const durationSamples = matchedHistoryTasks
     .map((item) => item.durationMinutes)
@@ -155,6 +246,10 @@ export const generateSmartTagAssignment = ({
     : currentDurationMinutes || 30;
   const suggestedDuration = Math.min(240, Math.max(5, Math.round(averageDuration / 5) * 5));
 
+  const strongCategoryTags = isStrongCategoryTask
+    ? buildStrongCategoryTags(currentTaskCategory, normalizedTaskText, activeTags)
+    : [];
+
   const learnedTagScoreMap = new Map(
     getLearnedTagScores(`${title} ${description}`)
       .map((item) => [item.tagName, item.score])
@@ -167,73 +262,74 @@ export const generateSmartTagAssignment = ({
     tagScoreMap.set(tagName, (tagScoreMap.get(tagName) || 0) + score);
   };
 
-  matchedHistoryTasks.forEach((historyTask, historyIndex) => {
-    const historyText = `${historyTask.title || ''} ${historyTask.description || ''}`.toLowerCase();
-    const baseScore = Math.max(3, 14 - historyIndex);
+  if (!isStrongCategoryTask) {
+    matchedHistoryTasks.forEach((historyTask, historyIndex) => {
+      const historyText = `${historyTask.title || ''} ${historyTask.description || ''}`.toLowerCase();
+      const baseScore = Math.max(3, 14 - historyIndex);
 
-    historyTask.tags?.forEach((tagName) => {
-      let score = baseScore;
-      const tagLower = tagName.toLowerCase();
+      historyTask.tags?.forEach((tagName) => {
+        let score = baseScore;
+        const tagLower = tagName.toLowerCase();
 
-      if (normalizedTaskText && historyText && normalizedTaskText === historyText) score += 10;
-      if (normalizedTitle && historyTask.title?.toLowerCase() === normalizedTitle) score += 12;
-      if (normalizedTaskText && historyText.includes(normalizedTaskText)) score += 6;
-      if (tagLower && normalizedTaskText.includes(tagLower)) score += 10;
+        if (normalizedTaskText && historyText && normalizedTaskText === historyText) score += 10;
+        if (normalizedTitle && historyTask.title?.toLowerCase() === normalizedTitle) score += 12;
+        if (normalizedTaskText && historyText.includes(normalizedTaskText)) score += 6;
+        if (tagLower && normalizedTaskText.includes(tagLower)) score += 10;
 
-      pushTagScore(tagName, score);
+        pushTagScore(tagName, score);
+      });
     });
-  });
 
-  const titleDescriptionTokens = splitTokens(`${title} ${description}`);
+    const titleDescriptionTokens = splitTokens(`${title} ${description}`);
 
-  activeTags.forEach((tag) => {
-    const recommendedIndex = storeRecommendedTags.indexOf(tag.name);
-    if (recommendedIndex >= 0) {
-      pushTagScore(tag.name, 18 - recommendedIndex * 3);
-    }
+    activeTags.forEach((tag) => {
+      const recommendedIndex = storeRecommendedTags.indexOf(tag.name);
+      if (recommendedIndex >= 0) {
+        pushTagScore(tag.name, 18 - recommendedIndex * 3);
+      }
 
-    const tagLower = tag.name.toLowerCase();
-    let directScore = 0;
+      const tagLower = tag.name.toLowerCase();
+      let directScore = 0;
 
-    if (normalizedTaskText && (normalizedTaskText.includes(tagLower) || tagLower.includes(normalizedTaskText))) {
-      directScore += tagLower === normalizedTaskText ? 20 : 12;
-    }
+      if (normalizedTaskText && (normalizedTaskText.includes(tagLower) || tagLower.includes(normalizedTaskText))) {
+        directScore += tagLower === normalizedTaskText ? 20 : 12;
+      }
 
-    titleDescriptionTokens.forEach((token) => {
-      if (token === tagLower) {
-        directScore += 14;
-      } else if (token.length >= 3 && (token.includes(tagLower) || tagLower.includes(token))) {
-        directScore += 4;
+      titleDescriptionTokens.forEach((token) => {
+        if (token === tagLower) {
+          directScore += 14;
+        } else if (token.length >= 3 && (token.includes(tagLower) || tagLower.includes(token))) {
+          directScore += 4;
+        }
+      });
+
+      if (directScore > 0) {
+        pushTagScore(tag.name, directScore + Math.min(tag.usageCount || 0, 8));
+      }
+
+      const learnedScore = learnedTagScoreMap.get(tag.name) || 0;
+      if (learnedScore > 0) {
+        pushTagScore(tag.name, learnedScore);
       }
     });
+  }
 
-    if (directScore > 0) {
-      pushTagScore(tag.name, directScore + Math.min(tag.usageCount || 0, 8));
-    }
-
-    const learnedScore = learnedTagScoreMap.get(tag.name) || 0;
-    if (learnedScore > 0) {
-      pushTagScore(tag.name, learnedScore);
-    }
-  });
-
-  const suggestedTags = Array.from(tagScoreMap.entries())
+  const learnedSuggestedTags = Array.from(tagScoreMap.entries())
     .filter(([, score]) => score >= 14)
     .sort((a, b) => b[1] - a[1])
     .map(([tagName]) => tagName)
     .slice(0, 3);
 
-  const fallbackRecommendedTags = storeRecommendedTags
-    .filter((tagName) => availableTagNames.has(tagName));
+  const finalSuggestedTags = isStrongCategoryTask
+    ? strongCategoryTags
+    : [
+        ...learnedSuggestedTags,
+        ...storeRecommendedTags.filter((tagName) => availableTagNames.has(tagName)),
+      ]
+        .filter((tagName, index, array) => array.indexOf(tagName) === index)
+        .slice(0, 3);
 
-  const finalSuggestedTags = (suggestedTags.length > 0 ? suggestedTags : fallbackRecommendedTags)
-    .slice(0, 3);
-
-  const topTagScore = suggestedTags.length > 0
-    ? (tagScoreMap.get(suggestedTags[0]) || 0)
-    : 0;
-  const isLowConfidenceTagging = topTagScore < 18 && finalSuggestedTags.length <= 1;
-  const conservativeSuggestedTags = isLowConfidenceTagging ? [] : finalSuggestedTags;
+  const conservativeSuggestedTags = finalSuggestedTags;
 
   const historicalGoldSamples = matchedHistoryTasks
     .filter((item) => typeof item.goldReward === 'number' && item.goldReward >= 0)
@@ -354,5 +450,3 @@ export const generateSmartTagAssignment = ({
     categoryHistoryCount: categoryMatchedTasks.length,
   };
 };
-
-

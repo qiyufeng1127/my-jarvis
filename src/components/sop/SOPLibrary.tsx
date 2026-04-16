@@ -91,7 +91,7 @@ export default function SOPLibrary() {
   };
   
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6 keyboard-aware-scroll" style={{ minHeight: 'var(--app-layout-viewport-height)' }}>
       <div className="max-w-6xl mx-auto">
         {/* 头部 */}
         <div className="mb-6">

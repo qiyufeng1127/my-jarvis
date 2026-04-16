@@ -3059,7 +3059,7 @@ export default function NewTimelineView({
             <div
               className="flex w-full max-w-md flex-col rounded-t-[28px] bg-white p-4 shadow-[0_30px_80px_rgba(15,23,42,0.22)]"
               style={{
-                maxHeight: 'calc(100vh - 24px)',
+                maxHeight: 'var(--app-modal-max-height)',
               }}
             >
               <div className="flex items-start justify-between gap-3">
@@ -3337,7 +3337,7 @@ export default function NewTimelineView({
             <div
               className="w-full max-w-md overflow-y-auto rounded-t-[28px] bg-[#fffaf7] p-4 shadow-[0_30px_80px_rgba(15,23,42,0.28)]"
               style={{
-                maxHeight: 'calc(100vh - 24px)',
+                maxHeight: 'var(--app-modal-max-height)',
                 paddingBottom: 'calc(148px + env(safe-area-inset-bottom))',
               }}
             >

@@ -420,8 +420,8 @@ export default function TaskVerification({
   const progress = (timeLeft / timeLimit) * 100;
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-start justify-center p-4 keyboard-aware-modal-shell">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden keyboard-aware-modal-card">
         {/* 头部 */}
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
           <div className="flex items-center justify-between mb-2">

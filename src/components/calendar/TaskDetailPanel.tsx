@@ -60,8 +60,9 @@ export default function TaskDetailPanel({
   const duration = Math.round((task.endTime.getTime() - task.startTime.getTime()) / 60000);
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center p-4 keyboard-aware-modal-shell">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col keyboard-aware-modal-card"
+        style={{ maxHeight: 'var(--app-modal-max-height)' }}>
         {/* 头部 */}
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
           <div className="flex items-start justify-between mb-3">
@@ -139,7 +140,7 @@ export default function TaskDetailPanel({
         </div>
 
         {/* 内容区域 */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-6 keyboard-aware-scroll">
           {/* 基本信息标签页 */}
           {activeTab === 'info' && (
             <div className="space-y-4">
@@ -327,7 +328,7 @@ export default function TaskDetailPanel({
         </div>
 
         {/* 底部操作栏 */}
-        <div className="border-t border-neutral-200 p-4 bg-neutral-50">
+        <div className="border-t border-neutral-200 p-4 bg-neutral-50 keyboard-aware-modal-actions">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <button

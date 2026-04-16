@@ -3,6 +3,62 @@ import { persist } from 'zustand/middleware';
 import type { Task, TaskStatus, TaskType } from '@/types';
 import { backgroundTaskScheduler } from '@/services/backgroundTaskScheduler';
 
+const resolveTaskTagsWithSmartAssignment = async ({
+  title,
+  description,
+  inputTags,
+  durationMinutes,
+  taskType,
+  currentTaskId,
+  preferSmartAssignment,
+}: {
+  title: string;
+  description: string;
+  inputTags?: string[];
+  durationMinutes?: number;
+  taskType?: TaskType;
+  currentTaskId?: string;
+  preferSmartAssignment: boolean;
+}) => {
+  const [{ useTagStore }, { useGoalStore }, { generateSmartTagAssignment }] = await Promise.all([
+    import('@/stores/tagStore'),
+    import('@/stores/goalStore'),
+    import('@/utils'),
+  ]);
+
+  const tagStore = useTagStore.getState();
+  const goalStore = useGoalStore.getState();
+  const normalizedInputTags = Array.from(new Set((inputTags || []).map((tag) => tag.trim()).filter(Boolean)));
+
+  const smartAssignment = generateSmartTagAssignment({
+    title,
+    description,
+    tasks: getTaskStoreState().tasks,
+    goals: goalStore.goals,
+    currentTaskId,
+    currentTaskType: taskType || 'work',
+    currentTaskTags: normalizedInputTags,
+    currentDurationMinutes: durationMinutes || 30,
+    availableTags: tagStore.getAllTags(),
+    getTagDurationRecords: tagStore.getTagDurationRecords,
+    getLearnedTagScores: tagStore.getLearnedTagScores,
+    getRecommendedTags: tagStore.getRecommendedTags,
+    findMatchingGoals: goalStore.findMatchingGoals,
+  });
+
+  const resolvedTags = preferSmartAssignment
+    ? (smartAssignment.suggestedTags.length > 0 ? smartAssignment.suggestedTags : normalizedInputTags)
+    : (normalizedInputTags.length > 0 ? normalizedInputTags : smartAssignment.suggestedTags);
+
+  return {
+    tagStore,
+    smartAssignment,
+    resolvedTags: resolvedTags.length > 0 ? tagStore.ensureTagsExist(resolvedTags) : resolvedTags,
+  };
+};
+
+const getTaskStoreState = () => useTaskStore.getState();
+
 const hasTaskVerification = (task: Partial<Task>) => Boolean(
   task.verificationEnabled || task.verificationStart || task.verificationComplete
 );
@@ -101,10 +157,16 @@ export const useTaskStore = create<TaskState>()(
       }
       const taskDescription = taskData.description || '';
       const { smartCalculateGoldReward } = await import('@/utils/goldCalculator');
-      const { useTagStore } = await import('@/stores/tagStore');
-      const tagStore = useTagStore.getState();
-      const taskTags = tagStore.resolveAutoTags(`${taskTitle} ${taskDescription}`.trim(), taskData.tags || [], 3);
-      const ensuredTaskTags = taskTags.length > 0 ? tagStore.ensureTagsExist(taskTags) : taskTags;
+      const isNavigationTimelineTask = identityTags.includes('system:navigation-group');
+      const shouldPreferSmartAssignment = isNavigationTimelineTask || !(taskData.tags && taskData.tags.length > 0);
+      const { tagStore, resolvedTags: ensuredTaskTags } = await resolveTaskTagsWithSmartAssignment({
+        title: taskTitle,
+        description: taskDescription,
+        inputTags: taskData.tags || [],
+        durationMinutes: taskData.durationMinutes || 30,
+        taskType: taskData.taskType || 'work',
+        preferSmartAssignment: shouldPreferSmartAssignment,
+      });
       const autoGoldReward = smartCalculateGoldReward(
         taskData.durationMinutes || 30,
         taskData.taskType || 'work',
@@ -175,10 +237,17 @@ export const useTaskStore = create<TaskState>()(
       let nextTags = updates.tags ?? existingTask.tags ?? [];
 
       if (shouldRefreshTags) {
-        const { useTagStore } = await import('@/stores/tagStore');
-        const tagStore = useTagStore.getState();
-        nextTags = tagStore.resolveAutoTags(`${nextTitle} ${nextDescription}`.trim(), nextTags, 3);
-        nextTags = nextTags.length > 0 ? tagStore.ensureTagsExist(nextTags) : nextTags;
+        const preferSmartAssignment = !Array.isArray(updates.tags);
+        const { tagStore, resolvedTags } = await resolveTaskTagsWithSmartAssignment({
+          title: nextTitle,
+          description: nextDescription,
+          inputTags: nextTags,
+          durationMinutes: updates.durationMinutes ?? existingTask.durationMinutes,
+          taskType: updates.taskType ?? existingTask.taskType,
+          currentTaskId: existingTask.id,
+          preferSmartAssignment,
+        });
+        nextTags = resolvedTags;
 
         if (nextTags.length > 0) {
           tagStore.learnTagSelection(
