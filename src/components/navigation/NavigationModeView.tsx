@@ -1648,7 +1648,6 @@ function NavigationComposer({ initialInput = '' }: { initialInput?: string }) {
     setGenerating(true);
 
     const result = await AIUnifiedService.planNavigationSession(rawInput, preferences, (partial) => {
-      console.log('[导航] 收到流式 partial', partial);
       const streamingSession = useNavigationStore.getState().currentSession;
       if (
         generationRequestIdRef.current !== requestId
@@ -1659,6 +1658,11 @@ function NavigationComposer({ initialInput = '' }: { initialInput?: string }) {
         return;
       }
 
+      console.log('[导航] 应用流式 partial', {
+        title: partial.sessionTitle,
+        groups: partial.timelineGroups?.length || 0,
+        steps: partial.executionSteps?.length || 0,
+      });
       applyStreamingPlan(rawInput, partial, false);
       const refreshedSession = useNavigationStore.getState().currentSession;
       if (

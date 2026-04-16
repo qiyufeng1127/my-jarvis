@@ -128,6 +128,76 @@ const tryParseJsonObject = (content: string) => {
   return null;
 };
 
+const tryParsePartialJsonObject = (content: string) => {
+  const trimmed = content.trim();
+  if (!trimmed) return null;
+
+  const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  const source = (fencedMatch?.[1] || trimmed).trim();
+  const startIndex = source.indexOf('{');
+  if (startIndex < 0) return null;
+
+  const text = source.slice(startIndex);
+  const stack: string[] = [];
+  let inString = false;
+  let escaped = false;
+  let lastSafeIndex = -1;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (char === '"') {
+        inString = false;
+        lastSafeIndex = i;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (char === '{') {
+      stack.push('}');
+      lastSafeIndex = i;
+      continue;
+    }
+
+    if (char === '[') {
+      stack.push(']');
+      lastSafeIndex = i;
+      continue;
+    }
+
+    if (char === '}' || char === ']') {
+      if (stack[stack.length - 1] === char) {
+        stack.pop();
+      }
+      lastSafeIndex = i;
+      continue;
+    }
+
+    if (!/\s/.test(char)) {
+      lastSafeIndex = i;
+    }
+  }
+
+  if (lastSafeIndex < 0) return null;
+
+  const candidate = `${text.slice(0, lastSafeIndex + 1).replace(/,\s*$/, '')}${stack.reverse().join('')}`;
+  return tryParseLooseJson(candidate);
+};
+
 const normalizePlannerResult = (parsed: any, rawInput?: string): NavigationPlannerResult | null => {
   if (!parsed || typeof parsed !== 'object') return null;
 
@@ -144,34 +214,119 @@ const normalizePlannerResult = (parsed: any, rawInput?: string): NavigationPlann
   };
 };
 
+const tryParseLooseJson = (candidate: string) => {
+  const normalized = candidate.trim();
+  if (!normalized) return null;
+
+  const variants = [
+    normalized,
+    normalized.replace(/,\s*([}\]])/g, '$1'),
+    normalized
+      .replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*:)/g, '$1"$2"$3')
+      .replace(/:\s*([A-Za-z_][A-Za-z0-9_-]*)(\s*[,}])/g, ': "$1"$2')
+      .replace(/,\s*([}\]])/g, '$1'),
+  ];
+
+  for (const variant of variants) {
+    try {
+      return JSON.parse(variant);
+    } catch {
+      // ignore
+    }
+  }
+
+  return null;
+};
+
+const extractJsonObjectsFromText = (content: string) => {
+  const results: any[] = [];
+  const text = content
+    .replace(/```json/gi, '')
+    .replace(/```/g, '')
+    .replace(/\r\n/g, '\n');
+
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (char === '{') {
+      if (depth === 0) start = i;
+      depth += 1;
+      continue;
+    }
+
+    if (char === '}') {
+      if (depth === 0) continue;
+      depth -= 1;
+      if (depth === 0 && start >= 0) {
+        const candidate = text.slice(start, i + 1).trim();
+        const parsed = tryParseLooseJson(candidate);
+        if (parsed) {
+          results.push(parsed);
+        }
+        start = -1;
+      }
+    }
+  }
+
+  if (results.length === 0) {
+    const lines = text.split('\n').map((line) => line.trim()).filter(Boolean);
+    let buffer = '';
+    for (const line of lines) {
+      buffer += (buffer ? '\n' : '') + line;
+      const parsed = tryParseLooseJson(buffer);
+      if (parsed) {
+        results.push(parsed);
+        buffer = '';
+      }
+    }
+  }
+
+  return results;
+};
+
 const parseEventStreamPlannerResult = (content: string, requireDone: boolean, rawInput?: string) => {
   const trimmed = content.trim();
   if (!trimmed) return null;
 
-  const lines = trimmed
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => line.replace(/^```(?:json)?$/i, '').replace(/^```$/i, '').trim())
-    .filter(Boolean);
-
+  const events = extractJsonObjectsFromText(trimmed);
   const groups: NavigationPlannerResult['timelineGroups'] = [];
   const steps: NavigationPlannerResult['executionSteps'] = [];
   let sessionTitle = '导航模式';
   let summary = '';
   let hasDone = false;
 
-  for (const line of lines) {
-    try {
-      const event = JSON.parse(line);
-      if (event.type === 'title' && event.sessionTitle) sessionTitle = event.sessionTitle;
-      if (event.type === 'summary' && event.summary) summary = event.summary;
-      if (event.type === 'group' && event.group) groups.push(event.group);
-      if (event.type === 'step' && event.step) steps.push(event.step);
-      if (event.type === 'done') hasDone = true;
-    } catch {
-      // ignore non-complete line
-    }
+  for (const event of events) {
+    if (!event || typeof event !== 'object') continue;
+    if (event.type === 'title' && event.sessionTitle) sessionTitle = event.sessionTitle;
+    if (event.type === 'summary' && event.summary) summary = event.summary;
+    if (event.type === 'group' && event.group) groups.push(event.group);
+    if (event.type === 'step' && event.step) steps.push(event.step);
+    if (event.type === 'done') hasDone = true;
   }
 
   if (requireDone && !hasDone) return null;
@@ -183,6 +338,100 @@ const parseEventStreamPlannerResult = (content: string, requireDone: boolean, ra
     executionSteps: steps,
     timelineGroups: normalizeTimelineGroups(groups, steps),
   } satisfies NavigationPlannerResult;
+};
+
+const estimateNavigationActionCount = (rawInput?: string) => {
+  const normalized = (rawInput || '')
+    .replace(/[\n\r]+/g, '，')
+    .replace(/[；;。！？!?.]+/g, '，');
+
+  const segments = normalized
+    .split(/(?:，|、|然后|接着|之后|再|顺便|并且|而且|并|以及)/)
+    .map((part) => part.trim())
+    .filter((part) => part.length >= 2);
+
+  return Math.max(segments.length, 1);
+};
+
+const normalizeCompareText = (value?: string) => (value || '').replace(/[\s，,、；;。！？!?.]/g, '').trim();
+
+const getPlannerCoveredTitles = (result?: NavigationPlannerResult | null) => {
+  if (!result) return [];
+
+  return [
+    ...result.timelineGroups.map((group) => group.title),
+    ...result.executionSteps.map((step) => step.title),
+  ]
+    .map((title) => title.trim())
+    .filter(Boolean);
+};
+
+const extractMissingNavigationTitles = (allTitles: string[], result?: NavigationPlannerResult | null) => {
+  const coveredTitles = getPlannerCoveredTitles(result);
+  const coveredNormalized = coveredTitles.map((title) => normalizeCompareText(title)).filter(Boolean);
+
+  return allTitles.filter((title) => {
+    const normalizedTitle = normalizeCompareText(title);
+    if (!normalizedTitle) return false;
+    return !coveredNormalized.some((covered) => covered.includes(normalizedTitle) || normalizedTitle.includes(covered));
+  });
+};
+
+const mergePlannerResults = (base: NavigationPlannerResult, tail: NavigationPlannerResult): NavigationPlannerResult => {
+  const existingGroupIds = new Set(base.timelineGroups.map((group) => group.id));
+  const existingStepIds = new Set(base.executionSteps.map((step) => step.id));
+  const groupIdMap = new Map<string, string>();
+
+  const mergedGroups = [...base.timelineGroups];
+  tail.timelineGroups.forEach((group, index) => {
+    let nextGroupId = group.id || `g-tail-${index + 1}`;
+    while (existingGroupIds.has(nextGroupId)) {
+      nextGroupId = `${nextGroupId}-tail`;
+    }
+    existingGroupIds.add(nextGroupId);
+    groupIdMap.set(group.id, nextGroupId);
+    mergedGroups.push({
+      ...group,
+      id: nextGroupId,
+      stepIds: [],
+    });
+  });
+
+  const mergedSteps = [...base.executionSteps];
+  tail.executionSteps.forEach((step, index) => {
+    let nextStepId = step.id || `s-tail-${index + 1}`;
+    while (existingStepIds.has(nextStepId)) {
+      nextStepId = `${nextStepId}-tail`;
+    }
+    existingStepIds.add(nextStepId);
+    mergedSteps.push({
+      ...step,
+      id: nextStepId,
+      groupId: groupIdMap.get(step.groupId) || step.groupId,
+    });
+  });
+
+  return {
+    sessionTitle: base.sessionTitle || tail.sessionTitle || '导航模式',
+    summary: base.summary || tail.summary || '',
+    executionSteps: mergedSteps,
+    timelineGroups: normalizeTimelineGroups(mergedGroups, mergedSteps),
+  };
+};
+
+const hasSufficientPlannerCoverage = (result: NavigationPlannerResult, rawInput?: string) => {
+  const estimatedActionCount = estimateNavigationActionCount(rawInput);
+  const stepCount = result.executionSteps.length;
+  const groupCount = result.timelineGroups.length;
+
+  if (estimatedActionCount <= 4) {
+    return stepCount >= estimatedActionCount && groupCount >= Math.min(estimatedActionCount, 2);
+  }
+
+  const requiredGroupCount = Math.max(3, Math.ceil(estimatedActionCount * 0.6));
+  const requiredStepCount = Math.max(estimatedActionCount, Math.ceil(estimatedActionCount * 1.2));
+
+  return stepCount >= requiredStepCount && groupCount >= requiredGroupCount;
 };
 
 const hasMeaningfulPlannerContent = (result: NavigationPlannerResult) => {
@@ -221,23 +470,33 @@ const tryParsePlannerResult = (content: string, rawInput?: string): NavigationPl
 };
 
 const derivePartialPlannerResult = (content: string, rawInput?: string): Partial<NavigationPlannerResult> | null => {
+  const partial = parseEventStreamPlannerResult(content, false, rawInput);
+  if (partial) {
+    return {
+      sessionTitle: partial.sessionTitle,
+      summary: partial.summary,
+      executionSteps: partial.executionSteps.length ? partial.executionSteps : undefined,
+      timelineGroups: partial.timelineGroups.length ? partial.timelineGroups : undefined,
+    };
+  }
+
   const parsedObject = tryParseJsonObject(content);
   const normalizedObject = normalizePlannerResult(parsedObject, rawInput);
   if (normalizedObject) {
     return normalizedObject;
   }
 
-  const partial = parseEventStreamPlannerResult(content, false, rawInput);
-  if (!partial) {
+  if (!content.includes('\n')) {
     return null;
   }
 
-  return {
-    sessionTitle: partial.sessionTitle,
-    summary: partial.summary,
-    executionSteps: partial.executionSteps.length ? partial.executionSteps : undefined,
-    timelineGroups: partial.timelineGroups.length ? partial.timelineGroups : undefined,
-  };
+  const partialObject = tryParsePartialJsonObject(content);
+  const normalizedPartialObject = normalizePlannerResult(partialObject, rawInput);
+  if (normalizedPartialObject) {
+    return normalizedPartialObject;
+  }
+
+  return null;
 };
 
 
@@ -544,42 +803,67 @@ export class AIUnifiedService {
       const streamResult = await aiStore.chatStream(
         messages,
         (chunk) => {
-          console.log('[导航服务] 收到 chunk', chunk);
           fullContent += chunk;
           const partial = derivePartialPlannerResult(fullContent, rawInput);
-          if (partial) {
-            const signature = JSON.stringify({
-              title: partial.sessionTitle || '',
-              summary: partial.summary || '',
-              groups: partial.timelineGroups?.map((group) => group.id) || [],
-              steps: partial.executionSteps?.map((step) => step.id) || [],
-            });
-            if (signature !== lastPartialSignature) {
-              lastPartialSignature = signature;
-              const normalizedPartial: NavigationPlannerResult = {
-                sessionTitle: partial.sessionTitle || '导航模式',
-                summary: partial.summary || '',
-                executionSteps: partial.executionSteps || [],
-                timelineGroups: partial.timelineGroups || [],
-              };
-              if (hasMeaningfulPlannerContent(normalizedPartial)) {
-                latestMeaningfulPartial = normalizedPartial;
-              }
-              onPartial(partial);
+          if (!partial) {
+            if (fullContent.length % 400 < chunk.length) {
+              console.log('[导航服务] 尚未解析出完整事件', {
+                contentLength: fullContent.length,
+                tail: fullContent.slice(-220),
+              });
             }
+            return;
+          }
+
+          const signature = JSON.stringify({
+            title: partial.sessionTitle || '',
+            summary: partial.summary || '',
+            groups: partial.timelineGroups?.map((group) => group.id) || [],
+            steps: partial.executionSteps?.map((step) => step.id) || [],
+          });
+          if (signature !== lastPartialSignature) {
+            lastPartialSignature = signature;
+            const normalizedPartial: NavigationPlannerResult = {
+              sessionTitle: partial.sessionTitle || '导航模式',
+              summary: partial.summary || '',
+              executionSteps: partial.executionSteps || [],
+              timelineGroups: partial.timelineGroups || [],
+            };
+            if (hasMeaningfulPlannerContent(normalizedPartial)) {
+              latestMeaningfulPartial = normalizedPartial;
+            }
+            console.log('[导航服务] 解析到流式进度', {
+              title: normalizedPartial.sessionTitle,
+              groups: normalizedPartial.timelineGroups.length,
+              steps: normalizedPartial.executionSteps.length,
+            });
+            onPartial(partial);
           }
         },
         {
-          maxTokens: Math.min(1200, AI_PROMPTS.NAVIGATION_MODE_PLANNER.maxTokens),
+          maxTokens: AI_PROMPTS.NAVIGATION_MODE_PLANNER.maxTokens,
           temperature: AI_PROMPTS.NAVIGATION_MODE_PLANNER.temperature,
         }
       );
 
       const finalParsed = streamResult.content ? tryParsePlannerResult(streamResult.content, rawInput) : null;
-      const resolvedResult = finalParsed && hasMeaningfulPlannerContent(finalParsed)
+      const finalParsedIsComplete = !!(finalParsed && hasMeaningfulPlannerContent(finalParsed) && hasSufficientPlannerCoverage(finalParsed, rawInput));
+      const partialIsComplete = !!(latestMeaningfulPartial && hasSufficientPlannerCoverage(latestMeaningfulPartial, rawInput));
+      const resolvedResult = finalParsedIsComplete
         ? finalParsed
-        : latestMeaningfulPartial;
-      console.log('[导航服务] 流式请求完成', { streamResult, finalParsed, latestMeaningfulPartial, resolvedResult });
+        : partialIsComplete
+          ? latestMeaningfulPartial
+          : null;
+      console.log('[导航服务] 流式请求完成', {
+        success: streamResult.success,
+        error: streamResult.error,
+        contentLength: streamResult.content?.length || 0,
+        finalParsed,
+        latestMeaningfulPartial,
+        resolvedResult,
+        finalParsedIsComplete,
+        partialIsComplete,
+      });
       if (streamResult.success && resolvedResult) {
         return {
           success: true,

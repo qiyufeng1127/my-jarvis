@@ -589,7 +589,7 @@ export default function AIAssistantChat() {
               }
             }}
             placeholder={modePlaceholderMap[activeMode]}
-            className="flex-1 resize-none rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-900 dark:placeholder-gray-400"
+            className="flex-1 resize-none rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder-gray-400"
             rows={1}
             style={{
               minHeight: '40px',

@@ -4761,7 +4761,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
                         : contextMode === 'mutter'
                         ? '已进入“心情碎碎念”模式，直接说你的想法或心情...'
                         : '对我说点什么...'}
-                      className="w-full px-3 py-3 rounded-2xl resize-none focus:outline-none text-sm border border-gray-300 focus:border-blue-500 overflow-y-auto bg-white"
+                      className="w-full px-3 py-3 rounded-2xl resize-none focus:outline-none text-sm text-gray-900 placeholder:text-gray-500 border border-gray-300 focus:border-blue-500 overflow-y-auto bg-white"
                       style={{
                         minHeight: '52px',
                         maxHeight: '120px',
