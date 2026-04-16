@@ -149,6 +149,14 @@ function NavigationSwipeActionRow({
   onDelete: () => void;
 }) {
   const ACTIONS_WIDTH = 172;
+  const OPEN_SWIPE_GAIN = 2.45;
+  const CLOSE_SWIPE_GAIN = 1.35;
+  const OPEN_FLICK_DISTANCE = -3;
+  const CLOSE_FLICK_DISTANCE = 6;
+  const OPEN_FLICK_VELOCITY = -0.08;
+  const CLOSE_FLICK_VELOCITY = 0.1;
+  const OPEN_THRESHOLD = ACTIONS_WIDTH * 0.015;
+  const CLOSE_THRESHOLD = ACTIONS_WIDTH * 0.84;
   const rowContentRef = useRef<HTMLDivElement | null>(null);
   const startXRef = useRef<number | null>(null);
   const startOffsetRef = useRef(0);
@@ -160,8 +168,8 @@ function NavigationSwipeActionRow({
   const setRowOffset = (offset: number, withTransition = false) => {
     const node = rowContentRef.current;
     if (!node) return;
-    const duration = offset === 0 ? '70ms' : '95ms';
-    node.style.transition = withTransition ? `transform ${duration} cubic-bezier(0.2, 0.92, 0.24, 1)` : 'none';
+    const duration = offset === 0 ? '110ms' : '140ms';
+    node.style.transition = withTransition ? `transform ${duration} cubic-bezier(0.16, 1, 0.3, 1)` : 'none';
     node.style.transform = `translate3d(${offset}px, 0, 0)`;
     currentOffsetRef.current = offset;
   };
@@ -211,7 +219,8 @@ function NavigationSwipeActionRow({
     if (startXRef.current === null) return;
     event.stopPropagation();
     const delta = event.clientX - startXRef.current;
-    const nextOffset = Math.max(-ACTIONS_WIDTH, Math.min(0, startOffsetRef.current + delta));
+    const swipeGain = startOffsetRef.current < 0 ? CLOSE_SWIPE_GAIN : OPEN_SWIPE_GAIN;
+    const nextOffset = Math.max(-ACTIONS_WIDTH, Math.min(0, startOffsetRef.current + delta * swipeGain));
     const now = performance.now();
     const elapsed = Math.max(1, now - lastMoveRef.current.time);
     const velocity = (event.clientX - lastMoveRef.current.x) / elapsed;
@@ -238,12 +247,12 @@ function NavigationSwipeActionRow({
 
     const deltaX = event.clientX - startXRef.current;
     const startWasOpen = startOffsetRef.current < 0;
-    const flickOpen = deltaX < -12 && lastMoveRef.current.velocity < -0.3;
-    const flickClose = deltaX > 10 && lastMoveRef.current.velocity > 0.22;
+    const flickOpen = deltaX < OPEN_FLICK_DISTANCE && lastMoveRef.current.velocity < OPEN_FLICK_VELOCITY;
+    const flickClose = deltaX > CLOSE_FLICK_DISTANCE && lastMoveRef.current.velocity > CLOSE_FLICK_VELOCITY;
 
     const shouldOpen = startWasOpen
-      ? !(flickClose || currentOffsetRef.current > -(ACTIONS_WIDTH * 0.58))
-      : flickOpen || currentOffsetRef.current <= -(ACTIONS_WIDTH * 0.1);
+      ? !(flickClose || currentOffsetRef.current > -CLOSE_THRESHOLD)
+      : flickOpen || currentOffsetRef.current <= -OPEN_THRESHOLD;
 
     startXRef.current = null;
     startOffsetRef.current = 0;

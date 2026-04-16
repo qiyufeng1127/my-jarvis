@@ -108,7 +108,8 @@ export default function DimensionForm({
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center p-4 keyboard-aware-modal-shell">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col keyboard-aware-modal-card">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col keyboard-aware-modal-card"
+        style={{ maxHeight: 'var(--app-modal-max-height)' }}>
         {/* 头部 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200">
           <h2 className="text-xl font-bold text-neutral-900">
@@ -123,7 +124,7 @@ export default function DimensionForm({
         </div>
 
         {/* 表单内容 */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 keyboard-aware-scroll">
           {/* 名称 */}
           <div>
             <label className="block text-sm font-semibold text-neutral-900 mb-2">
@@ -323,7 +324,7 @@ export default function DimensionForm({
         </form>
 
         {/* 底部按钮 */}
-        <div className="flex items-center justify-end space-x-3 px-6 py-4 border-t border-neutral-200 bg-neutral-50">
+        <div className="flex items-center justify-end space-x-3 px-6 py-4 border-t border-neutral-200 bg-neutral-50 keyboard-aware-modal-actions">
           <button
             type="button"
             onClick={onCancel}

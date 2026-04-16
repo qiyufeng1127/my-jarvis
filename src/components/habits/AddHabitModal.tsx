@@ -197,7 +197,7 @@ export default function AddHabitModal({ open, onClose }: AddHabitModalProps) {
               </div>
               
               {/* 可滚动内容区域 */}
-              <div className="p-6 space-y-6 overflow-y-auto flex-1">
+              <div className="p-6 space-y-6 overflow-y-auto flex-1 keyboard-aware-scroll">
                 {/* Emoji 选择 */}
                 <div>
                   <label className="block text-sm font-medium mb-3" style={{ color: '#1D1D1F' }}>
@@ -621,7 +621,7 @@ export default function AddHabitModal({ open, onClose }: AddHabitModalProps) {
               </div>
               
               {/* 底部按钮区域 - 固定在底部 */}
-              <div className="border-t px-6 py-4 flex gap-3 flex-shrink-0" style={{
+              <div className="border-t px-6 py-4 flex gap-3 flex-shrink-0 keyboard-aware-modal-actions" style={{
                 backgroundColor: '#FFFFFF',
                 borderColor: 'rgba(0, 0, 0, 0.06)'
               }}>

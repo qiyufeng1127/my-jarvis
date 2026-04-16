@@ -421,7 +421,8 @@ export default function TaskVerification({
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-start justify-center p-4 keyboard-aware-modal-shell">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden keyboard-aware-modal-card">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col keyboard-aware-modal-card"
+        style={{ maxHeight: 'var(--app-modal-max-height)' }}>
         {/* 头部 */}
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
           <div className="flex items-center justify-between mb-2">
@@ -440,7 +441,7 @@ export default function TaskVerification({
         </div>
 
         {/* 内容区域 */}
-        <div className="p-6">
+        <div className="p-6 overflow-y-auto keyboard-aware-scroll">
           {/* 倒计时 */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
