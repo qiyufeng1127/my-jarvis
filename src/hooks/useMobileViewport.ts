@@ -100,11 +100,9 @@ const setRootViewportVars = () => {
   const root = document.documentElement;
   const safeAreaTop = 'env(safe-area-inset-top, 0px)';
   const safeAreaBottom = 'env(safe-area-inset-bottom, 0px)';
-  const navSafeArea = '0px';
+  const navSafeArea = safeAreaBottom;
   const { visibleHeight, viewportOffsetTop, keyboardOffset, layoutViewportHeight } = getKeyboardMetrics();
-  const effectiveVisibleHeight = keyboardOffset > 0
-    ? Math.max(0, layoutViewportHeight)
-    : Math.max(0, visibleHeight);
+  const effectiveVisibleHeight = Math.max(0, visibleHeight);
   const composerOffset = keyboardOffset > 0
     ? `${Math.max(0, viewportOffsetTop)}px`
     : 'var(--mobile-bottom-nav-total-height)';

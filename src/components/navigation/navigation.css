@@ -81,6 +81,23 @@
   padding-bottom: 0;
 }
 
+.navigation-session-shell > .navigation-panel .navigation-action-row {
+  margin-top: 12px;
+}
+
+html[data-keyboard-open='true'] .navigation-session-shell {
+  height: auto;
+  min-height: 0;
+}
+
+html[data-keyboard-open='true'] .navigation-session-shell > .navigation-panel {
+  flex: 0 0 auto;
+}
+
+html[data-keyboard-open='true'] .navigation-session-shell > .navigation-panel .navigation-action-row {
+  margin-top: 10px;
+}
+
 html[data-keyboard-open='true'] .navigation-root {
   padding-bottom: 0;
 }

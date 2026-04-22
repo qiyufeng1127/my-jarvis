@@ -2,8 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 const resolveApiEndpoint = (endpoint: string) => {
-  if (import.meta.env.DEV && endpoint.includes('api.deepseek.com')) {
-    return '/ai-api';
+  if (endpoint.includes('api.deepseek.com')) {
+    return '/api/deepseek-chat';
   }
 
   return endpoint;
@@ -36,7 +36,7 @@ interface AIStore {
   setTemperature: (temperature: number) => void;
   setMaxTokens: (maxTokens: number) => void;
   isConfigured: () => boolean;
-  chat: (messages: AIMessage[]) => Promise<AIResponse>;
+  chat: (messages: AIMessage[], options?: { maxTokens?: number; temperature?: number }) => Promise<AIResponse>;
   chatStream: (messages: AIMessage[], onChunk: (chunk: string) => void, options?: { maxTokens?: number; temperature?: number }) => Promise<AIResponse>;
 }
 
@@ -86,7 +86,7 @@ export const useAIStore = create<AIStore>()(
         return !!config.apiKey && !!config.apiEndpoint;
       },
 
-      chat: async (messages) => {
+      chat: async (messages, options) => {
         const { config, isConfigured } = get();
 
         if (!isConfigured()) {
@@ -100,8 +100,8 @@ export const useAIStore = create<AIStore>()(
           console.log('🌐 [AI请求] 开始请求:', {
             endpoint: resolveApiEndpoint(config.apiEndpoint),
             model: config.model,
-            temperature: config.temperature,
-            maxTokens: config.maxTokens,
+            temperature: options?.temperature ?? config.temperature,
+            maxTokens: options?.maxTokens ?? config.maxTokens,
             messagesCount: messages.length,
           });
 
@@ -124,8 +124,8 @@ export const useAIStore = create<AIStore>()(
             body: JSON.stringify({
               model: config.model,
               messages: messages,
-              temperature: config.temperature,
-              max_tokens: config.maxTokens,
+              temperature: options?.temperature ?? config.temperature,
+              max_tokens: options?.maxTokens ?? config.maxTokens,
             }),
             signal: controller.signal,
           });

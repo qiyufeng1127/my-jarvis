@@ -986,6 +986,8 @@ export default function FloatingAIChat({ isFullScreen = false, onClose, currentM
   const keyboardAvoidance = useKeyboardAvoidance(chatRef);
   const mobileConversationBottomPadding = isSelectionMode && selectedCount > 0 ? 112 : 168;
   const mobileDockBottom = 'max(12px, calc(var(--app-safe-area-bottom) + 12px))';
+  const mobileHeaderSafePadding = 'max(26px, calc(env(safe-area-inset-top, 0px) + 26px))';
+  const mobileWindowTopOffset = 'max(96px, calc(env(safe-area-inset-top, 0px) + 44px))';
   const mobileChatHeight = Math.min(Math.max(viewportSize.height - 96, 420), 720);
   
   // 任务编辑器状态
@@ -4829,7 +4831,7 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
           style={{
             left: isMobileViewport ? '12px' : position.x,
             right: isMobileViewport ? '12px' : 'auto',
-            top: isMobileViewport ? 'max(12px, env(safe-area-inset-top, 0px) + 12px)' : position.y,
+            top: isMobileViewport ? mobileWindowTopOffset : position.y,
             bottom: isMobileViewport ? mobileDockBottom : 'auto',
             width: isMobileViewport ? 'auto' : (isMinimized ? '320px' : `${size.width}px`),
             height: isMobileViewport ? (isMinimized ? '60px' : `${mobileChatHeight}px`) : (isMinimized ? '60px' : `${size.height}px`),
@@ -4845,7 +4847,11 @@ ${analysis.moodEmoji} 心情：${analysis.mood}
           {/* 头部 - 可拖拽 */}
           <div
             className={`px-4 py-3 flex items-center justify-between ${isMobileViewport ? '' : 'cursor-move'}`}
-            style={{ backgroundColor: theme.bgColor, color: theme.textColor }}
+            style={{
+              backgroundColor: theme.bgColor,
+              color: theme.textColor,
+              paddingTop: isMobileViewport ? mobileHeaderSafePadding : undefined,
+            }}
             onMouseDown={isMobileViewport ? undefined : handleDragStart}
           >
             <div className="flex items-center space-x-2">

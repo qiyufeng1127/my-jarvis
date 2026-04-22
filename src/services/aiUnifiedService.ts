@@ -7,6 +7,14 @@ import { AI_PROMPTS } from './aiPrompts';
 import { useAIStore } from '@/stores/aiStore';
 import type { NavigationInsertedFlowResult, NavigationPlannerResult, NavigationPreferences, NavigationSession } from '@/types/navigation';
 
+const resolveApiEndpoint = (endpoint: string) => {
+  if (endpoint.includes('api.deepseek.com')) {
+    return '/api/deepseek-chat';
+  }
+
+  return endpoint;
+};
+
 const normalizeInlineText = (value: string) => value.replace(/\s+/g, ' ').trim();
 
 const pickInsertedFlowLeadTitle = (plan?: NavigationPlannerResult | null) => {
@@ -85,6 +93,57 @@ const normalizeTimelineGroups = (
       };
     })
     .filter((group: any) => group.stepIds.length > 0 || group.title);
+};
+
+const ensureUniquePlannerIds = (result: NavigationPlannerResult): NavigationPlannerResult => {
+  const seenGroupIds = new Set<string>();
+  const groupIdMap = new Map<string, string>();
+
+  const nextGroups = result.timelineGroups.map((group, index) => {
+    const baseId = (group.id || `g-${index + 1}`).trim() || `g-${index + 1}`;
+    let nextId = baseId;
+    let suffix = 2;
+    while (seenGroupIds.has(nextId)) {
+      nextId = `${baseId}-${suffix}`;
+      suffix += 1;
+    }
+    seenGroupIds.add(nextId);
+    groupIdMap.set(group.id, nextId);
+    return {
+      ...group,
+      id: nextId,
+      stepIds: [],
+    };
+  });
+
+  const fallbackGroupId = nextGroups[0]?.id || 'g-1';
+  const seenStepIds = new Set<string>();
+  const nextSteps = result.executionSteps.map((step, index) => {
+    const baseId = (step.id || `s-${index + 1}`).trim() || `s-${index + 1}`;
+    let nextId = baseId;
+    let suffix = 2;
+    while (seenStepIds.has(nextId)) {
+      nextId = `${baseId}-${suffix}`;
+      suffix += 1;
+    }
+    seenStepIds.add(nextId);
+
+    return {
+      ...step,
+      id: nextId,
+      groupId: groupIdMap.get(step.groupId) || fallbackGroupId,
+    };
+  });
+
+  nextGroups.forEach((group) => {
+    group.stepIds = nextSteps.filter((step) => step.groupId === group.id).map((step) => step.id);
+  });
+
+  return {
+    ...result,
+    timelineGroups: nextGroups,
+    executionSteps: nextSteps,
+  };
 };
 
 
@@ -206,12 +265,14 @@ const normalizePlannerResult = (parsed: any, rawInput?: string): NavigationPlann
 
   if (executionSteps.length === 0 && timelineGroups.length === 0) return null;
 
-  return {
+  const normalizedResult: NavigationPlannerResult = {
     sessionTitle: typeof parsed.sessionTitle === 'string' && parsed.sessionTitle.trim() ? parsed.sessionTitle.trim() : '导航模式',
     summary: typeof parsed.summary === 'string' ? parsed.summary.trim() : '',
     executionSteps,
     timelineGroups: normalizeTimelineGroups(timelineGroups, executionSteps),
   };
+
+  return ensureUniquePlannerIds(normalizedResult);
 };
 
 const tryParseLooseJson = (candidate: string) => {
@@ -332,12 +393,14 @@ const parseEventStreamPlannerResult = (content: string, requireDone: boolean, ra
   if (requireDone && !hasDone) return null;
   if (groups.length === 0 && steps.length === 0) return null;
 
-  return {
+  const normalizedResult = {
     sessionTitle,
     summary,
     executionSteps: steps,
     timelineGroups: normalizeTimelineGroups(groups, steps),
   } satisfies NavigationPlannerResult;
+
+  return ensureUniquePlannerIds(normalizedResult);
 };
 
 const estimateNavigationActionCount = (rawInput?: string) => {
@@ -351,6 +414,377 @@ const estimateNavigationActionCount = (rawInput?: string) => {
     .filter((part) => part.length >= 2);
 
   return Math.max(segments.length, 1);
+};
+
+const NAVIGATION_STEP_MARKER = /(?:具体)?步骤[是为：:]/;
+const NAVIGATION_COUNT_UNIT_PATTERN = /(个|篇|版|张|套|条|份|次)/;
+const NAVIGATION_PROFESSIONAL_TASK_PATTERN = /(排版|海报|卡头|卡背|设计|方案|笔记|文案|稿子|图稿|页面|封面|插画)/;
+const NAVIGATION_PREP_STEP_PATTERN = /^(走到|打开电脑|开电脑|顺手整理|整理工作台|整理桌面|清出.*区域|打开设计软件|找到素材文件夹|把所有素材先“?站立”?一下|把所有素材先站立一下)/;
+const NAVIGATION_ORDINAL_PATTERN = /第([一二两三四五六七八九十\d]+)个/;
+
+const parseChineseCount = (value: string) => {
+  const normalized = String(value || '').trim();
+  if (!normalized) return 0;
+  if (/^\d+$/.test(normalized)) return parseInt(normalized, 10);
+
+  const digitMap: Record<string, number> = {
+    零: 0,
+    一: 1,
+    二: 2,
+    两: 2,
+    三: 3,
+    四: 4,
+    五: 5,
+    六: 6,
+    七: 7,
+    八: 8,
+    九: 9,
+  };
+
+  if (normalized === '十') return 10;
+  if (/^十[一二两三四五六七八九]$/.test(normalized)) {
+    return 10 + digitMap[normalized[1]];
+  }
+  if (/^[一二两三四五六七八九]十$/.test(normalized)) {
+    return digitMap[normalized[0]] * 10;
+  }
+  if (/^[一二两三四五六七八九]十[一二两三四五六七八九]$/.test(normalized)) {
+    return digitMap[normalized[0]] * 10 + digitMap[normalized[2]];
+  }
+
+  return digitMap[normalized] || 0;
+};
+
+const normalizeNavigationColloquialCount = (value: string) => value
+  .replace(/俩/g, '两个')
+  .replace(/两/g, '二')
+  .replace(/仨/g, '三个')
+  .replace(/几/g, '3')
+  .replace(/首个/g, '第1个')
+  .replace(/头一个/g, '第1个');
+
+const extractNavigationOrdinalNumber = (value: string) => {
+  const match = normalizeNavigationColloquialCount(value).match(NAVIGATION_ORDINAL_PATTERN);
+  if (!match) return 0;
+  return parseChineseCount(match[1]);
+};
+
+const buildQuantifiedNavigationStepTitle = (action: string, subject: string, index: number) => {
+  const prefix = action === '做' ? '做好' : action;
+  return `${prefix}${formatNavigationOrdinalLabel(index)}${subject}`;
+};
+
+const expandColloquialOrdinalTail = (segment: string, groupTitle: string) => {
+  const cleaned = cleanNavigationRawTitle(segment);
+  if (!cleaned) return [] as string[];
+
+  const normalized = normalizeNavigationColloquialCount(cleaned);
+  const explicitOrdinals = Array.from(normalized.matchAll(/第([一二两三四五六七八九十\d]+)个/g))
+    .map((match) => parseChineseCount(match[1]))
+    .filter((num) => num > 0);
+
+  const uniqueOrdinals = Array.from(new Set(explicitOrdinals));
+  if (uniqueOrdinals.length === 0) return [] as string[];
+
+  const subjectMatch = cleanNavigationRawTitle(groupTitle).match(new RegExp(`^(做|写|出|画|拍|录|剪|排)([一二两三四五六七八九十\\d]+)${NAVIGATION_COUNT_UNIT_PATTERN.source}(.+)$`));
+  const action = subjectMatch?.[1] || '做';
+  const subject = subjectMatch?.[4]?.trim() || cleanNavigationRawTitle(groupTitle);
+  const maxCount = parseQuantifiedNavigationSegment(groupTitle)?.count || Math.max(...uniqueOrdinals);
+
+  const rangeMatch = normalized.match(/第([一二两三四五六七八九十\d]+)个到第([一二两三四五六七八九十\d]+)个/);
+  if (rangeMatch) {
+    const start = parseChineseCount(rangeMatch[1]);
+    const end = parseChineseCount(rangeMatch[2]);
+    if (start > 0 && end >= start) {
+      return Array.from({ length: Math.min(end, maxCount) - start + 1 }, (_, index) => buildQuantifiedNavigationStepTitle(action, subject, start + index));
+    }
+  }
+
+  const sorted = uniqueOrdinals.filter((num) => num <= maxCount).sort((a, b) => a - b);
+  return sorted.map((num) => buildQuantifiedNavigationStepTitle(action, subject, num));
+};
+
+const splitNavigationRawSegments = (rawInput?: string) => {
+  const normalized = (rawInput || '')
+    .replace(/[\n\r]+/g, '，')
+    .replace(/[；;。！？!?.]+/g, '，');
+
+  return normalized
+    .split(/(?:，|,|然后|接着|之后|再|顺便|并且|而且|并|以及)/)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+};
+
+const cleanNavigationRawTitle = (value: string) => value
+  .replace(/^(先去|先把|先|再去|再把|再|然后去|然后把|然后|接着去|接着把|接着)/, '')
+  .replace(/^去(?=[\u4e00-\u9fa5])/, '')
+  .replace(/^把/, '')
+  .trim();
+
+const normalizeNavigationMatchText = (value: string) => cleanNavigationRawTitle(value)
+  .replace(/[\s，,、；;。！？!?.]/g, '')
+  .trim();
+
+const navigationTitlesRoughlyMatch = (left: string, right: string) => {
+  const a = normalizeNavigationMatchText(left);
+  const b = normalizeNavigationMatchText(right);
+  if (!a || !b) return false;
+  if (a.includes(b) || b.includes(a)) return true;
+
+  const charsA = Array.from(new Set(a.split('').filter((char) => /[\u4e00-\u9fa5A-Za-z0-9]/.test(char) && !'的一二三四五六七八九十个了把先然后再去做写出画拍录剪排'.includes(char))));
+  const overlap = charsA.filter((char) => b.includes(char)).length;
+  return overlap >= Math.min(2, charsA.length);
+};
+
+const buildNavigationStepGuidance = (title: string) => {
+  if (/整理|收拾|归位|准备|找齐|素材/.test(title)) return '先把这一小步摆到眼前。';
+  if (/第\d+|第一|第二|第三|第四|第五|第六|第七|第八|第九|第十/.test(title)) return '这一版先单独做完就行。';
+  if (/洗澡|洗头|洗漱/.test(title)) return '先顾好当下这一件事。';
+  if (/吃饭|晚饭|午饭|早餐|夜宵/.test(title)) return '先把这一顿安稳吃掉。';
+  return '先做眼前这一小步就可以。';
+};
+
+const formatNavigationOrdinalLabel = (value: number) => {
+  const labels = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+  if (value >= 1 && value <= 10) return `第${labels[value - 1]}个`;
+  return `第${value}个`;
+};
+
+const parseQuantifiedNavigationSegment = (segment: string) => {
+  const cleaned = cleanNavigationRawTitle(segment);
+  const match = cleaned.match(new RegExp(`^(做|写|出|画|拍|录|剪|排)([一二两三四五六七八九十\\d]+)${NAVIGATION_COUNT_UNIT_PATTERN.source}(.+)$`));
+  if (!match) return null;
+
+  const [, action, countText, unit, subjectRaw] = match;
+  const count = parseChineseCount(countText);
+  const subject = subjectRaw.trim();
+
+  if (!count || !subject) return null;
+  if (count > 20) return null;
+
+  const prefix = action === '做' ? '做好' : action;
+
+  return {
+    count,
+    stepTitles: Array.from({ length: count }, (_, index) => `${prefix}${formatNavigationOrdinalLabel(index + 1)}${subject}`),
+  };
+};
+
+const isProfessionalNavigationBlock = (groupTitle: string, stepTitles: string[]) => {
+  const text = [groupTitle, ...stepTitles].join(' ');
+  return NAVIGATION_PROFESSIONAL_TASK_PATTERN.test(text);
+};
+
+const removeInjectedPrepSteps = (stepTitles: string[]) => stepTitles
+  .map((title) => cleanNavigationRawTitle(title))
+  .filter(Boolean);
+
+const dedupeNavigationStepTitles = (stepTitles: string[]) => {
+  const seen = new Set<string>();
+  return stepTitles.filter((title) => {
+    const key = cleanNavigationRawTitle(title).replace(/\s+/g, '');
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const navigationGroupMatchesBlock = (
+  groupTitle: string,
+  stepTitles: string[],
+  block: { groupTitle: string; stepTitles: string[]; locked: boolean },
+) => {
+  if (navigationTitlesRoughlyMatch(groupTitle, block.groupTitle)) return true;
+  return stepTitles.some((title) => (
+    navigationTitlesRoughlyMatch(title, block.groupTitle)
+    || block.stepTitles.some((stepTitle) => navigationTitlesRoughlyMatch(title, stepTitle))
+  ));
+};
+
+const buildNavigationRawBlocks = (rawInput?: string) => {
+  const segments = splitNavigationRawSegments(rawInput);
+  const blocks: Array<{
+    groupTitle: string;
+    stepTitles: string[];
+    locked: boolean;
+    keywords: string[];
+  }> = [];
+  let activeExplicitBlock: {
+    groupTitle: string;
+    stepTitles: string[];
+    locked: boolean;
+    keywords: string[];
+  } | null = null;
+
+  const looksLikeContinuation = (segment: string, keywords: string[]) => {
+    if (/^(做第|第[一二两三四五六七八九十\d]|整理|准备|找齐|收集|打开|开始)/.test(segment)) {
+      return true;
+    }
+    return keywords.some((keyword) => keyword && navigationTitlesRoughlyMatch(segment, keyword));
+  };
+
+  segments.forEach((segment) => {
+    const cleanedSegment = cleanNavigationRawTitle(segment);
+    if (!cleanedSegment) return;
+
+    if (NAVIGATION_STEP_MARKER.test(cleanedSegment)) {
+      const [prefixRaw, suffixRaw = ''] = cleanedSegment.split(NAVIGATION_STEP_MARKER);
+      const groupTitle = cleanNavigationRawTitle(prefixRaw) || '这件事';
+      const subjectKeywords = groupTitle
+        .replace(new RegExp(`^(做|写|出|画|拍|录|剪|排)([一二两三四五六七八九十\\d]+)${NAVIGATION_COUNT_UNIT_PATTERN.source}`), '')
+        .split(/[的和与\s]+/)
+        .map((item) => cleanNavigationRawTitle(item))
+        .filter((item) => item.length >= 2);
+
+      activeExplicitBlock = {
+        groupTitle,
+        stepTitles: [],
+        locked: true,
+        keywords: subjectKeywords,
+      };
+      const firstStep = cleanNavigationRawTitle(suffixRaw);
+      if (firstStep) {
+        activeExplicitBlock.stepTitles.push(firstStep);
+      }
+      blocks.push(activeExplicitBlock);
+      return;
+    }
+
+    if (activeExplicitBlock) {
+      const ordinalTailSteps = expandColloquialOrdinalTail(cleanedSegment, activeExplicitBlock.groupTitle);
+      if (ordinalTailSteps.length > 0) {
+        activeExplicitBlock.stepTitles.push(...ordinalTailSteps);
+        return;
+      }
+    }
+
+    if (activeExplicitBlock && looksLikeContinuation(cleanedSegment, activeExplicitBlock.keywords)) {
+      activeExplicitBlock.stepTitles.push(cleanedSegment);
+      return;
+    }
+
+    activeExplicitBlock = null;
+
+    blocks.push({
+      groupTitle: cleanedSegment,
+      stepTitles: [],
+      locked: false,
+      keywords: [],
+    });
+  });
+
+  return blocks;
+};
+
+const applyRawInputNavigationStructure = (result: NavigationPlannerResult, rawInput?: string): NavigationPlannerResult => {
+  const blocks = buildNavigationRawBlocks(rawInput);
+  const lockedBlocks = blocks.filter((block) => block.locked);
+  if (lockedBlocks.length === 0) {
+    return result;
+  }
+
+  const existingGroups = result.timelineGroups || [];
+  const existingSteps = result.executionSteps || [];
+  const shouldCollapseLockedBlocks = lockedBlocks.length === 1 && blocks.length === 1;
+
+  const rawStructuredGroups = lockedBlocks.map((block, index) => ({
+    id: `g-structured-${index + 1}`,
+    title: cleanTimelineTitleText(block.groupTitle) || '整理一下这件事',
+    description: '',
+    stepIds: [] as string[],
+  }));
+
+  const rawStructuredSteps = lockedBlocks.flatMap((block, blockIndex) => {
+    const groupId = rawStructuredGroups[blockIndex].id;
+    const professionalBlock = isProfessionalNavigationBlock(block.groupTitle, block.stepTitles);
+
+    let titles = block.stepTitles.length > 0
+      ? block.stepTitles
+      : [block.groupTitle];
+
+    if (professionalBlock) {
+      titles = removeInjectedPrepSteps(titles);
+    }
+
+    titles = dedupeNavigationStepTitles(titles);
+
+    return titles.map((title, stepIndex) => ({
+      id: `s-structured-${blockIndex + 1}-${stepIndex + 1}`,
+      groupId,
+      title: cleanNavigationRawTitle(title) || '新步骤',
+      guidance: buildNavigationStepGuidance(title),
+      focusMinutes: /整理|准备|素材/.test(title) ? 5 : 15,
+      estimatedMinutes: /整理|准备|素材/.test(title) ? 3 : 12,
+      location: undefined,
+    }));
+  });
+
+  rawStructuredGroups.forEach((group) => {
+    group.stepIds = rawStructuredSteps.filter((step) => step.groupId === group.id).map((step) => step.id);
+  });
+
+  const structuredPlan = ensureUniquePlannerIds({
+    ...result,
+    timelineGroups: rawStructuredGroups,
+    executionSteps: rawStructuredSteps,
+  });
+
+  const remainingExistingGroups = existingGroups.filter((group) => {
+    const groupSteps = existingSteps.filter((step) => step.groupId === group.id).map((step) => step.title);
+    return !lockedBlocks.some((block) => navigationGroupMatchesBlock(group.title, groupSteps, block));
+  });
+
+  const remainingExistingSteps = existingSteps.filter((step) => remainingExistingGroups.some((group) => group.id === step.groupId));
+
+  if (remainingExistingGroups.length === 0) {
+    if (!shouldCollapseLockedBlocks) {
+      return structuredPlan;
+    }
+
+    const collapsedGroup = structuredPlan.timelineGroups[0];
+    if (!collapsedGroup) return structuredPlan;
+
+    return {
+      ...structuredPlan,
+      timelineGroups: [{
+        ...collapsedGroup,
+        title: cleanTimelineTitleText(lockedBlocks[0]?.groupTitle || collapsedGroup.title) || collapsedGroup.title,
+      }],
+      executionSteps: structuredPlan.executionSteps.map((step) => ({
+        ...step,
+        groupId: collapsedGroup.id,
+      })),
+    };
+  }
+
+  const mergedPlan = mergePlannerResults(structuredPlan, ensureUniquePlannerIds({
+    ...result,
+    timelineGroups: remainingExistingGroups,
+    executionSteps: remainingExistingSteps,
+  }));
+
+  if (!shouldCollapseLockedBlocks) {
+    return mergedPlan;
+  }
+
+  const collapsedGroup = mergedPlan.timelineGroups[0];
+  if (!collapsedGroup) return mergedPlan;
+
+  return {
+    ...mergedPlan,
+    timelineGroups: mergedPlan.timelineGroups.map((group, index) => index === 0
+      ? {
+          ...group,
+          title: cleanTimelineTitleText(lockedBlocks[0]?.groupTitle || group.title) || group.title,
+        }
+      : group),
+    executionSteps: mergedPlan.executionSteps.map((step, index) => index < structuredPlan.executionSteps.length
+      ? {
+          ...step,
+          groupId: collapsedGroup.id,
+        }
+      : step),
+  };
 };
 
 const normalizeCompareText = (value?: string) => (value || '').replace(/[\s，,、；;。！？!?.]/g, '').trim();
@@ -408,6 +842,24 @@ const mergePlannerResults = (base: NavigationPlannerResult, tail: NavigationPlan
       ...step,
       id: nextStepId,
       groupId: groupIdMap.get(step.groupId) || step.groupId,
+    });
+  });
+
+  const groupsWithoutSteps = mergedGroups.filter((group) => !mergedSteps.some((step) => step.groupId === group.id));
+  groupsWithoutSteps.forEach((group, index) => {
+    const fallbackTitle = cleanNavigationRawTitle(group.title) || '新步骤';
+    let nextStepId = `s-tail-fallback-${index + 1}`;
+    while (existingStepIds.has(nextStepId)) {
+      nextStepId = `${nextStepId}-tail`;
+    }
+    existingStepIds.add(nextStepId);
+    mergedSteps.push({
+      id: nextStepId,
+      groupId: group.id,
+      title: fallbackTitle,
+      guidance: buildNavigationStepGuidance(fallbackTitle),
+      focusMinutes: /整理|准备|素材/.test(fallbackTitle) ? 5 : 15,
+      estimatedMinutes: /整理|准备|素材/.test(fallbackTitle) ? 3 : 12,
     });
   });
 
@@ -522,7 +974,8 @@ export class AIUnifiedService {
     variables: Record<string, any>
   ): Promise<AICallResponse> {
     // 获取 API 配置
-    const { config, isConfigured } = useAIStore.getState();
+    const aiStore = useAIStore.getState();
+    const { config, isConfigured } = aiStore;
     
     if (!isConfigured()) {
       return {
@@ -534,30 +987,35 @@ export class AIUnifiedService {
     const { prompt, messages } = toPromptMessage(promptKey, variables);
 
     try {
-      const response = await fetch(config.apiEndpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${config.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: config.model || 'deepseek-chat',
-          messages,
-          temperature: prompt.temperature,
-          max_tokens: prompt.maxTokens,
-        }),
+      console.log('[AIUnifiedService.callAI] 开始请求', {
+        promptKey,
+        endpoint: resolveApiEndpoint(config.apiEndpoint),
+        model: config.model || 'deepseek-chat',
+        temperature: prompt.temperature,
+        maxTokens: prompt.maxTokens,
+        messagesCount: messages.length,
       });
 
-      if (!response.ok) {
-        const error = await response.json();
+      const response = await aiStore.chat(messages, {
+        temperature: prompt.temperature,
+        maxTokens: prompt.maxTokens,
+      });
+
+      console.log('[AIUnifiedService.callAI] 请求完成', {
+        promptKey,
+        success: response.success,
+        error: response.error,
+        contentLength: response.content?.length || 0,
+      });
+
+      if (!response.success) {
         return {
           success: false,
-          error: error.error?.message || 'AI 调用失败',
+          error: response.error || 'AI 调用失败',
         };
       }
 
-      const data = await response.json();
-      const aiResponse = data.choices[0]?.message?.content || '';
+      const aiResponse = response.content || '';
       
       // 尝试解析 JSON（如果提示词要求返回 JSON）
       let parsedData = aiResponse;
@@ -798,11 +1256,13 @@ export class AIUnifiedService {
       let fullContent = '';
       let lastPartialSignature = '';
       let latestMeaningfulPartial: NavigationPlannerResult | null = null;
+      let streamSettled = false;
       console.log('[导航服务] 进入流式分支', { messagesCount: messages.length });
 
-      const streamResult = await aiStore.chatStream(
+      const streamPromise = aiStore.chatStream(
         messages,
         (chunk) => {
+          if (streamSettled) return;
           fullContent += chunk;
           const partial = derivePartialPlannerResult(fullContent, rawInput);
           if (!partial) {
@@ -846,28 +1306,80 @@ export class AIUnifiedService {
         }
       );
 
+      const timeoutPromise = new Promise<{ success: boolean; content?: string; error?: string; timedOut: true }>((resolve) => {
+        setTimeout(() => {
+          resolve({
+            success: !!latestMeaningfulPartial,
+            content: fullContent,
+            error: latestMeaningfulPartial ? '流式生成耗时较长，已先采用当前可用结果' : '流式生成超时，且还没有得到可用结果',
+            timedOut: true,
+          });
+        }, 90000);
+      });
+
+      const streamResult = await Promise.race([streamPromise, timeoutPromise]);
+      if ('timedOut' in streamResult && streamResult.timedOut) {
+        streamSettled = true;
+      }
+
       const finalParsed = streamResult.content ? tryParsePlannerResult(streamResult.content, rawInput) : null;
-      const finalParsedIsComplete = !!(finalParsed && hasMeaningfulPlannerContent(finalParsed) && hasSufficientPlannerCoverage(finalParsed, rawInput));
-      const partialIsComplete = !!(latestMeaningfulPartial && hasSufficientPlannerCoverage(latestMeaningfulPartial, rawInput));
+      const finalParsedHasMeaningfulContent = !!(finalParsed && hasMeaningfulPlannerContent(finalParsed));
+      const finalParsedIsComplete = !!(finalParsedHasMeaningfulContent && hasSufficientPlannerCoverage(finalParsed, rawInput));
+      const partialIsUsable = !!latestMeaningfulPartial;
+      const finalParsedLooksMoreComplete = !!(
+        finalParsedHasMeaningfulContent
+        && (!latestMeaningfulPartial
+          || finalParsed.executionSteps.length > latestMeaningfulPartial.executionSteps.length
+          || finalParsed.timelineGroups.length > latestMeaningfulPartial.timelineGroups.length)
+      );
       const resolvedResult = finalParsedIsComplete
         ? finalParsed
-        : partialIsComplete
-          ? latestMeaningfulPartial
-          : null;
+        : finalParsedLooksMoreComplete
+          ? finalParsed
+          : partialIsUsable
+            ? latestMeaningfulPartial
+            : null;
       console.log('[导航服务] 流式请求完成', {
         success: streamResult.success,
         error: streamResult.error,
+        timedOut: 'timedOut' in streamResult ? streamResult.timedOut : false,
         contentLength: streamResult.content?.length || 0,
         finalParsed,
         latestMeaningfulPartial,
         resolvedResult,
         finalParsedIsComplete,
-        partialIsComplete,
+        partialIsUsable,
       });
-      if (streamResult.success && resolvedResult) {
+      if (resolvedResult) {
         return {
           success: true,
           data: resolvedResult,
+        };
+      }
+
+      const shouldFallbackToNonStream = !resolvedResult && !latestMeaningfulPartial;
+      if (shouldFallbackToNonStream) {
+        console.warn('[导航服务] 流式结果不可用，回退到非流式请求', {
+          streamSuccess: streamResult.success,
+          streamError: streamResult.error,
+          contentLength: streamResult.content?.length || 0,
+        });
+
+        const fallbackResult = await this.callAI('NAVIGATION_MODE_PLANNER', variables);
+        const fallbackData = fallbackResult.success
+          ? normalizePlannerResult(fallbackResult.data, rawInput)
+          : null;
+
+        if (fallbackResult.success && fallbackData && hasMeaningfulPlannerContent(fallbackData)) {
+          return {
+            success: true,
+            data: fallbackData,
+          };
+        }
+
+        return {
+          success: false,
+          error: fallbackResult.error || streamResult.error || (finalParsed || latestMeaningfulPartial ? '这次 AI 在收尾时格式有点乱，但前面已经拆出一版结果了' : '导航智能拆解失败：AI 返回内容不符合预期格式'),
         };
       }
 

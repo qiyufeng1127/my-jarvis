@@ -296,8 +296,6 @@ export default function MobileLayout({ onModuleChange }: MobileLayoutProps = {})
         backgroundColor: '#fefaf0',
         fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
         overflow: 'hidden',
-        height: 'var(--app-visible-viewport-height)',
-        minHeight: 'var(--app-visible-viewport-height)',
         width: '100vw',
       }}
     >

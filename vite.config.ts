@@ -26,8 +26,7 @@ export default defineConfig({
       overlay: false,
     },
     proxy: {
-      // 代理 DeepSeek AI 请求，解决本地开发 CORS 问题
-      '/ai-api': {
+      '/api/deepseek-chat': {
         target: 'https://api.deepseek.com',
         changeOrigin: true,
         rewrite: () => '/v1/chat/completions',
